@@ -178,5 +178,6 @@ class CompanyProfile(CompanyContract):
     #: `dict[str, Any]` parce que `CompanyContract` interdit les clés inconnues
     #: et qu'une carte de feed en porte plus qu'un contrat figé n'en admettrait.
     signals: tuple[dict[str, Any], ...] = Field(default=(), max_length=MAX_RELATED_SIGNALS)
+    history: tuple[dict[str, Any], ...] = Field(default=(), max_length=500)
 
     _aware_contacted_at = field_validator("contacted_at")(aware_optional_datetime)

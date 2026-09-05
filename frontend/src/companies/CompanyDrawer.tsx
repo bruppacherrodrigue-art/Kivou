@@ -103,7 +103,15 @@ export function CompanyDrawer({
 
         <section>
           <h3>Historique</h3>
-          <p>{profile.contacted_at ? `Contactée le ${date(profile.contacted_at)}` : MISSING}</p>
+          {profile.history.length ? (
+            <ul>
+              {profile.history.map((event, index) => (
+                <li key={`${event.type}-${event.occurred_at}-${index}`}>
+                  {event.type === 'contacted' ? 'Contactée' : event.type === 'replied' ? 'A répondu' : event.type === 'note' ? 'Note mise à jour' : event.type === 'signal_saved' ? 'Signal sauvé' : event.type === 'signal_contacted' ? 'Signal contacté' : 'À contacter'} · {date(event.occurred_at)}
+                </li>
+              ))}
+            </ul>
+          ) : <p>{MISSING}</p>}
         </section>
       </aside>
       {selectedSignal ? (

@@ -24,7 +24,12 @@ from signals.persistence.schema import (
     materialized_signal,
     source_event,
 )
-from signals.personalization.for_you import POLICY_VERSION, ForYouInput, fallback_sentence
+from signals.personalization.for_you import (
+    POLICY_VERSION,
+    ForYouInput,
+    client_safe_sentence,
+    fallback_sentence,
+)
 
 
 def _fingerprint(value: Any) -> str:
@@ -219,10 +224,12 @@ def enqueue_stored_for_you_sentence(
                 materialized_signal.join(
                     contract_award,
                     materialized_signal.c.materialization_award_key == contract_award.c.award_key,
-                ).join(
+                )
+                .join(
                     source_event,
                     contract_award.c.event_key == source_event.c.event_key,
-                ).join(
+                )
+                .join(
                     target_icp,
                     materialized_signal.c.target_icp_id == target_icp.c.target_icp_id,
                 )
@@ -279,30 +286,30 @@ def enqueue_stored_for_you_sentence(
 
 def sentence_for_opportunity(connection: sa.Connection, *, opportunity_key: str) -> str | None:
     """Phrase déjà figée pour une représentation matérialisée de l'opportunité."""
-    return connection.scalar(
-        sa.select(for_you_sentence.c.sentence)
-        .select_from(
-            for_you_sentence.join(
-                materialized_signal,
-                for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
+    return client_safe_sentence(
+        connection.scalar(
+            sa.select(for_you_sentence.c.sentence)
+            .select_from(
+                for_you_sentence.join(
+                    materialized_signal,
+                    for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
+                )
             )
+            .where(
+                materialized_signal.c.opportunity_key == opportunity_key,
+                for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
+                for_you_sentence.c.policy_version == POLICY_VERSION,
+            )
+            .order_by(
+                sa.case((for_you_sentence.c.provenance == "generated", 0), else_=1),
+                for_you_sentence.c.created_at.desc(),
+            )
+            .limit(1)
         )
-        .where(
-            materialized_signal.c.opportunity_key == opportunity_key,
-            for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
-            for_you_sentence.c.policy_version == POLICY_VERSION,
-        )
-        .order_by(
-            sa.case((for_you_sentence.c.provenance == "generated", 0), else_=1),
-            for_you_sentence.c.created_at.desc(),
-        )
-        .limit(1)
     )
 
 
-def model_fit_for_opportunity(
-    connection: sa.Connection, *, opportunity_key: str
-) -> str | None:
+def model_fit_for_opportunity(connection: sa.Connection, *, opportunity_key: str) -> str | None:
     """Verdict modèle courant du couple choisi comme appât, s'il existe."""
     return connection.scalar(
         sa.select(for_you_sentence.c.model_fit)

@@ -109,16 +109,29 @@ def ensure_companies_for_unlocked_signals(
     now: dt.datetime,
 ) -> dict[str, str]:
     """Resolve company keys for an authorised feed page in one identity batch."""
-    if not items:
+    return ensure_companies_for_signal_keys(
+        connection,
+        signal_keys=tuple(item.signal.signal_key for item in items),
+        now=now,
+    )
+
+
+def ensure_companies_for_signal_keys(
+    connection: sa.Connection,
+    *,
+    signal_keys: tuple[str, ...],
+    now: dt.datetime,
+) -> dict[str, str]:
+    """Project named holders after the caller has authorised the signal keys."""
+    if not signal_keys:
         return {}
-    by_signal_key = {item.signal.signal_key: item for item in items}
     indexed = index_signal_company_identities(
         connection,
-        signal_keys=tuple(by_signal_key),
+        signal_keys=signal_keys,
     )
     candidates: dict[str, CompanyCandidate] = {}
     fingerprint_by_signal_key: dict[str, str] = {}
-    for signal_key, item in by_signal_key.items():
+    for signal_key in signal_keys:
         identity = indexed.get(signal_key)
         if identity is None:
             continue
@@ -129,7 +142,7 @@ def ensure_companies_for_unlocked_signals(
             CompanyCandidate(
                 resolved=identity.resolved,
                 source_award_key=identity.source_award_key,
-                origin_signal_key=item.signal.signal_key,
+                origin_signal_key=signal_key,
             ),
         )
     stored = get_or_create_companies(

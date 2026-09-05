@@ -423,7 +423,7 @@ def test_retry_is_suppressed_when_notifications_are_disabled(app, engine, mailer
     assert len(events(engine, event_type="alert_suppressed")) == 1
 
 
-def test_retry_is_suppressed_when_entitlement_is_lost(app, engine, mailer) -> None:
+def test_retry_is_suppressed_when_paid_plan_falls_back_to_discovery(app, engine, mailer) -> None:
     client, _ = subscriber(app, engine)
     mailer.fail_with = failure("smtp_451", retryable=True)
     cycle(engine, mailer, now=NOW)
@@ -434,7 +434,7 @@ def test_retry_is_suppressed_when_entitlement_is_lost(app, engine, mailer) -> No
 
     row = deliveries(engine)[0]
     assert row.status == "suppressed"
-    assert row.suppression_reason_code == "entitlement_lost"
+    assert row.suppression_reason_code == "recipient_context_changed"
     assert row.attempt_count == attempts
     assert not report.has_current_incident
     assert mailer.attempts == 1

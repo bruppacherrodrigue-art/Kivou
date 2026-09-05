@@ -55,6 +55,8 @@ PRODUCT_EVENT_TYPES: tuple[str, ...] = (
     "signal_feedback_relevant",
     "signal_feedback_not_relevant",
     "signal_contacted",
+    "company_contact_updated",
+    "company_note_updated",
     "alert_queued",
     "alert_sent",
     "alert_failed",

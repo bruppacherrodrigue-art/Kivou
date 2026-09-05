@@ -65,6 +65,7 @@ class AlertMessage:
     text_body: str
     message_id: str
     language: str
+    html_body: str | None = None
     #: La page de préférences du compte. Sert à la fois le pied de page et
     #: l'en-tête `List-Unsubscribe` : les deux doivent désigner le même endroit,
     #: sans quoi le destinataire suit un lien qui ne le désabonne pas.
@@ -158,6 +159,8 @@ class SmtpAlertGateway:
             email["List-Unsubscribe"] = f"<{message.preferences_url}>"
         email["Auto-Submitted"] = "auto-generated"
         email.set_content(message.text_body)
+        if message.html_body:
+            email.add_alternative(message.html_body, subtype="html")
 
         server: smtplib.SMTP | None = None
         try:

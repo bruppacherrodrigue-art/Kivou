@@ -33,7 +33,10 @@ import sqlalchemy as sa
 
 from signals.billing.access import FeedAccess
 from signals.companies.schema import saas_company
-from signals.companies.service import company_keys_for_signals
+from signals.companies.service import (
+    company_keys_for_signals,
+    ensure_companies_for_signal_keys,
+)
 from signals.engagement.company import contacts_by_company
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
@@ -297,6 +300,7 @@ def list_companies(
     query: str | None,
     limit: int,
     cursor: str | None,
+    now: dt.datetime,
 ) -> CompanyPage:
     decoded_cursor = None if cursor is None else decode_company_cursor(cursor)
 
@@ -308,6 +312,11 @@ def list_companies(
         access=access,
     )
 
+    ensure_companies_for_signal_keys(
+        connection,
+        signal_keys=tuple(signal.signal_key for signal in signals),
+        now=now,
+    )
     company_keys = company_keys_for_signals(
         connection, signal_keys=tuple(signal.signal_key for signal in signals)
     )

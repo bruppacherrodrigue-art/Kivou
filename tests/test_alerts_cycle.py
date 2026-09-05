@@ -82,7 +82,12 @@ def test_alert_selection_continues_after_the_first_feed_page(
 ) -> None:
     items = tuple(
         types.SimpleNamespace(
-            signal=types.SimpleNamespace(signal_key=f"sig-{index:02d}"), model_fit=None
+            signal=types.SimpleNamespace(
+                signal_key=f"sig-{index:02d}",
+                award=types.SimpleNamespace(title="Marché test"),
+            ),
+            model_fit=None,
+            display=object(),
         )
         for index in range(51)
     )
@@ -140,7 +145,12 @@ def test_alert_selection_stops_paginating_once_it_holds_enough_signals(
     """
     items = tuple(
         types.SimpleNamespace(
-            signal=types.SimpleNamespace(signal_key=f"sig-{index:03d}"), model_fit=None
+            signal=types.SimpleNamespace(
+                signal_key=f"sig-{index:03d}",
+                award=types.SimpleNamespace(title="Marché test"),
+            ),
+            model_fit=None,
+            display=object(),
         )
         for index in range(500)
     )
@@ -184,7 +194,9 @@ def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     item = types.SimpleNamespace(
-        signal=types.SimpleNamespace(signal_key="sig-501"),
+        signal=types.SimpleNamespace(
+            signal_key="sig-501", award=types.SimpleNamespace(title="Marché test")
+        ),
         display=object(),
         status="recent_award",
         model_fit=None,
@@ -228,18 +240,20 @@ def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@ne
     return client, keys
 
 
-# ─── §37.1 — Discovery ne reçoit rien ────────────────────────────────────────
+# ─── PR6 — Discovery reçoit un aperçu hebdomadaire ───────────────────────────
 
 
-def test_a_discovery_account_never_receives_an_automatic_email(app, engine, mailer):
+def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine, mailer):
     client = signed_up(app)
     icp = icp_of(client)
     seed(engine, icp, count=5)
+    assert client.get("/signals").status_code == 200
 
     report = cycle(engine, mailer)
-    assert mailer.sent == []
-    assert deliveries(engine) == []
-    assert [outcome.result for outcome in report.outcomes] == ["not_eligible"]
+    assert len(mailer.sent) == 1
+    assert report.sent[0].signal_count == 1
+    assert "autres signaux" in mailer.last.text_body
+    assert f"{PUBLIC_APP_URL}/pricing" in mailer.last.text_body
 
 
 # ─── §37.2 à §37.5 — les cadences ────────────────────────────────────────────
@@ -498,7 +512,7 @@ def test_a_downgrade_before_sending_re_evaluates_the_entitlement(app, engine, ma
 
     report = cycle(engine, mailer)
     assert mailer.sent == []
-    assert [outcome.result for outcome in report.outcomes] == ["not_eligible"]
+    assert [outcome.result for outcome in report.outcomes] == ["nothing_to_send"]
 
 
 def test_a_paid_account_only_receives_what_its_plan_unlocks(app, engine, mailer):
@@ -680,6 +694,21 @@ def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mail
     assert sentence in mailer.last.text_body
 
 
+def test_the_digest_without_cached_sentence_uses_customer_copy_not_engine_vocabulary(
+    app, engine, mailer
+):
+    subscriber(app, engine, plan="scale", count=1)
+    with engine.begin() as connection:
+        connection.execute(sa.delete(for_you_sentence))
+
+    cycle(engine, mailer)
+
+    body = mailer.last.text_body
+    assert "Pour vous :" in body
+    assert "materials_or_components" not in body
+    assert "workforce_capacity" not in body
+
+
 def test_the_digest_excludes_a_signal_rejected_by_the_model(app, engine, mailer):
     subscriber(app, engine, plan="scale", count=1)
     with engine.begin() as connection:
@@ -749,6 +778,23 @@ def test_the_email_shows_where_to_stop_receiving_alerts(app, engine, mailer):
     message = mailer.last
     assert attendu in message.text_body, "le pied de page ne dit pas où aller"
     assert message.preferences_url == attendu, "l'en-tête et le pied de page divergent"
+
+
+def test_the_weekly_email_has_matching_html_and_text_cards(app, engine, mailer):
+    _, keys = subscriber(app, engine, plan="scale", count=3)
+
+    cycle(engine, mailer)
+
+    message = mailer.last
+    assert message.subject == "3 nouveaux signaux pour vous"
+    assert message.html_body is not None
+    for key in keys:
+        link = f"{PUBLIC_APP_URL}/app/signals/{key}"
+        assert link in message.text_body
+        assert link in message.html_body
+    assert "Pour vous" in message.text_body
+    assert "Pour vous" in message.html_body
+    assert message.preferences_url in message.html_body
 
 
 def test_the_email_never_dumps_evidence(app, engine, mailer):

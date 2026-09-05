@@ -172,6 +172,13 @@ def _dashboard(client: TestClient) -> dict:
     return response.json()
 
 
+def test_zone_labels_deduplicate_legacy_country_composites() -> None:
+    from signals.api.routes_dashboard import _sector_label, _unique_zone_labels
+
+    assert _unique_zone_labels(("FR · France", "France")) == ["France"]
+    assert _sector_label("Matériaux · FR") == "Matériaux"
+
+
 def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(client, engine):
     _seed_new_signals(client, engine)
 
@@ -180,8 +187,8 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert first["as_of"] == NOW.date().isoformat()
     assert first["new_since_last_visit"] == 3
     assert first["profile"]["name"].startswith("Suivi ")
-    assert first["profile"]["sector_label"] == "—"
-    assert first["profile"]["zone_labels"] == COMPLETE_ICP_INPUT["territories"]
+    assert first["profile"]["sector_label"].strip(" —")
+    assert first["profile"]["zone_labels"] == ["Suisse"]
     assert first["plan"]["name"] == "Scale"
     assert first["plan"]["opened"] == 0
     assert first["plan"]["quota"] is None

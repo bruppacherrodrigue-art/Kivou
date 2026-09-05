@@ -193,6 +193,7 @@ def _to_follow_up(
         query=None,
         limit=feed_query.HISTORY_SCAN_CAP,
         cursor=None,
+        now=now,
     )
     ordered = sorted(page.rows, key=lambda row: row.contacted_at)
     follow_up_truncated = len(ordered) > _FOLLOW_UP_LIMIT or page.scan_truncated
@@ -311,7 +312,13 @@ def build_dashboard(
         if item.signal.icp_match_band == "strong" and item.model_fit != "none"
     )
 
-    top3_candidates = [item for item in scope.matched if item.model_fit != "none"]
+    top3_candidates = [
+        item
+        for item in scope.matched
+        if item.model_fit != "none"
+        and item.display is not None
+        and bool((item.signal.award.title or "").strip())
+    ]
     seen_top3 = {item.signal.signal_key for item in top3_candidates}
     for landing_key in accounts.landing_signal_keys(connection, account_id=account_id):
         if landing_key in seen_top3:
@@ -327,6 +334,7 @@ def build_dashboard(
             landing_item is not None
             and landing_item.display is not None
             and landing_item.model_fit != "none"
+            and bool((landing_item.signal.award.title or "").strip())
             and access.is_unlocked(landing_item)
         ):
             top3_candidates.append(landing_item)

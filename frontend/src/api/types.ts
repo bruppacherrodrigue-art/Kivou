@@ -540,6 +540,11 @@ export interface LockedFeedItem {
     plausible_need_count: number
   }
   headline: string
+  teaser: {
+    date: string | null
+    department: string | null
+    amount: { value: string; currency: string | null } | null
+  }
   /** La surface verrouillée de PR1 interdit cette clé, même à `null`. */
   presentation?: never
   factual_display?: never
@@ -675,6 +680,11 @@ export interface CompanyProfile {
   }
   contact_status: CompanyContactStatus
   contacted_at: string | null
+  history: Array<{
+    type: 'contacted' | 'replied' | 'to_contact' | 'note' | 'signal_saved' | 'signal_contacted'
+    occurred_at: string
+    signal_key: string | null
+  }>
   note: string | null
   signals: UnlockedFeedItem[]
 }

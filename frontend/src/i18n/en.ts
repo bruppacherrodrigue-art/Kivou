@@ -514,7 +514,7 @@ export const en: Dictionary = {
     heroCarousel: {
       regionLabel: 'Sales signal examples',
       eventLabel: 'PUBLIC CONTRACT DETECTED',
-      opportunityLabel: 'Plausible sales angle',
+      opportunityLabel: 'Likely sales angle',
       timingLabel: 'Published schedule',
       sourceVerified: 'Verified source',
       viewSignal: 'View signal',
@@ -685,7 +685,7 @@ export const en: Dictionary = {
       factBody: 'Official publication of an awarded contract and its winner.',
       requirementTitle: 'Documentary requirement',
       requirementBody: 'We read the contract documents and extract the delivery requirements.',
-      needTitle: 'Plausible need',
+      needTitle: 'Likely delivery need',
       needBody:
         'What that requirement may imply for the winner. A hypothesis, not a purchase.',
       timingTitle: 'Timing',
@@ -702,7 +702,7 @@ export const en: Dictionary = {
     ],
     honestyQualifies: 'Kivou qualifies',
     honestyQualifiesItems: [
-      'A plausible need, never a certain purchase.',
+      'A likely delivery need, never a certain purchase.',
       'A commercial window, and what the date allows us to say about it.',
       'A possible fit between that need and what you sell.',
     ],
@@ -792,7 +792,7 @@ export const en: Dictionary = {
     overviewTitle: 'A substantial contract provides concrete facts for assessing a supplier opportunity.',
     overviewBody:
       '{company} was awarded a {amount} contract in {location}. Kivou brings together the award, published volumes and schedule so a supplier can assess fit with its offering.',
-    needLabel: 'Plausible commercial need',
+    needLabel: 'Likely commercial need',
     overviewHighlight: 'Published award. Documented volumes. Identified company.',
 
     volumesTitle: 'What the company has to deliver',
@@ -807,10 +807,10 @@ export const en: Dictionary = {
 
     opportunitiesTitle: 'Related commercial opportunities',
     opportunitiesLead: 'The published volumes reveal several potential supplier opportunities.',
-    plausibleAngle: 'Plausible sales angle',
+    plausibleAngle: 'Likely sales angle',
     opportunityDoorsTitle: 'Doors and frames',
     opportunityDoorsBody:
-      '{woodDoors} timber frames and doors and {steelDoors} steel frames and timber doors are published. For a compatible supplier, these volumes provide a plausible sales angle.',
+      '{woodDoors} timber frames and doors and {steelDoors} steel frames and timber doors are published. For a compatible supplier, these volumes provide a likely sales angle.',
     opportunityWoodTitle: 'Skirting and timber products',
     opportunityWoodBody:
       'The description publishes {skirting} of skirting and {wallCladding} of timber wall cladding. These volumes may be relevant to a compatible product supplier.',
@@ -910,19 +910,19 @@ export const en: Dictionary = {
     statusIdentified: 'Identified',
     statusPublished: 'Published',
     statusPublishedDescription: 'Published in the description',
-    statusPlausible: 'Plausible',
+    statusPlausible: 'Likely',
     statusLimited: 'Limited',
     statusMetadata: 'Notice metadata',
 
     finalCtaTitle: 'Receive opportunities that match your business',
     finalCtaBody:
-      'Describe what you sell and where you operate. Kivou monitors public contract awards and shows you the companies, facts, schedule and plausible needs that match your profile.',
+      'Describe what you sell and where you operate. Kivou monitors awarded public contracts and shows you the holders, facts, schedule and delivery needs that match your target profile.',
     finalCtaNoCard: 'No payment card required.',
     finalCtaPrimary: 'See my first 3 signals',
 
     previewEyebrow: 'Real signal example',
     previewMode: 'Official notice verified',
-    previewNeedLabel: 'Plausible need',
+    previewNeedLabel: 'Likely need',
     previewCta: 'See this signal in full',
     previewAwarded: 'Awarded on {date}',
     previewStart: 'Performance from {date}',
@@ -1121,10 +1121,10 @@ export const en: Dictionary = {
     publishedAmount: 'Published amount',
     awardedContract: 'Awarded contract',
     publicFact: 'Public fact',
-    plausibleNeed: 'Plausible need',
+    plausibleNeed: 'Likely need',
     profileMatch: 'Fit with your profile',
     timing: 'Commercial timing',
-    plausibleNeedsShort: 'Plausible needs',
+    plausibleNeedsShort: 'Likely needs',
     aria: {
       list: 'Signal list',
       updated: 'Signal list updated.',
@@ -1141,8 +1141,8 @@ export const en: Dictionary = {
     country: 'Country',
     sector: 'Sector',
     magnitude: 'Order of magnitude',
-    needCountOne: '{count} plausible need identified',
-    needCountOther: '{count} plausible needs identified',
+    needCountOne: '{count} likely need identified',
+    needCountOther: '{count} likely needs identified',
     detailTitle: 'This signal is locked',
     detailBody:
       'Your current access does not open this signal. Access to signals depends on your plan entitlements and its history window.',
@@ -1192,8 +1192,8 @@ export const en: Dictionary = {
     sourceOpen: 'Open the source notice',
     sourceSystem: 'Source system',
     noticeId: 'Notice identifier',
-    needsTitle: 'Plausible needs',
-    needsEmpty: 'No plausible need was retained for this contract.',
+    needsTitle: 'Likely needs',
+    needsEmpty: 'No delivery need was retained for this contract.',
     needTargeted: 'Matches your profile',
     needTiming: 'Window',
     needReasoning: 'Why this hypothesis',

@@ -8,6 +8,7 @@ visite d'aujourd'hui.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import sqlalchemy as sa
@@ -31,6 +32,24 @@ _PLAN_NAMES = {
     "pro": "Pro",
     "scale": "Scale",
 }
+
+
+def _unique_zone_labels(codes: tuple[str, ...]) -> list[str]:
+    labels: list[str] = []
+    for code in codes:
+        for raw_label in code.split("·"):
+            normalized = raw_label.strip()
+            label = subdivision_label(normalized) or {"FR": "France", "CH": "Suisse"}.get(
+                normalized, normalized
+            )
+            if label and label not in labels:
+                labels.append(label)
+    return labels
+
+
+def _sector_label(value: str) -> str:
+    """Retire le suffixe pays des anciens libellés profil déjà composés."""
+    return re.sub(r"\s*[·—-]\s*(?:FR|France|CH|Suisse)\s*$", "", value).strip() or value
 
 
 @router.get("/dashboard")
@@ -82,15 +101,15 @@ def get_dashboard(request: Request) -> dict[str, Any]:
         result["profile"] = (
             {
                 "name": active_profile.label,
-                "sector_label": (
+                "sector_label": _sector_label(
                     cpv_label(active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"), lang=lang)
                     if active_profile.customer_input.sector_cpv_prefixes
-                    else active_profile.customer_input.offer_summary or "—"
+                    else active_profile.customer_input.offer_summary or active_profile.label
                 ),
-                "zone_labels": [
-                    subdivision_label(code) or code
-                    for code in active_profile.customer_input.territory_subdivisions
-                ] or list(active_profile.customer_input.territories),
+                "zone_labels": _unique_zone_labels(
+                    active_profile.customer_input.territory_subdivisions
+                    or active_profile.customer_input.territories
+                ),
             }
             if active_profile is not None
             else {"name": "—", "sector_label": "—", "zone_labels": []}

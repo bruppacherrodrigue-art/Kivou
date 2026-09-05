@@ -8,6 +8,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 
 PREVIOUS = "0040_for_you_raw_diagnostics"
 HEAD = "0041_for_you_model_fit"
+CURRENT_HEAD = "0042_account_deletion"
 
 
 def test_for_you_migration_adds_bounded_raw_diagnostics(tmp_path) -> None:
@@ -19,7 +20,7 @@ def test_for_you_migration_adds_bounded_raw_diagnostics(tmp_path) -> None:
 
     inspector = sa.inspect(engine)
     assert current_revision(engine) == HEAD
-    assert ScriptDirectory.from_config(config).get_heads() == [HEAD]
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
     columns = {column["name"] for column in inspector.get_columns("for_you_sentence")}
     assert columns == {
         "for_you_id", "signal_key", "target_icp_id", "signal_fingerprint",

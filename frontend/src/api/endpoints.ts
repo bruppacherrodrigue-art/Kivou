@@ -163,6 +163,14 @@ export const dashboard = {
   get: () => request<DashboardResponse>('/dashboard'),
 }
 
+export const accountData = {
+  export: () => request<Record<string, unknown>>('/account/export'),
+  requestDeletion: () => request<{ scheduled_for: string }>('/account/deletion', {
+    method: 'POST',
+    body: { confirmation: 'SUPPRIMER' },
+  }),
+}
+
 // ─── Retour client ───────────────────────────────────────────────────────────
 
 interface FeedbackEnvelope {

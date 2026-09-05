@@ -844,6 +844,13 @@ function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
       plausible_need_count: item.analysis.plausible_needs.items.length,
     },
     headline: 'Un marché public vient d’être attribué.',
+    teaser: {
+      date: item.event.date,
+      department: item.contract.location?.subdivision_label ?? null,
+      amount: item.contract.amount
+        ? { value: item.contract.amount.value, currency: item.contract.amount.currency }
+        : null,
+    },
   } satisfies LockedFeedItem
 }
 
@@ -1020,6 +1027,11 @@ function toCompanyProfile(record: AwardSignal): CompanyProfile {
     contacted_at: record.id === 'h-huether-munich' ? '2026-08-30T09:00:00+00:00' : null,
     note: record.id === 'h-huether-munich' ? 'Rappeler cette semaine.' : null,
     signals: [item],
+    history: record.id === 'h-huether-munich' ? [{
+      type: 'contacted',
+      occurred_at: '2026-08-30T09:00:00+00:00',
+      signal_id: null,
+    }] : [],
   } satisfies CompanyProfile
 }
 

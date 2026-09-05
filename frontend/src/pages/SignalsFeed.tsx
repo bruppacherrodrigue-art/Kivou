@@ -149,9 +149,10 @@ function LockedRow({
   note: string
   onOpen: () => void
 }) {
+  const { amount, shortDate } = useI18n()
   return (
     <tr className={styles.lockedRow} onClick={onOpen}>
-      <td>{MISSING}</td>
+      <td>{shortDate(item.teaser.date) ?? MISSING}</td>
       <td>
         <button type="button" className={styles.lockedButton} onClick={(event) => {
           event.stopPropagation()
@@ -161,8 +162,8 @@ function LockedRow({
         </button>
       </td>
       <td className={styles.lockedNote}>{note}</td>
-      <td className={styles.cellNumeric}>{MISSING}</td>
-      {compact ? null : <td>{MISSING}</td>}
+      <td className={styles.cellNumeric}>{item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : MISSING}</td>
+      {compact ? null : <td>{item.teaser.department ?? MISSING}</td>}
       <td>{MISSING}</td>
     </tr>
   )
@@ -527,7 +528,8 @@ export function SignalsFeed() {
    * un plancher, pas une somme définitive : c'est le signal du « + ». */
   const hasClientFilter = hasMin || Boolean(needle)
   const loadedCount = discoveryGrantCount ?? items.length
-  const moreBeyondLoaded = Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated)
+  const moreBeyondLoaded = planCode !== 'discovery'
+    && (Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated))
   const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''
   const signalCount = !feed.data
     ? t.common.loading
@@ -538,6 +540,15 @@ export function SignalsFeed() {
       })
 
   const sectorLocked = feed.data?.filter_access.sector === false
+  const displayedRows = useMemo(() => {
+    if (planCode !== 'discovery') return rows
+    const unlocked = rows.filter((item) => !item.locked)
+    const locked = rows.filter((item) => item.locked)
+    return [...unlocked, ...locked.slice(0, 5)]
+  }, [planCode, rows])
+  const hiddenDiscoveryCount = planCode === 'discovery'
+    ? Math.max(0, rows.length - displayedRows.length)
+    : 0
 
   const drawer = (
     <SignalDrawer
@@ -599,7 +610,7 @@ export function SignalsFeed() {
           })}
         </div>
 
-        <div className={styles.filter}>
+        <div className={styles.filter} title={sectorLocked ? t.reference.signalsPage.restrictedFilter : undefined}>
           <input
             list="signals-zones"
             placeholder={copy.filters.zone}
@@ -612,7 +623,7 @@ export function SignalsFeed() {
           </datalist>
         </div>
 
-        <div className={styles.filter}>
+        <div className={styles.filter} title={copy.filters.loadedOnly}>
           <input
             placeholder={copy.filters.sectorPlaceholder}
             aria-label={copy.filters.sector}
@@ -623,6 +634,7 @@ export function SignalsFeed() {
             aria-describedby={sectorLocked ? 'signals-sector-restricted' : undefined}
             onChange={(event) => setParam('cpv', event.target.value.replace(/\D/g, ''))}
           />
+          {sectorLocked ? <span role="tooltip" id="signals-sector-restricted" className={styles.filterTooltip}>{t.reference.signalsPage.restrictedFilter}</span> : null}
         </div>
 
         <div className={styles.filter}>
@@ -650,7 +662,7 @@ export function SignalsFeed() {
           </select>
         </div>
 
-        <div className={`${styles.filter} ${styles.searchFilter}`}>
+        <div className={`${styles.filter} ${styles.searchFilter}`} title={copy.filters.loadedOnly}>
           <input
             type="search"
             value={filters.q}
@@ -662,15 +674,9 @@ export function SignalsFeed() {
         </div>
       </div>
 
-      <small id="signals-loaded-only" className={styles.loadedOnly}>
+      <span role="tooltip" id="signals-loaded-only" className={styles.filterTooltip}>
         {copy.filters.loadedOnly}
-      </small>
-
-      {sectorLocked ? (
-        <p id="signals-sector-restricted" className={styles.restrictedNote}>
-          {t.reference.signalsPage.restrictedFilter}
-        </p>
-      ) : null}
+      </span>
 
       {actionError ? (
         <p className={styles.alert} role="alert">{copy.actionError}</p>
@@ -690,7 +696,7 @@ export function SignalsFeed() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((entry) => (entry.locked ? (
+              {displayedRows.map((entry) => (entry.locked ? (
                 <LockedRow
                   key={entry.signal_id}
                   item={entry}
@@ -707,6 +713,13 @@ export function SignalsFeed() {
                   onOpen={openSignal}
                 />
               )))}
+              {hiddenDiscoveryCount ? (
+                <tr className={styles.lockedRow}>
+                  <td colSpan={compact ? 5 : 6}>
+                    {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/pricing">voir les offres</Link>
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
 
@@ -732,7 +745,7 @@ export function SignalsFeed() {
                   {t.common.retry}
                 </button>
               </span>
-            ) : feed.data?.page.has_more ? (
+            ) : planCode !== 'discovery' && feed.data?.page.has_more ? (
               <button
                 type="button"
                 className="text-link"

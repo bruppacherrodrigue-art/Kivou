@@ -520,7 +520,7 @@ export const fr = {
     heroCarousel: {
       regionLabel: 'Exemples de signaux commerciaux',
       eventLabel: 'CONTRAT PUBLIC DÉTECTÉ',
-      opportunityLabel: 'Angle commercial plausible',
+      opportunityLabel: 'Angle commercial probable',
       timingLabel: 'Calendrier publié',
       sourceVerified: 'Source vérifiée',
       viewSignal: 'Voir le signal',
@@ -692,7 +692,7 @@ export const fr = {
       factBody: 'Publication officielle d’un marché attribué et de son gagnant.',
       requirementTitle: 'Exigence documentaire',
       requirementBody: 'Analyse des pièces du marché et extraction des exigences d’exécution.',
-      needTitle: 'Besoin plausible',
+      needTitle: 'Besoin d’exécution probable',
       needBody: 'Ce que cette exigence peut impliquer pour le gagnant. Une hypothèse, pas un achat.',
       timingTitle: 'Timing',
       timingBody: 'À quelle distance de la décision nous sommes, et ce que cela autorise à dire.',
@@ -708,7 +708,7 @@ export const fr = {
     ],
     honestyQualifies: 'Kivou qualifie',
     honestyQualifiesItems: [
-      'Un besoin plausible, jamais un achat certain.',
+      'Un besoin d’exécution probable, jamais un achat certain.',
       'Une fenêtre commerciale, et ce que la date permet d’en dire.',
       'Une adéquation possible entre ce besoin et ce que vous vendez.',
     ],
@@ -799,7 +799,7 @@ export const fr = {
       'Un marché important fournit des faits concrets pour évaluer un signal commercial.',
     overviewBody:
       '{company} a remporté un marché de {amount} à {location}. Kivou rassemble l’attribution, les volumes publiés et le calendrier pour permettre à un fournisseur d’évaluer la compatibilité avec son offre.',
-    needLabel: 'Besoin commercial plausible',
+    needLabel: 'Besoin commercial probable',
     overviewHighlight: 'Attribution publiée. Volumes étayés. Entreprise identifiée.',
 
     volumesTitle: 'Ce que l’entreprise devra exécuter',
@@ -814,10 +814,10 @@ export const fr = {
 
     opportunitiesTitle: 'Opportunités commerciales associées',
     opportunitiesLead: 'Les volumes publiés font apparaître plusieurs angles de prospection possibles.',
-    plausibleAngle: 'Angle commercial plausible',
+    plausibleAngle: 'Angle commercial probable',
     opportunityDoorsTitle: 'Portes et huisseries',
     opportunityDoorsBody:
-      '{woodDoors} huisseries et portes bois ainsi que {steelDoors} huisseries acier et portes bois sont publiées. Pour un fournisseur compatible, ces volumes constituent un angle commercial plausible.',
+      '{woodDoors} huisseries et portes bois ainsi que {steelDoors} huisseries acier et portes bois sont publiées. Pour un fournisseur compatible, ces volumes constituent un angle commercial probable.',
     opportunityWoodTitle: 'Plinthes et produits bois',
     opportunityWoodBody:
       'Le descriptif publie {skirting} de plinthes et {wallCladding} de revêtement mural bois. Ces volumes peuvent intéresser un fournisseur de produits compatibles.',
@@ -917,19 +917,19 @@ export const fr = {
     statusIdentified: 'Identifiée',
     statusPublished: 'Publiés',
     statusPublishedDescription: 'Publiées dans le descriptif',
-    statusPlausible: 'Plausible',
+    statusPlausible: 'Probable',
     statusLimited: 'Limitée',
     statusMetadata: 'Métadonnées de l’avis',
 
     finalCtaTitle: 'Recevez les signaux qui correspondent à votre activité',
     finalCtaBody:
-      'Décrivez ce que vous vendez et où vous intervenez. Kivou surveille les attributions publiques et vous montre les entreprises, les faits, le calendrier et les besoins plausibles correspondant à votre profil.',
+      'Décrivez ce que vous vendez et où vous intervenez. Kivou surveille les marchés attribués et vous montre les titulaires, les faits, le calendrier et les besoins d’exécution correspondant à votre profil cible.',
     finalCtaNoCard: 'Aucune carte bancaire nécessaire.',
     finalCtaPrimary: 'Voir mes 3 premiers signaux',
 
     previewEyebrow: 'Exemple de signal réel',
     previewMode: 'Avis officiel vérifié',
-    previewNeedLabel: 'Besoin plausible',
+    previewNeedLabel: 'Besoin probable',
     previewCta: 'Voir ce signal en entier',
     previewAwarded: 'Attribué le {date}',
     previewStart: 'Exécution à partir du {date}',
@@ -1131,10 +1131,10 @@ export const fr = {
     publishedAmount: 'Montant publié',
     awardedContract: 'Marché remporté',
     publicFact: 'Fait public',
-    plausibleNeed: 'Besoin plausible',
+    plausibleNeed: 'Besoin probable',
     profileMatch: 'Correspondance avec votre profil',
     timing: 'Calendrier commercial',
-    plausibleNeedsShort: 'Besoins plausibles',
+    plausibleNeedsShort: 'Besoins probables',
     aria: {
       list: 'Liste des signaux',
       updated: 'Liste des signaux mise à jour.',
@@ -1151,8 +1151,8 @@ export const fr = {
     country: 'Pays',
     sector: 'Secteur',
     magnitude: 'Ordre de grandeur',
-    needCountOne: '{count} besoin plausible identifié',
-    needCountOther: '{count} besoins plausibles identifiés',
+    needCountOne: '{count} besoin probable identifié',
+    needCountOther: '{count} besoins probables identifiés',
     detailTitle: 'Ce signal est verrouillé',
     detailBody:
       'Votre accès actuel n’ouvre pas ce signal. L’accès aux signaux dépend des droits de votre offre et de sa fenêtre d’historique.',
@@ -1202,8 +1202,8 @@ export const fr = {
     sourceOpen: 'Ouvrir l’avis source',
     sourceSystem: 'Système source',
     noticeId: 'Identifiant d’avis',
-    needsTitle: 'Besoins plausibles',
-    needsEmpty: 'Aucun besoin plausible n’a été retenu pour ce marché.',
+    needsTitle: 'Besoins probables',
+    needsEmpty: 'Aucun besoin d’exécution n’a été retenu pour ce marché.',
     needTargeted: 'Correspond à votre profil',
     needTiming: 'Fenêtre',
     needReasoning: 'Pourquoi cette hypothèse',

@@ -6,10 +6,20 @@ from signals.personalization.for_you import (
     FOR_YOU_SYSTEM_PROMPT,
     ForYouInput,
     build_for_you_prompt,
+    client_safe_sentence,
     compose_generated_sentence,
+    fallback_sentence,
     parse_generated_fragments,
     validate_sentence,
 )
+
+
+def test_fallback_and_legacy_cache_never_expose_engine_vocabulary() -> None:
+    assert fallback_sentence(context()) == "Ce marché correspond à votre profil cible."
+    assert client_safe_sentence("besoin principal couvert : materials_or_components") is None
+    assert client_safe_sentence("Votre offre répond aux besoins de ce marché.") == (
+        "Votre offre répond aux besoins de ce marché."
+    )
 
 
 def context() -> ForYouInput:
@@ -60,8 +70,14 @@ def test_rejects_invented_date_and_name_or_place() -> None:
 
 
 def test_rejects_editorial_violations() -> None:
-    assert validate_sentence("Une excellente correspondance pour vous !", context()).reason == "exclamation"
-    assert validate_sentence("Votre offre est la meilleure pour ce marché.", context()).reason == "superlative"
+    assert (
+        validate_sentence("Une excellente correspondance pour vous !", context()).reason
+        == "exclamation"
+    )
+    assert (
+        validate_sentence("Votre offre est la meilleure pour ce marché.", context()).reason
+        == "superlative"
+    )
     long = " ".join(["mot"] * 26) + "."
     assert validate_sentence(long, context()).reason == "too_many_words"
 
@@ -124,16 +140,34 @@ def test_accepts_a_parenthetical_with_only_the_available_fact(
 @pytest.mark.parametrize(
     ("value", "sentence"),
     [
-        (context(), "Martin Construction SA a gagné la rénovation (250 k€) : vos matériaux de gros œuvre répondent au chantier."),
-        (context(), "Martin Construction SA a gagné la rénovation (250 000 €) : vos matériaux de gros œuvre répondent au chantier."),
-        (context().model_copy(update={"amount": "1200000 EUR"}), "Martin Construction SA a gagné la rénovation (1,2 M€) : vos matériaux de gros œuvre répondent au chantier."),
+        (
+            context(),
+            "Martin Construction SA a gagné la rénovation (250 k€) : vos matériaux de gros œuvre répondent au chantier.",
+        ),
+        (
+            context(),
+            "Martin Construction SA a gagné la rénovation (250 000 €) : vos matériaux de gros œuvre répondent au chantier.",
+        ),
+        (
+            context().model_copy(update={"amount": "1200000 EUR"}),
+            "Martin Construction SA a gagné la rénovation (1,2 M€) : vos matériaux de gros œuvre répondent au chantier.",
+        ),
         (
             ForYouInput(**{**context().model_dump(), "duration": "24 mois"}),
             "Martin Construction SA a gagné la maintenance : vos matériaux de gros œuvre accompagnent les 2 ans de travaux.",
         ),
-        (context(), "Martin Construction SA a gagné la rénovation (août 2026) : vos matériaux de gros œuvre répondent au chantier."),
-        (context(), "Martin Construction SA a gagné la rénovation (12 août 2026) : vos matériaux de gros œuvre répondent au chantier."),
-        (context().model_copy(update={"location": "38000 Grenoble"}), "Martin Construction SA a gagné la rénovation en Isère : vos matériaux de gros œuvre répondent au chantier."),
+        (
+            context(),
+            "Martin Construction SA a gagné la rénovation (août 2026) : vos matériaux de gros œuvre répondent au chantier.",
+        ),
+        (
+            context(),
+            "Martin Construction SA a gagné la rénovation (12 août 2026) : vos matériaux de gros œuvre répondent au chantier.",
+        ),
+        (
+            context().model_copy(update={"location": "38000 Grenoble"}),
+            "Martin Construction SA a gagné la rénovation en Isère : vos matériaux de gros œuvre répondent au chantier.",
+        ),
     ],
 )
 def test_accepts_verified_formatted_equivalences(value, sentence) -> None:
@@ -171,8 +205,8 @@ def test_prompt_imposes_the_adaptive_client_template() -> None:
     assert '"fit"' in prompt
     assert '"none"' in prompt
     assert FOR_YOU_SYSTEM_PROMPT == (
-        'Tu réponds uniquement par un objet JSON {short_object, consequence, fit}. '
-        'Aucun texte hors JSON.'
+        "Tu réponds uniquement par un objet JSON {short_object, consequence, fit}. "
+        "Aucun texte hors JSON."
     )
 
 
@@ -205,8 +239,20 @@ def test_composes_the_verified_shell_around_generated_object_and_consequence(
 
 def test_generated_composition_requires_two_bounded_fragments() -> None:
     assert compose_generated_sentence("phrase libre", context()) is None
-    assert compose_generated_sentence('{"short_object":"objet beaucoup trop long avec sept mots ici","consequence":"vos bardages isolent"}', context()) is None
-    assert compose_generated_sentence('{"short_object":"travaux","consequence":"conséquence beaucoup trop longue avec plus de huit mots pour le profil"}', context()) is None
+    assert (
+        compose_generated_sentence(
+            '{"short_object":"objet beaucoup trop long avec sept mots ici","consequence":"vos bardages isolent"}',
+            context(),
+        )
+        is None
+    )
+    assert (
+        compose_generated_sentence(
+            '{"short_object":"travaux","consequence":"conséquence beaucoup trop longue avec plus de huit mots pour le profil"}',
+            context(),
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize(
@@ -221,7 +267,9 @@ def test_extracts_the_first_json_object(raw: str) -> None:
     parsed = parse_generated_fragments(raw)
     assert parsed is not None
     assert (parsed.short_object, parsed.consequence, parsed.fit) == (
-        "rénovation thermique école", "vos bardages métalliques isolent les façades", "strong"
+        "rénovation thermique école",
+        "vos bardages métalliques isolent les façades",
+        "strong",
     )
 
 
@@ -232,9 +280,12 @@ def test_parses_none_fit_without_forced_consequence() -> None:
     assert parsed is not None
     assert parsed.fit == "none"
     assert parsed.consequence is None
-    assert compose_generated_sentence(
-        '{"short_object":"maintenance médicale","consequence":null,"fit":"none"}', context()
-    ) is None
+    assert (
+        compose_generated_sentence(
+            '{"short_object":"maintenance médicale","consequence":null,"fit":"none"}', context()
+        )
+        is None
+    )
 
 
 @pytest.mark.parametrize("raw", [None, "aucun JSON", "{}", '{"short_object":"travaux"}'])
@@ -270,20 +321,23 @@ def test_shared_provider_generates_one_sentence_without_naming_model_elsewhere(m
     def handler(request: httpx.Request) -> httpx.Response:
         payload = __import__("json").loads(request.content)
         assert payload["system"] == FOR_YOU_SYSTEM_PROMPT
-        assert payload["messages"] == [
-            {"role": "user", "content": build_for_you_prompt(context())}
-        ]
+        assert payload["messages"] == [{"role": "user", "content": build_for_you_prompt(context())}]
         return httpx.Response(
             200,
             json={
-                "content": [{"type": "text", "text": "Votre offre répond au besoin de gros œuvre en Isère."}],
+                "content": [
+                    {"type": "text", "text": "Votre offre répond au besoin de gros œuvre en Isère."}
+                ],
                 "usage": {"input_tokens": 80, "output_tokens": 14},
             },
         )
 
     provider = AnthropicTextGenerator()
     provider._client = httpx.Client(transport=httpx.MockTransport(handler))
-    assert provider.generate_sentence(context()) == "Votre offre répond au besoin de gros œuvre en Isère."
+    assert (
+        provider.generate_sentence(context())
+        == "Votre offre répond au besoin de gros œuvre en Isère."
+    )
     assert provider.usage.calls == 1
 
 
@@ -315,7 +369,10 @@ def test_openrouter_provider_generates_the_sentence_through_chat_completions(mon
 
     provider = OpenRouterTextGenerator(model="anthropic/claude-sonnet-4.6")
     provider._client = httpx.Client(transport=httpx.MockTransport(handler))
-    assert provider.generate_sentence(context()) == "Votre offre répond au besoin de gros œuvre en Isère."
+    assert (
+        provider.generate_sentence(context())
+        == "Votre offre répond au besoin de gros œuvre en Isère."
+    )
     assert provider.usage.calls == 1
     assert provider.reported_cost_usd == 0.001
 

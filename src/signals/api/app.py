@@ -28,6 +28,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from signals.api.config import ApiConfig
+from signals.api.routes_account_data import router as account_data_router
 from signals.api.routes_attribution import router as attribution_router
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
@@ -121,6 +122,7 @@ def create_app(
     app.state.founding_accounts = frozenset(founding_accounts)
 
     app.include_router(auth_router)
+    app.include_router(account_data_router)
     app.include_router(attribution_router)
     app.include_router(icp_router)
     app.include_router(signals_router)

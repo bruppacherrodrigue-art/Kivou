@@ -55,6 +55,12 @@ function routes(profile: CompanyProfile = COMPANY_PROFILE) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('CompaniesPage', () => {
+  it('explique l’état vide avec le vocabulaire des titulaires', async () => {
+    mockApi({ ...routes(), 'GET /companies': { body: page({ items: [] }) } })
+    renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
+    expect(await screen.findByText('Les titulaires de vos signaux apparaîtront ici.')).toBeVisible()
+  })
+
   it('renders the CRM table from GET /companies', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })

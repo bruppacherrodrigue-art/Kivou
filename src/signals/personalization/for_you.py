@@ -23,27 +23,80 @@ _DURATION = re.compile(r"(\d+(?:[.,]\d+)?)\s*(mois|ans?|années?)\b", re.IGNOREC
 _ISO_DATE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
 _POSTAL_CODE = re.compile(r"\b(\d{5})\b")
 _MONTHS = (
-    "janvier", "février", "mars", "avril", "mai", "juin",
-    "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
 )
 _DATE = re.compile(
     r"\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2}|"
     r"(?:\d{1,2}\s+)?(?:janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\s+\d{4})\b",
     re.IGNORECASE,
 )
-_SUPERLATIVES = frozenset({"meilleur", "meilleure", "meilleurs", "meilleures", "optimal", "optimale", "unique", "inégalé", "inégalée", "exceptionnel", "exceptionnelle"})
+_SUPERLATIVES = frozenset(
+    {
+        "meilleur",
+        "meilleure",
+        "meilleurs",
+        "meilleures",
+        "optimal",
+        "optimale",
+        "unique",
+        "inégalé",
+        "inégalée",
+        "exceptionnel",
+        "exceptionnelle",
+    }
+)
 _CAPITALIZED_SAFE = frozenset(
     {"Votre", "Vos", "Ce", "Cette", "Ces", "Le", "La", "Les", "Un", "Une", "K", "M"}
 )
 _BANNED_FILLERS = ("pourrait nécessiter", "ce marché porte sur")
+_ENGINE_TERMS = frozenset(
+    {
+        "materials_or_components",
+        "workforce_capacity",
+        "equipment_or_rental",
+        "logistics_and_transport",
+    }
+)
 _TRADE_ACRONYMS = frozenset(
     {"CVC", "VRD", "MOA", "MOE", "BTP", "GO", "SO", "ERP", "RE2020", "DPGF"}
 )
 _PROFILE_STOPWORDS = frozenset(
     {
-        "a", "au", "aux", "avec", "ce", "ces", "d", "de", "des", "du", "en",
-        "et", "la", "le", "les", "l", "pour", "que", "qui", "un", "une", "vos",
-        "votre", "vous",
+        "a",
+        "au",
+        "aux",
+        "avec",
+        "ce",
+        "ces",
+        "d",
+        "de",
+        "des",
+        "du",
+        "en",
+        "et",
+        "la",
+        "le",
+        "les",
+        "l",
+        "pour",
+        "que",
+        "qui",
+        "un",
+        "une",
+        "vos",
+        "votre",
+        "vous",
     }
 )
 
@@ -67,8 +120,25 @@ class ForYouInput(BaseModel):
     offer_summary: str = ""
 
     def texts(self) -> tuple[str, ...]:
-        scalar = (self.holder, self.buyer_name, self.title, self.amount, self.duration, self.location, self.awarded_on, self.cpv, self.cpv_label, self.profile_sector, self.offer_summary)
-        return tuple(value for value in scalar if value) + self.plausible_needs + self.fit_reasons + self.profile_zones
+        scalar = (
+            self.holder,
+            self.buyer_name,
+            self.title,
+            self.amount,
+            self.duration,
+            self.location,
+            self.awarded_on,
+            self.cpv,
+            self.cpv_label,
+            self.profile_sector,
+            self.offer_summary,
+        )
+        return (
+            tuple(value for value in scalar if value)
+            + self.plausible_needs
+            + self.fit_reasons
+            + self.profile_zones
+        )
 
 
 class ForYouProvider(Protocol):
@@ -90,7 +160,11 @@ class GeneratedFragments:
 
 
 def _fold(value: str) -> str:
-    return "".join(ch for ch in unicodedata.normalize("NFKD", value).casefold() if not unicodedata.combining(ch))
+    return "".join(
+        ch
+        for ch in unicodedata.normalize("NFKD", value).casefold()
+        if not unicodedata.combining(ch)
+    )
 
 
 def _numbers(value: str) -> set[str]:
@@ -159,9 +233,7 @@ def _derived_subdivision_labels(value: ForYouInput) -> tuple[str, ...]:
 
 def _profile_keywords(value: ForYouInput) -> set[str]:
     profile = " ".join(
-        part
-        for part in (value.profile_sector, value.offer_summary, *value.profile_zones)
-        if part
+        part for part in (value.profile_sector, value.offer_summary, *value.profile_zones) if part
     )
     return {
         folded
@@ -203,14 +275,15 @@ def _display_amount(value: str) -> str:
     if not match:
         return value.strip()
     raw, unit = match.groups()
-    amount = Decimal(raw.replace(",", ".")) * {
-        "": Decimal(1),
-        "k": Decimal(1000),
-        "m": Decimal(1_000_000),
-    }[(unit or "").casefold()]
-    divisor, suffix = (
-        (Decimal(1_000_000), "M€") if amount >= 1_000_000 else (Decimal(1000), "k€")
+    amount = (
+        Decimal(raw.replace(",", "."))
+        * {
+            "": Decimal(1),
+            "k": Decimal(1000),
+            "m": Decimal(1_000_000),
+        }[(unit or "").casefold()]
     )
+    divisor, suffix = (Decimal(1_000_000), "M€") if amount >= 1_000_000 else (Decimal(1000), "k€")
     displayed = (amount / divisor).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
     rendered = format(displayed, "f").rstrip("0").rstrip(".").replace(".", ",")
     return f"{rendered} {suffix}"
@@ -248,7 +321,11 @@ def compose_generated_sentence(output: str | None, value: ForYouInput) -> str | 
     )
     facts = f" ({', '.join(parenthetical)})" if parenthetical else ""
     holder = value.holder if value.holder and re.search(r"[^\W\d_]", value.holder) else None
-    lead = f"{holder} a gagné {short_object}" if holder else short_object[:1].upper() + short_object[1:]
+    lead = (
+        f"{holder} a gagné {short_object}"
+        if holder
+        else short_object[:1].upper() + short_object[1:]
+    )
     return f"{lead}{location}{facts} : {consequence}."
 
 
@@ -273,11 +350,19 @@ def parse_generated_fragments(output: str | None) -> GeneratedFragments | None:
             return None
         short_object = short_object.strip(" .:;\t\n")
         if fit == "none":
-            return GeneratedFragments(short_object, None, fit) if short_object and consequence is None else None
+            return (
+                GeneratedFragments(short_object, None, fit)
+                if short_object and consequence is None
+                else None
+            )
         if not isinstance(consequence, str):
             return None
         consequence = consequence.strip(" .:;\t\n")
-        return GeneratedFragments(short_object, consequence, fit) if short_object and consequence else None
+        return (
+            GeneratedFragments(short_object, consequence, fit)
+            if short_object and consequence
+            else None
+        )
     return None
 
 
@@ -300,8 +385,10 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
     if holder and not folded_sentence.startswith(f"{_fold(holder)} a gagne "):
         return ValidationResult(False, "invalid_content")
     _prefix, separator, consequence = sentence.partition(":")
-    if not separator or not consequence.strip() or not (
-        {_fold(word) for word in _WORD.findall(consequence)} & _profile_keywords(value)
+    if (
+        not separator
+        or not consequence.strip()
+        or not ({_fold(word) for word in _WORD.findall(consequence)} & _profile_keywords(value))
     ):
         return ValidationResult(False, "invalid_content")
     source = " ".join(value.texts() + _derived_subdivision_labels(value))
@@ -315,8 +402,10 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
         if index == 0 or word in _CAPITALIZED_SAFE or not word[:1].isupper():
             continue
         letters = "".join(character for character in word if character.isalpha())
-        known_acronym = word.upper() == word and len(letters) <= 5 and (
-            word in _TRADE_ACRONYMS or _fold(word) in allowed
+        known_acronym = (
+            word.upper() == word
+            and len(letters) <= 5
+            and (word in _TRADE_ACRONYMS or _fold(word) in allowed)
         )
         if _fold(word) not in allowed and not known_acronym:
             return ValidationResult(False, "invented_name_or_place", word)
@@ -324,7 +413,17 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
 
 
 def fallback_sentence(value: ForYouInput) -> str:
-    return value.fit_reasons[0] if value.fit_reasons else "Ce signal correspond à votre profil cible."
+    return "Ce marché correspond à votre profil cible."
+
+
+def client_safe_sentence(sentence: str | None) -> str | None:
+    """Refuse les anciens replis techniques avant tout rendu client."""
+    if not sentence:
+        return None
+    folded = sentence.casefold()
+    if any(term in folded for term in _ENGINE_TERMS):
+        return None
+    return sentence
 
 
 __all__ = [
@@ -334,6 +433,7 @@ __all__ = [
     "ForYouProvider",
     "ValidationResult",
     "build_for_you_prompt",
+    "client_safe_sentence",
     "compose_generated_sentence",
     "fallback_sentence",
     "parse_generated_fragments",

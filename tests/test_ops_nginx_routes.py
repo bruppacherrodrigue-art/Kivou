@@ -15,11 +15,13 @@ NGINX_DIR = ROOT / "ops" / "nginx"
 PUBLIC_ASGI_ROUTES = frozenset(
     {
         ("GET", "/a/{token}"),
+        ("GET", "/account/export"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
         ("POST", "/auth/password-reset/confirm"),
         ("POST", "/auth/password-reset/request"),
         ("POST", "/auth/signup"),
+        ("POST", "/account/deletion"),
         ("DELETE", "/billing/plan"),
         ("GET", "/billing/plans"),
         ("GET", "/billing/status"),
@@ -66,7 +68,7 @@ PRIVATE_ASGI_ROUTES = frozenset(
 
 EXPECTED_PROXY_SELECTORS = frozenset(
     {
-        "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences|dashboard)(/|$)",
+        "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences|dashboard|account)(/|$)",
         "= /auth/login",
         "= /auth/signup",
         "= /auth/password-reset/request",
