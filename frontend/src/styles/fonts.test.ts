@@ -46,14 +46,18 @@ describe('livraison des polices', () => {
     expect(main).toContain("'./styles/tokens.css'")
     expect(main).not.toContain("'./styles/global.css'")
     expect(main).toContain("'./presentation/public/marketing.css'")
+    expect(main).toContain("'./presentation/dashboard/dashboard-vendor.css'")
     expect(main).toContain("'./presentation/dashboard/app-shell.css'")
   })
 
-  it('n’embarque pas le thème ni le preflight Tailwind globaux', () => {
+  it('isole les imports Tailwind dans l’entrée vendor du dashboard', () => {
     const dashboard = read('src/presentation/dashboard/app-shell.css')
+    const vendor = read('src/presentation/dashboard/dashboard-vendor.css')
 
     expect(dashboard).not.toContain('@import "tailwindcss";')
-    expect(dashboard).toContain('@import "tailwindcss/utilities.css"')
+    expect(vendor).toContain('@import "tailwindcss";')
+    expect(vendor).toContain('préfixé sous html[data-kivou-surface=dashboard]')
+    expect(vendor).toContain('ne jamais importer globalement')
     expect(dashboard).not.toMatch(/:root\s*\{[^}]*--background:/s)
     expect(dashboard).toContain('html[data-kivou-surface="dashboard"] {')
   })
