@@ -149,9 +149,10 @@ function LockedRow({
   note: string
   onOpen: () => void
 }) {
+  const { amount, shortDate } = useI18n()
   return (
     <tr className={styles.lockedRow} onClick={onOpen}>
-      <td>{item.teaser.date ?? MISSING}</td>
+      <td>{shortDate(item.teaser.date) ?? MISSING}</td>
       <td>
         <button type="button" className={styles.lockedButton} onClick={(event) => {
           event.stopPropagation()
@@ -161,7 +162,7 @@ function LockedRow({
         </button>
       </td>
       <td className={styles.lockedNote}>{note}</td>
-      <td className={styles.cellNumeric}>{item.teaser.amount ? `${item.teaser.amount.value} ${item.teaser.amount.currency}` : MISSING}</td>
+      <td className={styles.cellNumeric}>{item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : MISSING}</td>
       {compact ? null : <td>{item.teaser.department ?? MISSING}</td>}
       <td>{MISSING}</td>
     </tr>
@@ -527,7 +528,8 @@ export function SignalsFeed() {
    * un plancher, pas une somme définitive : c'est le signal du « + ». */
   const hasClientFilter = hasMin || Boolean(needle)
   const loadedCount = discoveryGrantCount ?? items.length
-  const moreBeyondLoaded = Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated)
+  const moreBeyondLoaded = planCode !== 'discovery'
+    && (Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated))
   const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''
   const signalCount = !feed.data
     ? t.common.loading
@@ -743,7 +745,7 @@ export function SignalsFeed() {
                   {t.common.retry}
                 </button>
               </span>
-            ) : feed.data?.page.has_more ? (
+            ) : planCode !== 'discovery' && feed.data?.page.has_more ? (
               <button
                 type="button"
                 className="text-link"

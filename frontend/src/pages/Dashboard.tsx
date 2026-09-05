@@ -58,14 +58,17 @@ function TodayDashboard() {
 
   const data = resource.data
   const title = data.last_seen_at
-    ? `${data.new_since_last_visit} nouveaux marchés depuis ${weekday(data.last_seen_at, locale)}`
+    ? data.new_since_last_visit === 0
+      ? `Rien de nouveau depuis ${weekday(data.last_seen_at, locale)} · ${data.week.new} signaux cette semaine`
+      : `${data.new_since_last_visit} nouveaux marchés depuis ${weekday(data.last_seen_at, locale)}`
     : 'Vos premiers signaux'
+  const zoneLabels = deduplicatedZoneLabels(data.profile?.zone_labels ?? [])
 
   return (
     <main className={styles.page} data-page="today">
       <header className={styles.header}>
         <h1>{title}</h1>
-        <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {data.profile?.zone_labels?.join(', ') || MISSING}</p>
+        <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {zoneLabels.join(', ') || MISSING}</p>
       </header>
 
       {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}
@@ -141,4 +144,9 @@ function WeekRow({ label, value }: { label: string; value: number }) {
 function weekday(value: string, locale: string): string {
   return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long', timeZone: 'UTC' })
     .format(new Date(value))
+}
+
+function deduplicatedZoneLabels(values: string[]): string[] {
+  const labels = values.map((value) => value === 'FR' ? 'France' : value)
+  return [...new Set(labels)]
 }

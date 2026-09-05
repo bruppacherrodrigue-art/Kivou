@@ -33,6 +33,15 @@ _PLAN_NAMES = {
 }
 
 
+def _unique_zone_labels(codes: tuple[str, ...]) -> list[str]:
+    labels: list[str] = []
+    for code in codes:
+        label = subdivision_label(code) or {"FR": "France", "CH": "Suisse"}.get(code, code)
+        if label not in labels:
+            labels.append(label)
+    return labels
+
+
 @router.get("/dashboard")
 def get_dashboard(request: Request) -> dict[str, Any]:
     now = request_now(request)
@@ -87,13 +96,10 @@ def get_dashboard(request: Request) -> dict[str, Any]:
                     if active_profile.customer_input.sector_cpv_prefixes
                     else active_profile.customer_input.offer_summary or active_profile.label
                 ),
-                "zone_labels": [
-                    subdivision_label(code) or code
-                    for code in active_profile.customer_input.territory_subdivisions
-                ] or [
-                    {"FR": "France", "CH": "Suisse"}.get(code, code)
-                    for code in active_profile.customer_input.territories
-                ],
+                "zone_labels": _unique_zone_labels(
+                    active_profile.customer_input.territory_subdivisions
+                    or active_profile.customer_input.territories
+                ),
             }
             if active_profile is not None
             else {"name": "—", "sector_label": "—", "zone_labels": []}

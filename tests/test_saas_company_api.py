@@ -122,6 +122,20 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert "contact_ref" not in response.text.lower()
 
 
+def test_company_list_projects_a_named_holder_even_before_enrichment(app, engine) -> None:
+    client = _signup(app, email="company-unresolved-list@example.com")
+    icp_id = _icp(client)
+    _pay(engine, client)
+    with engine.begin() as connection:
+        materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+
+    response = client.get("/companies")
+
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()["items"]] == ["Egli Gartenbau AG Sursee"]
+    assert response.json()["items"][0]["company_key"].startswith("cmp_")
+
+
 def test_company_profile_exposes_dated_contact_note_and_signal_history(app, engine) -> None:
     client = _signup(app, email="company-history@example.com")
     signal_key = _seed_unlocked(engine, client)

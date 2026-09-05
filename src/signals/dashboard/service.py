@@ -193,6 +193,7 @@ def _to_follow_up(
         query=None,
         limit=feed_query.HISTORY_SCAN_CAP,
         cursor=None,
+        now=now,
     )
     ordered = sorted(page.rows, key=lambda row: row.contacted_at)
     follow_up_truncated = len(ordered) > _FOLLOW_UP_LIMIT or page.scan_truncated

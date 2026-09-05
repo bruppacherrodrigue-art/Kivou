@@ -219,6 +219,7 @@ def list_companies_route(
                 query=q,
                 limit=limit,
                 cursor=cursor,
+                now=now,
             )
         except InvalidCompanyCursor as error:
             raise api_error(422, "invalid_company_cursor", "curseur invalide") from error

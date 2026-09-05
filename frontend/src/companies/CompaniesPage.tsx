@@ -111,6 +111,7 @@ export function CompaniesPage() {
               </tr>
             ))}</tbody>
           </table>
+          {items.length === 0 ? <p>Les titulaires de vos signaux apparaîtront ici.</p> : null}
           {nextCursor ? <button className={styles.more} type="button" onClick={() => void loadMore()}>Charger plus</button> : null}
         </div>
       )}

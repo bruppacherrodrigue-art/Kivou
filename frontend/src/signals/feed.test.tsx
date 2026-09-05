@@ -13,6 +13,7 @@ import {
   ICP,
   LOCKED_ITEM,
   ME,
+  PRO_STATUS,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
@@ -55,6 +56,13 @@ function feedWith(items: unknown[], overrides = {}) {
   return {
     ...BASE,
     'GET /signals': { body: feedPage(items as never[], overrides) },
+  }
+}
+
+function paidFeedWith(items: unknown[], overrides = {}) {
+  return {
+    ...feedWith(items, { plan_code: 'pro', ...overrides }),
+    'GET /billing/status': { body: PRO_STATUS },
   }
 }
 
@@ -165,9 +173,24 @@ describe('écran Signaux — tableau dense', () => {
     const row = within(grid).getAllByRole('row')[1]
     expect(row.textContent).toContain('—')
     expect(row.textContent).toContain('Votre accès actuel conserve cet aperçu')
+    expect(row.textContent).toContain('2 août')
+    expect(row.textContent).toContain('1 240 000 €')
+    expect(row.textContent).toContain('Haute-Garonne')
 
     await userEvent.click(within(row).getByRole('button'))
     await waitFor(() => expect(callsTo('/billing/plans', 'GET').length).toBeGreaterThan(0))
+  })
+
+  it('masque pagination et volume non borné sous le plafond Découverte', async () => {
+    mockApi(feedWith([LOCKED_ITEM], {
+      page: { limit: 20, offset: 0, has_more: true, scan_truncated: false, next_cursor: 'next' },
+      counts_truncated: true,
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    await table()
+    expect(screen.queryByRole('button', { name: 'Charger plus' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/20\+ signaux/)).not.toBeInTheDocument()
   })
 })
 
@@ -296,7 +319,7 @@ describe('écran Signaux — filtres', () => {
 
 describe('écran Signaux — pagination et compteur', () => {
   it('annonce le nombre de signaux chargés, avec « + » quand il en reste', async () => {
-    mockApi(feedWith([item('sig_a'), item('sig_b'), item('sig_c')], {
+    mockApi(paidFeedWith([item('sig_a'), item('sig_b'), item('sig_c')], {
       page: { limit: 20, offset: 0, has_more: true, scan_truncated: false, next_cursor: 'cur1' },
     }))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
@@ -308,7 +331,7 @@ describe('écran Signaux — pagination et compteur', () => {
   it('porte le « + » quand seuls les COMPTEURS sont tronqués, même sans page suivante', async () => {
     // `counts_truncated` dit que le chiffre est un plancher — indépendamment
     // de `has_more`, qui ne parle que de la pagination des lignes.
-    mockApi(feedWith([item('sig_a'), item('sig_b')], {
+    mockApi(paidFeedWith([item('sig_a'), item('sig_b')], {
       page: { limit: 20, offset: 0, has_more: false, scan_truncated: false, next_cursor: null },
       counts_truncated: true,
     }))
@@ -341,16 +364,19 @@ describe('écran Signaux — pagination et compteur', () => {
   it('« Charger plus » enchaîne le curseur et fusionne sans doublon', async () => {
     mockApi({
       ...BASE,
+      'GET /billing/status': { body: PRO_STATUS },
       'GET /signals': (request) => {
         if (request.search.get('cursor') === 'cur1') {
           return {
             body: feedPage([item('sig_a'), item('sig_b', { name: 'Amiaud SARL' })], {
+              plan_code: 'pro',
               page: { limit: 20, offset: 0, has_more: false, scan_truncated: false, next_cursor: null },
             }),
           }
         }
         return {
           body: feedPage([item('sig_a')], {
+            plan_code: 'pro',
             page: { limit: 20, offset: 0, has_more: true, scan_truncated: false, next_cursor: 'cur1' },
           }),
         }

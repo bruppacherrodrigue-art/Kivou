@@ -694,6 +694,21 @@ def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mail
     assert sentence in mailer.last.text_body
 
 
+def test_the_digest_without_cached_sentence_uses_customer_copy_not_engine_vocabulary(
+    app, engine, mailer
+):
+    subscriber(app, engine, plan="scale", count=1)
+    with engine.begin() as connection:
+        connection.execute(sa.delete(for_you_sentence))
+
+    cycle(engine, mailer)
+
+    body = mailer.last.text_body
+    assert "Pour vous :" in body
+    assert "materials_or_components" not in body
+    assert "workforce_capacity" not in body
+
+
 def test_the_digest_excludes_a_signal_rejected_by_the_model(app, engine, mailer):
     subscriber(app, engine, plan="scale", count=1)
     with engine.begin() as connection:

@@ -106,4 +106,18 @@ describe('Aujourd’hui', () => {
     await waitFor(() => expect(callsTo('/dashboard', 'GET')).toHaveLength(1))
     expect(screen.getByRole('heading', { name: '12 nouveaux marchés depuis mardi' })).toBeVisible()
   })
+
+  it('annonce une semaine active sans prétendre avoir du nouveau et déduplique les zones', async () => {
+    const payload = dashboard()
+    payload.new_since_last_visit = 0
+    payload.week.new = 7
+    payload.profile.zone_labels = ['FR', 'France', 'Vaud', 'Vaud']
+    mockApi(routes(payload))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
+
+    expect(await screen.findByRole('heading', { name: 'Rien de nouveau depuis mardi · 7 signaux cette semaine' })).toBeVisible()
+    const subtitle = screen.getAllByText(/Routes et génie civil/).find((node) => node.tagName === 'P')!
+    expect(subtitle).toHaveTextContent('France, Vaud')
+    expect(subtitle).not.toHaveTextContent('FR,')
+  })
 })
