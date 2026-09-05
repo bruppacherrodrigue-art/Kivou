@@ -687,6 +687,9 @@ def _run_for_account(
             text_body=content.render_text(
                 lines, lang=lang, preferences_link=preferences_link
             ),
+            html_body=content.render_html(
+                lines, lang=lang, preferences_link=preferences_link
+            ),
             message_id=batch.message_id,
             language=lang,
             preferences_url=preferences_link,

@@ -17,6 +17,7 @@ ce qui mérite vérification mérite d'être ouvert dans Kivou.
 from __future__ import annotations
 
 import dataclasses
+import html
 from typing import Any
 
 from signals.feed import copy as feed_copy
@@ -25,11 +26,11 @@ ALERT_COPY_VERSION = "kivou-alert-copy-v0.1"
 
 SUBJECT: dict[str, dict[str, str]] = {
     "singular": {
-        "fr": "1 nouveau signal sur vos marchés",
+        "fr": "1 nouveau signal pour vous",
         "en": "1 new signal on your markets",
     },
     "plural": {
-        "fr": "{count} nouveaux signaux sur vos marchés",
+        "fr": "{count} nouveaux signaux pour vous",
         "en": "{count} new signals on your markets",
     },
 }
@@ -70,6 +71,9 @@ class AlertLine:
     headline: str
     why_now: str
     contract_title: str | None
+    amount: str | None
+    location: str | None
+    awarded_on: str | None
     buyer: str | None
     needs: tuple[str, ...]
     for_you_sentence: str | None
@@ -87,12 +91,22 @@ def line_from_card(card: dict[str, Any], *, url: str, lang: str) -> AlertLine:
         need["label"] for need in card["analysis"]["plausible_needs"]["items"] if need.get("label")
     ][:MAXIMUM_NEEDS_SHOWN]
     buyer = (card["contract"].get("buyer") or {}).get("name")
+    amount = card["contract"].get("amount") or {}
+    amount_label = (
+        f"{amount['value']} {amount['currency']}"
+        if amount.get("value") and amount.get("currency")
+        else None
+    )
+    location = card["contract"].get("location") or {}
     return AlertLine(
         signal_key=card["signal_id"],
         company=card["company"]["name"] or "",
         headline=card["event"]["headline"],
         why_now=card["event"]["why_now"],
         contract_title=card["contract"].get("title"),
+        amount=amount_label,
+        location=location.get("locality") or location.get("subdivision_label"),
+        awarded_on=card["contract"].get("dates", {}).get("award"),
         buyer=buyer,
         needs=tuple(needs),
         for_you_sentence=card["analysis"]["fit"].get("for_you_sentence"),
@@ -128,6 +142,9 @@ def render_text(lines: list[AlertLine], *, lang: str, preferences_link: str) -> 
         blocks.append(f"   {line.why_now}")
         if line.contract_title:
             blocks.append(f"   {_truncate(line.contract_title)}")
+        facts = tuple(value for value in (line.amount, line.location, line.awarded_on) if value)
+        if facts:
+            blocks.append(f"   {' · '.join(facts)}")
         if line.buyer:
             blocks.append(f"   {BUYER_LABEL[lang]} : {line.buyer}")
         if line.needs:
@@ -138,3 +155,30 @@ def render_text(lines: list[AlertLine], *, lang: str, preferences_link: str) -> 
         blocks.append("")
     blocks.append(FOOTER[lang].format(preferences=preferences_link))
     return "\n".join(blocks)
+
+
+def render_html(lines: list[AlertLine], *, lang: str, preferences_link: str) -> str:
+    """Version HTML sobre construite depuis exactement les mêmes lignes."""
+    feed_copy.check_language(lang)
+    cards = []
+    for line in lines:
+        details = [line.headline, line.why_now, line.contract_title]
+        facts = tuple(value for value in (line.amount, line.location, line.awarded_on) if value)
+        if facts:
+            details.append(" · ".join(facts))
+        if line.for_you_sentence:
+            details.append(f"{FOR_YOU_LABEL[lang]} : {line.for_you_sentence}")
+        body = "".join(
+            f"<p>{html.escape(value)}</p>" for value in details if value
+        )
+        cards.append(
+            '<article style="border:1px solid #d8e0dc;padding:16px;margin:12px 0">'
+            f"<h2>{html.escape(line.company)}</h2>{body}"
+            f'<p><a href="{html.escape(line.url, quote=True)}">Ouvrir</a></p></article>'
+        )
+    return (
+        '<!doctype html><html><body><p>Bonjour,</p>'
+        + "".join(cards)
+        + f'<p><a href="{html.escape(preferences_link, quote=True)}">'
+        "Se désinscrire des alertes</a></p></body></html>"
+    )

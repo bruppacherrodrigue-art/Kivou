@@ -751,6 +751,23 @@ def test_the_email_shows_where_to_stop_receiving_alerts(app, engine, mailer):
     assert message.preferences_url == attendu, "l'en-tête et le pied de page divergent"
 
 
+def test_the_weekly_email_has_matching_html_and_text_cards(app, engine, mailer):
+    _, keys = subscriber(app, engine, plan="scale", count=3)
+
+    cycle(engine, mailer)
+
+    message = mailer.last
+    assert message.subject == "3 nouveaux signaux pour vous"
+    assert message.html_body is not None
+    for key in keys:
+        link = f"{PUBLIC_APP_URL}/app/signals/{key}"
+        assert link in message.text_body
+        assert link in message.html_body
+    assert "Pour vous" in message.text_body
+    assert "Pour vous" in message.html_body
+    assert message.preferences_url in message.html_body
+
+
 def test_the_email_never_dumps_evidence(app, engine, mailer):
     subscriber(app, engine, plan="scale", count=2)
     cycle(engine, mailer)
