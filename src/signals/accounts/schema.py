@@ -198,3 +198,15 @@ target_icp = sa.Table(
     *_timestamps(),
     sa.CheckConstraint("matching_revision >= 1", name="ck_target_icp_matching_revision"),
 )
+
+
+account_deletion_request = sa.Table(
+    "account_deletion_request",
+    METADATA,
+    sa.Column("request_id", sa.String(64), primary_key=True),
+    # Intentionally no FK: the PII-free audit outlives the deleted account.
+    sa.Column("account_id", sa.String(64), nullable=False, unique=True, index=True),
+    sa.Column("requested_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("scheduled_for", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+)
