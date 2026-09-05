@@ -7,8 +7,8 @@ import {
   Languages,
   UserRound,
 } from 'lucide-react'
-import { useCallback } from 'react'
-import { billing } from '../api/endpoints'
+import { useCallback, useState } from 'react'
+import { accountData, billing } from '../api/endpoints'
 import { useI18n } from '../i18n'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
 import { useResource } from '../presentation/dashboard/resources'
@@ -20,6 +20,25 @@ export function Settings() {
   const copy = t.reference.accountSettings
   const loadBilling = useCallback(() => billing.status(), [])
   const access = useResource(loadBilling)
+  const [deletionConfirmation, setDeletionConfirmation] = useState('')
+  const [dataMessage, setDataMessage] = useState('')
+
+  const downloadExport = async () => {
+    const payload = await accountData.export()
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }))
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = 'kivou-account-export.json'
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setDataMessage('Export téléchargé')
+  }
+
+  const requestDeletion = async () => {
+    if (deletionConfirmation !== 'SUPPRIMER') return
+    const result = await accountData.requestDeletion()
+    setDataMessage(`Suppression programmée avant le ${new Date(result.scheduled_for).toLocaleString(locale)}`)
+  }
   const plan = access.data ? t.reference.plans[access.data.plan_code] : t.reference.missingValue
   const subscriptionStatus = access.data?.subscription_status
   const status = subscriptionStatus && subscriptionStatus in t.billing.status
@@ -130,6 +149,18 @@ export function Settings() {
           </section>
         </aside>
       </div>
+
+      <section className="settings-account-card" aria-labelledby="account-data-title">
+        <h3 id="account-data-title">Vos données</h3>
+        <p>Téléchargez toutes les données de votre compte au format JSON.</p>
+        <Button type="button" onClick={() => void downloadExport()}>Télécharger mes données</Button>
+        <h3>Supprimer le compte</h3>
+        <p>La suppression sera effective sous 24 heures.</p>
+        <label htmlFor="delete-confirmation">Saisissez SUPPRIMER pour confirmer</label>
+        <input id="delete-confirmation" value={deletionConfirmation} onChange={(event) => setDeletionConfirmation(event.target.value)} />
+        <Button type="button" disabled={deletionConfirmation !== 'SUPPRIMER'} onClick={() => void requestDeletion()}>Supprimer mon compte</Button>
+        <p aria-live="polite">{dataMessage}</p>
+      </section>
     </div>
   )
 }
