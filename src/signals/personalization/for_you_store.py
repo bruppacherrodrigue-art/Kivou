@@ -35,6 +35,13 @@ def _holder(award: Any) -> str | None:
     return None
 
 
+def _stored_holder(*candidates: str | None) -> str | None:
+    return next(
+        (value for value in candidates if value and re.search(r"[^\W\d_]", value)),
+        None,
+    )
+
+
 def _location(place: Any) -> str | None:
     if place is None:
         return None
@@ -217,7 +224,7 @@ def enqueue_stored_for_you_sentence(
         if (label := feed_copy.translate(feed_copy.NEED_LABELS, category, "fr"))
     )
     value = ForYouInput(
-        holder=organization.get("legal_name") or row["winner_name"],
+        holder=_stored_holder(organization.get("legal_name"), row["winner_name"]),
         title=row["title"],
         amount=(
             f"{row['amount']} {row['currency']}"

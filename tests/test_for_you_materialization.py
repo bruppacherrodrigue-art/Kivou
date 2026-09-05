@@ -10,6 +10,7 @@ from signals.personalization.for_you import POLICY_VERSION
 from signals.personalization.for_you_store import (
     _holder,
     _location,
+    _stored_holder,
     _stored_location,
     enqueue_stored_for_you_sentence,
     sentence_for_opportunity,
@@ -25,6 +26,8 @@ def test_provider_input_uses_company_name_or_nothing() -> None:
 
     assert _holder(award("Martin Construction SA")) == "Martin Construction SA"
     assert _holder(award("80941190300010")) is None
+    assert _stored_holder("80941190300010", "Martin Construction SA") == "Martin Construction SA"
+    assert _stored_holder("80941190300010", "30825057001194") is None
 
 
 def test_provider_location_prefers_city_then_subdivision_and_never_country() -> None:
