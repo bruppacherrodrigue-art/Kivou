@@ -614,16 +614,17 @@ def active_icp_count(connection: sa.Connection, *, account_id: str) -> int:
 
 
 def feedable_target_icps(
-    connection: sa.Connection, *, account_id: str, limit: int
+    connection: sa.Connection, *, account_id: str, limit: int | None
 ) -> tuple[str, ...]:
-    """Le sous-ensemble d'ICP actifs qui alimente le feed, plafonné par le plan.
+    """Les ICP actifs qui alimentent le feed, avec un plafond optionnel.
 
     §23 — la règle est la plus simple qui soit **stable** : les plus anciens
     d'abord, par date de création puis par identifiant. Rien n'est supprimé,
     rien n'est désactivé ; un compte qui redescend de plan garde toutes ses
-    données et voit simplement moins de profils servir.
+    données et voit simplement moins de profils servir. ``None`` conserve
+    tous les profils, pour les vues historiques agrégées du compte.
     """
-    rows = connection.execute(
+    query = (
         sa.select(target_icp.c.target_icp_id)
         .where(
             target_icp.c.account_id == account_id,
@@ -631,8 +632,10 @@ def feedable_target_icps(
             target_icp.c.plan_limit_code.is_(None),
         )
         .order_by(target_icp.c.created_at, target_icp.c.target_icp_id)
-        .limit(max(0, limit))
-    ).all()
+    )
+    if limit is not None:
+        query = query.limit(max(0, limit))
+    rows = connection.execute(query).all()
     return tuple(row.target_icp_id for row in rows)
 
 

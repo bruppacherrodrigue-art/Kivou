@@ -78,7 +78,7 @@ def _accessible_company(
         billing.feedable_target_icps(
             connection,
             account_id=session.account_id,
-            limit=access.entitlements.max_active_icps,
+            limit=None,
         )
     )
     result = company_profile_with_items(
@@ -196,7 +196,7 @@ def list_companies_route(
             billing.feedable_target_icps(
                 connection,
                 account_id=session.account_id,
-                limit=access.entitlements.max_active_icps,
+                limit=None,
             )
         )
         statuses: frozenset[str] | None = None

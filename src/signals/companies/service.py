@@ -23,6 +23,7 @@ from signals.companies.contracts import (
 )
 from signals.companies.identity import ResolvedOfficialCompany, official_company_identity
 from signals.companies.indexing import (
+    INDEX_BATCH_SIZE,
     index_signal_company_identities,
     index_signal_company_identity,
 )
@@ -125,13 +126,18 @@ def ensure_companies_for_signal_keys(
     """Project named holders after the caller has authorised the signal keys."""
     if not signal_keys:
         return {}
-    indexed = index_signal_company_identities(
-        connection,
-        signal_keys=signal_keys,
-    )
+    unique_signal_keys = tuple(dict.fromkeys(signal_keys))
+    indexed = {}
+    for offset in range(0, len(unique_signal_keys), INDEX_BATCH_SIZE):
+        indexed.update(
+            index_signal_company_identities(
+                connection,
+                signal_keys=unique_signal_keys[offset : offset + INDEX_BATCH_SIZE],
+            )
+        )
     candidates: dict[str, CompanyCandidate] = {}
     fingerprint_by_signal_key: dict[str, str] = {}
-    for signal_key in signal_keys:
+    for signal_key in unique_signal_keys:
         identity = indexed.get(signal_key)
         if identity is None:
             continue

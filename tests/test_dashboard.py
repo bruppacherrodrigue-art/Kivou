@@ -39,6 +39,7 @@ from feed_helpers import (
 )
 
 from signals.accounts import service as accounts_service
+from signals.accounts.schema import target_icp
 from signals.api import ApiConfig, create_app
 from signals.cockpit.contracts import CockpitWeek
 from signals.cockpit.service import WeeklyCommercialCockpitService
@@ -177,6 +178,30 @@ def test_zone_labels_deduplicate_legacy_country_composites() -> None:
 
     assert _unique_zone_labels(("FR · France", "France")) == ["France"]
     assert _sector_label("Matériaux · FR") == "Matériaux"
+
+
+def test_dashboard_falls_back_to_most_recent_profile_when_none_is_active(
+    client, engine, clock
+):
+    client.post(
+        "/target-icps",
+        json={"label": "Ancien", "customer_input": COMPLETE_ICP_INPUT},
+    )
+    clock.advance(dt.timedelta(seconds=1))
+    recent = client.post(
+        "/target-icps",
+        json={"label": "Récent", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(target_icp)
+            .where(target_icp.c.account_id == client.get("/me").json()["account_id"])
+            .values(status="draft")
+        )
+
+    payload = _dashboard(client)
+
+    assert payload["profile"]["name"] == recent["label"]
 
 
 def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(client, engine):

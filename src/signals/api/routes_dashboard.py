@@ -87,6 +87,11 @@ def get_dashboard(request: Request) -> dict[str, Any]:
         )
         profiles = accounts.list_target_icps(connection, account_id=session.account_id)
         active_profile = next((profile for profile in profiles if profile.status == "active"), None)
+        if active_profile is None and profiles:
+            active_profile = max(
+                profiles,
+                key=lambda profile: (profile.created_at, profile.target_icp_id),
+            )
         billing_state = billing.billing_state(connection, account_id=session.account_id)
         grants = discovery.grants(connection, account_id=session.account_id)
         entitlements = catalogue.entitlements_for(billing_state.plan_code)

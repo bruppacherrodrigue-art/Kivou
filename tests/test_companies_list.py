@@ -25,6 +25,7 @@ from feed_helpers import (
 from signals.api import ApiConfig, create_app
 from signals.billing.schema import discovery_signal_grant
 from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.companies.service import ensure_companies_for_signal_keys
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import materialized_signal
 
@@ -181,6 +182,60 @@ def test_same_winner_under_two_icps_aggregates_into_one_row(client, icp, engine)
     assert len(items) == 1
     assert items[0]["awards_count"] == 2
     assert items[0]["total_amount"] == [{"currency": "CHF", "value": "1869755.00"}]
+
+
+def test_companies_aggregate_all_account_profiles_beyond_plan_feed_limit(app, engine):
+    essential = TestClient(app, headers={"Origin": ORIGIN})
+    response = essential.post(
+        "/auth/signup",
+        json={
+            "email": "companies-multi-profile@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Companies Multi Profile",
+            "locale": "fr",
+        },
+    )
+    assert response.status_code == 201, response.text
+    pin_session_cookie(essential, response)
+    account_id = essential.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="essential",
+            subscription_id="sub_companies_multi_profile",
+            now=NOW,
+        )
+    first_icp = essential.post(
+        "/target-icps",
+        json={"label": "Premier", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+    second_icp = essential.post(
+        "/target-icps",
+        json={"label": "Second", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+    with engine.begin() as connection:
+        materialize_simap(connection, "33885-03", target_icp_id=first_icp)
+        materialize_simap(connection, "33885-03", target_icp_id=second_icp)
+
+    payload = _companies(essential)
+
+    assert len(payload["items"]) == 1
+    assert payload["items"][0]["awards_count"] == 2
+
+
+def test_company_projection_batches_more_than_250_signal_keys(client, icp, engine):
+    with engine.begin() as connection:
+        signal_key = materialize_simap(
+            connection, SIMAP_RICH, target_icp_id=icp
+        ).signal_key
+        projected = ensure_companies_for_signal_keys(
+            connection,
+            signal_keys=(signal_key,) * 251,
+            now=NOW,
+        )
+
+    assert projected[signal_key].startswith("cmp_")
 
 
 def test_query_filters_by_name_case_and_accent_insensitively(client, icp, engine):
