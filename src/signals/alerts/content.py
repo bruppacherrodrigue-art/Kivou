@@ -54,6 +54,7 @@ FOOTER: dict[str, str] = {
 
 NEEDS_LABEL: dict[str, str] = {"fr": "Besoins plausibles", "en": "Plausible needs"}
 BUYER_LABEL: dict[str, str] = {"fr": "Acheteur", "en": "Buyer"}
+FOR_YOU_LABEL: dict[str, str] = {"fr": "Pour vous", "en": "For you"}
 
 #: §21 — au plus trois familles de besoin par signal. Au-delà, on recopie
 #: l'analyse dans l'e-mail au lieu d'inviter à l'ouvrir.
@@ -71,6 +72,7 @@ class AlertLine:
     contract_title: str | None
     buyer: str | None
     needs: tuple[str, ...]
+    for_you_sentence: str | None
     url: str
 
 
@@ -93,6 +95,7 @@ def line_from_card(card: dict[str, Any], *, url: str, lang: str) -> AlertLine:
         contract_title=card["contract"].get("title"),
         buyer=buyer,
         needs=tuple(needs),
+        for_you_sentence=card["analysis"]["fit"].get("for_you_sentence"),
         url=url,
     )
 
@@ -129,6 +132,8 @@ def render_text(lines: list[AlertLine], *, lang: str, preferences_link: str) -> 
             blocks.append(f"   {BUYER_LABEL[lang]} : {line.buyer}")
         if line.needs:
             blocks.append(f"   {NEEDS_LABEL[lang]} : {', '.join(line.needs)}")
+        if line.for_you_sentence:
+            blocks.append(f"   {FOR_YOU_LABEL[lang]} : {line.for_you_sentence}")
         blocks.append(f"   {line.url}")
         blocks.append("")
     blocks.append(FOOTER[lang].format(preferences=preferences_link))

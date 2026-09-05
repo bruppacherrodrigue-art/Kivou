@@ -23,7 +23,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
-LATEST = "0038_landing_journey"
+LATEST = "0040_for_you_raw_diagnostics"
 
 
 def _engine(path: pathlib.Path):
@@ -43,7 +43,7 @@ def test_migration_is_the_single_additive_head(tmp_path) -> None:
     }
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == "0037_portal_capture_runtime"
+    assert scripts.get_revision(LATEST).down_revision == "0039_for_you_sentence"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision

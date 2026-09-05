@@ -259,6 +259,7 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         key = "territory_only"
     else:
         key = "targeted_profile"
+    rendered_reasons = tuple(reasons)
     return {
         "label": feed_copy.FIT_LABELS[key][lang],
         # PR2b — même table que `companies.listing` (§45) : `feed.policy.fit_band`
@@ -267,7 +268,10 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         "band": policy.fit_band(signal.icp_match_band),
         "target_icp_id": signal.target_icp_id,
         "target_icp_label": item.target_icp_label,
-        "reasons": tuple(reasons),
+        "reasons": rendered_reasons,
+        "for_you_sentence": item.for_you_sentence or (
+            rendered_reasons[0] if rendered_reasons else None
+        ),
     }
 
 

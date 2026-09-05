@@ -49,6 +49,7 @@ from signals.documents.consensus import (
 )
 from signals.documents.intelligence import RequirementCandidate
 from signals.documents.snapshot import CandidateSnapshot
+from signals.personalization.for_you import ForYouInput, build_for_you_prompt
 
 COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -219,6 +220,51 @@ class OpenRouterClassifier:
         data["reported_cost_usd"] = round(self.reported_cost_usd, 6)
         data["model"] = self.model
         return data
+
+
+@dataclass
+class OpenRouterTextGenerator(OpenRouterClassifier):
+    """Rédige la phrase personnalisée via le même transport OpenRouter."""
+
+    max_tokens: int = 100
+
+    def generate_sentence(self, value: ForYouInput) -> str | None:
+        prompt = build_for_you_prompt(value)
+        try:
+            response = self.client.post(
+                COMPLETIONS_URL,
+                json={
+                    "model": self.model,
+                    "max_tokens": self.max_tokens,
+                    "temperature": 0,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                    "usage": {"include": True},
+                },
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+            )
+        except httpx.HTTPError:
+            self.usage.fail("transport_failure")
+            return None
+        if response.status_code != 200:
+            self.usage.fail(api_failure_kind(response.status_code))
+            return None
+        body = response.json()
+        tokens = body.get("usage") or {}
+        self.usage.record(
+            input_tokens=int(tokens.get("prompt_tokens", 0)),
+            output_tokens=int(tokens.get("completion_tokens", 0)),
+        )
+        if tokens.get("cost") is not None:
+            self.reported_cost_usd += float(tokens["cost"])
+        choices = body.get("choices") or []
+        if not choices:
+            self.usage.fail("provider_failure")
+            return None
+        return ((choices[0].get("message") or {}).get("content") or "").strip() or None
 
 
 # ─── Vérificateur ───────────────────────────────────────────────────────────────

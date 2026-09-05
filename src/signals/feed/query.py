@@ -47,10 +47,12 @@ from signals.persistence.repository import (
 )
 from signals.persistence.schema import (
     contract_award,
+    for_you_sentence,
     materialized_signal,
     opportunity_representation,
     source_event,
 )
+from signals.personalization.for_you import POLICY_VERSION
 from signals.recency import AwardRecency
 
 #: §19 — un identifiant stable ne remplace pas un nom. Un attributaire réduit à
@@ -188,6 +190,7 @@ class FeedSignal:
     recency: AwardRecency
     account_id: str
     target_icp_label: str
+    for_you_sentence: str | None = None
     #: `None` quand aucune représentation du contrat ne nomme l'attributaire.
     display: DisplayIdentity | None = None
 
@@ -349,8 +352,22 @@ def _ownership_scoped(account_id: str) -> sa.Select:
     matérialisées qui tombent, jamais les plus fraîches. Il reste total, donc
     deux lectures identiques rendent la même page.
     """
+    persisted_for_you = (
+        sa.select(for_you_sentence.c.sentence)
+        .where(
+            for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
+            for_you_sentence.c.target_icp_id == target_icp.c.target_icp_id,
+            for_you_sentence.c.signal_fingerprint
+            == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.policy_version == POLICY_VERSION,
+        )
+        .order_by(for_you_sentence.c.created_at.desc())
+        .limit(1)
+        .correlate(materialized_signal, target_icp)
+        .scalar_subquery()
+    )
     return (
-        SIGNAL_SELECT.join(
+        SIGNAL_SELECT.add_columns(persisted_for_you.label("for_you_sentence")).join(
             target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id
         )
         .where(
@@ -437,6 +454,7 @@ def _reassess(row: sa.Row, owned: dict[str, OwnedTargetIcp], account_id: str, as
         recency=signal.current_recency(as_of=as_of),
         account_id=account_id,
         target_icp_label=profile.label,
+        for_you_sentence=row.for_you_sentence,
     )
 
 

@@ -368,6 +368,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
       target_icp_id: 'icp_1',
       target_icp_label: 'Matériaux — Occitanie',
       reasons: ['Besoin visé : Matériaux ou composants', 'Territoire couvert : FR'],
+      for_you_sentence: 'Votre offre répond aux besoins de matériaux de ce titulaire.',
     },
   },
   source: {
@@ -531,6 +532,7 @@ export const COMPANY_PROFILE: CompanyProfile = {
       fit: {
         label: 'Très bon pour votre profil',
         reasons: ['Besoin visé : Matériaux ou composants', 'Territoire couvert : FR'],
+        for_you_sentence: 'Votre offre répond aux besoins de matériaux de ce titulaire.',
       },
     },
   ],

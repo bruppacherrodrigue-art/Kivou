@@ -105,7 +105,9 @@ export function SignalDrawer({
   const title = signalObject(item)
   const objectLine = item.factual_display.object_short ?? item.contract.title ?? null
   const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
-  const reasons = item.analysis.fit.reasons.slice(0, MAX_ITEMS)
+  const reasons = item.analysis.fit.for_you_sentence
+    ? [item.analysis.fit.for_you_sentence, ...item.analysis.fit.reasons.slice(1)].slice(0, MAX_ITEMS)
+    : item.analysis.fit.reasons.slice(0, MAX_ITEMS)
   const needs = orderedNeeds(item.analysis.plausible_needs.items)
 
   /* Trois horloges, une seule vérité affichée : l'attribution prime, la

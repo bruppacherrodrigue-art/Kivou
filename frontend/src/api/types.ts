@@ -455,6 +455,7 @@ export interface Fit {
   target_icp_id: string | null
   target_icp_label: string | null
   reasons: string[]
+  for_you_sentence?: string | null
   band?: 'strong' | 'promising' | 'weak' | 'unknown'
 }
 
@@ -658,6 +659,7 @@ export interface CompanyRelatedSignal {
   fit: {
     label: string
     reasons: string[]
+    for_you_sentence?: string | null
   }
 }
 

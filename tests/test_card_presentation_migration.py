@@ -25,7 +25,7 @@ PREVIOUS = "0027_signal_notes"
 #: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0029,
 #: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0028_card_presentation"
-CURRENT_HEAD = "0038_landing_journey"
+CURRENT_HEAD = "0040_for_you_raw_diagnostics"
 TABLE_NAME = "card_presentation_artifact"
 ACTIVE_INDEX = "uq_card_presentation_active_publication"
 TENANT_READ_INDEX = "ix_card_presentation_tenant_read"
