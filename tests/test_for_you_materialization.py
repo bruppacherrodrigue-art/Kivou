@@ -1,14 +1,39 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import sqlalchemy as sa
 from test_attribution_landing import CLICKED_AT, client_for, land, prepared
 
 from signals.persistence.schema import acquisition_personalization_artifact, for_you_sentence
 from signals.personalization.for_you import POLICY_VERSION
 from signals.personalization.for_you_store import (
+    _holder,
+    _location,
+    _stored_location,
     enqueue_stored_for_you_sentence,
     sentence_for_opportunity,
 )
+
+
+def test_provider_input_uses_company_name_or_nothing() -> None:
+    def award(name: str):
+        organization = SimpleNamespace(legal_name=name)
+        return SimpleNamespace(
+            awardee_parties=[SimpleNamespace(members=[SimpleNamespace(organization=organization)])]
+        )
+
+    assert _holder(award("Martin Construction SA")) == "Martin Construction SA"
+    assert _holder(award("80941190300010")) is None
+
+
+def test_provider_location_prefers_city_then_subdivision_and_never_country() -> None:
+    assert _location(SimpleNamespace(locality="Grenoble", subdivision_code="FR-38", country="FR")) == "Grenoble"
+    assert _location(SimpleNamespace(locality=None, subdivision_code="FR-38", country="FR")) == "Isère"
+    assert _location(SimpleNamespace(locality=None, subdivision_code=None, country="FR")) is None
+    assert _stored_location({"locality": "Grenoble", "subdivision_code": "FR-38", "country": "FR"}) == "Grenoble"
+    assert _stored_location({"locality": None, "subdivision_code": "FR-38", "country": "FR"}) == "Isère"
+    assert _stored_location({"locality": None, "subdivision_code": None, "country": "FR"}) is None
 
 
 def test_landing_materialization_commits_visible_copy_without_provider(tmp_path) -> None:
@@ -52,7 +77,7 @@ def test_cold_mail_and_landing_pair_share_the_exact_sentence(tmp_path) -> None:
     assert cached["sentence"] == sentence
 
 
-def test_policy_v4_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> None:
+def test_policy_v5_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> None:
     engine, attribution, token, _ = prepared(tmp_path)
     assert land(client_for(engine, attribution, now=CLICKED_AT), token.raw_token).status_code == 303
     with engine.begin() as connection:
@@ -80,7 +105,7 @@ def test_policy_v4_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> N
             opportunity_key=token.payload.opportunity_key,
         )
 
-    assert POLICY_VERSION == "for-you-v4"
+    assert POLICY_VERSION == "for-you-v5"
     assert created is not None and created != "f" * 64
-    assert versions == ["for-you-v1", "for-you-v4"]
+    assert versions == ["for-you-v1", "for-you-v5"]
     assert served != "ancienne phrase"

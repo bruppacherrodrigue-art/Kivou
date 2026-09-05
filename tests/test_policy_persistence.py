@@ -30,7 +30,7 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
-CURRENT_HEAD = "0039_for_you_sentence"
+CURRENT_HEAD = "0040_for_you_raw_diagnostics"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:

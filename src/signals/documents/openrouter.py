@@ -238,6 +238,7 @@ class OpenRouterTextGenerator(OpenRouterClassifier):
                     "max_tokens": self.max_tokens,
                     "temperature": 0,
                     "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
                     "usage": {"include": True},
                 },
                 headers={

@@ -18,7 +18,11 @@ L’entrée du générateur contient seulement les champs vérifiés du signal :
 
 Le lieu est omis s’il manque. Les parenthèses sont omises si montant et date manquent, ou ne contiennent que la valeur disponible. Aucun tiret de remplacement n’apparaît. Le titulaire et une conséquence ancrée dans le profil sont obligatoires ; leur absence entraîne le repli. « pourrait nécessiter » et « Ce marché porte sur » sont interdits.
 
-La sortie persistée contient la phrase servie, les empreintes d’entrée, la provenance `generated` ou `fallback`, le verdict de validation, le motif fermé de rejet, le détail libre expurgé, les horodatages et la version de politique. Aucune réponse brute du fournisseur n’est exposée aux clients.
+La sortie persistée contient la phrase servie, les empreintes d’entrée, la provenance `generated` ou `fallback`, le verdict de validation, le motif fermé de rejet, le détail libre expurgé, les horodatages et la version de politique. Pour une tentative rejetée, la réponse brute du fournisseur est conservée sur la même ligne, tronquée à 2 000 caractères et purgée après 30 jours par le worker. Elle n’est jamais exposée aux clients.
+
+Le fournisseur retourne un objet JSON `{short_object, consequence}`. Le parseur retire implicitement les fences et le texte périphérique en décodant le premier objet JSON de la réponse. OpenRouter demande aussi `response_format: {type: json_object}`. `invalid_shape` est réservé à l’absence de ces deux fragments exploitables ; les violations de contenu utilisent `invalid_content`.
+
+Les faits restent assemblés localement. Une valeur titulaire sans lettre est traitée comme un identifiant et omise : le gabarit commence alors par l’objet court. Le lieu est la ville si elle existe, sinon le libellé du département ou canton, sinon il est omis ; le pays et les formes comme `· FR` ne sont jamais injectés.
 
 ## Validation déterministe
 
@@ -26,7 +30,7 @@ La validation compte les mots après normalisation Unicode, refuse `!` et une li
 
 Chaque nombre et chaque date doit être présent dans les entrées ou dérivable sans ambiguïté : montant brut formaté ou arrondi en k€/M€ à une décimale, durée convertie entre mois et années, date ISO rendue en mois et année français, code postal ramené à son département. Les séquences capitalisées interprétées comme noms propres ou lieux doivent appartenir au lexique construit depuis le titulaire, l’acheteur, l’objet, le lieu, les besoins, les raisons, le profil, les libellés CPV résolus et les libellés officiels des départements et cantons ciblés. Ainsi, un terme comme « Isère » ou « gros œuvre » issu d’un référentiel fourni au générateur est autorisé. La majuscule du premier mot ne suffit pas à classer un terme comme nom propre.
 
-Tout échec utilise la première raison de correspondance déjà vérifiée. Le motif appartient à une énumération fermée : `provider_unavailable`, `invalid_shape`, `too_many_words`, `exclamation`, `superlative`, `invented_number`, `invented_date`, `invented_name_or_place`. Les compteurs `attempted`, `accepted`, `rejected` et `fallback` permettent de calculer le taux de rejet journalier sans relire du texte libre.
+Tout échec utilise la première raison de correspondance déjà vérifiée. Le motif appartient à une énumération fermée : `provider_unavailable`, `invalid_shape`, `invalid_content`, `too_many_words`, `exclamation`, `superlative`, `invented_number`, `invented_date`, `invented_name_or_place`. Les compteurs `attempted`, `accepted`, `rejected` et `fallback` permettent de calculer le taux de rejet journalier sans relire du texte libre.
 
 ## Cache et invalidation
 

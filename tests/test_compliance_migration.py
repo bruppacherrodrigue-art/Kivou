@@ -13,7 +13,7 @@ from signals.persistence.schema import (
 PREVIOUS = "0013_personalization"
 #: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
 COMPLIANCE = "0014_compliance"
-CURRENT_HEAD = "0039_for_you_sentence"
+CURRENT_HEAD = "0040_for_you_raw_diagnostics"
 
 
 def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:

@@ -24,7 +24,7 @@ class FakeProvider:
 
 
 def valid_sentence(value) -> str:
-    return "travaux de bâtiment | vos matériaux répondent aux travaux"
+    return '{"short_object":"travaux de bâtiment","consequence":"vos matériaux répondent aux travaux"}'
 
 
 def _seed(tmp_path, *, count: int = 1):
@@ -65,7 +65,7 @@ def test_worker_accepts_and_persists_generated_sentence(tmp_path) -> None:
 def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
     engine = _seed(tmp_path)
     provider = FakeProvider(
-        "travaux de bâtiment | vos matériaux couvrent 987654 travaux"
+        '{"short_object":"travaux de bâtiment","consequence":"vos matériaux couvrent 987654 travaux"}'
     )
 
     report = ForYouWorker(engine, provider, concurrency=1, daily_limit=20).run(now=CLICKED_AT)
@@ -76,7 +76,47 @@ def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
     assert report.as_dict()["rejection_rate"] == 1.0
     assert row["sentence"] == row["fallback_sentence"]
     assert row["validation_reason"] == "invented_number"
+    assert row["raw_provider_response"] == provider.sentence
+    assert row["raw_response_expires_at"] == (
+        CLICKED_AT + dt.timedelta(days=30)
+    ).replace(tzinfo=None)
     assert row["state"] == "completed"
+
+
+def test_worker_truncates_rejected_raw_output_and_purges_it_after_30_days(tmp_path) -> None:
+    engine = _seed(tmp_path)
+    raw = "x" * 2_500
+    worker = ForYouWorker(engine, FakeProvider(raw), concurrency=1, daily_limit=20)
+
+    worker.run(now=CLICKED_AT)
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(for_you_sentence)).mappings().one()
+    assert row["raw_provider_response"] == "x" * 2_000
+
+    worker.run(now=CLICKED_AT + dt.timedelta(days=30))
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(for_you_sentence)).mappings().one()
+    assert row["raw_provider_response"] is None
+    assert row["raw_response_expires_at"] is None
+
+
+def test_invalid_shape_is_reserved_for_missing_json_fragments(tmp_path) -> None:
+    engine = _seed(tmp_path)
+    ForYouWorker(engine, FakeProvider("réponse sans objet JSON"), concurrency=1, daily_limit=20).run(
+        now=CLICKED_AT
+    )
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(for_you_sentence)).mappings().one()
+    assert row["validation_reason"] == "invalid_shape"
+
+
+def test_exploitable_json_with_invalid_content_has_a_distinct_reason(tmp_path) -> None:
+    engine = _seed(tmp_path)
+    raw = '{"short_object":"travaux","consequence":"trop court"}'
+    ForYouWorker(engine, FakeProvider(raw), concurrency=1, daily_limit=20).run(now=CLICKED_AT)
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(for_you_sentence)).mappings().one()
+    assert row["validation_reason"] == "invalid_content"
 
 
 def test_worker_daily_cap_leaves_excess_pairs_pending(tmp_path) -> None:

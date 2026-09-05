@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import re
 from typing import Any
 
 import sqlalchemy as sa
@@ -29,30 +30,21 @@ def _fingerprint(value: Any) -> str:
 def _holder(award: Any) -> str | None:
     for party in award.awardee_parties:
         if party.members:
-            return party.members[0].organization.legal_name
+            name = party.members[0].organization.legal_name
+            return name if name and re.search(r"[^\W\d_]", name) else None
     return None
 
 
 def _location(place: Any) -> str | None:
     if place is None:
         return None
-    parts = (
-        place.locality,
-        subdivision_label(place.subdivision_code) or place.subdivision_code,
-        place.country,
-    )
-    return " · ".join(dict.fromkeys(part for part in parts if part)) or None
+    return place.locality or subdivision_label(place.subdivision_code) or None
 
 
 def _stored_location(place: dict[str, Any] | None) -> str | None:
     if not place:
         return None
-    parts = (
-        place.get("locality"),
-        subdivision_label(place.get("subdivision_code")) or place.get("subdivision_code"),
-        place.get("country"),
-    )
-    return " · ".join(dict.fromkeys(part for part in parts if part)) or None
+    return place.get("locality") or subdivision_label(place.get("subdivision_code")) or None
 
 
 def _duration(value: Any, unit: str | None) -> str | None:

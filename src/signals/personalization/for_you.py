@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -10,7 +11,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-POLICY_VERSION = "for-you-v4"
+POLICY_VERSION = "for-you-v5"
 _WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?|\d+(?:[.,]\d+)?", re.UNICODE)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _MONEY = re.compile(r"(\d+(?:[.,]\d+)?)\s*(k|m)?\s*(?:€|eur)", re.IGNORECASE)
@@ -169,8 +170,9 @@ def build_for_you_prompt(value: ForYouInput) -> str:
         "La conséquence doit combiner un détail propre de l'objet ou des besoins "
         "avec un élément précis du profil. Ne réutilise pas une formule générique. "
         "Interdits : « pourrait nécessiter » et « Ce marché porte sur ». "
-        "Réponds uniquement sous la forme « objet court | conséquence », avec "
-        "3 à 6 mots avant | et 5 à 8 mots après |. N'écris ni titulaire, ni "
+        "Réponds uniquement avec un objet JSON contenant exactement les clés "
+        '« short_object » et « consequence ». Utilise 3 à 6 mots pour '
+        "short_object et 5 à 8 mots pour consequence. N'écris ni titulaire, ni "
         "lieu, ni montant, ni date : ils sont ajoutés ensuite depuis les faits "
         "vérifiés.\n\n"
         "BEGIN UNTRUSTED VERIFIED INPUT\n"
@@ -208,14 +210,13 @@ def _display_month(value: str) -> str:
 
 def compose_generated_sentence(output: str | None, value: ForYouInput) -> str | None:
     """Assemble les faits vérifiés autour des deux seuls fragments rédigés."""
-    if not output or output.count("|") != 1 or "\n" in output:
+    fragments = parse_generated_fragments(output)
+    if fragments is None:
         return None
-    short_object, consequence = (part.strip(" .:;\t") for part in output.split("|", 1))
+    short_object, consequence = fragments
     if not (3 <= len(_WORD.findall(short_object)) <= 6):
         return None
     if not (5 <= len(_WORD.findall(consequence)) <= 8):
-        return None
-    if not value.holder:
         return None
     location = f" à {value.location}" if value.location else ""
     parenthetical = tuple(
@@ -227,7 +228,32 @@ def compose_generated_sentence(output: str | None, value: ForYouInput) -> str | 
         if part
     )
     facts = f" ({', '.join(parenthetical)})" if parenthetical else ""
-    return f"{value.holder} a gagné {short_object}{location}{facts} : {consequence}."
+    holder = value.holder if value.holder and re.search(r"[^\W\d_]", value.holder) else None
+    lead = f"{holder} a gagné {short_object}" if holder else short_object[:1].upper() + short_object[1:]
+    return f"{lead}{location}{facts} : {consequence}."
+
+
+def parse_generated_fragments(output: str | None) -> tuple[str, str] | None:
+    """Extrait le premier objet JSON portant les deux fragments exploitables."""
+    if not output:
+        return None
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(output):
+        if character != "{":
+            continue
+        try:
+            candidate, _end = decoder.raw_decode(output[index:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(candidate, dict):
+            continue
+        short_object = candidate.get("short_object")
+        consequence = candidate.get("consequence")
+        if not isinstance(short_object, str) or not isinstance(consequence, str):
+            return None
+        fragments = tuple(part.strip(" .:;\t\n") for part in (short_object, consequence))
+        return fragments if all(fragments) else None  # type: ignore[return-value]
+    return None
 
 
 def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationResult:
@@ -244,14 +270,15 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
         return ValidationResult(False, "superlative")
     folded_sentence = _fold(sentence)
     if any(_fold(filler) in folded_sentence for filler in _BANNED_FILLERS):
-        return ValidationResult(False, "invalid_shape")
-    if not value.holder or not folded_sentence.startswith(f"{_fold(value.holder)} a gagne "):
-        return ValidationResult(False, "invalid_shape")
+        return ValidationResult(False, "invalid_content")
+    holder = value.holder if value.holder and re.search(r"[^\W\d_]", value.holder) else None
+    if holder and not folded_sentence.startswith(f"{_fold(holder)} a gagne "):
+        return ValidationResult(False, "invalid_content")
     _prefix, separator, consequence = sentence.partition(":")
     if not separator or not consequence.strip() or not (
         {_fold(word) for word in _WORD.findall(consequence)} & _profile_keywords(value)
     ):
-        return ValidationResult(False, "invalid_shape")
+        return ValidationResult(False, "invalid_content")
     source = " ".join(value.texts() + _derived_subdivision_labels(value))
     dates = _DATE.findall(sentence)
     if any(_fold(date) not in _derived_dates(value) for date in dates):
@@ -279,5 +306,6 @@ __all__ = [
     "build_for_you_prompt",
     "compose_generated_sentence",
     "fallback_sentence",
+    "parse_generated_fragments",
     "validate_sentence",
 ]

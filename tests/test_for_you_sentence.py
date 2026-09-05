@@ -6,6 +6,7 @@ from signals.personalization.for_you import (
     ForYouInput,
     build_for_you_prompt,
     compose_generated_sentence,
+    parse_generated_fragments,
     validate_sentence,
 )
 
@@ -142,7 +143,7 @@ def test_accepts_verified_formatted_equivalences(value, sentence) -> None:
     ],
 )
 def test_rejects_missing_holder_profile_consequence_and_banned_fillers(sentence) -> None:
-    assert validate_sentence(sentence, context()).reason == "invalid_shape"
+    assert validate_sentence(sentence, context()).reason == "invalid_content"
 
 
 def test_prompt_imposes_the_adaptive_client_template() -> None:
@@ -179,7 +180,7 @@ def test_composes_the_verified_shell_around_generated_object_and_consequence(
     )
 
     sentence = compose_generated_sentence(
-        "rénovation thermique école | vos bardages métalliques isolent les façades",
+        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}',
         value,
     )
 
@@ -191,8 +192,46 @@ def test_composes_the_verified_shell_around_generated_object_and_consequence(
 
 def test_generated_composition_requires_two_bounded_fragments() -> None:
     assert compose_generated_sentence("phrase libre", context()) is None
-    assert compose_generated_sentence("objet beaucoup trop long avec sept mots ici | vos bardages isolent", context()) is None
-    assert compose_generated_sentence("travaux | conséquence beaucoup trop longue avec plus de huit mots pour le profil", context()) is None
+    assert compose_generated_sentence('{"short_object":"objet beaucoup trop long avec sept mots ici","consequence":"vos bardages isolent"}', context()) is None
+    assert compose_generated_sentence('{"short_object":"travaux","consequence":"conséquence beaucoup trop longue avec plus de huit mots pour le profil"}', context()) is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}',
+        '```json\n{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}\n```',
+        'Voici la réponse : {"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"} fin.',
+    ],
+)
+def test_extracts_the_first_json_object(raw: str) -> None:
+    assert parse_generated_fragments(raw) == (
+        "rénovation thermique école",
+        "vos bardages métalliques isolent les façades",
+    )
+
+
+@pytest.mark.parametrize("raw", [None, "aucun JSON", "{}", '{"short_object":"travaux"}'])
+def test_missing_usable_json_fragments_is_invalid_shape(raw: str | None) -> None:
+    assert parse_generated_fragments(raw) is None
+    assert compose_generated_sentence(raw, context()) is None
+
+
+def test_does_not_skip_an_invalid_first_json_object() -> None:
+    raw = '{} then {"short_object":"travaux bâtiment","consequence":"vos matériaux répondent aux travaux"}'
+    assert parse_generated_fragments(raw) is None
+
+
+def test_composition_omits_identifier_only_holder() -> None:
+    value = context().model_copy(update={"holder": "80941190300010"})
+    sentence = compose_generated_sentence(
+        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}',
+        value,
+    )
+    assert sentence == (
+        "Rénovation thermique école à Grenoble, Isère (250 k€, août 2026) : "
+        "vos bardages métalliques isolent les façades."
+    )
 
 
 def test_shared_provider_generates_one_sentence_without_naming_model_elsewhere(monkeypatch) -> None:
@@ -231,6 +270,7 @@ def test_openrouter_provider_generates_the_sentence_through_chat_completions(mon
         payload = __import__("json").loads(request.content)
         assert payload["model"] == "anthropic/claude-sonnet-4.6"
         assert payload["messages"][0]["content"] == build_for_you_prompt(context())
+        assert payload["response_format"] == {"type": "json_object"}
         return httpx.Response(
             200,
             json={

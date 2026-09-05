@@ -16,12 +16,15 @@ from signals.personalization.for_you import (
     ForYouInput,
     ForYouProvider,
     compose_generated_sentence,
+    parse_generated_fragments,
     validate_sentence,
 )
 
 DEFAULT_CONCURRENCY = 4
 DEFAULT_DAILY_LIMIT = 500
 LEASE_TTL = dt.timedelta(minutes=15)
+RAW_RESPONSE_RETENTION = dt.timedelta(days=30)
+RAW_RESPONSE_MAX_CHARS = 2_000
 CONCURRENCY_ENV = "KIVOU_FOR_YOU_CONCURRENCY"
 DAILY_LIMIT_ENV = "KIVOU_FOR_YOU_DAILY_LIMIT"
 DATABASE_URL_ENV = "KIVOU_DATABASE_URL"
@@ -61,6 +64,7 @@ class _Outcome:
     sentence: str | None
     reason: str | None
     detail: str | None
+    raw_response: str | None
 
 
 class ForYouWorker:
@@ -90,6 +94,11 @@ class ForYouWorker:
     ) -> list[dict]:
         worker = uuid.uuid4().hex
         with self.engine.begin() as connection:
+            connection.execute(
+                sa.update(for_you_sentence)
+                .where(for_you_sentence.c.raw_response_expires_at <= now)
+                .values(raw_provider_response=None, raw_response_expires_at=None)
+            )
             if connection.dialect.name == "postgresql":
                 # Sérialise le comptage et la réclamation entre plusieurs
                 # hôtes : deux workers ne peuvent pas dépasser ensemble le cap.
@@ -148,14 +157,25 @@ class ForYouWorker:
         # Le fournisseur est une frontière externe : toute panne conserve le
         # repli déjà visible, sans faire échouer le lot ni la matérialisation.
         except Exception:  # noqa: BLE001
-            return _Outcome(row["for_you_id"], None, "provider_unavailable", None)
+            return _Outcome(row["for_you_id"], None, "provider_unavailable", None, None)
         if output is None:
-            return _Outcome(row["for_you_id"], None, "provider_unavailable", None)
+            return _Outcome(row["for_you_id"], None, "provider_unavailable", None, None)
         sentence = compose_generated_sentence(output, value)
+        if sentence is None:
+            reason = "invalid_shape" if parse_generated_fragments(output) is None else "invalid_content"
+            return _Outcome(
+                row["for_you_id"], None, reason, None, output[:RAW_RESPONSE_MAX_CHARS]
+            )
         validation = validate_sentence(sentence, value)
         if not validation.accepted:
-            return _Outcome(row["for_you_id"], None, validation.reason, validation.detail)
-        return _Outcome(row["for_you_id"], " ".join(sentence.split()), None, None)
+            return _Outcome(
+                row["for_you_id"],
+                None,
+                validation.reason,
+                validation.detail,
+                output[:RAW_RESPONSE_MAX_CHARS],
+            )
+        return _Outcome(row["for_you_id"], " ".join(sentence.split()), None, None, None)
 
     def run(
         self,
@@ -189,6 +209,10 @@ class ForYouWorker:
                     "lease_expires_at": None,
                     "updated_at": now,
                     "completed_at": now,
+                    "raw_provider_response": outcome.raw_response,
+                    "raw_response_expires_at": (
+                        now + RAW_RESPONSE_RETENTION if outcome.raw_response is not None else None
+                    ),
                 }
                 if generated:
                     values["sentence"] = outcome.sentence

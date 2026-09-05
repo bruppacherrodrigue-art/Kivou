@@ -16,7 +16,7 @@ from signals.personalization.for_you_backfill import backfill, parse_args
 
 class FakeProvider:
     def generate_sentence(self, _value):
-        return "travaux de bâtiment | vos travaux répondent aux besoins"
+        return '{"short_object":"travaux de bâtiment","consequence":"vos travaux répondent aux besoins"}'
 
 
 def _engine(tmp_path, *, count: int = 3):
