@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from signals.personalization.for_you import (
+    FOR_YOU_SYSTEM_PROMPT,
     ForYouInput,
     build_for_you_prompt,
     compose_generated_sentence,
@@ -13,6 +14,7 @@ from signals.personalization.for_you import (
 
 def context() -> ForYouInput:
     return ForYouInput(
+        buyer_name="Ville de Grenoble",
         holder="Martin Construction SA",
         title="Rénovation d'une école à Grenoble",
         amount="250000 EUR",
@@ -35,6 +37,11 @@ def test_accepts_grounded_sentence_with_reference_labels() -> None:
     )
     assert result.accepted is True
     assert result.reason is None
+
+
+def test_accepts_verified_buyer_and_trade_acronyms() -> None:
+    sentence = "Martin Construction SA a gagné MOE CVC Ville Grenoble : vos matériaux de gros œuvre répondent au chantier."
+    assert validate_sentence(sentence, context()).accepted is True
 
 
 def test_rejects_invented_number() -> None:
@@ -161,6 +168,12 @@ def test_prompt_imposes_the_adaptive_client_template() -> None:
     assert "Vise 18 mots" in prompt
     assert "limite absolue de 25 mots" in prompt
     assert "BEGIN UNTRUSTED VERIFIED INPUT" in prompt
+    assert '"fit"' in prompt
+    assert '"none"' in prompt
+    assert FOR_YOU_SYSTEM_PROMPT == (
+        'Tu réponds uniquement par un objet JSON {short_object, consequence, fit}. '
+        'Aucun texte hors JSON.'
+    )
 
 
 @pytest.mark.parametrize(
@@ -180,7 +193,7 @@ def test_composes_the_verified_shell_around_generated_object_and_consequence(
     )
 
     sentence = compose_generated_sentence(
-        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}',
+        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades","fit":"strong"}',
         value,
     )
 
@@ -199,16 +212,29 @@ def test_generated_composition_requires_two_bounded_fragments() -> None:
 @pytest.mark.parametrize(
     "raw",
     [
-        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}',
-        '```json\n{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}\n```',
-        'Voici la réponse : {"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"} fin.',
+        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades","fit":"strong"}',
+        '```json\n{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades","fit":"strong"}\n```',
+        'Voici la réponse : {"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades","fit":"strong"} fin.',
     ],
 )
 def test_extracts_the_first_json_object(raw: str) -> None:
-    assert parse_generated_fragments(raw) == (
-        "rénovation thermique école",
-        "vos bardages métalliques isolent les façades",
+    parsed = parse_generated_fragments(raw)
+    assert parsed is not None
+    assert (parsed.short_object, parsed.consequence, parsed.fit) == (
+        "rénovation thermique école", "vos bardages métalliques isolent les façades", "strong"
     )
+
+
+def test_parses_none_fit_without_forced_consequence() -> None:
+    parsed = parse_generated_fragments(
+        '{"short_object":"maintenance médicale","consequence":null,"fit":"none"}'
+    )
+    assert parsed is not None
+    assert parsed.fit == "none"
+    assert parsed.consequence is None
+    assert compose_generated_sentence(
+        '{"short_object":"maintenance médicale","consequence":null,"fit":"none"}', context()
+    ) is None
 
 
 @pytest.mark.parametrize("raw", [None, "aucun JSON", "{}", '{"short_object":"travaux"}'])
@@ -225,7 +251,7 @@ def test_does_not_skip_an_invalid_first_json_object() -> None:
 def test_composition_omits_identifier_only_holder() -> None:
     value = context().model_copy(update={"holder": "80941190300010"})
     sentence = compose_generated_sentence(
-        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades"}',
+        '{"short_object":"rénovation thermique école","consequence":"vos bardages métalliques isolent les façades","fit":"strong"}',
         value,
     )
     assert sentence == (
@@ -243,7 +269,10 @@ def test_shared_provider_generates_one_sentence_without_naming_model_elsewhere(m
 
     def handler(request: httpx.Request) -> httpx.Response:
         payload = __import__("json").loads(request.content)
-        assert payload["messages"][0]["content"] == build_for_you_prompt(context())
+        assert payload["system"] == FOR_YOU_SYSTEM_PROMPT
+        assert payload["messages"] == [
+            {"role": "user", "content": build_for_you_prompt(context())}
+        ]
         return httpx.Response(
             200,
             json={
@@ -269,7 +298,10 @@ def test_openrouter_provider_generates_the_sentence_through_chat_completions(mon
         assert request.headers["Authorization"] == "Bearer test-local-not-a-real-key"
         payload = __import__("json").loads(request.content)
         assert payload["model"] == "anthropic/claude-sonnet-4.6"
-        assert payload["messages"][0]["content"] == build_for_you_prompt(context())
+        assert payload["messages"] == [
+            {"role": "system", "content": FOR_YOU_SYSTEM_PROMPT},
+            {"role": "user", "content": build_for_you_prompt(context())},
+        ]
         assert payload["response_format"] == {"type": "json_object"}
         return httpx.Response(
             200,

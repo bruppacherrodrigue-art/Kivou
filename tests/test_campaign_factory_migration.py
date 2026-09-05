@@ -42,7 +42,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
-LATEST = "0040_for_you_raw_diagnostics"
+LATEST = "0041_for_you_model_fit"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -62,7 +62,7 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == "0039_for_you_sentence"
+    assert scripts.get_revision(LATEST).down_revision == "0040_for_you_raw_diagnostics"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision

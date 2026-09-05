@@ -142,12 +142,16 @@ class AnthropicClassifier:
             return None, "schema_failure"
         return classification, None
 
-    def _request_text(self, prompt: str) -> tuple[str | None, str | None]:
+    def _request_text(
+        self, prompt: str, *, system: str | None = None
+    ) -> tuple[str | None, str | None]:
         payload: dict[str, object] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
             "messages": [{"role": "user", "content": prompt}],
         }
+        if system is not None:
+            payload["system"] = system
         if not self.model.startswith(MODELS_WITHOUT_TEMPERATURE):
             # Température nulle : la même phrase doit produire le même verdict.
             payload["temperature"] = 0
@@ -192,7 +196,11 @@ class AnthropicTextGenerator(AnthropicClassifier):
     max_tokens: int = 100
 
     def generate_sentence(self, value: ForYouInput) -> str | None:
-        text, _ = self._request_text(build_for_you_prompt(value))
+        from signals.personalization.for_you import FOR_YOU_SYSTEM_PROMPT
+
+        text, _ = self._request_text(
+            build_for_you_prompt(value), system=FOR_YOU_SYSTEM_PROMPT
+        )
         return text
 
 

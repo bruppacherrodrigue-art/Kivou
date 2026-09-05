@@ -65,6 +65,7 @@ class _Outcome:
     reason: str | None
     detail: str | None
     raw_response: str | None
+    model_fit: str | None
 
 
 class ForYouWorker:
@@ -157,14 +158,18 @@ class ForYouWorker:
         # Le fournisseur est une frontière externe : toute panne conserve le
         # repli déjà visible, sans faire échouer le lot ni la matérialisation.
         except Exception:  # noqa: BLE001
-            return _Outcome(row["for_you_id"], None, "provider_unavailable", None, None)
+            return _Outcome(row["for_you_id"], None, "provider_unavailable", None, None, None)
         if output is None:
-            return _Outcome(row["for_you_id"], None, "provider_unavailable", None, None)
+            return _Outcome(row["for_you_id"], None, "provider_unavailable", None, None, None)
+        fragments = parse_generated_fragments(output)
+        if fragments is not None and fragments.fit == "none":
+            return _Outcome(row["for_you_id"], None, None, None, None, "none")
         sentence = compose_generated_sentence(output, value)
         if sentence is None:
             reason = "invalid_shape" if parse_generated_fragments(output) is None else "invalid_content"
             return _Outcome(
-                row["for_you_id"], None, reason, None, output[:RAW_RESPONSE_MAX_CHARS]
+                row["for_you_id"], None, reason, None, output[:RAW_RESPONSE_MAX_CHARS],
+                fragments.fit if fragments is not None else None,
             )
         validation = validate_sentence(sentence, value)
         if not validation.accepted:
@@ -174,8 +179,9 @@ class ForYouWorker:
                 validation.reason,
                 validation.detail,
                 output[:RAW_RESPONSE_MAX_CHARS],
+                fragments.fit if fragments is not None else None,
             )
-        return _Outcome(row["for_you_id"], " ".join(sentence.split()), None, None, None)
+        return _Outcome(row["for_you_id"], " ".join(sentence.split()), None, None, None, fragments.fit)
 
     def run(
         self,
@@ -210,6 +216,7 @@ class ForYouWorker:
                     "updated_at": now,
                     "completed_at": now,
                     "raw_provider_response": outcome.raw_response,
+                    "model_fit": outcome.model_fit,
                     "raw_response_expires_at": (
                         now + RAW_RESPONSE_RETENTION if outcome.raw_response is not None else None
                     ),

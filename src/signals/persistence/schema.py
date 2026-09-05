@@ -356,12 +356,14 @@ for_you_sentence = sa.Table(
     sa.Column("provider_usage", sa.JSON),
     sa.Column("raw_provider_response", sa.Text),
     sa.Column("raw_response_expires_at", sa.DateTime(timezone=True), index=True),
+    sa.Column("model_fit", sa.String(16)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("completed_at", sa.DateTime(timezone=True)),
     sa.UniqueConstraint("signal_key", "target_icp_id", "signal_fingerprint", "profile_fingerprint", "policy_version", name="uq_for_you_pair_version"),
     sa.CheckConstraint("state IN ('pending', 'running', 'completed')", name="ck_for_you_state"),
     sa.CheckConstraint("provenance IN ('fallback', 'generated')", name="ck_for_you_provenance"),
+    sa.CheckConstraint("model_fit IS NULL OR model_fit IN ('strong', 'weak', 'none')", name="ck_for_you_model_fit"),
     sa.CheckConstraint("validation_reason IS NULL OR validation_reason IN ('provider_unavailable', 'invalid_shape', 'invalid_content', 'too_many_words', 'exclamation', 'superlative', 'invented_number', 'invented_date', 'invented_name_or_place')", name="ck_for_you_validation_reason"),
 )
 
