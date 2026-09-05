@@ -80,7 +80,7 @@ def test_cold_mail_and_landing_pair_share_the_exact_sentence(tmp_path) -> None:
     assert cached["sentence"] == sentence
 
 
-def test_policy_v5_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> None:
+def test_policy_v6_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> None:
     engine, attribution, token, _ = prepared(tmp_path)
     assert land(client_for(engine, attribution, now=CLICKED_AT), token.raw_token).status_code == 303
     with engine.begin() as connection:
@@ -108,7 +108,7 @@ def test_policy_v5_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> N
             opportunity_key=token.payload.opportunity_key,
         )
 
-    assert POLICY_VERSION == "for-you-v5"
+    assert POLICY_VERSION == "for-you-v6"
     assert created is not None and created != "f" * 64
-    assert versions == ["for-you-v1", "for-you-v5"]
+    assert versions == ["for-you-v1", "for-you-v6"]
     assert served != "ancienne phrase"

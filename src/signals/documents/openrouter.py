@@ -49,7 +49,7 @@ from signals.documents.consensus import (
 )
 from signals.documents.intelligence import RequirementCandidate
 from signals.documents.snapshot import CandidateSnapshot
-from signals.personalization.for_you import ForYouInput, build_for_you_prompt
+from signals.personalization.for_you import FOR_YOU_SYSTEM_PROMPT, ForYouInput, build_for_you_prompt
 
 COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -237,7 +237,10 @@ class OpenRouterTextGenerator(OpenRouterClassifier):
                     "model": self.model,
                     "max_tokens": self.max_tokens,
                     "temperature": 0,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": [
+                        {"role": "system", "content": FOR_YOU_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
                     "response_format": {"type": "json_object"},
                     "usage": {"include": True},
                 },

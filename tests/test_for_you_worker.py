@@ -24,7 +24,7 @@ class FakeProvider:
 
 
 def valid_sentence(value) -> str:
-    return '{"short_object":"travaux de bâtiment","consequence":"vos matériaux répondent aux travaux"}'
+    return '{"short_object":"travaux de bâtiment","consequence":"vos matériaux répondent aux travaux","fit":"strong"}'
 
 
 def _seed(tmp_path, *, count: int = 1):
@@ -60,12 +60,26 @@ def test_worker_accepts_and_persists_generated_sentence(tmp_path) -> None:
     assert row["sentence"] == compose_generated_sentence(valid_sentence(value), value)
     assert row["provenance"] == "generated"
     assert row["state"] == "completed"
+    assert row["model_fit"] == "strong"
+
+
+def test_worker_persists_none_fit_as_non_rejected_fallback(tmp_path) -> None:
+    engine = _seed(tmp_path)
+    raw = '{"short_object":"maintenance médicale","consequence":null,"fit":"none"}'
+    report = ForYouWorker(engine, FakeProvider(raw), concurrency=1, daily_limit=20).run(now=CLICKED_AT)
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(for_you_sentence)).mappings().one()
+    assert report.rejected == 0
+    assert report.fallback == 1
+    assert row["model_fit"] == "none"
+    assert row["sentence"] == row["fallback_sentence"]
+    assert row["validation_reason"] is None
 
 
 def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
     engine = _seed(tmp_path)
     provider = FakeProvider(
-        '{"short_object":"travaux de bâtiment","consequence":"vos matériaux couvrent 987654 travaux"}'
+        '{"short_object":"travaux de bâtiment","consequence":"vos matériaux couvrent 987654 travaux","fit":"strong"}'
     )
 
     report = ForYouWorker(engine, provider, concurrency=1, daily_limit=20).run(now=CLICKED_AT)
@@ -112,7 +126,7 @@ def test_invalid_shape_is_reserved_for_missing_json_fragments(tmp_path) -> None:
 
 def test_exploitable_json_with_invalid_content_has_a_distinct_reason(tmp_path) -> None:
     engine = _seed(tmp_path)
-    raw = '{"short_object":"travaux","consequence":"trop court"}'
+    raw = '{"short_object":"travaux","consequence":"trop court","fit":"strong"}'
     ForYouWorker(engine, FakeProvider(raw), concurrency=1, daily_limit=20).run(now=CLICKED_AT)
     with engine.connect() as connection:
         row = connection.execute(sa.select(for_you_sentence)).mappings().one()

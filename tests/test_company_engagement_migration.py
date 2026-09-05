@@ -8,7 +8,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 
 PREVIOUS = "0033_requeue_unresolved_siret"
 HEAD = "0034_company_engagement"
-CURRENT_HEAD = "0040_for_you_raw_diagnostics"
+CURRENT_HEAD = "0041_for_you_model_fit"
 
 
 def _engine(tmp_path, name):

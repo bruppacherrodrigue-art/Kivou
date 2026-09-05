@@ -11,7 +11,11 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-POLICY_VERSION = "for-you-v5"
+POLICY_VERSION = "for-you-v6"
+FOR_YOU_SYSTEM_PROMPT = (
+    "Tu réponds uniquement par un objet JSON {short_object, consequence, fit}. "
+    "Aucun texte hors JSON."
+)
 _WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?|\d+(?:[.,]\d+)?", re.UNICODE)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)?")
 _MONEY = re.compile(r"(\d+(?:[.,]\d+)?)\s*(k|m)?\s*(?:€|eur)", re.IGNORECASE)
@@ -32,6 +36,9 @@ _CAPITALIZED_SAFE = frozenset(
     {"Votre", "Vos", "Ce", "Cette", "Ces", "Le", "La", "Les", "Un", "Une", "K", "M"}
 )
 _BANNED_FILLERS = ("pourrait nécessiter", "ce marché porte sur")
+_TRADE_ACRONYMS = frozenset(
+    {"CVC", "VRD", "MOA", "MOE", "BTP", "GO", "SO", "ERP", "RE2020", "DPGF"}
+)
 _PROFILE_STOPWORDS = frozenset(
     {
         "a", "au", "aux", "avec", "ce", "ces", "d", "de", "des", "du", "en",
@@ -45,6 +52,7 @@ class ForYouInput(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     holder: str | None = None
+    buyer_name: str | None = None
     title: str | None = None
     amount: str | None = None
     duration: str | None = None
@@ -59,7 +67,7 @@ class ForYouInput(BaseModel):
     offer_summary: str = ""
 
     def texts(self) -> tuple[str, ...]:
-        scalar = (self.holder, self.title, self.amount, self.duration, self.location, self.awarded_on, self.cpv, self.cpv_label, self.profile_sector, self.offer_summary)
+        scalar = (self.holder, self.buyer_name, self.title, self.amount, self.duration, self.location, self.awarded_on, self.cpv, self.cpv_label, self.profile_sector, self.offer_summary)
         return tuple(value for value in scalar if value) + self.plausible_needs + self.fit_reasons + self.profile_zones
 
 
@@ -72,6 +80,13 @@ class ValidationResult:
     accepted: bool
     reason: str | None = None
     detail: str | None = None
+
+
+@dataclass(frozen=True)
+class GeneratedFragments:
+    short_object: str
+    consequence: str | None
+    fit: str
 
 
 def _fold(value: str) -> str:
@@ -170,8 +185,10 @@ def build_for_you_prompt(value: ForYouInput) -> str:
         "La conséquence doit combiner un détail propre de l'objet ou des besoins "
         "avec un élément précis du profil. Ne réutilise pas une formule générique. "
         "Interdits : « pourrait nécessiter » et « Ce marché porte sur ». "
-        "Réponds uniquement avec un objet JSON contenant exactement les clés "
-        '« short_object » et « consequence ». Utilise 3 à 6 mots pour '
+        "Évalue aussi la pertinence : fit vaut exactement strong, weak ou none. "
+        'Si le marché ne concerne pas le profil, renvoie "fit":"none" et "consequence":null, '
+        "sans forcer de justification. Réponds uniquement avec un objet JSON contenant "
+        'exactement les clés "short_object", "consequence" et "fit". Utilise 3 à 6 mots pour '
         "short_object et 5 à 8 mots pour consequence. N'écris ni titulaire, ni "
         "lieu, ni montant, ni date : ils sont ajoutés ensuite depuis les faits "
         "vérifiés.\n\n"
@@ -213,7 +230,9 @@ def compose_generated_sentence(output: str | None, value: ForYouInput) -> str | 
     fragments = parse_generated_fragments(output)
     if fragments is None:
         return None
-    short_object, consequence = fragments
+    if fragments.fit == "none" or fragments.consequence is None:
+        return None
+    short_object, consequence = fragments.short_object, fragments.consequence
     if not (3 <= len(_WORD.findall(short_object)) <= 6):
         return None
     if not (5 <= len(_WORD.findall(consequence)) <= 8):
@@ -233,7 +252,7 @@ def compose_generated_sentence(output: str | None, value: ForYouInput) -> str | 
     return f"{lead}{location}{facts} : {consequence}."
 
 
-def parse_generated_fragments(output: str | None) -> tuple[str, str] | None:
+def parse_generated_fragments(output: str | None) -> GeneratedFragments | None:
     """Extrait le premier objet JSON portant les deux fragments exploitables."""
     if not output:
         return None
@@ -249,10 +268,16 @@ def parse_generated_fragments(output: str | None) -> tuple[str, str] | None:
             continue
         short_object = candidate.get("short_object")
         consequence = candidate.get("consequence")
-        if not isinstance(short_object, str) or not isinstance(consequence, str):
+        fit = candidate.get("fit")
+        if not isinstance(short_object, str) or fit not in {"strong", "weak", "none"}:
             return None
-        fragments = tuple(part.strip(" .:;\t\n") for part in (short_object, consequence))
-        return fragments if all(fragments) else None  # type: ignore[return-value]
+        short_object = short_object.strip(" .:;\t\n")
+        if fit == "none":
+            return GeneratedFragments(short_object, None, fit) if short_object and consequence is None else None
+        if not isinstance(consequence, str):
+            return None
+        consequence = consequence.strip(" .:;\t\n")
+        return GeneratedFragments(short_object, consequence, fit) if short_object and consequence else None
     return None
 
 
@@ -289,7 +314,11 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
     for index, word in enumerate(words):
         if index == 0 or word in _CAPITALIZED_SAFE or not word[:1].isupper():
             continue
-        if _fold(word) not in allowed:
+        letters = "".join(character for character in word if character.isalpha())
+        known_acronym = word.upper() == word and len(letters) <= 5 and (
+            word in _TRADE_ACRONYMS or _fold(word) in allowed
+        )
+        if _fold(word) not in allowed and not known_acronym:
             return ValidationResult(False, "invented_name_or_place", word)
     return ValidationResult(True)
 
@@ -299,6 +328,7 @@ def fallback_sentence(value: ForYouInput) -> str:
 
 
 __all__ = [
+    "FOR_YOU_SYSTEM_PROMPT",
     "POLICY_VERSION",
     "ForYouInput",
     "ForYouProvider",

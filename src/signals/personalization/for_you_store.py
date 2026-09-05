@@ -18,7 +18,12 @@ from signals.accounts.icp_input import TargetIcpInput
 from signals.accounts.schema import target_icp
 from signals.domain.cpv_labels import cpv_label
 from signals.domain.subdivisions import subdivision_label
-from signals.persistence.schema import contract_award, for_you_sentence, materialized_signal
+from signals.persistence.schema import (
+    contract_award,
+    for_you_sentence,
+    materialized_signal,
+    source_event,
+)
 from signals.personalization.for_you import POLICY_VERSION, ForYouInput, fallback_sentence
 
 
@@ -35,9 +40,23 @@ def _holder(award: Any) -> str | None:
     return None
 
 
+def _buyer(award: Any) -> str | None:
+    return next(
+        (party.legal_name for party in award.contract_signatories if party.legal_name),
+        None,
+    )
+
+
 def _stored_holder(*candidates: str | None) -> str | None:
     return next(
         (value for value in candidates if value and re.search(r"[^\W\d_]", value)),
+        None,
+    )
+
+
+def _stored_buyer(buyers: list[dict[str, Any]] | None) -> str | None:
+    return next(
+        (buyer.get("legal_name") for buyer in buyers or [] if buyer.get("legal_name")),
         None,
     )
 
@@ -157,6 +176,7 @@ def enqueue_for_you_sentence(
     customer_input, sector, zones, profile_fingerprint = _profile_context(profile)
     value = ForYouInput(
         holder=_holder(award),
+        buyer_name=_buyer(award),
         title=award.title,
         amount=(
             f"{award.value.amount} {award.value.currency}" if award.value is not None else None
@@ -194,11 +214,14 @@ def enqueue_stored_for_you_sentence(
 ) -> str | None:
     row = (
         connection.execute(
-            sa.select(materialized_signal, contract_award, target_icp)
+            sa.select(materialized_signal, contract_award, source_event, target_icp)
             .select_from(
                 materialized_signal.join(
                     contract_award,
                     materialized_signal.c.materialization_award_key == contract_award.c.award_key,
+                ).join(
+                    source_event,
+                    contract_award.c.event_key == source_event.c.event_key,
                 ).join(
                     target_icp,
                     materialized_signal.c.target_icp_id == target_icp.c.target_icp_id,
@@ -225,6 +248,7 @@ def enqueue_stored_for_you_sentence(
     )
     value = ForYouInput(
         holder=_stored_holder(organization.get("legal_name"), row["winner_name"]),
+        buyer_name=_stored_buyer(row["procedure_buyers"]),
         title=row["title"],
         amount=(
             f"{row['amount']} {row['currency']}"
