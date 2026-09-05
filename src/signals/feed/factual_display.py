@@ -12,6 +12,7 @@ from typing import Any
 
 from signals.feed import policy
 from signals.feed.french_departments import department_label, location_subdivision
+from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 
 _MAX_OBJECT_LENGTH = 180
@@ -51,7 +52,7 @@ def _location(place: dict[str, Any] | None, *, lang: str) -> str | None:
     """
     if not place:
         return None
-    locality = _clean(place.get("locality"))
+    locality = normalized_city(place.get("locality"))
     if locality:
         return f"in {locality}" if lang == "en" else f"à {locality}"
     subdivision = location_subdivision(place)

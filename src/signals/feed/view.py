@@ -27,6 +27,7 @@ from signals.feed import copy as feed_copy
 from signals.feed import policy
 from signals.feed.factual_display import factual_display
 from signals.feed.french_departments import department_label, location_subdivision
+from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.recency.claim import claim_for_status
 
@@ -107,7 +108,7 @@ def _location(place: dict[str, Any] | None) -> dict[str, Any] | None:
     subdivision = location_subdivision(place)
     return {
         "country": place.get("country"),
-        "locality": place.get("locality"),
+        "locality": normalized_city(place.get("locality")),
         "postal_code": place.get("postal_code"),
         "subdivision_code": subdivision,
         "subdivision_label": department_label(subdivision),

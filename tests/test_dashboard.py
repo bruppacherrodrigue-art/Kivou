@@ -180,8 +180,8 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert first["as_of"] == NOW.date().isoformat()
     assert first["new_since_last_visit"] == 3
     assert first["profile"]["name"].startswith("Suivi ")
-    assert first["profile"]["sector_label"] == "—"
-    assert first["profile"]["zone_labels"] == COMPLETE_ICP_INPUT["territories"]
+    assert first["profile"]["sector_label"].strip(" —")
+    assert first["profile"]["zone_labels"] == ["Suisse"]
     assert first["plan"]["name"] == "Scale"
     assert first["plan"]["opened"] == 0
     assert first["plan"]["quota"] is None

@@ -85,12 +85,15 @@ def get_dashboard(request: Request) -> dict[str, Any]:
                 "sector_label": (
                     cpv_label(active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"), lang=lang)
                     if active_profile.customer_input.sector_cpv_prefixes
-                    else active_profile.customer_input.offer_summary or "—"
+                    else active_profile.customer_input.offer_summary or active_profile.label
                 ),
                 "zone_labels": [
                     subdivision_label(code) or code
                     for code in active_profile.customer_input.territory_subdivisions
-                ] or list(active_profile.customer_input.territories),
+                ] or [
+                    {"FR": "France", "CH": "Suisse"}.get(code, code)
+                    for code in active_profile.customer_input.territories
+                ],
             }
             if active_profile is not None
             else {"name": "—", "sector_label": "—", "zone_labels": []}

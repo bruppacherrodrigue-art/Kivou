@@ -168,6 +168,7 @@ def _accessible_signals(
                 and item.display is not None
                 and item.status in admitted
                 and item.model_fit != "none"
+                and bool((item.signal.award.title or "").strip())
                 and access.is_unlocked(item)
             ):
                 exact.append(item)
@@ -198,7 +199,10 @@ def _accessible_signals(
         unlocked.extend(
             item
             for item in page.items
-            if item.model_fit != "none" and access.is_unlocked(item)
+            if item.model_fit != "none"
+            and item.display is not None
+            and bool((item.signal.award.title or "").strip())
+            and access.is_unlocked(item)
         )
         if not page.has_more:
             return unlocked
