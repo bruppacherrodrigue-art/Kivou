@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_decision_evaluation
 
 PREVIOUS = "0011_company_research"
 HEAD = "0012_decision_engine"
-CURRENT_HEAD = "0041_for_you_model_fit"
+CURRENT_HEAD = "0042_account_deletion"
 
 
 def test_decision_engine_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:
