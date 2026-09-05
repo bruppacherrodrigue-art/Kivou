@@ -36,9 +36,13 @@ _PLAN_NAMES = {
 def _unique_zone_labels(codes: tuple[str, ...]) -> list[str]:
     labels: list[str] = []
     for code in codes:
-        label = subdivision_label(code) or {"FR": "France", "CH": "Suisse"}.get(code, code)
-        if label not in labels:
-            labels.append(label)
+        for raw_label in code.split("·"):
+            normalized = raw_label.strip()
+            label = subdivision_label(normalized) or {"FR": "France", "CH": "Suisse"}.get(
+                normalized, normalized
+            )
+            if label and label not in labels:
+                labels.append(label)
     return labels
 
 

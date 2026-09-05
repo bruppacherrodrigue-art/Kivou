@@ -172,6 +172,12 @@ def _dashboard(client: TestClient) -> dict:
     return response.json()
 
 
+def test_zone_labels_deduplicate_legacy_country_composites() -> None:
+    from signals.api.routes_dashboard import _unique_zone_labels
+
+    assert _unique_zone_labels(("FR · France", "France")) == ["France"]
+
+
 def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(client, engine):
     _seed_new_signals(client, engine)
 
