@@ -1,56 +1,60 @@
 # PR5b — benchmark staging « Pour vous »
 
-Date : 4 septembre 2026  
-SHA : `13c51d9421a3514bf7328c2cb42566286d25ef13`  
-Fournisseur : OpenRouter, modèle `anthropic/claude-sonnet-4.6`
+Date : 5 septembre 2026
+
+SHA : `c8236544c3ff301adf18792f506f83ba10679e3a`
+
+Fournisseur : OpenRouter, modèle configuré sur staging
 
 ## Exécution bornée
 
-Commande quotidienne, utilisée ici une seule fois avec la fenêtre du benchmark :
+Le timer a été arrêté avant la préparation. Le contrôle SQL pré-lancement a
+confirmé 50 signaux distincts : bardage métallique · Isère `17`, CVC plomberie
+· PACA `17`, espaces verts · Nord `16`. Le worker a ensuite reçu uniquement ces
+50 identifiants, avec une concurrence de 4, puis le timer a été réactivé.
 
-```text
-python -m signals.personalization.for_you_backfill --limit 50 --since 2026-08-01
-```
+| Tentées | Acceptées | Rejetées | Replis | Taux de rejet | Doublons conséquence |
+|---:|---:|---:|---:|---:|---:|
+| 50 | 18 | 32 | 32 | 64 % | 0 |
 
-| Tentées | Acceptées | Rejetées | Replis | Taux de rejet | Durée | Concurrence | Plafond journalier |
-|---:|---:|---:|---:|---:|---:|---:|---:|
-| 50 | 30 | 20 | 20 | 40 % | 22,5 s | 4 | 50 |
+Motifs : `invalid_content` 18, `invalid_shape` 10,
+`invented_name_or_place` 4 (`IRS`, `CVC`, `VR`, `MOA`).
 
-Motifs persistés : `invented_number` 17, `too_many_words` 2,
-`invented_name_or_place` 1. Les rejets ont conservé le repli immédiatement
-visible ; aucun second appel n'a été lancé.
+## Cinq réponses brutes rejetées
 
-## Vingt phrases acceptées et persistées
+1. `Je dois construire la phrase selon le gabarit, mais la réponse doit être uniquement un objet JSON avec short_object et consequence. Analyse : Objet CPV : Travaux de construction (45000000) à Mons-en-Baroeul…`
+2. `Je détecte une incohérence majeure : le profil concerne des travaux de couverture/bardage métallique, sans aucun lien avec la maintenance de matériel neurochirurgical…`
+3. `````json {"short_object":"étanchéité bâtiment IRS Cavaillon Luberon","consequence":"vos équipes plomberie couvrent déjà le Vaucluse"} `````
+4. `````json {"short_object":"maîtrise d'œuvre reconstruction après sinistre","consequence":"la reconstruction du Patio implique des travaux de plomberie"} `````
+5. `````json {"short_object":"réhabilitation plomberie chauffage ventilation bâtiment","consequence":"votre bardage métallique complète les travaux de second œuvre"} `````
 
-1. Ce marché porte sur la location et la maintenance d'un traceur grand format, d'une station de travail et d'un logiciel RIP sur quatre ans.
-2. Ce marché de voiries et espaces verts à Strasbourg pourrait nécessiter un approvisionnement en matériaux de construction.
-3. Un marché de construction à Bois-Colombes porte sur la restructuration d'un groupe scolaire et la création d'un centre administratif.
-4. Ce marché porte sur l'entretien et la réfection de toitures terrasses et lignes de vie en Val-de-Marne.
-5. Ce marché de travaux d'entretien routier dans le Pas-de-Calais pourrait nécessiter une fourniture de matériaux et composants pour chantiers.
-6. Un marché de rénovation énergétique avec géothermie à Rollot pourrait nécessiter la location de matériel de chantier.
-7. Un accord-cadre de travaux de voirie dans les Yvelines recherche des fournisseurs de matériaux et composants pour des chantiers routiers.
-8. Ce marché porte sur la réhabilitation du réseau d'assainissement départemental du Val-de-Marne, avec des besoins en matériaux et composants.
-9. Ce marché d'éclairage public dans les Bouches-du-Rhône peut nécessiter un approvisionnement en matériaux de construction.
-10. Ce marché de charpente-couverture à Lent (Ain) pourrait nécessiter des matériaux et composants adaptés à vos offres.
-11. Une mission de maîtrise d'œuvre pour la réhabilitation du centre de loisirs Jules Verne en Seine-Saint-Denis recherche des sous-traitants spécialisés.
-12. Ce marché de travaux d'entretien routier dans le Pas-de-Calais pourrait nécessiter un approvisionnement en matériaux de construction.
-13. Ce marché porte sur l'entretien et la réfection de toitures terrasses et lignes de vie en Val-de-Marne.
-14. Ce marché de VRD à Strasbourg porte sur des aménagements extérieurs d'un local commercial, avec un besoin en matériaux de construction.
-15. La Piscine de la Butte-aux-Cailles à Paris fait l'objet de travaux d'extension, de rénovation et de construction d'une salle de sport.
-16. Le titulaire de ce marché de réhabilitation d'égouts en Val-de-Marne pourrait avoir besoin de matériaux de construction.
-17. Un marché de travaux d'aménagements extérieurs à Strasbourg pourrait nécessiter une fourniture de matériaux et composants.
-18. Un marché de revêtements de sols en Val-de-Marne pourrait nécessiter une fourniture de matériaux et composants adaptés.
-19. Un marché de travaux de revêtement de rues dans l'Eure pourrait nécessiter un approvisionnement en matériaux de construction.
-20. La réhabilitation de la charcuterie de Lescar en centre socio-culturel inclut des travaux de chauffage, ventilation et plomberie sanitaire.
+Les réponses brutes rejetées sont persistées, tronquées à 2 000 caractères et
+expirent après 30 jours. `invalid_shape` désigne seulement les dix réponses ne
+contenant aucun objet `{short_object, consequence}` exploitable.
 
-## Chemin clic → dashboard
+## Vingt phrases effectivement servies
 
-Le test d'intégration PR5 a été chronométré trois fois, sans appel fournisseur :
-`0,552 s`, `0,467 s`, `0,453 s`. La médiane est `0,467 s`, contre `0,424 s`
-en PR5, soit `+43 ms` (`+10,1 %`). La génération OpenRouter reste donc hors
-du chemin synchrone et le parcours reste très inférieur à la borne de 60 s.
+1. Réhabilitation cloisons faux-plafonds bâtiment Phitem à Isère (116,8 k€) : travaux de cloisonnement proches de votre zone Isère.
+2. AMO réhabilitation ports de plaisance à Bouches-du-Rhône (600 k€) : travaux portuaires peuvent inclure interventions plomberie spécialisée.
+3. Gros œuvre et charpente bois à Nord (3,3 M€) : abords verts du site à aménager durablement.
+4. Nettoyage du littoral en Occitanie à Alpes-Maritimes (2 M€) : mobilisation terrain éloignée de votre zone plomberie.
+5. Maintenance copieurs multifonctions région à Bouches-du-Rhône (200 k€) : secteur éloigné de votre offre plomberie CVC.
+6. Maintenance équipements dialyse HEMOTECH à Isère (94 k€) : bardage métallique sans lien avec la dialyse.
+7. Entretien véhicules lourds Iveco Nord à Nord (200 k€) : flotte de livraison maintenue pour vos chantiers verts.
+8. Analyses de biologie médicale externalisées à Isère (750 k€) : décalage total avec votre activité de bardage métallique.
+9. Maintenance équipements et logiciels médicaux IBA à Isère (250 k€) : contrat médical éloigné de votre bardage métallique.
+10. DALKIA a gagné exploitation chauffage ventilation eau chaude à BAILLEUL (185,5 k€) : contrat long terme ouvre chantiers verts adjacents.
+11. Dévoiement réseaux humides tramway à Bouches-du-Rhône (6,8 M€) : vos équipes plomberie interviennent sur canalisations eaux pluviales.
+12. Maintenance équipements froids restauration universitaire à Nord (250 k€) : secteur froid éloigné de vos espaces verts.
+13. Création salle d'assises criminelle urgente à Bouches-du-Rhône (177,3 k€) : finitions intérieures exigeantes ouvrent opportunités sous-traitance plomberie.
+14. Dératisation et désinsectisation bases militaires à Alpes-Maritimes (123,7 k€) : marché hors plomberie, sans lien avec votre activité.
+15. Société Autocars Lolli a gagné transport scolaire par autocar à Douai à Douai (1 M€, juin 2026) : un prestataire local cherche des espaces verts entretenus.
+16. Hébergement cloud et services associés à Bouches-du-Rhône (2,5 M€) : sous-traitance technique possible pour vos installations CVC.
+17. Travaux électricité CFO bâtiment Phitem à Isère (105 k€) : chantier en Isère compatible avec votre bardage métallique.
+18. PAPREC NORD NORMANDIE a gagné collecte DNDAE et déchets inertes (280 k€) : vos chantiers verts génèrent ces flux à évacuer.
+19. Ce signal correspond à votre profil cible. *(repli)*
+20. Ce signal correspond à votre profil cible. *(repli)*
 
-Le SHA a été déployé par `kivou-deploy.sh` après sauvegarde, répétition Alembic
-sur copie jetable et readiness réussies. Le timer staging est actif ; le plafond
-du jour étant atteint, il ne peut pas produire d'appel supplémentaire avant le
-jour suivant.
+Le taux dépasse la cible de 15 %. Les sorties montrent que la persistance et le
+diagnostic fonctionnent, mais que la qualité fournisseur reste insuffisante ;
+les 32 rejets ont servi immédiatement leur repli sans bloquer le signal.
