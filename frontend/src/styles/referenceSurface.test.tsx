@@ -8,6 +8,30 @@ import { SurfaceBoundary } from '../presentation/surface/SurfaceBoundary'
 import { renderApp, UNAUTHENTICATED } from '../test/harness'
 
 describe('reference presentation surface', () => {
+  it('définit à la racine les alias consommés puis les surcharge par surface', () => {
+    const tokens = readFileSync(resolve(process.cwd(), 'src/styles/tokens.css'), 'utf8')
+    const marketing = readFileSync(
+      resolve(process.cwd(), 'src/presentation/public/marketing.css'),
+      'utf8',
+    )
+    const dashboard = readFileSync(
+      resolve(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
+      'utf8',
+    )
+    const consumed = new Set(
+      [...marketing.matchAll(/var\((--[\w-]+)/g), ...dashboard.matchAll(/var\((--[\w-]+)/g)]
+        .map((match) => match[1]),
+    )
+
+    for (const property of consumed) {
+      expect(tokens, `${property} doit avoir une valeur racine`).toMatch(
+        new RegExp(`${property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`),
+      )
+    }
+    expect(marketing.trimStart()).toMatch(/^html\[data-kivou-surface="public"\]\s*\{/)
+    expect(dashboard.trimStart()).toMatch(/^html\[data-kivou-surface="dashboard"\]\s*\{/)
+  })
+
   it('sets and restores the public/dashboard surface on html', () => {
     const { rerender, unmount } = render(
       <SurfaceBoundary surface="public"><span /></SurfaceBoundary>,

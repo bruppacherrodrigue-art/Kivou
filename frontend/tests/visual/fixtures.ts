@@ -538,6 +538,18 @@ export const VISUAL_ICP = {
   updated_at: '2026-08-29T09:00:00+00:00',
 } satisfies TargetIcp
 
+const VISUAL_PROVISIONAL_ICP = {
+  ...VISUAL_ICP,
+  status: 'draft',
+  provisional: true,
+  customer_input: {
+    ...VISUAL_ICP.customer_input,
+    territories: ['CH'],
+    territory_subdivisions: ['CH-VD'],
+    sector_cpv_prefixes: ['45'],
+  },
+} satisfies TargetIcp
+
 function visualCompanyKey(record: AwardSignal): string {
   return `cmp_${record.company.id}_reference`
 }
@@ -1113,10 +1125,11 @@ export type VisualScenario =
   | 'auth'
   | 'connected-pro'
   | 'connected-discovery'
+  | 'connected-onboarding'
 
 type ConnectedVisualScenario = Extract<
   VisualScenario,
-  'connected-pro' | 'connected-discovery'
+  'connected-pro' | 'connected-discovery' | 'connected-onboarding'
 >
 
 export const LOCAL_REFERENCE_ROUTES = [
@@ -1128,6 +1141,7 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'public-legal', source: '/informations-legales', local: '/informations-legales', scenario: 'public-pricing' },
   { golden: 'dashboard-login', source: '/login', local: '/login', scenario: 'auth' },
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
+  { golden: 'dashboard-onboarding', source: '/onboarding', local: '/onboarding', scenario: 'connected-onboarding' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
   // `source` est ici périmé : les goldens Signaux sont capturés depuis
   // l'application (PR2), la maquette de référence décrit l'ancien écran.
@@ -1192,8 +1206,26 @@ function responseForConnected(
   key: string,
   query: URLSearchParams,
 ): VisualResponse | null {
-  if (key === 'GET /me') return { body: VISUAL_ME }
-  if (key === 'GET /target-icps') return { body: [VISUAL_ICP] }
+  if (key === 'GET /me') return {
+    body: scenario === 'connected-onboarding'
+      ? { ...VISUAL_ME, onboarding_status: 'account_created' }
+      : VISUAL_ME,
+  }
+  if (key === 'GET /target-icps') return {
+    body: scenario === 'connected-onboarding' ? [VISUAL_PROVISIONAL_ICP] : [VISUAL_ICP],
+  }
+  if (key === 'GET /target-icps/options') return {
+    body: {
+      zones: [
+        { code: 'CH-VD', label: 'Vaud', country: 'CH' },
+        { code: 'CH-GE', label: 'Genève', country: 'CH' },
+      ],
+      sectors: [
+        { prefix: '45', label: 'Travaux de construction' },
+        { prefix: '44', label: 'Matériaux de construction' },
+      ],
+    },
+  }
   if (key === 'GET /billing/status') {
     return { body: scenario === 'connected-discovery' ? VISUAL_DISCOVERY_STATUS : VISUAL_PRO_STATUS }
   }
@@ -1299,6 +1331,7 @@ function visualResponse(
       return null
     case 'connected-pro':
     case 'connected-discovery':
+    case 'connected-onboarding':
       return responseForConnected(scenario, key, query)
     default:
       return assertNever(scenario)

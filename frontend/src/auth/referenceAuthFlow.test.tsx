@@ -238,8 +238,13 @@ describe('parcours d’entrée de la référence connectée', () => {
     await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: /continuer vers le profil cible/i }))
 
-    expect(await screen.findByText('Première configuration')).toBeVisible()
-    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=discovery')
+    expect(await screen.findByRole('heading', {
+      level: 1,
+      name: 'Définir ce que Kivou doit surveiller',
+    })).toBeVisible()
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=discovery'),
+    )
     expect(storage).not.toHaveBeenCalled()
   })
 
