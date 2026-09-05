@@ -82,7 +82,12 @@ def test_alert_selection_continues_after_the_first_feed_page(
 ) -> None:
     items = tuple(
         types.SimpleNamespace(
-            signal=types.SimpleNamespace(signal_key=f"sig-{index:02d}"), model_fit=None
+            signal=types.SimpleNamespace(
+                signal_key=f"sig-{index:02d}",
+                award=types.SimpleNamespace(title="Marché test"),
+            ),
+            model_fit=None,
+            display=object(),
         )
         for index in range(51)
     )
@@ -140,7 +145,12 @@ def test_alert_selection_stops_paginating_once_it_holds_enough_signals(
     """
     items = tuple(
         types.SimpleNamespace(
-            signal=types.SimpleNamespace(signal_key=f"sig-{index:03d}"), model_fit=None
+            signal=types.SimpleNamespace(
+                signal_key=f"sig-{index:03d}",
+                award=types.SimpleNamespace(title="Marché test"),
+            ),
+            model_fit=None,
+            display=object(),
         )
         for index in range(500)
     )
@@ -184,7 +194,9 @@ def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     item = types.SimpleNamespace(
-        signal=types.SimpleNamespace(signal_key="sig-501"),
+        signal=types.SimpleNamespace(
+            signal_key="sig-501", award=types.SimpleNamespace(title="Marché test")
+        ),
         display=object(),
         status="recent_award",
         model_fit=None,
@@ -500,7 +512,7 @@ def test_a_downgrade_before_sending_re_evaluates_the_entitlement(app, engine, ma
 
     report = cycle(engine, mailer)
     assert mailer.sent == []
-    assert [outcome.result for outcome in report.outcomes] == ["not_eligible"]
+    assert [outcome.result for outcome in report.outcomes] == ["nothing_to_send"]
 
 
 def test_a_paid_account_only_receives_what_its_plan_unlocks(app, engine, mailer):
