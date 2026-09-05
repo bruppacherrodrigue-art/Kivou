@@ -151,7 +151,7 @@ function LockedRow({
 }) {
   return (
     <tr className={styles.lockedRow} onClick={onOpen}>
-      <td>{MISSING}</td>
+      <td>{item.teaser.date ?? MISSING}</td>
       <td>
         <button type="button" className={styles.lockedButton} onClick={(event) => {
           event.stopPropagation()
@@ -161,8 +161,8 @@ function LockedRow({
         </button>
       </td>
       <td className={styles.lockedNote}>{note}</td>
-      <td className={styles.cellNumeric}>{MISSING}</td>
-      {compact ? null : <td>{MISSING}</td>}
+      <td className={styles.cellNumeric}>{item.teaser.amount ? `${item.teaser.amount.value} ${item.teaser.amount.currency}` : MISSING}</td>
+      {compact ? null : <td>{item.teaser.department ?? MISSING}</td>}
       <td>{MISSING}</td>
     </tr>
   )
@@ -538,6 +538,15 @@ export function SignalsFeed() {
       })
 
   const sectorLocked = feed.data?.filter_access.sector === false
+  const displayedRows = useMemo(() => {
+    if (planCode !== 'discovery') return rows
+    const unlocked = rows.filter((item) => !item.locked)
+    const locked = rows.filter((item) => item.locked)
+    return [...unlocked, ...locked.slice(0, 5)]
+  }, [planCode, rows])
+  const hiddenDiscoveryCount = planCode === 'discovery'
+    ? Math.max(0, rows.length - displayedRows.length)
+    : 0
 
   const drawer = (
     <SignalDrawer
@@ -599,7 +608,7 @@ export function SignalsFeed() {
           })}
         </div>
 
-        <div className={styles.filter}>
+        <div className={styles.filter} title={sectorLocked ? t.reference.signalsPage.restrictedFilter : undefined}>
           <input
             list="signals-zones"
             placeholder={copy.filters.zone}
@@ -612,7 +621,7 @@ export function SignalsFeed() {
           </datalist>
         </div>
 
-        <div className={styles.filter}>
+        <div className={styles.filter} title={copy.filters.loadedOnly}>
           <input
             placeholder={copy.filters.sectorPlaceholder}
             aria-label={copy.filters.sector}
@@ -620,7 +629,6 @@ export function SignalsFeed() {
             maxLength={8}
             inputMode="numeric"
             disabled={sectorLocked}
-            aria-describedby={sectorLocked ? 'signals-sector-restricted' : undefined}
             onChange={(event) => setParam('cpv', event.target.value.replace(/\D/g, ''))}
           />
         </div>
@@ -633,7 +641,6 @@ export function SignalsFeed() {
             placeholder={copy.filters.minAmount}
             aria-label={copy.filters.minAmount}
             value={filters.min}
-            aria-describedby="signals-loaded-only"
             onChange={(event) => setParam('min', event.target.value)}
           />
         </div>
@@ -650,27 +657,16 @@ export function SignalsFeed() {
           </select>
         </div>
 
-        <div className={`${styles.filter} ${styles.searchFilter}`}>
+        <div className={`${styles.filter} ${styles.searchFilter}`} title={copy.filters.loadedOnly}>
           <input
             type="search"
             value={filters.q}
             placeholder={copy.filters.search}
             aria-label={copy.filters.search}
-            aria-describedby="signals-loaded-only"
             onChange={(event) => setParam('q', event.target.value)}
           />
         </div>
       </div>
-
-      <small id="signals-loaded-only" className={styles.loadedOnly}>
-        {copy.filters.loadedOnly}
-      </small>
-
-      {sectorLocked ? (
-        <p id="signals-sector-restricted" className={styles.restrictedNote}>
-          {t.reference.signalsPage.restrictedFilter}
-        </p>
-      ) : null}
 
       {actionError ? (
         <p className={styles.alert} role="alert">{copy.actionError}</p>
@@ -690,7 +686,7 @@ export function SignalsFeed() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((entry) => (entry.locked ? (
+              {displayedRows.map((entry) => (entry.locked ? (
                 <LockedRow
                   key={entry.signal_id}
                   item={entry}
@@ -707,6 +703,13 @@ export function SignalsFeed() {
                   onOpen={openSignal}
                 />
               )))}
+              {hiddenDiscoveryCount ? (
+                <tr className={styles.lockedRow}>
+                  <td colSpan={compact ? 5 : 6}>
+                    {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/pricing">voir les offres</Link>
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
 

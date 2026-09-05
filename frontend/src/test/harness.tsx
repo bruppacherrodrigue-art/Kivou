@@ -402,6 +402,11 @@ export const LOCKED_ITEM: LockedFeedItem = {
     plausible_need_count: 2,
   },
   headline: 'Un marché public vient d’être attribué.',
+  teaser: {
+    date: '2026-08-02',
+    department: 'Haute-Garonne',
+    amount: { value: '1240000', currency: 'EUR' },
+  },
 }
 
 /** Un signal ANCIEN : la formulation ne doit jamais dire « vient de remporter ». */

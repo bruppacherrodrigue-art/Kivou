@@ -29,6 +29,7 @@ from typing import Any
 
 from signals.feed import copy as feed_copy
 from signals.feed import policy
+from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.query import FeedSignal
 from signals.feed.view import is_consortium_award
 
@@ -108,6 +109,12 @@ def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]
     recency_status = item.status
     award = item.signal.award
     date = item.event_date
+    place = award.place_of_performance or {}
+    subdivision = location_subdivision(place)
+    rounded_amount = None
+    if award.amount is not None:
+        rounded = (award.amount / Decimal("1000")).quantize(Decimal("1")) * 1000
+        rounded_amount = {"value": str(rounded), "currency": award.currency}
     return {
         "signal_id": item.signal.signal_key,
         "target_icp_id": item.signal.target_icp_id,
@@ -137,6 +144,11 @@ def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]
         },
         # La phrase décrit l'ÉVÉNEMENT, jamais l'entreprise.
         "headline": LOCKED_HEADLINE[recency_status][lang],
+        "teaser": {
+            "date": date.isoformat() if date else None,
+            "department": department_label(subdivision) if subdivision else None,
+            "amount": rounded_amount,
+        },
     }
 
 

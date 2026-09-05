@@ -282,6 +282,7 @@ def test_a_locked_teaser_never_names_the_company(alice, engine):
         "event",
         "context",
         "headline",
+        "teaser",
     }
     assert "presentation" not in item
     assert item["locked"] is True
@@ -370,6 +371,7 @@ def test_the_detail_of_a_locked_signal_never_returns_the_full_card(alice, engine
         "event",
         "context",
         "headline",
+        "teaser",
         "access",
         "read_at",
         "language",
