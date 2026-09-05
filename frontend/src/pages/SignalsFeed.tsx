@@ -629,8 +629,10 @@ export function SignalsFeed() {
             maxLength={8}
             inputMode="numeric"
             disabled={sectorLocked}
+            aria-describedby={sectorLocked ? 'signals-sector-restricted' : undefined}
             onChange={(event) => setParam('cpv', event.target.value.replace(/\D/g, ''))}
           />
+          {sectorLocked ? <span role="tooltip" id="signals-sector-restricted" className={styles.filterTooltip}>{t.reference.signalsPage.restrictedFilter}</span> : null}
         </div>
 
         <div className={styles.filter}>
@@ -641,6 +643,7 @@ export function SignalsFeed() {
             placeholder={copy.filters.minAmount}
             aria-label={copy.filters.minAmount}
             value={filters.min}
+            aria-describedby="signals-loaded-only"
             onChange={(event) => setParam('min', event.target.value)}
           />
         </div>
@@ -663,10 +666,15 @@ export function SignalsFeed() {
             value={filters.q}
             placeholder={copy.filters.search}
             aria-label={copy.filters.search}
+            aria-describedby="signals-loaded-only"
             onChange={(event) => setParam('q', event.target.value)}
           />
         </div>
       </div>
+
+      <span role="tooltip" id="signals-loaded-only" className={styles.filterTooltip}>
+        {copy.filters.loadedOnly}
+      </span>
 
       {actionError ? (
         <p className={styles.alert} role="alert">{copy.actionError}</p>
