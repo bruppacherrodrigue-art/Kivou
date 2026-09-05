@@ -20,11 +20,13 @@ n'apporterait qu'un faux sentiment de concurrence.
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 
 import sqlalchemy as sa
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse
 
 from signals.api.config import ApiConfig
@@ -47,6 +49,23 @@ from signals.conversion.service import ConversionAttributionService
 from signals.conversion.token import AttributionTokenKeyring
 from signals.operations.api import router as operations_router
 from signals.operations.service import OperationsReadService
+
+logger = logging.getLogger(__name__)
+
+
+def _log_converted_server_error(
+    request: Request, error: BaseException, *, status_code: int
+) -> None:
+    """Keep the traceback when an internal failure is deliberately rendered as 4xx."""
+    logger.error(
+        "server error converted to client response",
+        extra={
+            "request_method": request.method,
+            "request_path": request.url.path,
+            "response_status": status_code,
+        },
+        exc_info=(type(error), error, error.__traceback__),
+    )
 
 
 class _NullDelivery:
@@ -139,10 +158,18 @@ def create_app(
     @app.exception_handler(ValueError)
     def _value_error(request: Request, error: ValueError) -> JSONResponse:
         """Une entrée client invalide se décrit ; elle ne remonte jamais brute."""
+        _log_converted_server_error(request, error, status_code=422)
         return JSONResponse(
             status_code=422,
             content={"code": "invalid_input", "message": str(error)},
         )
+
+    @app.exception_handler(HTTPException)
+    async def _http_error(request: Request, error: HTTPException):
+        """Log chained internal causes while preserving FastAPI's HTTP contract."""
+        if error.__cause__ is not None and 400 <= error.status_code < 500:
+            _log_converted_server_error(request, error.__cause__, status_code=error.status_code)
+        return await http_exception_handler(request, error)
 
     return app
 

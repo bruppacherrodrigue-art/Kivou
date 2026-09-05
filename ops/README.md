@@ -1511,3 +1511,28 @@ KIVOU_FOR_YOU_CONCURRENCY=4 KIVOU_FOR_YOU_DAILY_LIMIT=50 \
 Sur staging, le benchmark PR5b exécute cette commande une seule fois avec 50.
 En production, choisir une fenêtre couvrant seulement les comptes actifs et un
 plafond explicite ; ne jamais rejouer sans borne les quelque 39 000 signaux.
+
+## Compte de recette client payant
+
+Le compte Essential ancien de trois mois est reconstruit de façon idempotente
+à partir de signaux déjà persistés. Son adresse et son mot de passe vivent
+uniquement dans le fichier d'environnement protégé :
+
+```text
+KIVOU_QA_PAYING_EMAIL=<adresse en @kivou-qa.ch>
+KIVOU_QA_PAYING_PASSWORD=<secret>
+```
+
+Après chaque restauration de staging, exécuter depuis la release active :
+
+```bash
+KIVOU_ENV=staging /srv/kivou/app/.venv/bin/python \
+  -m signals.qa.paying_account
+```
+
+La commande crée exactement deux profils, 1 002 signaux, 50 entreprises
+contactées et 20 notes. Tout manque de données source annule la transaction.
+Elle refuse `KIVOU_ENV=production` avant d'ouvrir une connexion à la base.
+Les captures de recette Aujourd'hui utilisent ce compte et le compte
+Découverte ; leurs deux scénarios hors ligne sont conservés dans les goldens
+Playwright.

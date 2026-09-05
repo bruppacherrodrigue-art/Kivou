@@ -34,6 +34,16 @@ test.beforeAll(() => {
   expect(actual).toEqual(EXPECTED_GOLDENS)
 })
 
+test('today goldens cover discovery and three-month Essential accounts', () => {
+  const todayScenarios = LOCAL_REFERENCE_ROUTES
+    .filter((route) => route.local === '/app/dashboard')
+    .map((route) => route.scenario)
+  expect(todayScenarios).toEqual([
+    'connected-essential-veteran',
+    'connected-discovery',
+  ])
+})
+
 test('dashboard-signals adversarial fixture contract', () => {
   expect(VISUAL_SIGNAL_ITEMS).toHaveLength(3)
   expect(VISUAL_SIGNAL_ITEMS.filter((item) => item.locked)).toHaveLength(1)
@@ -92,6 +102,7 @@ const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string
   'dashboard-signup': 'Commencer avec un profil cible clair',
   'dashboard-onboarding': 'Confirmez votre profil cible',
   'dashboard-overview': '8 nouveaux marchés depuis mardi',
+  'dashboard-overview-discovery': '8 nouveaux marchés depuis mardi',
   'dashboard-signals': 'Signaux',
   'dashboard-companies': 'Entreprises',
   'dashboard-targeting': 'Profil cible',
@@ -196,7 +207,7 @@ async function waitForScenario(
   if (golden === 'public-pricing') {
     await expect(page.locator('.pricing-grid .price-card')).toHaveCount(4)
   }
-  if (golden === 'dashboard-overview') {
+  if (golden.startsWith('dashboard-overview')) {
     await expect(page.locator('[data-page="today"] article')).toHaveCount(3)
     await expect(page.getByRole('region', { name: 'À relancer' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Cette semaine' })).toBeVisible()

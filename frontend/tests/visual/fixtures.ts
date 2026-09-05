@@ -1110,6 +1110,12 @@ export const VISUAL_PRO_STATUS = {
   policy: { billing: 'kivou-billing-v0.1' },
 } satisfies BillingStatus
 
+export const VISUAL_ESSENTIAL_STATUS = {
+  ...VISUAL_PRO_STATUS,
+  plan_code: 'essential',
+  entitlements: entitlements({ profiles: 1, cadence: 'weekly', history: 30 }),
+} satisfies BillingStatus
+
 export const VISUAL_DISCOVERY_STATUS = {
   plan_code: 'discovery',
   offer_code: null,
@@ -1136,12 +1142,16 @@ export type VisualScenario =
   | 'public-pricing'
   | 'auth'
   | 'connected-pro'
+  | 'connected-essential-veteran'
   | 'connected-discovery'
   | 'connected-onboarding'
 
 type ConnectedVisualScenario = Extract<
   VisualScenario,
-  'connected-pro' | 'connected-discovery' | 'connected-onboarding'
+  | 'connected-pro'
+  | 'connected-essential-veteran'
+  | 'connected-discovery'
+  | 'connected-onboarding'
 >
 
 export const LOCAL_REFERENCE_ROUTES = [
@@ -1154,7 +1164,8 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-login', source: '/login', local: '/login', scenario: 'auth' },
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
   { golden: 'dashboard-onboarding', source: '/onboarding', local: '/onboarding', scenario: 'connected-onboarding' },
-  { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
+  { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-essential-veteran' },
+  { golden: 'dashboard-overview-discovery', source: '/', local: '/app/dashboard', scenario: 'connected-discovery' },
   // `source` est ici périmé : les goldens Signaux sont capturés depuis
   // l'application (PR2), la maquette de référence décrit l'ancien écran.
   { golden: 'dashboard-signals', source: '/signals?signal=tm-ausbau-campus-ost', local: '/app/signals/tm-ausbau-campus-ost', scenario: 'connected-discovery' },
@@ -1167,7 +1178,8 @@ function feedPage(
   scenario: ConnectedVisualScenario,
   query: URLSearchParams,
 ): FeedPage {
-  const history = scenario === 'connected-pro' && query.get('view') === 'history'
+  const paid = scenario === 'connected-pro' || scenario === 'connected-essential-veteran'
+  const history = paid && query.get('view') === 'history'
   const cursor = query.get('cursor')
   const items = scenario === 'connected-discovery'
     ? VISUAL_SIGNAL_ITEMS
@@ -1195,17 +1207,21 @@ function feedPage(
     read_at: '2026-08-29T09:00:00+00:00',
     freshness: 'all',
     language: 'fr',
-    plan_code: scenario === 'connected-discovery' ? 'discovery' : 'pro',
+    plan_code: scenario === 'connected-discovery'
+      ? 'discovery'
+      : scenario === 'connected-essential-veteran'
+        ? 'essential'
+        : 'pro',
     view: history ? 'history' : 'recent',
     history_access: scenario === 'connected-discovery'
       ? { scope: 'grants_only', history_days: 0 }
       : { scope: 'window', history_days: 365 },
     filter_access: {
-      date_range: scenario === 'connected-pro',
+      date_range: paid,
       country: true,
       subdivision: true,
       status: true,
-      sector: scenario === 'connected-pro',
+      sector: paid,
     },
     policy: { feed: 'customer-feed-v0.1', recency: 'v1', paywall: 'kivou-paywall-v0.1' },
   } satisfies FeedPage
@@ -1221,10 +1237,20 @@ function responseForConnected(
   if (key === 'GET /me') return {
     body: scenario === 'connected-onboarding'
       ? { ...VISUAL_ME, onboarding_status: 'account_created' }
+      : scenario === 'connected-essential-veteran'
+        ? {
+            ...VISUAL_ME,
+            email: 'client-3-mois@kivou-qa.ch',
+            account_display_name: 'Kivou QA · Client Essential 3 mois',
+          }
       : VISUAL_ME,
   }
   if (key === 'GET /target-icps') return {
-    body: scenario === 'connected-onboarding' ? [VISUAL_PROVISIONAL_ICP] : [VISUAL_ICP],
+    body: scenario === 'connected-onboarding'
+      ? [VISUAL_PROVISIONAL_ICP]
+      : scenario === 'connected-essential-veteran'
+        ? [VISUAL_ICP, { ...VISUAL_ICP, target_icp_id: 'target-reference-cvc', label: 'CVC plomberie' }]
+        : [VISUAL_ICP],
   }
   if (key === 'GET /target-icps/options') return {
     body: {
@@ -1239,7 +1265,13 @@ function responseForConnected(
     },
   }
   if (key === 'GET /billing/status') {
-    return { body: scenario === 'connected-discovery' ? VISUAL_DISCOVERY_STATUS : VISUAL_PRO_STATUS }
+    return {
+      body: scenario === 'connected-discovery'
+        ? VISUAL_DISCOVERY_STATUS
+        : scenario === 'connected-essential-veteran'
+          ? VISUAL_ESSENTIAL_STATUS
+          : VISUAL_PRO_STATUS,
+    }
   }
   if (key === 'GET /billing/plans') return { body: VISUAL_CATALOGUE }
   if (key === 'GET /dashboard') {
@@ -1259,6 +1291,17 @@ function responseForConnected(
         to_follow_up_truncated: false,
         week: { new: 8, saved: 3, contacted: 2, replied: 1 },
         scan_truncated: false,
+        profile: {
+          name: 'Menuiserie intérieure',
+          sector_label: 'Travaux de construction',
+          zone_labels: ['Isère'],
+        },
+        plan: {
+          name: scenario === 'connected-discovery' ? 'Découverte' : 'Essential',
+          opened: scenario === 'connected-essential-veteran' ? 1_002 : 3,
+          quota: scenario === 'connected-discovery' ? 3 : null,
+          period_end: scenario === 'connected-discovery' ? null : '2026-09-29T00:00:00+00:00',
+        },
       } satisfies DashboardResponse,
     }
   }
@@ -1288,7 +1331,11 @@ function responseForConnected(
         }),
         page: { limit: 50, cursor: null, next_cursor: null, has_more: false, scan_truncated: false },
         read_at: '2026-08-29',
-        plan_code: scenario === 'connected-discovery' ? 'discovery' : 'pro',
+        plan_code: scenario === 'connected-discovery'
+          ? 'discovery'
+          : scenario === 'connected-essential-veteran'
+            ? 'essential'
+            : 'pro',
       } satisfies CompanyListPage,
     }
   }
@@ -1297,7 +1344,7 @@ function responseForConnected(
   if (noteMatch) {
     const details = scenario === 'connected-discovery' ? VISUAL_SIGNAL_DETAILS : VISUAL_DETAILS
     const signal = details.find((candidate) => candidate.signal_id === noteMatch[1])
-    const allowed = scenario === 'connected-pro'
+    const allowed = scenario === 'connected-pro' || scenario === 'connected-essential-veteran'
       || VISUAL_SIGNAL_UNLOCKED_ITEMS.some((candidate) => candidate.signal_id === noteMatch[1])
     if (!signal || !allowed) return null
     return {
@@ -1309,7 +1356,7 @@ function responseForConnected(
   if (detailMatch) {
     const details = scenario === 'connected-discovery' ? VISUAL_SIGNAL_DETAILS : VISUAL_DETAILS
     const detail = details.find((candidate) => candidate.signal_id === detailMatch[1])
-    const allowed = scenario === 'connected-pro'
+    const allowed = scenario === 'connected-pro' || scenario === 'connected-essential-veteran'
       || VISUAL_SIGNAL_UNLOCKED_ITEMS.some((candidate) => candidate.signal_id === detailMatch[1])
     return detail && allowed ? { body: detail } : null
   }
@@ -1320,7 +1367,11 @@ function responseForConnected(
     const discoveryAllowed = VISUAL_SIGNAL_UNLOCKED_ITEMS.some(
       (candidate) => candidate.company_key === companyMatch[1],
     )
-    return company && (scenario === 'connected-pro' || discoveryAllowed)
+    return company && (
+      scenario === 'connected-pro'
+      || scenario === 'connected-essential-veteran'
+      || discoveryAllowed
+    )
       ? { body: company }
       : null
   }
@@ -1342,6 +1393,7 @@ function visualResponse(
       if (key === 'GET /billing/plans') return { body: VISUAL_CATALOGUE }
       return null
     case 'connected-pro':
+    case 'connected-essential-veteran':
     case 'connected-discovery':
     case 'connected-onboarding':
       return responseForConnected(scenario, key, query)
