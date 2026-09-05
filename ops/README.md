@@ -201,6 +201,16 @@ explicitement ; il conserve l'historique antérieur des livraisons. Si aucun
 timer antérieur n'existait, les deux commandes `cp` sont omises et les unités
 restent simplement désactivées.
 
+## Suppression différée des comptes
+
+Le couple `kivou-account-purge.service` / `kivou-account-purge.timer` contrôle
+chaque heure les demandes arrivées à échéance. La commande
+`python -m signals.accounts.data_rights_cli` lit la base depuis l'environnement,
+supprime les données appartenant au compte et conserve seulement la preuve
+d'audit sans donnée client. Les variantes staging et production chargent leur
+fichier d'environnement respectif. La prévisualisation versionnée de l'alerte
+hebdomadaire se trouve dans `docs/previews/weekly-alert.html`.
+
 ## Ingestion DECP bornée (#77)
 
 `kivou-ingest-decp.service` traite DECP par lots bornés à l'intérieur de journées

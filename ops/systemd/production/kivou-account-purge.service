@@ -1,0 +1,22 @@
+[Unit]
+Description=Kivou — suppression différée des comptes
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+ExecStart=/srv/kivou/app/.venv/bin/python -m signals.accounts.data_rights_cli
+TimeoutStartSec=20min
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

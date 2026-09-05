@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — contrôle horaire des suppressions de comptes
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=60
+AccuracySec=60
+Unit=kivou-account-purge.service
+
+[Install]
+WantedBy=timers.target

@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from engagement_helpers import Clock, make_app, make_engine, signed_up
 from feed_helpers import COMPLETE_ICP_INPUT
 
+from signals.accounts import data_rights_cli
 from signals.accounts.data_rights import purge_due_deletions
 from signals.accounts.schema import account, account_deletion_request
 
@@ -57,3 +58,19 @@ def test_confirmed_deletion_is_audited_and_purged_within_24_hours(tmp_path) -> N
         ) == 0
         audit = connection.execute(sa.select(account_deletion_request)).mappings().one()
         assert audit["completed_at"] is not None
+
+
+def test_purge_cli_uses_environment_database_and_reports_only_a_count(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    engine = make_engine(tmp_path)
+    clock = Clock()
+    client = signed_up(make_app(engine, clock))
+    assert client.post(
+        "/account/deletion", json={"confirmation": "SUPPRIMER"}
+    ).status_code == 202
+    monkeypatch.setenv("KIVOU_DATABASE_URL", str(engine.url))
+
+    assert data_rights_cli.main(["--now", (clock.now + dt.timedelta(hours=24)).isoformat()]) == 0
+
+    assert capsys.readouterr().out == "accounts_purged=1\n"

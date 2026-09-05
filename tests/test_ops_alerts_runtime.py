@@ -11,6 +11,8 @@ REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SERVICE = REPOSITORY / "ops/systemd/kivou-alerts.service"
 TIMER = REPOSITORY / "ops/systemd/kivou-alerts.timer"
 OPERATIONS = REPOSITORY / "ops/README.md"
+PURGE_SERVICE = REPOSITORY / "ops/systemd/kivou-account-purge.service"
+PURGE_TIMER = REPOSITORY / "ops/systemd/kivou-account-purge.timer"
 
 
 def test_versioned_service_uses_the_audited_staging_runtime() -> None:
@@ -60,6 +62,16 @@ def test_timer_is_hourly_persistent_and_jittered() -> None:
     assert "RandomizedDelaySec=300" in body
     assert "Unit=kivou-alerts.service" in body
     assert "WantedBy=timers.target" in body
+
+
+def test_account_purge_is_scheduled_hourly_with_the_deployed_environment() -> None:
+    service = PURGE_SERVICE.read_text(encoding="utf-8")
+    timer = PURGE_TIMER.read_text(encoding="utf-8")
+
+    assert "EnvironmentFile=/etc/kivou/staging.env" in service
+    assert "python -m signals.accounts.data_rights_cli" in service
+    assert "OnCalendar=hourly" in timer
+    assert "Persistent=true" in timer
 
 
 def test_documented_dry_run_loads_the_same_environment_file_as_systemd() -> None:
