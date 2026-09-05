@@ -128,7 +128,7 @@ const sections: LegalSection[] = [
             "kind": "list",
             "items": [
               "les données de compte et d’organisation : adresse électronique, nom d’entreprise, langue, identifiants techniques et données d’authentification protégées ;",
-              "les données de ciblage commercial que vous fournissez : offre, secteurs, territoires, seuils et préférences ICP ;",
+              "les données de profil commercial que vous fournissez : offre, secteurs, territoires, seuils et préférences du profil cible ;",
               "les données d’usage du SaaS : signaux consultés ou débloqués, notes, préférences et cadence d’alertes ;",
               "les données de facturation : plan, état d’abonnement, devise, références Stripe et informations nécessaires au suivi de la relation commerciale ;",
               "les données de support et de communication que vous choisissez de transmettre ;",
@@ -154,7 +154,7 @@ const sections: LegalSection[] = [
             "kind": "list",
             "items": [
               "créer, sécuriser et administrer le compte ;",
-              "exécuter le Service, personnaliser le feed selon le profil ICP et conserver les actions demandées ;",
+              "exécuter le Service, personnaliser les signaux selon le profil cible et conserver les actions demandées ;",
               "fournir Discovery, les abonnements, la facturation et le support ;",
               "envoyer les alertes et messages transactionnels configurés ;",
               "prévenir les abus, diagnostiquer les incidents et améliorer la fiabilité du produit ;",
@@ -174,7 +174,7 @@ const sections: LegalSection[] = [
         "blocks": [
           {
             "kind": "paragraph",
-            "text": "Kivou analyse des informations légalement accessibles, notamment des avis et documents relatifs aux marchés publics. Le produit distingue les faits issus de sources publiques des besoins commerciaux plausibles inférés à partir de ces faits."
+            "text": "Kivou analyse des informations légalement accessibles, notamment des avis et documents relatifs aux marchés publics. Le produit distingue les faits issus de sources publiques des besoins commerciaux probables déduits de ces faits."
           },
           {
             "kind": "paragraph",
@@ -341,11 +341,11 @@ const sections: LegalSection[] = [
           },
           {
             "kind": "paragraph",
-            "text": "Le Service peut fournir des faits relatifs à un marché, l’identité d’une entreprise gagnante, des dates, montants, lieux ou classifications, des preuves issues de sources publiques, des besoins commerciaux plausibles, un timing fourni par le Service et une correspondance avec le profil commercial défini par l’utilisateur."
+            "text": "Le Service peut fournir des faits relatifs à un marché, l’identité d’un titulaire, des dates, montants, lieux ou classifications, des preuves issues de sources publiques, des besoins commerciaux probables, un calendrier fourni par le Service et une correspondance avec le profil cible défini par l’utilisateur."
           },
           {
             "kind": "paragraph",
-            "text": "Kivou distingue les faits publics des analyses et inférences. Un besoin plausible ne signifie pas qu’une entreprise effectuera un achat, recherchera un fournisseur ou répondra à une sollicitation. Kivou ne garantit aucun contrat, vente, réponse, rendez-vous, chiffre d’affaires ou résultat commercial."
+            "text": "Kivou distingue les faits publics des analyses et inférences. Un besoin probable ne signifie pas qu’une entreprise effectuera un achat, recherchera un fournisseur ou répondra à une sollicitation. Kivou ne garantit aucun contrat, vente, réponse, rendez-vous, chiffre d’affaires ou résultat commercial."
           }
         ]
       },
