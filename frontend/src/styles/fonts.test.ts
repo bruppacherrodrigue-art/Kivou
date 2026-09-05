@@ -49,6 +49,15 @@ describe('livraison des polices', () => {
     expect(main).toContain("'./presentation/dashboard/app-shell.css'")
   })
 
+  it('n’embarque pas le thème ni le preflight Tailwind globaux', () => {
+    const dashboard = read('src/presentation/dashboard/app-shell.css')
+
+    expect(dashboard).not.toContain('@import "tailwindcss";')
+    expect(dashboard).toContain('@import "tailwindcss/utilities.css"')
+    expect(dashboard).not.toMatch(/:root\s*\{[^}]*--background:/s)
+    expect(dashboard).toContain('html[data-kivou-surface="dashboard"] {')
+  })
+
   it('nomme les familles réellement livrées en tête des piles de tokens', () => {
     const tokens = read('src/styles/tokens.css')
 

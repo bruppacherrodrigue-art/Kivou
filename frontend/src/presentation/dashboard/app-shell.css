@@ -1,8 +1,8 @@
-@import "tailwindcss";
+@import "tailwindcss/utilities.css";
 @import "tw-animate-css";
 @import "./vendor/shadcn-tailwind-4.13.0.css";
 
-:root {
+html[data-kivou-surface="dashboard"] {
   --background: #ffffff;
   --foreground: #0a1d17;
   --card: #ffffff;
