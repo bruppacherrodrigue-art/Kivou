@@ -1,4 +1,4 @@
-:root {
+html[data-kivou-surface="public"] {
   --ink: #0a1d17;
   --ink-soft: #17342b;
   --muted: #5a6b64;

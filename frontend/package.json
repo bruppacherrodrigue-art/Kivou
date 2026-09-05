@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:founder": "vite --config vite.founder.config.ts",
     "build": "tsc -b && vite build",
+    "check:css-isolation": "node scripts/assert-dashboard-css-isolation.mjs",
     "build:founder": "tsc -b && vite build --config vite.founder.config.ts",
     "preview": "vite preview",
     "preview:founder": "vite preview --config vite.founder.config.ts",
