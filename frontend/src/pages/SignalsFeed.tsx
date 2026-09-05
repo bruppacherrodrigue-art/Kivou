@@ -527,7 +527,10 @@ export function SignalsFeed() {
    * `has_more` et `counts_truncated` disent tous deux que ce total peut être
    * un plancher, pas une somme définitive : c'est le signal du « + ». */
   const hasClientFilter = hasMin || Boolean(needle)
-  const loadedCount = discoveryGrantCount ?? items.length
+  const selectedSegmentCount = filters.segment !== 'all' && COUNTED_SEGMENTS.includes(filters.segment)
+    ? counts?.[filters.segment] ?? null
+    : null
+  const loadedCount = selectedSegmentCount ?? discoveryGrantCount ?? items.length
   const moreBeyondLoaded = planCode !== 'discovery'
     && (Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated))
   const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''

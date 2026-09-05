@@ -240,8 +240,17 @@ def _scan_accessible_signals(
         query = query.where(
             materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids))
         )
+    if not access.is_paid:
+        # Un compte Découverte possède quelques clés explicites. Les chercher
+        # directement évite qu'un grand profil fasse tomber ses cadeaux hors
+        # du plafond avant même que `is_unlocked` puisse les reconnaître.
+        query = query.where(materialized_signal.c.signal_key.in_(sorted(access.granted)))
 
-    scan_cap = feed_query.HISTORY_SCAN_CAP
+    scan_cap = (
+        max(feed_query.HISTORY_SCAN_CAP, len(access.granted))
+        if not access.is_paid
+        else feed_query.HISTORY_SCAN_CAP
+    )
     scanned = 0
     accessible: list[StoredSignal] = []
     last_at: dt.datetime | None = None

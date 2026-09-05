@@ -39,6 +39,7 @@ from feed_helpers import (
 from signals.api import ApiConfig, create_app
 from signals.billing.schema import discovery_signal_grant
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import contract_award, materialized_signal
 
 READ_ON = dt.date(2026, 8, 25)
 NOW = dt.datetime.combine(READ_ON, dt.time(9, 0), tzinfo=dt.UTC)
@@ -233,6 +234,28 @@ def test_never_more_than_three_grants_exist_for_an_account(alice, engine):
             sa.select(sa.func.count()).select_from(discovery_signal_grant)
         ).scalar()
     assert count == 3
+
+
+def test_discovery_grants_skip_signals_without_an_object(alice, engine):
+    icp = icp_of(alice)
+    keys = seed(engine, icp, count=4)
+    with engine.begin() as connection:
+        award_key = connection.scalar(
+            sa.select(materialized_signal.c.materialization_award_key).where(
+                materialized_signal.c.signal_key == keys[0]
+            )
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == award_key)
+            .values(title="   ")
+        )
+
+    unlocked = [item for item in feed(alice, limit=50)["items"] if not item["locked"]]
+
+    assert len(unlocked) == 3
+    assert keys[0] not in {item["signal_id"] for item in unlocked}
+    assert all(item["contract"]["title"] for item in unlocked)
 
 
 def test_a_granted_signal_stays_unlocked_even_when_it_grows_old(alice, engine, clock: Clock):

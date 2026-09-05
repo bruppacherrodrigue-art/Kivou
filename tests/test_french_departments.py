@@ -41,6 +41,12 @@ def test_the_label_needs_the_iso_prefix():
     assert department_label(None) is None
 
 
+def test_the_label_accepts_official_french_nuts3_codes():
+    assert department_label("FRL05") == "Var"
+    assert department_label("FR106") == "Seine-Saint-Denis"
+    assert department_label("FRB05") == "Loir-et-Cher"
+
+
 def test_the_table_covers_the_hundred_and_one_departments():
     assert len(DEPARTMENTS) == 101
 

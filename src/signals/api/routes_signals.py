@@ -474,8 +474,11 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
         allowed_target_icp_ids=allowed,
         limit=policy.MAXIMUM_PAGE_SIZE,
     )
+    candidates = [
+        item for item in eligible.items if (item.signal.award.title or "").strip()
+    ]
     granted = discovery.grant_up_to_limit(
-        connection, account_id=account_id, candidates=list(eligible.items), now=now
+        connection, account_id=account_id, candidates=candidates, now=now
     )
     if not granted:
         return access

@@ -23,6 +23,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.billing.schema import discovery_signal_grant
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import materialized_signal
@@ -298,3 +299,56 @@ def test_the_scan_cap_keeps_the_most_recently_materialized_companies(
     assert {item["company_key"] for item in payload["items"]} == {
         company_key_by_signal[signal_key] for signal_key in kept
     }
+
+
+def test_discovery_companies_read_all_granted_signals_beyond_scan_cap(
+    app, engine, monkeypatch
+) -> None:
+    from signals.feed import query as feed_query
+
+    discovery_client = TestClient(app, headers={"Origin": ORIGIN})
+    response = discovery_client.post(
+        "/auth/signup",
+        json={
+            "email": "companies-discovery@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Companies Discovery",
+            "locale": "fr",
+        },
+    )
+    pin_session_cookie(discovery_client, response)
+    icp_id = discovery_client.post(
+        "/target-icps",
+        json={"label": "Suivi", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+    signal_keys = _seed_three_winners(engine, icp_id)
+    account_id = discovery_client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        opportunities = {
+            row.signal_key: row.opportunity_key
+            for row in connection.execute(
+                sa.select(
+                    materialized_signal.c.signal_key,
+                    materialized_signal.c.opportunity_key,
+                ).where(materialized_signal.c.signal_key.in_(signal_keys))
+            )
+        }
+        connection.execute(
+            sa.insert(discovery_signal_grant),
+            [
+                {
+                    "account_id": account_id,
+                    "signal_key": key,
+                    "opportunity_key": opportunities[key],
+                    "granted_at": NOW,
+                    "created_at": NOW,
+                }
+                for key in signal_keys
+            ],
+        )
+
+    monkeypatch.setattr(feed_query, "HISTORY_SCAN_CAP", 1)
+    payload = _companies(discovery_client)
+
+    assert payload["plan_code"] == "discovery"
+    assert len(payload["items"]) == 3

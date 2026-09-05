@@ -185,12 +185,15 @@ describe('écran Signaux — tableau dense', () => {
     mockApi(feedWith([LOCKED_ITEM], {
       page: { limit: 20, offset: 0, has_more: true, scan_truncated: false, next_cursor: 'next' },
       counts_truncated: true,
+      counts: { new: 60, saved: 0, contacted: 0, ignored: 0 },
     }))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await table()
     expect(screen.queryByRole('button', { name: 'Charger plus' })).not.toBeInTheDocument()
     expect(screen.queryByText(/20\+ signaux/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Nouveaux\s+60/ })).toBeInTheDocument()
+    expect(screen.getByText('60 signaux')).toBeInTheDocument()
   })
 })
 
