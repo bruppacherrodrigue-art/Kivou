@@ -10,7 +10,7 @@ from signals.billing.schema import billing_subscription
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.engagement.schema import company_contact, company_note
 from signals.persistence.database import create_database_engine, migrate_to_latest
-from signals.persistence.schema import materialized_signal
+from signals.persistence.schema import contract_award, materialized_signal
 from signals.qa.paying_account import build_paying_recipe_account, main
 
 NOW = dt.datetime(2026, 9, 5, 12, 0, tzinfo=dt.UTC)
@@ -81,6 +81,22 @@ def test_recipe_account_is_idempotent_and_has_requested_shape(tmp_path):
         for notice in ("29997-02", "33112-02", "33885-03"):
             materialize_simap(connection, notice, target_icp_id="ticp_source")
         run_winner_enrichment_batch(connection, now=NOW, worker_ref="qa-recipe-source", limit=10)
+        unresolved_award = connection.scalar(
+            sa.select(materialized_signal.c.materialization_award_key)
+            .where(materialized_signal.c.target_icp_id == "ticp_source")
+            .order_by(materialized_signal.c.signal_key)
+            .limit(1)
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == unresolved_award)
+            .values(awardee_parties=[])
+        )
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.materialization_award_key == unresolved_award)
+            .values(company_identity_fingerprint=None)
+        )
 
     for _ in range(2):
         result = build_paying_recipe_account(
@@ -88,11 +104,11 @@ def test_recipe_account_is_idempotent_and_has_requested_shape(tmp_path):
             email="paying-qa@kivou-qa.ch",
             password="fixture-password",
             now=NOW,
-            signal_count=2,
+            signal_count=3,
             contact_count=1,
             note_count=1,
         )
-        assert result.signal_count == 2
+        assert result.signal_count == 3
         assert result.profile_count == 2
         assert result.contact_count == 1
         assert result.note_count == 1
@@ -118,7 +134,7 @@ def test_recipe_account_is_idempotent_and_has_requested_shape(tmp_path):
                 .join(target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id)
                 .where(target_icp.c.account_id == account_id)
             )
-            == 2
+            == 3
         )
         subscription = connection.execute(
             sa.select(billing_subscription).where(billing_subscription.c.account_id == account_id)

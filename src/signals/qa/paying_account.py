@@ -92,21 +92,13 @@ def _source_rows(
         raise ValueError(f"only {len(selected)} suitable source signals for requested {count}")
     keys = tuple(row.signal_key for row in selected)
     ensure_companies_for_signal_keys(connection, signal_keys=keys, now=now)
-    projected = {
+    refreshed = {
         row.signal_key: row
         for row in connection.execute(
-            sa.select(materialized_signal).where(
-                materialized_signal.c.signal_key.in_(keys),
-                materialized_signal.c.company_identity_fingerprint.is_not(None),
-            )
+            sa.select(materialized_signal).where(materialized_signal.c.signal_key.in_(keys))
         ).all()
     }
-    resolved = [projected[key] for key in keys if key in projected][:count]
-    if len(resolved) == count:
-        return resolved
-    raise ValueError(
-        f"only {len(resolved)} named companies for requested {count} source signals"
-    )
+    return [refreshed[key] for key in keys[:count]]
 
 
 def _clone_signals(
