@@ -79,7 +79,7 @@ def _source_rows(
         .order_by(materialized_signal.c.created_at.desc(), materialized_signal.c.signal_key)
     ).all()
     selected: list[sa.Row] = []
-    candidate_limit = count * 2
+    candidate_limit = count * 5
     opportunities: set[str] = set()
     for row in rows:
         if row.opportunity_key in opportunities:
@@ -98,7 +98,18 @@ def _source_rows(
             sa.select(materialized_signal).where(materialized_signal.c.signal_key.in_(keys))
         ).all()
     }
-    return [refreshed[key] for key in keys[:count]]
+    refreshed_rows = [refreshed[key] for key in keys]
+    diverse: list[sa.Row] = []
+    remaining: list[sa.Row] = []
+    fingerprints: set[str] = set()
+    for row in refreshed_rows:
+        fingerprint = row.company_identity_fingerprint
+        if fingerprint is not None and fingerprint not in fingerprints:
+            fingerprints.add(fingerprint)
+            diverse.append(row)
+        else:
+            remaining.append(row)
+    return [*diverse, *remaining][:count]
 
 
 def _clone_signals(

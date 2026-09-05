@@ -105,12 +105,12 @@ def test_recipe_account_is_idempotent_and_has_requested_shape(tmp_path):
             password="fixture-password",
             now=NOW,
             signal_count=3,
-            contact_count=1,
+            contact_count=2,
             note_count=1,
         )
         assert result.signal_count == 3
         assert result.profile_count == 2
-        assert result.contact_count == 1
+        assert result.contact_count == 2
         assert result.note_count == 1
 
     with engine.connect() as connection:
@@ -149,7 +149,7 @@ def test_recipe_account_is_idempotent_and_has_requested_shape(tmp_path):
                 .select_from(company_contact)
                 .where(company_contact.c.account_id == account_id)
             )
-            == 1
+            == 2
         )
         assert (
             connection.scalar(
