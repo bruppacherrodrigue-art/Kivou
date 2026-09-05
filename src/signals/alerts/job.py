@@ -541,11 +541,12 @@ def _run_for_account(
                     0,
                 )
 
+            signal_limit = 1 if state.is_discovery else policy.MAXIMUM_SIGNALS_PER_EMAIL
             new_items = eligible_signals(
                 connection,
                 account_id=account_id,
                 as_of=now.date(),
-                limit=policy.MAXIMUM_SIGNALS_PER_EMAIL,
+                limit=signal_limit,
             )
             if not new_items:
                 return AlertOutcome(account_id, cadence, "nothing_to_send")
@@ -681,14 +682,31 @@ def _run_for_account(
         # `public_app_url` est garanti non nul ici : l'absence est traitée plus
         # haut par `public_app_url_missing`, avant toute construction de lot.
         preferences_link = preferences_url(public_app_url)
+        remaining_count = 0
+        pricing_link = None
+        if state.is_discovery:
+            page = feed_query.feed_page(
+                connection,
+                account_id=account_id,
+                as_of=now.date(),
+                freshness=feed_policy.DEFAULT_FRESHNESS,
+                limit=feed_policy.MAXIMUM_PAGE_SIZE,
+            )
+            remaining_count = max(
+                0,
+                sum(1 for item in page.items if item.model_fit != "none") - len(lines),
+            )
+            pricing_link = f"{public_app_url.rstrip('/')}/pricing"
         message = AlertMessage(
             to_email=preference.notification_email,
             subject=content.subject(len(lines), lang=lang),
             text_body=content.render_text(
-                lines, lang=lang, preferences_link=preferences_link
+                lines, lang=lang, preferences_link=preferences_link,
+                remaining_count=remaining_count, pricing_link=pricing_link,
             ),
             html_body=content.render_html(
-                lines, lang=lang, preferences_link=preferences_link
+                lines, lang=lang, preferences_link=preferences_link,
+                remaining_count=remaining_count, pricing_link=pricing_link,
             ),
             message_id=batch.message_id,
             language=lang,

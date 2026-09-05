@@ -228,18 +228,20 @@ def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@ne
     return client, keys
 
 
-# ─── §37.1 — Discovery ne reçoit rien ────────────────────────────────────────
+# ─── PR6 — Discovery reçoit un aperçu hebdomadaire ───────────────────────────
 
 
-def test_a_discovery_account_never_receives_an_automatic_email(app, engine, mailer):
+def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine, mailer):
     client = signed_up(app)
     icp = icp_of(client)
     seed(engine, icp, count=5)
+    assert client.get("/signals").status_code == 200
 
     report = cycle(engine, mailer)
-    assert mailer.sent == []
-    assert deliveries(engine) == []
-    assert [outcome.result for outcome in report.outcomes] == ["not_eligible"]
+    assert len(mailer.sent) == 1
+    assert report.sent[0].signal_count == 1
+    assert "autres signaux" in mailer.last.text_body
+    assert f"{PUBLIC_APP_URL}/pricing" in mailer.last.text_body
 
 
 # ─── §37.2 à §37.5 — les cadences ────────────────────────────────────────────

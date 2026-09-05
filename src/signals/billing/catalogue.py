@@ -115,7 +115,7 @@ DISCOVERY = PlanEntitlements(
     evidence_access=True,
     filter_level="minimum",
     export_level="none",
-    alert_cadence="none",
+    alert_cadence="weekly",
     granted_signals=DISCOVERY_GRANT_LIMIT,
 )
 

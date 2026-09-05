@@ -127,7 +127,10 @@ def _truncate(text: str, limit: int = 120) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def render_text(lines: list[AlertLine], *, lang: str, preferences_link: str) -> str:
+def render_text(
+    lines: list[AlertLine], *, lang: str, preferences_link: str,
+    remaining_count: int = 0, pricing_link: str | None = None,
+) -> str:
     """Le corps en texte simple. Pas de HTML, pas de pixel, pas de traqueur.
 
     Le lien de préférences est OBLIGATOIRE : annoncer « modifiez vos préférences »
@@ -153,11 +156,18 @@ def render_text(lines: list[AlertLine], *, lang: str, preferences_link: str) -> 
             blocks.append(f"   {FOR_YOU_LABEL[lang]} : {line.for_you_sentence}")
         blocks.append(f"   {line.url}")
         blocks.append("")
+    if remaining_count and pricing_link:
+        blocks.append(f"{remaining_count} autres signaux dans votre zone — voir les offres :")
+        blocks.append(pricing_link)
+        blocks.append("")
     blocks.append(FOOTER[lang].format(preferences=preferences_link))
     return "\n".join(blocks)
 
 
-def render_html(lines: list[AlertLine], *, lang: str, preferences_link: str) -> str:
+def render_html(
+    lines: list[AlertLine], *, lang: str, preferences_link: str,
+    remaining_count: int = 0, pricing_link: str | None = None,
+) -> str:
     """Version HTML sobre construite depuis exactement les mêmes lignes."""
     feed_copy.check_language(lang)
     cards = []
@@ -176,9 +186,15 @@ def render_html(lines: list[AlertLine], *, lang: str, preferences_link: str) -> 
             f"<h2>{html.escape(line.company)}</h2>{body}"
             f'<p><a href="{html.escape(line.url, quote=True)}">Ouvrir</a></p></article>'
         )
+    upsell = (
+        f'<p>{remaining_count} autres signaux dans votre zone — '
+        f'<a href="{html.escape(pricing_link, quote=True)}">voir les offres</a></p>'
+        if remaining_count and pricing_link else ""
+    )
     return (
         '<!doctype html><html><body><p>Bonjour,</p>'
         + "".join(cards)
+        + upsell
         + f'<p><a href="{html.escape(preferences_link, quote=True)}">'
         "Se désinscrire des alertes</a></p></body></html>"
     )
