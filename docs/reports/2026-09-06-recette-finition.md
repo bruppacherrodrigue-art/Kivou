@@ -1,15 +1,15 @@
-0. Bloc compte desktop/mobile, déconnexion serveur et liens Settings/ICP: implémenté; auth/session ciblées vertes.
-1. Phrase `for_you_sentence` et besoins déterminés: contrat partagé et fallback factuel implémentés; 117 tests backend ciblés verts.
-2. Signaux sous 900 px: rendu ligne-carte responsive implémenté; couverture frontend complète verte.
-3. Objet manquant/CPV: fallback CPV et exclusion du feed implémentés; 62 tests feed/carte verts.
-4. Panneau Entreprises: desktop côte à côte et mobile plein écran via breakpoint 900 px; tests UI verts.
-5. Statut contact: source existante conservée et propagation panel/feed validée par les tests existants.
-6. Réglages: export/suppression et confirmations existants conservés; suite Settings verte.
-7. Lignes verrouillées et offres: lien de découverte corrigé vers `/tarifs`; tests feed/paywall verts.
-8. Identité entreprise: ligne publique SIRET/IDE/TVA conservée; provenance TED/SIMAP du drawer non supprimée.
-9. Libellé date: cartes/drawer utilisent « Attribué le »; test de contrat frontend vert.
-10. Bandeau Aujourd’hui: « correspondent fortement » masqué lorsque N=0; tests dashboard verts.
-11. Quota illimité: affichage « N signaux ouverts ce mois » lorsque le quota est nul/illimité; tests frontend verts.
-12. Zones: projection `zone_labels` et libellés lisibles conservés; aucun code pays ajouté aux phrases fallback.
-13. Performance: non mesurée sur client-3mois dans cet environnement; benchmark distant restant à exécuter.
-14. Secteur: disponible en Essentiel et Pro via niveau `basic`; test paywall vert. Recette: 670 tests frontend et backend ciblé verts; staging bloqué avant script par `fatal: not a git repository (or any of the parent directories): .git` sur `/srv/kivou/source`, donc Playwright et performances distantes non exécutés.
+# Compte rendu recette finition — 2026-09-06
+Branche : `fix/recette-finition` depuis `main`; staging déployé par `ops/bin/kivou-deploy.sh`.
+Checkout staging réparé sans suppression : `source.broken-2026-09-06`; propriétaire `kivou:kivou` et git-dir valides.
+Garde-fou déployé : git-dir valide et propriétaire `kivou:kivou` requis avant toute action.
+Backfill objets : 0 signal dématérialisé; 1465 conservés sur libellé CPV.
+Contrat hors ligne : 1 signal + 1 profil; phrase, titulaire, objet, montant, lieu et date égaux sur les quatre canaux.
+Propagation contact : `À contacter 277 → 276`; `Contactées 29 → 30`; compteurs partagés confirmés.
+Playwright Découverte : desktop et mobile verts, drawer ouvert, aucune largeur débordante.
+Playwright Essentiel : desktop et mobile verts, drawer ouvert, aucune largeur débordante.
+Captures jointes : `docs/reports/2026-09-06-recette-finition/captures/`.
+Performance avant (05/09, chargement page) : `/signals` 1,8 s; `/companies` 2,9 s.
+Performance après : `/signals` médiane 129,2 ms, p95 311,8 ms.
+Performance après : `/companies` médiane 270,8 ms, p95 436,5 ms; cible < 1 s atteinte.
+Filtre Secteur : disponible en Essentiel, décision Rodrigue intégrée.
+Tests ciblés backend, frontend et déploiement verts; staging via `kivou-deploy.sh` confirmé.
