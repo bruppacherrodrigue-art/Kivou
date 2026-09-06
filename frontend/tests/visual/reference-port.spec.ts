@@ -216,7 +216,9 @@ async function waitForScenario(
       await expect(page.getByRole('button', { name: 'Ouvrir la navigation' })).toBeVisible()
     } else {
       await expect(page.locator('.kivou-sidebar [data-sidebar="sidebar"]')).toBeVisible()
-      await expect(page.locator('.sidebar-plan-summary')).toContainText('Plan')
+      await expect(page.locator('.sidebar-plan-summary')).toContainText(
+        scenario === 'connected-discovery' ? 'Plan Découverte' : 'signaux ouverts ce mois',
+      )
       await expect(page.getByRole('link', { name: 'Signaux', exact: true })).toBeVisible()
     }
   }
@@ -231,10 +233,9 @@ async function waitForScenario(
     // droit sticky. Le golden desktop ouvre ce tiroir sur le signal de
     // publication récente (`tm-ausbau-campus-ost`), sans raisons de
     // correspondance (fixture) — le bloc « Pourquoi ça vous concerne » doit
-    // donc être absent, et le bloc « Ce que le titulaire va devoir faire »
-    // présent. Le golden mobile, lui, garde la feuille FERMÉE (route sans
-    // clé de signal) : c'est le tableau dense qu'il doit montrer, pas le
-    // tiroir qui le masquerait entièrement en plein écran.
+    // donc être absent. Aucun besoin de cette fixture n'a de timing ou de
+    // quantite determines : le bloc besoins est egalement absent. Le golden
+    // mobile garde la feuille fermee pour montrer les cartes, sans tableau.
     const mobile = (page.viewportSize()?.width ?? 0) < 900
 
     const toolbar = page.locator('[role="toolbar"]')
@@ -258,23 +259,33 @@ async function waitForScenario(
     }
 
     const table = page.locator('table')
-    const headers = await table.locator('thead th').allTextContents()
-    expect(headers).toEqual(
-      mobile
-        ? ['Date', 'Titulaire', 'Objet', 'Montant', 'Match']
-        : ['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu', 'Match'],
-    )
-    const rows = table.locator('tbody tr')
+    if (mobile) {
+      await expect(table).toHaveCount(0)
+    } else {
+      expect(await table.locator('thead th').allTextContents()).toEqual(
+        ['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu', 'Match'],
+      )
+    }
+    const rows = mobile
+      ? page.locator('article[data-signal-key]')
+      : table.locator('tbody tr')
     await expect(rows).toHaveCount(3)
-    await expect(table).toContainText('H. Hüther GmbH')
-    await expect(table).toContainText('TM Ausbau GmbH')
+    await expect(rows.filter({ hasText: 'H. Hüther GmbH' })).toHaveCount(1)
+    await expect(rows.filter({ hasText: 'TM Ausbau GmbH' })).toHaveCount(1)
+    if (mobile) {
+      for (const card of await rows.all()) {
+        await expect(card.locator(':scope > *')).toHaveCount(3)
+      }
+    }
 
     // Le troisième signal de ce golden est verrouillé (offre Discovery) :
     // sa ligne existe mais ne révèle que le teaser générique du serveur.
     const lockedRow = rows.filter({ hasText: 'Un marché public vient d’être attribué.' })
     await expect(lockedRow).toHaveCount(1)
     await expect(lockedRow).toContainText(
-      'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
+      mobile
+        ? 'Réservé aux offres Essentiel et Pro'
+        : 'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
     )
 
     // Le secteur est hors de cette offre : le filtre est désactivé et expliqué.
@@ -291,19 +302,18 @@ async function waitForScenario(
       // Cette fixture ne publie pas d’acheteur : le drawer omet le champ au
       // lieu d’afficher un libellé vide ou « — ».
       await expect(drawer.getByText('Acheteur', { exact: true })).toHaveCount(0)
-      await expect(drawer).toContainText('Ce que le titulaire va devoir faire')
+      await expect(drawer.getByText('Ce que le titulaire va devoir faire', { exact: true })).toHaveCount(0)
       await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toHaveCount(0)
       await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()
     } else {
-      // La feuille reste fermée : aucun tiroir dans le DOM, le tableau seul
-      // occupe l'écran.
+      // La feuille reste fermee : seules les cartes occupent l'ecran.
       await expect(page.locator('[role="dialog"]')).toHaveCount(0)
     }
 
     await assertNoForbiddenSignalsCopy(page)
 
     // Aucune des deux largeurs ne doit pousser la page hors du viewport :
-    // le tableau et la barre de segments défilent dans leur propre boîte.
+    // les cartes mobiles ne doivent pas etre coupees.
     expect(await page.evaluate(() => (
       document.documentElement.scrollWidth - document.documentElement.clientWidth
     ))).toBeLessThanOrEqual(1)
@@ -323,6 +333,18 @@ async function waitForScenario(
     await expect(detailPanel.getByRole('heading', { level: 2 })).toHaveText(selectedItem.company.name!)
     await expect(detailPanel.getByRole('heading', { name: 'Ses marchés' })).toBeVisible()
     await expect(detailPanel.getByRole('textbox', { name: 'Notes' })).toBeVisible()
+    const companyTable = page.locator('main table').first()
+    if ((page.viewportSize()?.width ?? 0) < 900) {
+      await expect(companyTable).toBeHidden()
+    } else {
+      await expect(companyTable.locator('thead th')).toHaveCount(2)
+      const tableBox = await companyTable.boundingBox()
+      const panelBox = await detailPanel.boundingBox()
+      expect(tableBox).not.toBeNull()
+      expect(panelBox).not.toBeNull()
+      expect(panelBox!.x).toBeGreaterThanOrEqual(tableBox!.x + tableBox!.width)
+      expect(panelBox!.width).toBe(520)
+    }
     expect(await page.evaluate(() => (
       document.documentElement.scrollWidth - document.documentElement.clientWidth
     ))).toBeLessThanOrEqual(1)
@@ -332,7 +354,9 @@ async function waitForScenario(
     await expect(page.locator('.target-example-list .target-example.is-included')).toHaveCount(2)
   }
   if (golden === 'dashboard-account') {
-    await expect(page.locator('.settings-plan-card .settings-plan-facts')).toHaveCount(1)
+    await expect(page.locator('.settings-main [data-ui="screen-header"]')).toHaveCount(1)
+    await expect(page.locator('.settings-main [data-ui="screen-segments"]')).toHaveCount(1)
+    await expect(page.locator('.settings-plan-card [data-ui="summary-row"]')).toHaveCount(1)
   }
 
   if (scenario === 'public-pricing') {
@@ -356,7 +380,7 @@ for (const route of LOCAL_REFERENCE_ROUTES) {
       const calls = await installReferenceApi(page, route.scenario)
       await page.setViewportSize(viewport)
       // Le golden `dashboard-signals` mobile garde la feuille FERMÉE (route
-      // sans clé de signal) : ouverte, elle masquerait le tableau dense en
+      // sans clé de signal) : ouverte, elle masquerait les cartes en
       // plein écran, qui est précisément ce que ce gabarit doit montrer. Le
       // golden desktop, lui, conserve le lien profond et son tiroir ouvert.
       const local = route.golden === 'dashboard-signals' && viewport.name === 'mobile'

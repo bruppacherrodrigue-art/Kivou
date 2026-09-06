@@ -102,7 +102,7 @@ def test_rich_title_starts_with_the_winner_and_never_with_an_identifier(
         assert identifier["value"] not in display["headline"]
 
 
-def test_missing_object_amount_and_place_use_the_published_buyer_fallback(
+def test_missing_object_uses_the_cpv_label_and_keeps_other_missing_facts_absent(
     client, engine, icp
 ) -> None:
     event, awards = simap_award("29997-02")
@@ -114,13 +114,13 @@ def test_missing_object_amount_and_place_use_the_published_buyer_fallback(
 
     item = _feed_item(client, signal_key)
     display = item["factual_display"]
-    buyer = item["contract"]["buyer"]["name"]
+    cpv_label = item["contract"]["cpv_label"]
 
-    assert display["headline"] == (
-        f"{item['company']['name']} remporte un marché attribué par {buyer}"
-    )
-    assert display["market_summary"] is None
-    assert set(display["missing_fields"]) >= {"market_object", "amount", "location"}
+    assert cpv_label == "Services de nettoyage de logements, de bâtiments et de vitres"
+    assert display["headline"] == f"{item['company']['name']} remporte « {cpv_label} »"
+    assert display["market_summary"] == cpv_label
+    assert "market_object" not in display["missing_fields"]
+    assert set(display["missing_fields"]) >= {"amount", "location"}
     assert display["completeness"] == "partial"
 
 
@@ -149,8 +149,13 @@ def test_fallback_never_reads_analysis_or_adds_a_person_or_urgency(client, engin
     item = _feed_item(client, signal_key)
     display_text = str(item["factual_display"])
 
+    cpv_label = item["contract"]["cpv_label"]
+    assert cpv_label == (
+        "Services de technologies de l'information, conseil, "
+        "développement de logiciels, internet et appui"
+    )
     assert item["factual_display"]["headline"] == (
-        f"Marché attribué à {item['company']['name']}"
+        f"{item['company']['name']} remporte « {cpv_label} »"
     )
     assert "Jean Dupont" not in display_text
     assert "URGENT" not in display_text

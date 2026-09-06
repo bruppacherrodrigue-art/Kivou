@@ -9,6 +9,8 @@ import { MatchDots } from '../signals/components/MatchDots'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, placeLabel, signalObject } from '../signals/components/SignalRow'
 import styles from './Dashboard.module.css'
+import { ScreenHeader, SummaryRow } from '../components/ScreenChrome'
+import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 export function Dashboard() {
   const me = useCurrentUser()
@@ -62,14 +64,12 @@ function TodayDashboard() {
       ? `Rien de nouveau depuis ${weekday(data.last_seen_at, locale)} · ${data.week.new} signaux cette semaine`
       : `${data.new_since_last_visit} nouveaux marchés depuis ${weekday(data.last_seen_at, locale)}`
     : 'Vos premiers signaux'
-  const zoneLabels = deduplicatedZoneLabels(data.profile?.zone_labels ?? [])
+  const zoneLabels = sharedZoneLabels(data.profile)
 
   return (
     <main className={styles.page} data-page="today">
-      <header className={styles.header}>
-        <h1>{title}</h1>
-        <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {zoneLabels.join(', ') || MISSING}</p>
-      </header>
+      <ScreenHeader title={title} description={data.strong_matches > 0
+        ? `${data.strong_matches} correspondent fortement à votre profil ${data.profile?.sector_label ?? MISSING} · ${zoneLabels.join(', ') || MISSING}` : undefined} />
 
       {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}
       {data.top3.length ? (
@@ -110,10 +110,10 @@ function TodayDashboard() {
         </section>
         <section className={styles.list} aria-label="Cette semaine">
           <h2>Cette semaine</h2>
-          <WeekRow label="Nouveaux marchés" value={data.week.new} />
-          <WeekRow label="Sauvés" value={data.week.saved} />
-          <WeekRow label="Entreprises contactées" value={data.week.contacted} />
-          <WeekRow label="Ont répondu" value={data.week.replied} />
+          <SummaryRow label="Nouveaux marchés" value={data.week.new} />
+          <SummaryRow label="Sauvés" value={data.week.saved} />
+          <SummaryRow label="Entreprises contactées" value={data.week.contacted} />
+          <SummaryRow label="Ont répondu" value={data.week.replied} />
         </section>
       </div>
 
@@ -137,16 +137,7 @@ function TodayDashboard() {
   )
 }
 
-function WeekRow({ label, value }: { label: string; value: number }) {
-  return <div className={styles.weekRow}><span>{label}</span><b>{value}</b></div>
-}
-
 function weekday(value: string, locale: string): string {
   return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long', timeZone: 'UTC' })
     .format(new Date(value))
-}
-
-function deduplicatedZoneLabels(values: string[]): string[] {
-  const labels = values.map((value) => value === 'FR' ? 'France' : value)
-  return [...new Set(labels)]
 }

@@ -1,0 +1,18 @@
+Starting kivou-173-review-after-7117f77-repeat.service - /srv/kivou/app/.venv/bin/python -u /srv/kivou/app/ops/validation/recette_review_173.py /srv/kivou/qa-173-review-after-7117f77-repeat...
+{"account": "decouverte", "width": 1440, "check": "companies", "status": "passed"}
+{"account": "decouverte", "width": 1440, "check": "signals", "status": "passed"}
+{"account": "decouverte", "width": 1440, "check": "settings", "status": "passed"}
+{"account": "decouverte", "width": 390, "check": "companies", "status": "passed"}
+{"account": "decouverte", "width": 390, "check": "signals", "status": "passed"}
+{"account": "decouverte", "width": 390, "check": "zone", "status": "passed"}
+{"account": "decouverte", "width": 390, "check": "settings", "status": "passed"}
+{"account": "essentiel", "width": 1440, "check": "companies", "status": "passed"}
+{"account": "essentiel", "width": 1440, "check": "signals", "status": "passed"}
+{"account": "essentiel", "width": 1440, "check": "settings", "status": "passed"}
+{"account": "essentiel", "width": 390, "check": "companies", "status": "passed"}
+{"account": "essentiel", "width": 390, "check": "signals", "status": "passed"}
+{"account": "essentiel", "width": 390, "check": "zone", "status": "passed"}
+{"account": "essentiel", "width": 390, "check": "settings", "status": "passed"}
+kivou-173-review-after-7117f77-repeat.service: Deactivated successfully.
+Finished kivou-173-review-after-7117f77-repeat.service - /srv/kivou/app/.venv/bin/python -u /srv/kivou/app/ops/validation/recette_review_173.py /srv/kivou/qa-173-review-after-7117f77-repeat.
+kivou-173-review-after-7117f77-repeat.service: Consumed 19.384s CPU time.

@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useRef, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   Building2,
   Bell,
   FileCheck2,
   LayoutDashboard,
+  LogOut,
   Settings,
   Target,
 } from 'lucide-react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { dashboard } from '../api/endpoints'
 import type { DashboardResponse } from '../api/types'
-import { useCurrentUser } from '../auth/SessionProvider'
+import { useCurrentUser, useSession } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
 import { KivouBrand } from '../presentation/dashboard/KivouBrand'
 import { useResource } from '../presentation/dashboard/resources'
@@ -32,6 +33,7 @@ import {
 } from '../presentation/dashboard/ui/sidebar'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 import { SurfaceBoundary } from '../presentation/surface/SurfaceBoundary'
+import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'alerts' | 'settings'
 
@@ -58,10 +60,10 @@ export function AppShell() {
     return <Outlet />
   }
 
-  return <ReadyAppShell key={me.account_id} />
+  return <ReadyAppShell key={me.account_id} me={me} />
 }
 
-function ReadyAppShell() {
+function ReadyAppShell({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   const { t, locale } = useI18n()
   const location = useLocation()
   const loadDashboard = useCallback(() => dashboard.get(), [])
@@ -69,7 +71,7 @@ function ReadyAppShell() {
   const current = connectedLocation(location.pathname, locale)
   const profileLabel = summary.data?.profile?.name ?? t.reference.missingValue
   const sectorLabel = summary.data?.profile?.sector_label ?? t.reference.missingValue
-  const zoneLabel = summary.data?.profile?.zone_labels?.join(', ') || t.reference.missingValue
+  const zoneLabel = sharedZoneLabels(summary.data?.profile).join(', ') || t.reference.missingValue
   const planLabel = summary.loading || summary.error
     ? t.reference.loading
     : summary.data?.plan?.name ?? t.reference.missingValue
@@ -82,6 +84,7 @@ function ReadyAppShell() {
       >
         <ConnectedShell
           dashboardResource={summary}
+          me={me}
           activeView={current.active}
           title={current.title}
           planLabel={planLabel}
@@ -102,6 +105,7 @@ function ReadyAppShell() {
 
 function ConnectedShell({
   dashboardResource,
+  me,
   activeView,
   title,
   planLabel,
@@ -116,6 +120,7 @@ function ConnectedShell({
   retryPlan,
 }: {
   dashboardResource: DashboardOutletContext
+  me: ReturnType<typeof useCurrentUser>
   activeView: ActiveView
   title: string | null
   planLabel: string
@@ -214,8 +219,9 @@ function ConnectedShell({
         </SidebarContent>
 
         <SidebarFooter className="sidebar-footer">
+          <AccountBlock me={me} />
           <div className="sidebar-plan-summary">
-            <strong>Plan {planLabel} · {openedSignals ?? '—'}/{signalQuota ?? '∞'} signaux ce mois</strong>
+            <strong>{signalQuota === null && openedSignals !== null ? `${openedSignals} signaux ouverts ce mois` : `Plan ${planLabel} · ${openedSignals ?? 0}/${signalQuota ?? '∞'} signaux ce mois`}</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>
         </SidebarFooter>
@@ -231,12 +237,66 @@ function ConnectedShell({
             <button type="button" className="shell-resource-retry" onClick={profileError ? retryProfile : retryPlan}>
               {profileError ? t.reference.messages.profileLoadError : t.reference.messages.billingLoadError}
             </button>
-          ) : <span className="shell-profile-name">{profileLabel}</span>}
+          ) : <>
+            <span className="shell-profile-name">{profileLabel}</span>
+            <span className="shell-profile-mobile">
+              <strong>{sectorLabel === t.reference.missingValue ? '' : sectorLabel}</strong>
+              <span data-profile-zones>{zoneLabel === t.reference.missingValue ? '' : zoneLabel}</span>
+            </span>
+          </>}
         </header>
 
         <Outlet context={dashboardResource} />
       </SidebarInset>
     </>
+  )
+}
+
+function AccountBlock({ me }: { me: ReturnType<typeof useCurrentUser> }) {
+  const { signOut } = useSession()
+  const navigate = useNavigate()
+  const [signingOut, setSigningOut] = useState(false)
+  const pending = useRef(false)
+  const displayName = me.account_display_name || me.email
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || '?'
+
+  async function leaveAccount() {
+    if (pending.current) return
+    pending.current = true
+    setSigningOut(true)
+    try {
+      await signOut()
+      navigate('/login', { replace: true })
+    } finally {
+      pending.current = false
+      setSigningOut(false)
+    }
+  }
+
+  return (
+    <div className="sidebar-account">
+      <ReferenceLink dashboard className="sidebar-account-link" href="/settings">
+        <span className="sidebar-account-avatar" aria-hidden="true">{initials}</span>
+        <span className="sidebar-account-copy">
+          <strong>{displayName}</strong>
+          {me.company_name ? <small>{me.company_name}</small> : null}
+        </span>
+      </ReferenceLink>
+      <button
+        type="button"
+        className="sidebar-account-logout"
+        aria-label="Se déconnecter"
+        disabled={signingOut}
+        onClick={() => void leaveAccount()}
+      >
+        <LogOut aria-hidden="true" />
+      </button>
+    </div>
   )
 }
 

@@ -1,0 +1,996 @@
+﻿2026-09-06T16:16:09.2440045Z Current runner version: '2.337.0'
+2026-09-06T16:16:09.2466867Z ##[group]Runner Image Provisioner
+2026-09-06T16:16:09.2468054Z Hosted Compute Agent
+2026-09-06T16:16:09.2468938Z Version: 20260828.587
+2026-09-06T16:16:09.2469601Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-06T16:16:09.2470413Z Build Date: 2026-08-28T16:44:25Z
+2026-09-06T16:16:09.2471143Z Worker ID: {18c6ce61-0eb4-4c3c-aff9-f7ea239f3543}
+2026-09-06T16:16:09.2471898Z Azure Region: eastus
+2026-09-06T16:16:09.2472485Z ##[endgroup]
+2026-09-06T16:16:09.2474037Z ##[group]Operating System
+2026-09-06T16:16:09.2474766Z Ubuntu
+2026-09-06T16:16:09.2475330Z 24.04.4
+2026-09-06T16:16:09.2475833Z LTS
+2026-09-06T16:16:09.2476453Z ##[endgroup]
+2026-09-06T16:16:09.2477003Z ##[group]Runner Image
+2026-09-06T16:16:09.2477628Z Image: ubuntu-24.04
+2026-09-06T16:16:09.2478498Z Version: 20260831.293.1
+2026-09-06T16:16:09.2479955Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260831.293/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-06T16:16:09.2481669Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260831.293
+2026-09-06T16:16:09.2482717Z ##[endgroup]
+2026-09-06T16:16:09.2483873Z ##[group]GITHUB_TOKEN Permissions
+2026-09-06T16:16:09.2486106Z Contents: read
+2026-09-06T16:16:09.2486726Z Metadata: read
+2026-09-06T16:16:09.2487353Z ##[endgroup]
+2026-09-06T16:16:09.2489798Z Secret source: Actions
+2026-09-06T16:16:09.2490992Z Prepare workflow directory
+2026-09-06T16:16:09.2890387Z Prepare all required actions
+2026-09-06T16:16:09.2938155Z Getting action download info
+2026-09-06T16:16:09.5230012Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-06T16:16:09.6305680Z Download action repository 'actions/setup-node@v7' (SHA:820762786026740c76f36085b0efc47a31fe5020)
+2026-09-06T16:16:09.7204297Z Download action repository 'actions/upload-artifact@v7' (SHA:043fb46d1a93c77aae656e7c1c64a875d1fc6a0a)
+2026-09-06T16:16:09.9052928Z Complete job name: Frontend
+2026-09-06T16:16:09.9851677Z ##[group]Run actions/checkout@v7
+2026-09-06T16:16:09.9852550Z with:
+2026-09-06T16:16:09.9853040Z   repository: bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:09.9857183Z   token: ***
+2026-09-06T16:16:09.9857616Z   ssh-strict: true
+2026-09-06T16:16:09.9858255Z   ssh-user: git
+2026-09-06T16:16:09.9858703Z   persist-credentials: true
+2026-09-06T16:16:09.9859200Z   clean: true
+2026-09-06T16:16:09.9859646Z   sparse-checkout-cone-mode: true
+2026-09-06T16:16:09.9860170Z   fetch-depth: 1
+2026-09-06T16:16:09.9860600Z   fetch-tags: false
+2026-09-06T16:16:09.9861046Z   show-progress: true
+2026-09-06T16:16:09.9861492Z   lfs: false
+2026-09-06T16:16:09.9861907Z   submodules: false
+2026-09-06T16:16:09.9862354Z   set-safe-directory: true
+2026-09-06T16:16:09.9862860Z   allow-unsafe-pr-checkout: false
+2026-09-06T16:16:09.9863654Z ##[endgroup]
+2026-09-06T16:16:10.0906372Z Syncing repository: bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:10.0909359Z ##[group]Getting Git version info
+2026-09-06T16:16:10.0910601Z Working directory is '/home/runner/work/Kivou/Kivou'
+2026-09-06T16:16:10.0912230Z [command]/usr/bin/git version
+2026-09-06T16:16:10.0992369Z git version 2.55.0
+2026-09-06T16:16:10.1031136Z ##[endgroup]
+2026-09-06T16:16:10.1039716Z Temporarily overriding HOME='/home/runner/work/_temp/3d17591f-3b8b-48d7-923a-13c51a26d076' before making global git config changes
+2026-09-06T16:16:10.1042194Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-06T16:16:10.1046004Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Kivou/Kivou
+2026-09-06T16:16:10.1096100Z Deleting the contents of '/home/runner/work/Kivou/Kivou'
+2026-09-06T16:16:10.1099960Z ##[group]Determining repository object format
+2026-09-06T16:16:10.1101462Z ##[endgroup]
+2026-09-06T16:16:10.1102742Z ##[group]Initializing the repository
+2026-09-06T16:16:10.1105992Z [command]/usr/bin/git init /home/runner/work/Kivou/Kivou
+2026-09-06T16:16:10.1219106Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-06T16:16:10.1221061Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-06T16:16:10.1222845Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-06T16:16:10.1224136Z hint: call:
+2026-09-06T16:16:10.1224873Z hint:
+2026-09-06T16:16:10.1225725Z hint: 	git config --global init.defaultBranch <name>
+2026-09-06T16:16:10.1226703Z hint:
+2026-09-06T16:16:10.1227873Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-06T16:16:10.1229523Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-06T16:16:10.1230840Z hint:
+2026-09-06T16:16:10.1231575Z hint: 	git branch -m <name>
+2026-09-06T16:16:10.1232409Z hint:
+2026-09-06T16:16:10.1233443Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-06T16:16:10.1235084Z Initialized empty Git repository in /home/runner/work/Kivou/Kivou/.git/
+2026-09-06T16:16:10.1250413Z [command]/usr/bin/git remote add origin https://github.com/bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:10.1293317Z ##[endgroup]
+2026-09-06T16:16:10.1294138Z ##[group]Disabling automatic garbage collection
+2026-09-06T16:16:10.1297871Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-06T16:16:10.1329218Z ##[endgroup]
+2026-09-06T16:16:10.1330694Z ##[group]Setting up auth
+2026-09-06T16:16:10.1331665Z Removing SSH command configuration
+2026-09-06T16:16:10.1335345Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-06T16:16:10.1382918Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-06T16:16:10.1768527Z Removing HTTP extra header
+2026-09-06T16:16:10.1775292Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-06T16:16:10.1820874Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-06T16:16:10.2058803Z Removing includeIf entries pointing to credentials config files
+2026-09-06T16:16:10.2064347Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-06T16:16:10.2101862Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-06T16:16:10.2349243Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-06T16:16:10.2394949Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Kivou/Kivou/.git.path /home/runner/work/_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:16:10.2430887Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:16:10.2469782Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:16:10.2507427Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:16:10.2540171Z ##[endgroup]
+2026-09-06T16:16:10.2541641Z ##[group]Fetching the repository
+2026-09-06T16:16:10.2548822Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +83f6013718603e2fec25189b1e891d968ca138f7:refs/remotes/pull/173/merge
+2026-09-06T16:16:12.5856804Z From https://github.com/bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:12.5858594Z  * [new ref]         83f6013718603e2fec25189b1e891d968ca138f7 -> pull/173/merge
+2026-09-06T16:16:12.5862458Z ##[endgroup]
+2026-09-06T16:16:12.5943367Z ##[group]Determining the checkout info
+2026-09-06T16:16:12.5945195Z ##[endgroup]
+2026-09-06T16:16:12.5946215Z [command]/usr/bin/git sparse-checkout disable
+2026-09-06T16:16:12.5949366Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-06T16:16:12.5961628Z ##[group]Checking out the ref
+2026-09-06T16:16:12.5965495Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/173/merge
+2026-09-06T16:16:12.9394707Z Note: switching to 'refs/remotes/pull/173/merge'.
+2026-09-06T16:16:12.9395710Z 
+2026-09-06T16:16:12.9396377Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-06T16:16:12.9398196Z changes and commit them, and you can discard any commits you make in this
+2026-09-06T16:16:12.9399748Z state without impacting any branches by switching back to a branch.
+2026-09-06T16:16:12.9400625Z 
+2026-09-06T16:16:12.9401295Z If you want to create a new branch to retain commits you create, you may
+2026-09-06T16:16:12.9402717Z do so (now or later) by using -c with the switch command. Example:
+2026-09-06T16:16:12.9403536Z 
+2026-09-06T16:16:12.9403916Z   git switch -c <new-branch-name>
+2026-09-06T16:16:12.9404515Z 
+2026-09-06T16:16:12.9404881Z Or undo this operation with:
+2026-09-06T16:16:12.9405428Z 
+2026-09-06T16:16:12.9405735Z   git switch -
+2026-09-06T16:16:12.9406166Z 
+2026-09-06T16:16:12.9406919Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-06T16:16:12.9408132Z 
+2026-09-06T16:16:12.9409317Z HEAD is now at 83f6013 Merge 18e37b8e454150a2e3b0670b9f8f7d150d885b41 into 87455c7313bef5900aa300709c8dcced69d89d52
+2026-09-06T16:16:12.9421679Z ##[endgroup]
+2026-09-06T16:16:12.9473234Z [command]/usr/bin/git log -1 --format=%H
+2026-09-06T16:16:12.9502041Z 83f6013718603e2fec25189b1e891d968ca138f7
+2026-09-06T16:16:12.9881437Z ##[group]Run actions/setup-node@v7
+2026-09-06T16:16:12.9882710Z with:
+2026-09-06T16:16:12.9883605Z   node-version: 24
+2026-09-06T16:16:12.9884569Z   cache: npm
+2026-09-06T16:16:12.9885659Z   cache-dependency-path: frontend/package-lock.json
+2026-09-06T16:16:12.9887103Z   check-latest: false
+2026-09-06T16:16:12.9898308Z   token: ***
+2026-09-06T16:16:12.9899307Z   package-manager-cache: true
+2026-09-06T16:16:12.9900454Z ##[endgroup]
+2026-09-06T16:16:13.1217323Z Found in cache @ /opt/hostedtoolcache/node/24.20.0/x64
+2026-09-06T16:16:13.1220841Z ##[group]Environment details
+2026-09-06T16:16:13.5435937Z node: v24.20.0
+2026-09-06T16:16:13.5436446Z npm: 11.19.0
+2026-09-06T16:16:13.5436704Z yarn: 1.22.22
+2026-09-06T16:16:13.5437379Z ##[endgroup]
+2026-09-06T16:16:13.5455136Z [command]/opt/hostedtoolcache/node/24.20.0/x64/bin/npm config get cache
+2026-09-06T16:16:13.6566012Z /home/runner/.npm
+2026-09-06T16:16:13.7352027Z Cache hit for: node-cache-Linux-x64-npm-498f39548261c1dfa64c10e8e177b286ed3e7f7345efe8a9cdc88da43df476c1
+2026-09-06T16:16:14.0571275Z Received 40144492 of 40144492 (100.0%), 139.7 MBs/sec
+2026-09-06T16:16:14.0572139Z Cache Size: ~38 MB (40144492 B)
+2026-09-06T16:16:14.0604225Z [command]/usr/bin/tar -xf /home/runner/work/_temp/2fc934f4-868a-4a34-a453-f9367fc0aa24/cache.tzst -P -C /home/runner/work/Kivou/Kivou --use-compress-program unzstd
+2026-09-06T16:16:14.1936599Z Cache restored successfully
+2026-09-06T16:16:14.1969678Z Cache restored from key: node-cache-Linux-x64-npm-498f39548261c1dfa64c10e8e177b286ed3e7f7345efe8a9cdc88da43df476c1
+2026-09-06T16:16:14.2153576Z ##[group]Run npm ci
+2026-09-06T16:16:14.2153918Z [36;1mnpm ci[0m
+2026-09-06T16:16:14.2206880Z shell: /usr/bin/bash -e {0}
+2026-09-06T16:16:14.2207197Z ##[endgroup]
+2026-09-06T16:16:16.3733589Z npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+2026-09-06T16:16:19.9835840Z 
+2026-09-06T16:16:19.9836563Z added 367 packages, and audited 368 packages in 6s
+2026-09-06T16:16:19.9837244Z 
+2026-09-06T16:16:19.9838116Z 74 packages are looking for funding
+2026-09-06T16:16:19.9838931Z   run `npm fund` for details
+2026-09-06T16:16:19.9850809Z 
+2026-09-06T16:16:19.9851556Z found 0 vulnerabilities
+2026-09-06T16:16:19.9861704Z npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+2026-09-06T16:16:19.9863274Z npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
+2026-09-06T16:16:19.9864141Z npm warn install-scripts
+2026-09-06T16:16:19.9865446Z npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+2026-09-06T16:16:20.0579806Z ##[group]Run npm test -- --run
+2026-09-06T16:16:20.0580169Z [36;1mnpm test -- --run[0m
+2026-09-06T16:16:20.0618396Z shell: /usr/bin/bash -e {0}
+2026-09-06T16:16:20.0618685Z ##[endgroup]
+2026-09-06T16:16:20.1758692Z 
+2026-09-06T16:16:20.1759635Z > kivou-frontend@0.1.0 test
+2026-09-06T16:16:20.1760507Z > vitest --run
+2026-09-06T16:16:20.1760913Z 
+2026-09-06T16:16:20.5282148Z 
+2026-09-06T16:16:20.5284301Z [1m[46m RUN [49m[22m [36mv3.2.7 [39m[90m/home/runner/work/Kivou/Kivou/frontend[39m
+2026-09-06T16:16:20.5309476Z 
+2026-09-06T16:16:27.0455034Z  [32m✓[39m src/signals/feed.test.tsx [2m([22m[2m33 tests[22m[2m)[22m[33m 4083[2mms[22m[39m
+2026-09-06T16:16:29.8440164Z  [32m✓[39m src/pages/referenceTargeting.test.tsx [2m([22m[2m26 tests[22m[2m)[22m[33m 6880[2mms[22m[39m
+2026-09-06T16:16:29.8442053Z    [33m[2m✓[22m[39m profil cible exact connecté au contrat ICP[2m > [22mrend la composition exacte avec le profil API réel et aucune donnée de démonstration [33m 361[2mms[22m[39m
+2026-09-06T16:16:29.8443577Z    [33m[2m✓[22m[39m profil cible exact connecté au contrat ICP[2m > [22mmappe uniquement les tokens explicites et préserve secondaires et maximum au PATCH [33m 1446[2mms[22m[39m
+2026-09-06T16:16:29.8444867Z    [33m[2m✓[22m[39m profil cible exact connecté au contrat ICP[2m > [22mrejette un terme libre inconnu sans appeler le backend [33m 365[2mms[22m[39m
+2026-09-06T16:16:29.8446142Z    [33m[2m✓[22m[39m profil cible exact connecté au contrat ICP[2m > [22mconserve le brouillon après une panne PATCH et réessaie la valeur courante [33m 374[2mms[22m[39m
+2026-09-06T16:16:29.8447513Z    [33m[2m✓[22m[39m profil cible exact connecté au contrat ICP[2m > [22mcrée un profil vide avec le payload strict réel puis actualise les droits [33m 901[2mms[22m[39m
+2026-09-06T16:16:29.8450152Z    [33m[2m✓[22m[39m profil cible exact connecté au contrat ICP[2m > [22mempêche un double POST tant que la création est en vol [33m 908[2mms[22m[39m
+2026-09-06T16:16:30.1920081Z  [32m✓[39m src/billing/checkoutFlow.test.tsx [2m([22m[2m32 tests[22m[2m)[22m[33m 1810[2mms[22m[39m
+2026-09-06T16:16:30.7572296Z  [32m✓[39m src/presentation/dashboard/adapters.test.ts [2m([22m[2m93 tests[22m[2m)[22m[32m 29[2mms[22m[39m
+2026-09-06T16:16:32.4500224Z  [32m✓[39m src/api/boundary.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 489[2mms[22m[39m
+2026-09-06T16:16:32.4533315Z    [33m[2m✓[22m[39m frontière HTTP[2m > [22minvalide la session sur un 401 et ramène à la connexion, une seule fois [33m 308[2mms[22m[39m
+2026-09-06T16:16:34.1355114Z  [32m✓[39m src/signals/components/SignalDrawer.test.tsx [2m([22m[2m32 tests[22m[2m)[22m[33m 596[2mms[22m[39m
+2026-09-06T16:16:36.1906770Z  [32m✓[39m src/auth/auth.test.tsx [2m([22m[2m24 tests[22m[2m)[22m[33m 4626[2mms[22m[39m
+2026-09-06T16:16:36.1946294Z    [33m[2m✓[22m[39m inscription[2m > [22mrefuse une entreprise composée uniquement d’espaces sans appeler l’API [33m 635[2mms[22m[39m
+2026-09-06T16:16:36.1959122Z    [33m[2m✓[22m[39m inscription[2m > [22mrefuse une adresse vide sans appeler l’API [33m 378[2mms[22m[39m
+2026-09-06T16:16:36.1960884Z    [33m[2m✓[22m[39m inscription[2m > [22mrefuse une adresse invalide sans appeler l’API [33m 433[2mms[22m[39m
+2026-09-06T16:16:36.1962806Z    [33m[2m✓[22m[39m inscription[2m > [22maffiche la validation du mot de passe sans appeler le serveur [33m 305[2mms[22m[39m
+2026-09-06T16:16:36.1965396Z    [33m[2m✓[22m[39m inscription[2m > [22mn’envoie que les champs du contrat backend — jamais d’account_id [33m 514[2mms[22m[39m
+2026-09-06T16:16:37.4940018Z  [32m✓[39m src/pages/landingPricing.test.tsx [2m([22m[2m22 tests[22m[2m)[22m[33m 2117[2mms[22m[39m
+2026-09-06T16:16:40.5264784Z  [32m✓[39m src/auth/referenceAuthFlow.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 2847[2mms[22m[39m
+2026-09-06T16:16:40.5272810Z    [33m[2m✓[22m[39m parcours d’entrée de la référence connectée[2m > [22mconnecte avec le formulaire de référence et ouvre la vue d’ensemble [33m 560[2mms[22m[39m
+2026-09-06T16:16:40.5275881Z    [33m[2m✓[22m[39m parcours d’entrée de la référence connectée[2m > [22minscrit en français sans stockage de démonstration ni sélecteur de langue [33m 622[2mms[22m[39m
+2026-09-06T16:16:40.5279286Z    [33m[2m✓[22m[39m parcours d’entrée de la référence connectée[2m > [22mtransporte un choix payant du catalogue vers l’onboarding sans stockage [33m 470[2mms[22m[39m
+2026-09-06T16:16:40.9752818Z  [32m✓[39m src/pages/publicReferencePort.test.tsx [2m([22m[2m36 tests[22m[2m)[22m[33m 2211[2mms[22m[39m
+2026-09-06T16:16:43.7779484Z  [32m✓[39m src/companies/CompaniesPage.test.tsx [2m([22m[2m15 tests[22m[2m)[22m[33m 2030[2mms[22m[39m
+2026-09-06T16:16:44.0589328Z  [32m✓[39m src/billing/reviewFixes.test.tsx [2m([22m[2m19 tests[22m[2m)[22m[33m 1785[2mms[22m[39m
+2026-09-06T16:16:46.7269246Z  [32m✓[39m src/billing/billing.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 1374[2mms[22m[39m
+2026-09-06T16:16:46.7284937Z    [33m[2m✓[22m[39m grille tarifaire[2m > [22maffiche les prix RENVOYÉS par l’API, jamais une grille écrite en dur [33m 342[2mms[22m[39m
+2026-09-06T16:16:46.9239806Z  [32m✓[39m src/billing/referenceBilling.test.tsx [2m([22m[2m17 tests[22m[2m)[22m[33m 1934[2mms[22m[39m
+2026-09-06T16:16:46.9248962Z    [33m[2m✓[22m[39m facturation exacte sous autorité backend[2m > [22mutilise le portail uniquement pour l’action backend { plan_code: 'pro', offer_code: null, currency: 'chf', subscription_status: 'active', cancel_at_period_end: false, current_period_end: '2026-09-18T00:00:00+00:00', scheduled_cancellation_at: null, payment_issue: null, billing_action: 'manage_subscription', entitlements: { max_active_icps: 3, history_days: 365, history_scope: 'window', territory_mode: 'multiple', max_territories_per_icp: null, feed_access: true, detail_access: true, evidence_access: true, filter_level: 'basic', export_level: 'none', alert_cadence: 'daily', granted_signals: +0 }, discovery: { granted_signal_count: 3, remaining_slots: +0, limit: 3 }, target_icps_over_limit: [], policy: { billing: 'kivou-billing-v0.1' } } [33m 399[2mms[22m[39m
+2026-09-06T16:16:48.7800358Z  [32m✓[39m src/pages/onboarding.test.tsx [2m([22m[2m57 tests[22m[2m)[22m[33m 25814[2mms[22m[39m
+2026-09-06T16:16:48.7802505Z    [33m[2m✓[22m[39m onboarding[2m > [22mconfirme le profil provisoire en une page avec les trois champs préremplis [33m 327[2mms[22m[39m
+2026-09-06T16:16:48.7805643Z    [33m[2m✓[22m[39m onboarding[2m > [22mpose les questions dans les quatre étapes exactes, sous un seul h1 [33m 558[2mms[22m[39m
+2026-09-06T16:16:48.7808091Z    [33m[2m✓[22m[39m onboarding[2m > [22mconserve la devise et le montant quand leur groupe cesse d’être visible [33m 675[2mms[22m[39m
+2026-09-06T16:16:48.7810711Z    [33m[2m✓[22m[39m onboarding[2m > [22mrelit le profil cible dans les mots du client avant de l’enregistrer [33m 1185[2mms[22m[39m
+2026-09-06T16:16:48.7812872Z    [33m[2m✓[22m[39m onboarding[2m > [22mcrée un profil valide et n’envoie jamais d’account_id [33m 952[2mms[22m[39m
+2026-09-06T16:16:48.7814943Z    [33m[2m✓[22m[39m onboarding[2m > [22mrejoint le feed exact sans réintroduire la bannière d’activation supprimée [33m 1143[2mms[22m[39m
+2026-09-06T16:16:48.7859614Z    [33m[2m✓[22m[39m onboarding[2m > [22maucune requête du frontend ne porte d’account_id [33m 941[2mms[22m[39m
+2026-09-06T16:16:48.7865572Z    [33m[2m✓[22m[39m onboarding[2m > [22mrefuse un libellé de profil cible inconnu localement sans appeler l’API [33m 797[2mms[22m[39m
+2026-09-06T16:16:48.7868129Z    [33m[2m✓[22m[39m onboarding[2m > [22mporte une offre payante uniquement dans l’URL jusqu’au checkout [33m 1024[2mms[22m[39m
+2026-09-06T16:16:48.7870618Z    [33m[2m✓[22m[39m onboarding[2m > [22mconserve la création pendant un changement de plan et ne rejoue jamais le POST [33m 951[2mms[22m[39m
+2026-09-06T16:16:48.7872880Z    [33m[2m✓[22m[39m onboarding[2m > [22misole le POST du compte B quand le compte change pendant la création du compte A [33m 1910[2mms[22m[39m
+2026-09-06T16:16:48.7875132Z    [33m[2m✓[22m[39m onboarding[2m > [22mécarte le profil cible du compte A quand son refresh autoritaire retourne le compte B [33m 1934[2mms[22m[39m
+2026-09-06T16:16:48.7877545Z    [33m[2m✓[22m[39m onboarding[2m > [22mefface tout le brouillon du compte A avant que le compte B puisse créer le sien [33m 1969[2mms[22m[39m
+2026-09-06T16:16:48.7880021Z    [33m[2m✓[22m[39m onboarding[2m > [22mréconcilie la session sans rediriger ni mettre à jour la surface quittée [33m 1007[2mms[22m[39m
+2026-09-06T16:16:48.7882298Z    [33m[2m✓[22m[39m onboarding[2m > [22mreste sur la reanalyse et explique une erreur réseau avant toute création réussie [33m 992[2mms[22m[39m
+2026-09-06T16:16:48.7884644Z    [33m[2m✓[22m[39m onboarding[2m > [22mreste sur la reanalyse et affiche la limite territoriale fournie par le serveur [33m 998[2mms[22m[39m
+2026-09-06T16:16:48.7887344Z    [33m[2m✓[22m[39m succès partiel — profil cible enregistré, session non relue[2m > [22mréutilise la création après démontage et échec de réconciliation [33m 2031[2mms[22m[39m
+2026-09-06T16:16:48.7890613Z    [33m[2m✓[22m[39m succès partiel — profil cible enregistré, session non relue[2m > [22mne rejoue jamais le POST : le retry ne refait que la finalisation [33m 982[2mms[22m[39m
+2026-09-06T16:16:48.7893306Z    [33m[2m✓[22m[39m succès partiel — profil cible enregistré, session non relue[2m > [22mne crée pas un second profil sur deux envois rapprochés [33m 1004[2mms[22m[39m
+2026-09-06T16:16:48.7895596Z    [33m[2m✓[22m[39m gestion des profils[2m > [22mrend le focus au bouton Modifier après une sauvegarde réussie [33m 528[2mms[22m[39m
+2026-09-06T16:16:48.7898264Z    [33m[2m✓[22m[39m gestion des profils[2m > [22mrend le focus au profil créé depuis l’état vide après la sauvegarde [33m 1029[2mms[22m[39m
+2026-09-06T16:16:48.7900602Z    [33m[2m✓[22m[39m gestion des profils[2m > [22mlocalise en anglais la limite territoriale renvoyée à la modification [33m 448[2mms[22m[39m
+2026-09-06T16:16:48.7902648Z    [33m[2m✓[22m[39m gestion des profils[2m > [22mpermet de modifier un profil existant [33m 327[2mms[22m[39m
+2026-09-06T16:16:49.0190241Z [90mstderr[2m | src/billing/billingMatrix.test.tsx[2m > [22m[2mbilling_action — choose_plan[2m > [22m[2mest la seule valeur qui autorise un POST /billing/checkout
+2026-09-06T16:16:49.0191490Z [22m[39mError: Not implemented: navigation (except hash changes)
+2026-09-06T16:16:49.0192481Z     at module.exports (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+2026-09-06T16:16:49.0194588Z     at navigateFetch (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+2026-09-06T16:16:49.0196773Z     at exports.navigate (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+2026-09-06T16:16:49.0199403Z     at LocationImpl._locationObjectNavigate (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/Location-impl.js:30:5)
+2026-09-06T16:16:49.0201815Z     at LocationImpl.assign (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/Location-impl.js:206:10)
+2026-09-06T16:16:49.0204004Z     at Location.assign (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/generated/Location.js:72:36)
+2026-09-06T16:16:49.0206641Z     at startCheckout (/home/runner/work/Kivou/Kivou/frontend/src/pages/Billing.tsx:166:23) [90mundefined[39m
+2026-09-06T16:16:49.0208106Z 
+2026-09-06T16:16:49.5918864Z  [32m✓[39m src/pages/publicLegal.test.tsx [2m([22m[2m14 tests[22m[2m)[22m[33m 1545[2mms[22m[39m
+2026-09-06T16:16:50.2521012Z [90mstderr[2m | src/billing/billingMatrix.test.tsx[2m > [22m[2manti double-paiement[2m > [22m[2mdeux clics rapprochés ne produisent qu’un seul POST /billing/checkout
+2026-09-06T16:16:50.2558914Z [22m[39mError: Not implemented: navigation (except hash changes)
+2026-09-06T16:16:50.2560703Z     at module.exports (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/browser/not-implemented.js:9:17)
+2026-09-06T16:16:50.2589142Z  [32m✓[39m src/billing/billingMatrix.test.tsx [2m([22m[2m18 tests[22m[2m)[22m[33m 1886[2mms[22m[39m
+2026-09-06T16:16:50.2591070Z     at navigateFetch (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+2026-09-06T16:16:50.2619181Z    [33m[2m✓[22m[39m billing_action — choose_plan[2m > [22mpropose la grille et le paiement [33m 376[2mms[22m[39m
+2026-09-06T16:16:50.2621178Z     at exports.navigate (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+2026-09-06T16:16:50.2629520Z     at LocationImpl._locationObjectNavigate (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/Location-impl.js:30:5)
+2026-09-06T16:16:50.2631931Z     at LocationImpl.assign (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/window/Location-impl.js:206:10)
+2026-09-06T16:16:50.2635312Z     at Location.assign (/home/runner/work/Kivou/Kivou/frontend/node_modules/jsdom/lib/jsdom/living/generated/Location.js:72:36)
+2026-09-06T16:16:50.2638839Z     at startCheckout (/home/runner/work/Kivou/Kivou/frontend/src/pages/Billing.tsx:166:23) [90mundefined[39m
+2026-09-06T16:16:50.2639932Z 
+2026-09-06T16:16:50.7394699Z  [32m✓[39m src/styles/referenceSurface.test.tsx [2m([22m[2m10 tests[22m[2m)[22m[32m 154[2mms[22m[39m
+2026-09-06T16:16:52.4137448Z  [32m✓[39m src/notifications/referenceNotifications.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 2177[2mms[22m[39m
+2026-09-06T16:16:52.4145429Z    [33m[2m✓[22m[39m notifications exactes connectées[2m > [22mcharge et met à jour uniquement le contrat réel de notification [33m 658[2mms[22m[39m
+2026-09-06T16:16:52.4148609Z    [33m[2m✓[22m[39m notifications exactes connectées[2m > [22mconserve les valeurs éditées après une panne de sauvegarde [33m 332[2mms[22m[39m
+2026-09-06T16:16:52.4151386Z    [33m[2m✓[22m[39m notifications exactes connectées[2m > [22mfige le brouillon pendant la sauvegarde et verrouille les doubles soumissions [33m 315[2mms[22m[39m
+2026-09-06T16:16:52.4154133Z    [33m[2m✓[22m[39m notifications exactes connectées[2m > [22mignore la réponse de sauvegarde privée du compte précédent [33m 316[2mms[22m[39m
+2026-09-06T16:16:53.2936017Z  [32m✓[39m src/billing/truthfulCopy.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 1599[2mms[22m[39m
+2026-09-06T16:16:53.2939218Z    [33m[2m✓[22m[39m signal verrouillé sur un compte payant[2m > [22mle teaser ne parle plus d’offres payantes [33m 316[2mms[22m[39m
+2026-09-06T16:16:53.5374309Z  [32m✓[39m src/billing/scheduledCancellation.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[33m 1479[2mms[22m[39m
+2026-09-06T16:16:53.5398882Z    [33m[2m✓[22m[39m aucune résiliation programmée[2m > [22mn’affiche aucune notice [33m 348[2mms[22m[39m
+2026-09-06T16:16:53.7854516Z  [32m✓[39m src/auth/session.test.tsx [2m([22m[2m9 tests[22m[2m)[22m[33m 360[2mms[22m[39m
+2026-09-06T16:16:54.7439492Z  [32m✓[39m src/signals/components/SignalRow.test.tsx [2m([22m[2m21 tests[22m[2m)[22m[33m 358[2mms[22m[39m
+2026-09-06T16:16:56.2149794Z  [32m✓[39m src/pages/referenceResponsiveContract.test.tsx [2m([22m[2m5 tests[22m[2m)[22m[33m 1256[2mms[22m[39m
+2026-09-06T16:16:56.2170287Z    [33m[2m✓[22m[39m contrat responsive connecté à 390 px[2m > [22mconserve un main, un h1, ouvre le détail en feuille modale et rend le chrome inerte [33m 472[2mms[22m[39m
+2026-09-06T16:16:56.2173468Z    [33m[2m✓[22m[39m contrat responsive connecté à 390 px[2m > [22mconfine le focus dans le drawer puis le rend au déclencheur avec Échap et le scrim [33m 376[2mms[22m[39m
+2026-09-06T16:16:56.9336012Z  [32m✓[39m src/billing/paywallContinuity.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 1885[2mms[22m[39m
+2026-09-06T16:16:56.9349920Z    [33m[2m✓[22m[39m depuis le feed verrouillé[2m > [22mtransmet la clé du signal, et seulement elle [33m 582[2mms[22m[39m
+2026-09-06T16:16:57.3284196Z  [32m✓[39m src/pages/referenceAccount.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 1211[2mms[22m[39m
+2026-09-06T16:16:57.3287306Z    [33m[2m✓[22m[39m compte exact connecté[2m > [22mmodifie la langue connectée depuis le formulaire exact du compte [33m 442[2mms[22m[39m
+2026-09-06T16:16:57.6863568Z  [32m✓[39m founder/src/FounderApp.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[33m 444[2mms[22m[39m
+2026-09-06T16:16:57.6866433Z    [33m[2m✓[22m[39m FounderApp[2m > [22mrenders production read models without fake agents or write actions [33m 421[2mms[22m[39m
+2026-09-06T16:16:59.2924581Z  [32m✓[39m src/pages/dashboard.test.tsx [2m([22m[2m7 tests[22m[2m)[22m[33m 915[2mms[22m[39m
+2026-09-06T16:16:59.2926817Z    [33m[2m✓[22m[39m Aujourd’hui[2m > [22maffiche le bandeau, trois cartes et leur phrase rédigée partagée [33m 339[2mms[22m[39m
+2026-09-06T16:17:00.0632159Z  [32m✓[39m src/notifications/notifications.test.tsx [2m([22m[2m8 tests[22m[2m)[22m[33m 1320[2mms[22m[39m
+2026-09-06T16:17:00.0635560Z    [33m[2m✓[22m[39m préférences de notification[2m > [22mrejette une adresse invalide en le disant sur le champ [33m 306[2mms[22m[39m
+2026-09-06T16:17:00.1320707Z  [32m✓[39m src/billing/packaging.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[33m 998[2mms[22m[39m
+2026-09-06T16:17:00.1323054Z    [33m[2m✓[22m[39m vérité du packaging[2m > [22mne vend aucune capacité inexistante — FR [33m 404[2mms[22m[39m
+2026-09-06T16:17:00.8846195Z  [32m✓[39m src/styles/fonts.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-09-06T16:17:00.9709574Z  [32m✓[39m src/billing/checkoutIntent.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+2026-09-06T16:17:01.5165613Z  [32m✓[39m src/pages/referenceResourceStates.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 795[2mms[22m[39m
+2026-09-06T16:17:01.5172052Z    [33m[2m✓[22m[39m états indépendants des vues de référence[2m > [22mconserve la liste utilisable quand le détail sélectionné échoue [33m 380[2mms[22m[39m
+2026-09-06T16:17:01.8381921Z  [32m✓[39m src/signals/components/MatchDots.test.tsx [2m([22m[2m13 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+2026-09-06T16:17:03.0683776Z  [32m✓[39m src/pages/publicDemo.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 714[2mms[22m[39m
+2026-09-06T16:17:03.0686664Z    [33m[2m✓[22m[39m exemple de signal exact de la référence publique[2m > [22mse rend sans session et ne lit que le catalogue public nécessaire au CTA [33m 359[2mms[22m[39m
+2026-09-06T16:17:03.5325383Z  [32m✓[39m src/pages/landingHowItWorks.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 711[2mms[22m[39m
+2026-09-06T16:17:03.8714151Z  [32m✓[39m src/layouts/appShellReference.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 614[2mms[22m[39m
+2026-09-06T16:17:03.8715793Z    [33m[2m✓[22m[39m shell Kivou[2m > [22maffiche les six destinations dans l’ordre demandé [33m 321[2mms[22m[39m
+2026-09-06T16:17:04.5721459Z  [32m✓[39m src/api/capabilities.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-09-06T16:17:05.1020911Z  [32m✓[39m src/pages/landingHero.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[33m 600[2mms[22m[39m
+2026-09-06T16:17:05.1025112Z    [33m[2m✓[22m[39m hero exact de la référence publique[2m > [22mporte la promesse, ses CTA et le signal de référence [33m 391[2mms[22m[39m
+2026-09-06T16:17:05.3162081Z  [32m✓[39m src/pages/finishCorrections.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 292[2mms[22m[39m
+2026-09-06T16:17:05.4894441Z  [32m✓[39m src/api/client.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+2026-09-06T16:17:06.1313891Z  [32m✓[39m src/companies/endpoints.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-09-06T16:17:06.1829903Z  [32m✓[39m src/signals/components/StatusPill.test.tsx [2m([22m[2m6 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+2026-09-06T16:17:07.0209229Z  [32m✓[39m src/i18n/format.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+2026-09-06T16:17:07.4405229Z  [32m✓[39m src/pages/Settings.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 546[2mms[22m[39m
+2026-09-06T16:17:07.4407506Z    [33m[2m✓[22m[39m Settings account data[2m > [22mrequires explicit confirmation and schedules account deletion [33m 543[2mms[22m[39m
+2026-09-06T16:17:07.7952616Z  [32m✓[39m src/i18n/clientVocabulary.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 4[2mms[22m[39m
+2026-09-06T16:17:07.8119909Z  [32m✓[39m src/cockpit/cockpit.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 278[2mms[22m[39m
+2026-09-06T16:17:08.2358032Z  [32m✓[39m src/styles/referenceProvenance.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 3[2mms[22m[39m
+2026-09-06T16:17:19.2962975Z  [32m✓[39m src/styles/dashboardVendorBundle.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 10847[2mms[22m[39m
+2026-09-06T16:17:19.2965598Z    [33m[2m✓[22m[39m isolation du vendor dashboard dans le bundle[2m > [22mpréfixe le preflight et les utilitaires Tailwind sous la surface dashboard [33m 10846[2mms[22m[39m
+2026-09-06T16:17:19.3166321Z 
+2026-09-06T16:17:19.3174907Z [2m Test Files [22m [1m[32m49 passed[39m[22m[90m (49)[39m
+2026-09-06T16:17:19.3176725Z [2m      Tests [22m [1m[32m674 passed[39m[22m[90m (674)[39m
+2026-09-06T16:17:19.3178458Z [2m   Start at [22m 16:16:20
+2026-09-06T16:17:19.3182603Z [2m   Duration [22m 58.79s[2m (transform 1.65s, setup 3.10s, collect 22.05s, tests 91.80s, environment 23.01s, prepare 4.37s)[22m
+2026-09-06T16:17:19.3183485Z 
+2026-09-06T16:17:19.4627392Z ##[group]Run npx playwright install --with-deps chromium
+2026-09-06T16:17:19.4628126Z [36;1mnpx playwright install --with-deps chromium[0m
+2026-09-06T16:17:19.4664479Z shell: /usr/bin/bash -e {0}
+2026-09-06T16:17:19.4664752Z ##[endgroup]
+2026-09-06T16:17:20.2248694Z Installing dependencies...
+2026-09-06T16:17:20.2323935Z Switching to root user to install dependencies...
+2026-09-06T16:17:20.3258816Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-09-06T16:17:20.3503492Z Get:6 https://packages.microsoft.com/ubuntu/24.04/prod noble InRelease [3600 B]
+2026-09-06T16:17:20.3642865Z Hit:2 http://azure.archive.ubuntu.com/ubuntu noble InRelease
+2026-09-06T16:17:20.3660887Z Get:3 http://azure.archive.ubuntu.com/ubuntu noble-updates InRelease [126 kB]
+2026-09-06T16:17:20.3724999Z Get:4 http://azure.archive.ubuntu.com/ubuntu noble-backports InRelease [126 kB]
+2026-09-06T16:17:20.3773140Z Get:5 http://azure.archive.ubuntu.com/ubuntu noble-security InRelease [126 kB]
+2026-09-06T16:17:20.3788881Z Get:7 https://dl.google.com/linux/chrome-stable/deb stable InRelease [2548 B]
+2026-09-06T16:17:20.4169884Z Get:8 https://packages.microsoft.com/ubuntu/24.04/prod noble/main arm64 Packages [394 kB]
+2026-09-06T16:17:20.4390351Z Get:9 https://packages.microsoft.com/ubuntu/24.04/prod noble/main amd64 Packages [441 kB]
+2026-09-06T16:17:20.5402416Z Get:10 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages [1260 kB]
+2026-09-06T16:17:20.5490955Z Get:11 http://azure.archive.ubuntu.com/ubuntu noble-updates/main Translation-en [292 kB]
+2026-09-06T16:17:20.5503283Z Get:12 http://azure.archive.ubuntu.com/ubuntu noble-updates/main amd64 Components [181 kB]
+2026-09-06T16:17:20.5523753Z Get:13 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Packages [1690 kB]
+2026-09-06T16:17:20.5614481Z Get:14 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe Translation-en [339 kB]
+2026-09-06T16:17:20.5642135Z Get:15 http://azure.archive.ubuntu.com/ubuntu noble-updates/universe amd64 Components [388 kB]
+2026-09-06T16:17:20.5672742Z Get:16 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted amd64 Packages [1536 kB]
+2026-09-06T16:17:20.5792389Z Get:17 http://azure.archive.ubuntu.com/ubuntu noble-updates/restricted Translation-en [352 kB]
+2026-09-06T16:17:20.5811488Z Get:18 http://azure.archive.ubuntu.com/ubuntu noble-updates/multiverse amd64 Components [940 B]
+2026-09-06T16:17:20.6028205Z Get:19 http://azure.archive.ubuntu.com/ubuntu noble-backports/main amd64 Components [5744 B]
+2026-09-06T16:17:20.6442550Z Get:20 http://azure.archive.ubuntu.com/ubuntu noble-backports/universe amd64 Components [12.7 kB]
+2026-09-06T16:17:20.6604383Z Get:21 https://dl.google.com/linux/chrome-stable/deb stable/main amd64 Packages [1401 B]
+2026-09-06T16:17:20.6937627Z Get:22 http://azure.archive.ubuntu.com/ubuntu noble-security/main amd64 Packages [1002 kB]
+2026-09-06T16:17:20.7009429Z Get:23 http://azure.archive.ubuntu.com/ubuntu noble-security/main Translation-en [212 kB]
+2026-09-06T16:17:20.7040587Z Get:24 http://azure.archive.ubuntu.com/ubuntu noble-security/main amd64 Components [46.3 kB]
+2026-09-06T16:17:20.7059435Z Get:25 http://azure.archive.ubuntu.com/ubuntu noble-security/universe amd64 Packages [1206 kB]
+2026-09-06T16:17:20.7120062Z Get:26 http://azure.archive.ubuntu.com/ubuntu noble-security/universe Translation-en [241 kB]
+2026-09-06T16:17:20.7149474Z Get:27 http://azure.archive.ubuntu.com/ubuntu noble-security/universe amd64 Components [76.4 kB]
+2026-09-06T16:17:20.7162944Z Get:28 http://azure.archive.ubuntu.com/ubuntu noble-security/restricted amd64 Packages [1437 kB]
+2026-09-06T16:17:20.7248213Z Get:29 http://azure.archive.ubuntu.com/ubuntu noble-security/restricted Translation-en [334 kB]
+2026-09-06T16:17:24.7423669Z Fetched 11.8 MB in 1s (9094 kB/s)
+2026-09-06T16:17:25.5254938Z Reading package lists...
+2026-09-06T16:17:25.5502983Z Reading package lists...
+2026-09-06T16:17:25.7090526Z Building dependency tree...
+2026-09-06T16:17:25.7098388Z Reading state information...
+2026-09-06T16:17:25.8439205Z libasound2t64 is already the newest version (1.2.11-1ubuntu0.3).
+2026-09-06T16:17:25.8440126Z libasound2t64 set to manually installed.
+2026-09-06T16:17:25.8441030Z libatk-bridge2.0-0t64 is already the newest version (2.52.0-1build1).
+2026-09-06T16:17:25.8441843Z libatk-bridge2.0-0t64 set to manually installed.
+2026-09-06T16:17:25.8442605Z libatk1.0-0t64 is already the newest version (2.52.0-1build1).
+2026-09-06T16:17:25.8443269Z libatk1.0-0t64 set to manually installed.
+2026-09-06T16:17:25.8443851Z libatspi2.0-0t64 is already the newest version (2.52.0-1build1).
+2026-09-06T16:17:25.8444312Z libatspi2.0-0t64 set to manually installed.
+2026-09-06T16:17:25.8444752Z libcairo2 is already the newest version (1.18.0-3build1).
+2026-09-06T16:17:25.8445162Z libcairo2 set to manually installed.
+2026-09-06T16:17:25.8445591Z libcups2t64 is already the newest version (2.4.7-1.2ubuntu7.14).
+2026-09-06T16:17:25.8446255Z libcups2t64 set to manually installed.
+2026-09-06T16:17:25.8446748Z libdbus-1-3 is already the newest version (1.14.10-4ubuntu4.1).
+2026-09-06T16:17:25.8447162Z libdbus-1-3 set to manually installed.
+2026-09-06T16:17:25.8447586Z libdrm2 is already the newest version (2.4.125-1ubuntu0.1~24.04.2).
+2026-09-06T16:17:25.8448310Z libdrm2 set to manually installed.
+2026-09-06T16:17:25.8448855Z libgbm1 is already the newest version (25.2.8-0ubuntu0.24.04.2).
+2026-09-06T16:17:25.8449350Z libgbm1 set to manually installed.
+2026-09-06T16:17:25.8449807Z libglib2.0-0t64 is already the newest version (2.80.0-6ubuntu3.8).
+2026-09-06T16:17:25.8450230Z libglib2.0-0t64 set to manually installed.
+2026-09-06T16:17:25.8450852Z libnspr4 is already the newest version (2:4.35-1.1build1).
+2026-09-06T16:17:25.8451245Z libnspr4 set to manually installed.
+2026-09-06T16:17:25.8451998Z libnss3 is already the newest version (2:3.98-1ubuntu0.2).
+2026-09-06T16:17:25.8452658Z libnss3 set to manually installed.
+2026-09-06T16:17:25.8453418Z libpango-1.0-0 is already the newest version (1.52.1+ds-1build1).
+2026-09-06T16:17:25.8454185Z libpango-1.0-0 set to manually installed.
+2026-09-06T16:17:25.8454728Z libx11-6 is already the newest version (2:1.8.7-1build1).
+2026-09-06T16:17:25.8455111Z libx11-6 set to manually installed.
+2026-09-06T16:17:25.8455492Z libxcb1 is already the newest version (1.15-1ubuntu2).
+2026-09-06T16:17:25.8455857Z libxcb1 set to manually installed.
+2026-09-06T16:17:25.8456272Z libxcomposite1 is already the newest version (1:0.4.5-1build3).
+2026-09-06T16:17:25.8456694Z libxcomposite1 set to manually installed.
+2026-09-06T16:17:25.8457518Z libxdamage1 is already the newest version (1:1.1.6-1build1).
+2026-09-06T16:17:25.8458508Z libxdamage1 set to manually installed.
+2026-09-06T16:17:25.8459195Z libxext6 is already the newest version (2:1.3.4-1build2).
+2026-09-06T16:17:25.8459592Z libxext6 set to manually installed.
+2026-09-06T16:17:25.8459989Z libxfixes3 is already the newest version (1:6.0.0-2build1).
+2026-09-06T16:17:25.8460403Z libxfixes3 set to manually installed.
+2026-09-06T16:17:25.8460812Z libxkbcommon0 is already the newest version (1.6.0-1build1).
+2026-09-06T16:17:25.8461214Z libxkbcommon0 set to manually installed.
+2026-09-06T16:17:25.8461878Z libxrandr2 is already the newest version (2:1.5.2-2build1).
+2026-09-06T16:17:25.8462601Z libxrandr2 set to manually installed.
+2026-09-06T16:17:25.8463351Z xvfb is already the newest version (2:21.1.12-1ubuntu1.6).
+2026-09-06T16:17:25.8464363Z fonts-noto-color-emoji is already the newest version (2.047-0ubuntu0.24.04.1).
+2026-09-06T16:17:25.8465422Z libfontconfig1 is already the newest version (2.15.0-1.1ubuntu2).
+2026-09-06T16:17:25.8466209Z libfontconfig1 set to manually installed.
+2026-09-06T16:17:25.8467040Z libfreetype6 is already the newest version (2.13.2+dfsg-1ubuntu0.1).
+2026-09-06T16:17:25.8468061Z libfreetype6 set to manually installed.
+2026-09-06T16:17:25.8468820Z fonts-liberation is already the newest version (1:2.1.5-3).
+2026-09-06T16:17:25.8469569Z fonts-liberation set to manually installed.
+2026-09-06T16:17:25.8470540Z The following additional packages will be installed:
+2026-09-06T16:17:25.8471191Z   xfonts-encodings xfonts-utils
+2026-09-06T16:17:25.8471676Z Recommended packages:
+2026-09-06T16:17:25.8472168Z   fonts-ipafont-mincho fonts-tlwg-loma
+2026-09-06T16:17:25.8624781Z The following NEW packages will be installed:
+2026-09-06T16:17:25.8625403Z   fonts-freefont-ttf fonts-ipafont-gothic fonts-tlwg-loma-otf fonts-unifont
+2026-09-06T16:17:25.8630773Z   fonts-wqy-zenhei xfonts-cyrillic xfonts-encodings xfonts-scalable
+2026-09-06T16:17:25.8631269Z   xfonts-utils
+2026-09-06T16:17:25.8798009Z 0 upgraded, 9 newly installed, 0 to remove and 38 not upgraded.
+2026-09-06T16:17:25.8798563Z Need to get 21.1 MB of archives.
+2026-09-06T16:17:25.8799373Z After this operation, 79.5 MB of additional disk space will be used.
+2026-09-06T16:17:25.8800279Z Get:1 file:/etc/apt/apt-mirrors.txt Mirrorlist [144 B]
+2026-09-06T16:17:25.9115251Z Get:2 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-ipafont-gothic all 00303-21ubuntu1 [3513 kB]
+2026-09-06T16:17:26.0621912Z Get:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 fonts-freefont-ttf all 20211204+svn4273-2 [5641 kB]
+2026-09-06T16:17:26.1364569Z Get:4 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-tlwg-loma-otf all 1:0.7.3-1 [107 kB]
+2026-09-06T16:17:26.1449564Z Get:5 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-unifont all 1:15.1.01-1build1 [2993 kB]
+2026-09-06T16:17:26.1813879Z Get:6 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 fonts-wqy-zenhei all 0.9.45-8 [7472 kB]
+2026-09-06T16:17:26.2558507Z Get:7 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-encodings all 1:1.0.5-0ubuntu2 [578 kB]
+2026-09-06T16:17:26.2699275Z Get:8 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-utils amd64 1:7.7+6build3 [94.4 kB]
+2026-09-06T16:17:26.2786976Z Get:9 http://azure.archive.ubuntu.com/ubuntu noble/universe amd64 xfonts-cyrillic all 1:1.0.5+nmu1 [384 kB]
+2026-09-06T16:17:26.2898779Z Get:10 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 xfonts-scalable all 1:1.0.3-1.3 [304 kB]
+2026-09-06T16:17:26.5429312Z Fetched 21.1 MB in 0s (49.7 MB/s)
+2026-09-06T16:17:26.5677409Z Selecting previously unselected package fonts-ipafont-gothic.
+2026-09-06T16:17:26.6001618Z (Reading database ... 
+2026-09-06T16:17:26.6002128Z (Reading database ... 5%
+2026-09-06T16:17:26.6002515Z (Reading database ... 10%
+2026-09-06T16:17:26.6002875Z (Reading database ... 15%
+2026-09-06T16:17:26.6003439Z (Reading database ... 20%
+2026-09-06T16:17:26.6003984Z (Reading database ... 25%
+2026-09-06T16:17:26.6004513Z (Reading database ... 30%
+2026-09-06T16:17:26.6004966Z (Reading database ... 35%
+2026-09-06T16:17:26.6005250Z (Reading database ... 40%
+2026-09-06T16:17:26.6005525Z (Reading database ... 45%
+2026-09-06T16:17:26.6005796Z (Reading database ... 50%
+2026-09-06T16:17:26.6046074Z (Reading database ... 55%
+2026-09-06T16:17:26.7683315Z (Reading database ... 60%
+2026-09-06T16:17:26.9042248Z (Reading database ... 65%
+2026-09-06T16:17:27.1112083Z (Reading database ... 70%
+2026-09-06T16:17:27.2079849Z (Reading database ... 75%
+2026-09-06T16:17:27.4080939Z (Reading database ... 80%
+2026-09-06T16:17:27.5495848Z (Reading database ... 85%
+2026-09-06T16:17:27.6596811Z (Reading database ... 90%
+2026-09-06T16:17:27.7761696Z (Reading database ... 95%
+2026-09-06T16:17:27.7762103Z (Reading database ... 100%
+2026-09-06T16:17:27.7762641Z (Reading database ... 201676 files and directories currently installed.)
+2026-09-06T16:17:27.7803612Z Preparing to unpack .../0-fonts-ipafont-gothic_00303-21ubuntu1_all.deb ...
+2026-09-06T16:17:27.7901568Z Unpacking fonts-ipafont-gothic (00303-21ubuntu1) ...
+2026-09-06T16:17:28.0192873Z Selecting previously unselected package fonts-freefont-ttf.
+2026-09-06T16:17:28.0317224Z Preparing to unpack .../1-fonts-freefont-ttf_20211204+svn4273-2_all.deb ...
+2026-09-06T16:17:28.0325984Z Unpacking fonts-freefont-ttf (20211204+svn4273-2) ...
+2026-09-06T16:17:28.1144304Z Selecting previously unselected package fonts-tlwg-loma-otf.
+2026-09-06T16:17:28.1271560Z Preparing to unpack .../2-fonts-tlwg-loma-otf_1%3a0.7.3-1_all.deb ...
+2026-09-06T16:17:28.1279797Z Unpacking fonts-tlwg-loma-otf (1:0.7.3-1) ...
+2026-09-06T16:17:28.1499925Z Selecting previously unselected package fonts-unifont.
+2026-09-06T16:17:28.1625247Z Preparing to unpack .../3-fonts-unifont_1%3a15.1.01-1build1_all.deb ...
+2026-09-06T16:17:28.1636679Z Unpacking fonts-unifont (1:15.1.01-1build1) ...
+2026-09-06T16:17:28.2686726Z Selecting previously unselected package fonts-wqy-zenhei.
+2026-09-06T16:17:28.2813920Z Preparing to unpack .../4-fonts-wqy-zenhei_0.9.45-8_all.deb ...
+2026-09-06T16:17:28.2911692Z Unpacking fonts-wqy-zenhei (0.9.45-8) ...
+2026-09-06T16:17:28.7530803Z Selecting previously unselected package xfonts-encodings.
+2026-09-06T16:17:28.7655046Z Preparing to unpack .../5-xfonts-encodings_1%3a1.0.5-0ubuntu2_all.deb ...
+2026-09-06T16:17:28.7664353Z Unpacking xfonts-encodings (1:1.0.5-0ubuntu2) ...
+2026-09-06T16:17:28.7957526Z Selecting previously unselected package xfonts-utils.
+2026-09-06T16:17:28.8081441Z Preparing to unpack .../6-xfonts-utils_1%3a7.7+6build3_amd64.deb ...
+2026-09-06T16:17:28.8090115Z Unpacking xfonts-utils (1:7.7+6build3) ...
+2026-09-06T16:17:28.8468248Z Selecting previously unselected package xfonts-cyrillic.
+2026-09-06T16:17:28.8595898Z Preparing to unpack .../7-xfonts-cyrillic_1%3a1.0.5+nmu1_all.deb ...
+2026-09-06T16:17:28.8605696Z Unpacking xfonts-cyrillic (1:1.0.5+nmu1) ...
+2026-09-06T16:17:28.8942398Z Selecting previously unselected package xfonts-scalable.
+2026-09-06T16:17:28.9065448Z Preparing to unpack .../8-xfonts-scalable_1%3a1.0.3-1.3_all.deb ...
+2026-09-06T16:17:28.9073906Z Unpacking xfonts-scalable (1:1.0.3-1.3) ...
+2026-09-06T16:17:28.9489972Z Setting up fonts-wqy-zenhei (0.9.45-8) ...
+2026-09-06T16:17:28.9623991Z Setting up fonts-freefont-ttf (20211204+svn4273-2) ...
+2026-09-06T16:17:28.9644186Z Setting up fonts-tlwg-loma-otf (1:0.7.3-1) ...
+2026-09-06T16:17:28.9678335Z Setting up xfonts-encodings (1:1.0.5-0ubuntu2) ...
+2026-09-06T16:17:28.9709558Z Setting up fonts-ipafont-gothic (00303-21ubuntu1) ...
+2026-09-06T16:17:28.9781797Z update-alternatives: using /usr/share/fonts/opentype/ipafont-gothic/ipag.ttf to provide /usr/share/fonts/truetype/fonts-japanese-gothic.ttf (fonts-japanese-gothic.ttf) in auto mode
+2026-09-06T16:17:28.9799710Z Setting up fonts-unifont (1:15.1.01-1build1) ...
+2026-09-06T16:17:28.9822216Z Setting up xfonts-utils (1:7.7+6build3) ...
+2026-09-06T16:17:28.9867185Z Setting up xfonts-cyrillic (1:1.0.5+nmu1) ...
+2026-09-06T16:17:29.0166920Z Setting up xfonts-scalable (1:1.0.3-1.3) ...
+2026-09-06T16:17:29.0440030Z Processing triggers for man-db (2.12.0-4build2) ...
+2026-09-06T16:17:29.0460476Z Not building database; man-db/auto-update is not 'true'.
+2026-09-06T16:17:29.0475288Z Processing triggers for fontconfig (2.15.0-1.1ubuntu2) ...
+2026-09-06T16:17:29.7652876Z 
+2026-09-06T16:17:29.7653496Z Running kernel seems to be up-to-date.
+2026-09-06T16:17:29.7653815Z 
+2026-09-06T16:17:29.7654011Z No services need to be restarted.
+2026-09-06T16:17:29.7654256Z 
+2026-09-06T16:17:29.7654441Z No containers need to be restarted.
+2026-09-06T16:17:29.7654658Z 
+2026-09-06T16:17:29.7654860Z No user sessions are running outdated binaries.
+2026-09-06T16:17:29.7655112Z 
+2026-09-06T16:17:29.7655449Z No VM guests are running outdated hypervisor (qemu) binaries on this host.
+2026-09-06T16:17:30.5684496Z Downloading Chrome for Testing 151.0.7922.34 (playwright chromium v1234) from https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/chrome-linux64.zip
+2026-09-06T16:17:31.5485024Z |                                                                                |   0% of 184.3 MiB
+2026-09-06T16:17:31.9036695Z |■■■■■■■■                                                                        |  10% of 184.3 MiB
+2026-09-06T16:17:31.9964914Z |■■■■■■■■■■■■■■■■                                                                |  20% of 184.3 MiB
+2026-09-06T16:17:32.0879616Z |■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 184.3 MiB
+2026-09-06T16:17:32.1673600Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 184.3 MiB
+2026-09-06T16:17:32.2379219Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 184.3 MiB
+2026-09-06T16:17:32.2999560Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 184.3 MiB
+2026-09-06T16:17:32.3709201Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 184.3 MiB
+2026-09-06T16:17:32.4459759Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 184.3 MiB
+2026-09-06T16:17:32.5312291Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 184.3 MiB
+2026-09-06T16:17:32.6269093Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 184.3 MiB
+2026-09-06T16:17:35.7503040Z Chrome for Testing 151.0.7922.34 (playwright chromium v1234) downloaded to /home/runner/.cache/ms-playwright/chromium-1234
+2026-09-06T16:17:35.7507007Z Downloading FFmpeg (playwright ffmpeg v1011) from https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-linux.zip
+2026-09-06T16:17:36.7207206Z |                                                                                |   0% of 2.3 MiB
+2026-09-06T16:17:36.7248218Z |■■■■■■■■                                                                        |  10% of 2.3 MiB
+2026-09-06T16:17:36.7271505Z |■■■■■■■■■■■■■■■■                                                                |  20% of 2.3 MiB
+2026-09-06T16:17:36.7296935Z |■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 2.3 MiB
+2026-09-06T16:17:36.7313309Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 2.3 MiB
+2026-09-06T16:17:36.7332323Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 2.3 MiB
+2026-09-06T16:17:36.7348625Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 2.3 MiB
+2026-09-06T16:17:36.7365577Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 2.3 MiB
+2026-09-06T16:17:36.7389028Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 2.3 MiB
+2026-09-06T16:17:36.7430729Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 2.3 MiB
+2026-09-06T16:17:36.7441758Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 2.3 MiB
+2026-09-06T16:17:36.8059479Z FFmpeg (playwright ffmpeg v1011) downloaded to /home/runner/.cache/ms-playwright/ffmpeg-1011
+2026-09-06T16:17:36.8063636Z Downloading Chrome Headless Shell 151.0.7922.34 (playwright chromium-headless-shell v1234) from https://cdn.playwright.dev/builds/cft/151.0.7922.34/linux64/chrome-headless-shell-linux64.zip
+2026-09-06T16:17:37.7798887Z |                                                                                |   0% of 114.7 MiB
+2026-09-06T16:17:38.0001470Z |■■■■■■■■                                                                        |  10% of 114.7 MiB
+2026-09-06T16:17:38.1263414Z |■■■■■■■■■■■■■■■■                                                                |  20% of 114.7 MiB
+2026-09-06T16:17:38.1885244Z |■■■■■■■■■■■■■■■■■■■■■■■■                                                        |  30% of 114.7 MiB
+2026-09-06T16:17:38.2449549Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                                |  40% of 114.7 MiB
+2026-09-06T16:17:38.3089429Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                        |  50% of 114.7 MiB
+2026-09-06T16:17:38.3595626Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                                |  60% of 114.7 MiB
+2026-09-06T16:17:38.4004344Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                        |  70% of 114.7 MiB
+2026-09-06T16:17:38.4573953Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■                |  80% of 114.7 MiB
+2026-09-06T16:17:38.4976174Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■        |  90% of 114.7 MiB
+2026-09-06T16:17:38.5533851Z |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■| 100% of 114.7 MiB
+2026-09-06T16:17:40.8426011Z Chrome Headless Shell 151.0.7922.34 (playwright chromium-headless-shell v1234) downloaded to /home/runner/.cache/ms-playwright/chromium_headless_shell-1234
+2026-09-06T16:17:40.8752418Z ##[group]Run npm run test:visual
+2026-09-06T16:17:40.8752787Z [36;1mnpm run test:visual[0m
+2026-09-06T16:17:40.8790624Z shell: /usr/bin/bash -e {0}
+2026-09-06T16:17:40.8790891Z ##[endgroup]
+2026-09-06T16:17:40.9777288Z 
+2026-09-06T16:17:40.9778141Z > kivou-frontend@0.1.0 test:visual
+2026-09-06T16:17:40.9778826Z > playwright test
+2026-09-06T16:17:40.9779101Z 
+2026-09-06T16:17:42.9079212Z 
+2026-09-06T16:17:42.9083828Z Running 39 tests using 1 worker
+2026-09-06T16:17:42.9084570Z 
+2026-09-06T16:17:43.5810024Z   ✓   1 tests/visual/reference-port.spec.ts:37:1 › today goldens cover discovery and three-month Essential accounts (11ms)
+2026-09-06T16:17:43.6155203Z   ✓   2 tests/visual/reference-port.spec.ts:47:1 › dashboard-signals adversarial fixture contract (22ms)
+2026-09-06T16:17:43.6710786Z   ✓   3 tests/visual/reference-port.spec.ts:78:1 › dashboard-companies published fixture contract (45ms)
+2026-09-06T16:17:46.8896930Z   ✓   4 tests/visual/reference-port.spec.ts:354:5 › public-home desktop (2.9s)
+2026-09-06T16:17:48.3580144Z   ✓   5 tests/visual/reference-port.spec.ts:354:5 › public-home mobile (1.5s)
+2026-09-06T16:17:50.1438201Z   ✓   6 tests/visual/reference-port.spec.ts:354:5 › public-product desktop (1.8s)
+2026-09-06T16:17:51.6485779Z   ✓   7 tests/visual/reference-port.spec.ts:354:5 › public-product mobile (1.5s)
+2026-09-06T16:17:53.2072956Z   ✓   8 tests/visual/reference-port.spec.ts:354:5 › public-pricing desktop (1.5s)
+2026-09-06T16:17:54.6594356Z   ✓   9 tests/visual/reference-port.spec.ts:354:5 › public-pricing mobile (1.4s)
+2026-09-06T16:17:56.9537071Z   ✓  10 tests/visual/reference-port.spec.ts:354:5 › public-signal desktop (2.3s)
+2026-09-06T16:17:58.7470280Z   ✓  11 tests/visual/reference-port.spec.ts:354:5 › public-signal mobile (1.8s)
+2026-09-06T16:18:00.0573223Z   ✓  12 tests/visual/reference-port.spec.ts:354:5 › public-contact desktop (1.3s)
+2026-09-06T16:18:01.2684233Z   ✓  13 tests/visual/reference-port.spec.ts:354:5 › public-contact mobile (1.2s)
+2026-09-06T16:18:03.5950065Z   ✓  14 tests/visual/reference-port.spec.ts:354:5 › public-legal desktop (2.3s)
+2026-09-06T16:18:05.4790866Z   ✓  15 tests/visual/reference-port.spec.ts:354:5 › public-legal mobile (1.9s)
+2026-09-06T16:18:06.7659559Z   ✓  16 tests/visual/reference-port.spec.ts:354:5 › dashboard-login desktop (1.3s)
+2026-09-06T16:18:07.9952818Z   ✓  17 tests/visual/reference-port.spec.ts:354:5 › dashboard-login mobile (1.2s)
+2026-09-06T16:18:09.2709668Z   ✓  18 tests/visual/reference-port.spec.ts:354:5 › dashboard-signup desktop (1.3s)
+2026-09-06T16:18:10.4259612Z   ✓  19 tests/visual/reference-port.spec.ts:354:5 › dashboard-signup mobile (1.1s)
+2026-09-06T16:18:11.6198981Z   ✓  20 tests/visual/reference-port.spec.ts:354:5 › dashboard-onboarding desktop (1.2s)
+2026-09-06T16:18:12.7466453Z   ✓  21 tests/visual/reference-port.spec.ts:354:5 › dashboard-onboarding mobile (1.1s)
+2026-09-06T16:18:18.8552203Z   ✘  22 tests/visual/reference-port.spec.ts:354:5 › dashboard-overview desktop (6.1s)
+2026-09-06T16:18:20.8843293Z   ✘  23 tests/visual/reference-port.spec.ts:354:5 › dashboard-overview mobile (1.4s)
+2026-09-06T16:18:23.1017224Z   ✘  24 tests/visual/reference-port.spec.ts:354:5 › dashboard-overview-discovery desktop (1.6s)
+2026-09-06T16:18:25.1342029Z   ✘  25 tests/visual/reference-port.spec.ts:354:5 › dashboard-overview-discovery mobile (1.4s)
+2026-09-06T16:18:32.0790183Z   ✘  26 tests/visual/reference-port.spec.ts:354:5 › dashboard-signals desktop (6.3s)
+2026-09-06T16:18:33.9454955Z   ✘  27 tests/visual/reference-port.spec.ts:354:5 › dashboard-signals mobile (1.3s)
+2026-09-06T16:18:36.2325612Z   ✘  28 tests/visual/reference-port.spec.ts:354:5 › dashboard-companies desktop (1.7s)
+2026-09-06T16:18:38.2845623Z   ✘  29 tests/visual/reference-port.spec.ts:354:5 › dashboard-companies mobile (1.4s)
+2026-09-06T16:18:40.4449571Z   ✓  30 tests/visual/reference-port.spec.ts:354:5 › dashboard-targeting desktop (1.6s)
+2026-09-06T16:18:41.7595732Z   ✓  31 tests/visual/reference-port.spec.ts:354:5 › dashboard-targeting mobile (1.3s)
+2026-09-06T16:18:47.9432072Z   ✘  32 tests/visual/reference-port.spec.ts:354:5 › dashboard-account desktop (6.1s)
+2026-09-06T16:18:54.8153554Z   ✘  33 tests/visual/reference-port.spec.ts:354:5 › dashboard-account mobile (6.3s)
+2026-09-06T16:18:57.7622470Z   ✓  34 tests/visual/reference-port.spec.ts:388:1 › dashboard-signals drawer navigation (2.4s)
+2026-09-06T16:18:59.3344007Z   ✓  35 tests/visual/reference-port.spec.ts:427:1 › public menu open mobile (1.6s)
+2026-09-06T16:19:00.7072762Z   ✘  36 tests/visual/reference-port.spec.ts:444:1 › dashboard sidebar open mobile (1.3s)
+2026-09-06T16:19:07.5345556Z   ✘  37 tests/visual/reference-port.spec.ts:461:1 › dashboard Aujourd’hui tient sans défilement à 1280 × 800 (6.2s)
+2026-09-06T16:19:08.3112259Z   ✓  38 tests/visual/reference-port.spec.ts:471:1 › connected text normalization survives a late shell rerender (198ms)
+2026-09-06T16:19:08.4999005Z   ✓  39 tests/visual/reference-port.spec.ts:496:1 › connected scroll normalization survives a late history restoration (177ms)
+2026-09-06T16:19:08.5735590Z 
+2026-09-06T16:19:08.5742603Z 
+2026-09-06T16:19:08.5752618Z   1) tests/visual/reference-port.spec.ts:354:5 › dashboard-overview desktop ────────────────────────
+2026-09-06T16:19:08.5753478Z 
+2026-09-06T16:19:08.5753859Z     Error: expect(locator).toContainText(expected) failed
+2026-09-06T16:19:08.5754337Z 
+2026-09-06T16:19:08.5754635Z     Locator: locator('.sidebar-plan-summary')
+2026-09-06T16:19:08.5755269Z     Expected substring: "Plan"
+2026-09-06T16:19:08.5756406Z     Received string:    "1002 signaux ouverts ce moisTravaux de construction · Isère"
+2026-09-06T16:19:08.5757214Z     Timeout: 5000ms
+2026-09-06T16:19:08.5757478Z 
+2026-09-06T16:19:08.5757631Z     Call log:
+2026-09-06T16:19:08.5758469Z       - Expect "toContainText" with timeout 5000ms
+2026-09-06T16:19:08.5759198Z       - waiting for locator('.sidebar-plan-summary')
+2026-09-06T16:19:08.5760233Z         14 × locator resolved to <div class="sidebar-plan-summary">…</div>
+2026-09-06T16:19:08.5761536Z            - unexpected value "1002 signaux ouverts ce moisTravaux de construction · Isère"
+2026-09-06T16:19:08.5762708Z 
+2026-09-06T16:19:08.5762720Z 
+2026-09-06T16:19:08.5762904Z       217 |     } else {
+2026-09-06T16:19:08.5763802Z       218 |       await expect(page.locator('.kivou-sidebar [data-sidebar="sidebar"]')).toBeVisible()
+2026-09-06T16:19:08.5765066Z     > 219 |       await expect(page.locator('.sidebar-plan-summary')).toContainText('Plan')
+2026-09-06T16:19:08.5766021Z           |                                                           ^
+2026-09-06T16:19:08.5767090Z       220 |       await expect(page.getByRole('link', { name: 'Signaux', exact: true })).toBeVisible()
+2026-09-06T16:19:08.5768183Z       221 |     }
+2026-09-06T16:19:08.5768549Z       222 |   }
+2026-09-06T16:19:08.5769530Z         at waitForScenario (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:219:59)
+2026-09-06T16:19:08.5771083Z         at preparePage (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:349:3)
+2026-09-06T16:19:08.5772464Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:366:7
+2026-09-06T16:19:08.5773176Z 
+2026-09-06T16:19:08.5773830Z     Error Context: test-results/reference-port-dashboard-overview-desktop/error-context.md
+2026-09-06T16:19:08.5774529Z 
+2026-09-06T16:19:08.5775405Z   2) tests/visual/reference-port.spec.ts:354:5 › dashboard-overview mobile ─────────────────────────
+2026-09-06T16:19:08.5776201Z 
+2026-09-06T16:19:08.5776531Z     Error: expect(Buffer).toMatchSnapshot(expected) failed
+2026-09-06T16:19:08.5776965Z 
+2026-09-06T16:19:08.5778074Z       Expected an image 390px by 1181px, received 390px by 1171px. 12733 pixels (ratio 0.03 of all image pixels) are different.
+2026-09-06T16:19:08.5778904Z 
+2026-09-06T16:19:08.5779202Z       Snapshot: dashboard-overview-mobile.png
+2026-09-06T16:19:08.5779602Z 
+2026-09-06T16:19:08.5779613Z 
+2026-09-06T16:19:08.5779768Z       377 |       }
+2026-09-06T16:19:08.5780923Z       378 |       const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
+2026-09-06T16:19:08.5782219Z     > 379 |       expect(actual).toMatchSnapshot(route.golden + '-' + viewport.name + '.png', {
+2026-09-06T16:19:08.5783072Z           |                      ^
+2026-09-06T16:19:08.5783654Z       380 |         maxDiffPixelRatio: 0.001,
+2026-09-06T16:19:08.5784180Z       381 |       })
+2026-09-06T16:19:08.5784918Z       382 |       expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+2026-09-06T16:19:08.5786118Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:379:22
+2026-09-06T16:19:08.5786738Z 
+2026-09-06T16:19:08.5787594Z     attachment #1: dashboard-overview-mobile (image/png) ───────────────────────────────────────────
+2026-09-06T16:19:08.5789173Z     Expected: tests/visual/reference-goldens/dashboard-overview-mobile.png
+2026-09-06T16:19:08.5790569Z     Received: test-results/reference-port-dashboard-overview-mobile/dashboard-overview-mobile-actual.png
+2026-09-06T16:19:08.5792196Z     Diff:     test-results/reference-port-dashboard-overview-mobile/dashboard-overview-mobile-diff.png
+2026-09-06T16:19:08.5793747Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-09-06T16:19:08.5794318Z 
+2026-09-06T16:19:08.5794945Z     Error Context: test-results/reference-port-dashboard-overview-mobile/error-context.md
+2026-09-06T16:19:08.5795671Z 
+2026-09-06T16:19:08.5796619Z   3) tests/visual/reference-port.spec.ts:354:5 › dashboard-overview-discovery desktop ──────────────
+2026-09-06T16:19:08.5797376Z 
+2026-09-06T16:19:08.5798005Z     Error: expect(Buffer).toMatchSnapshot(expected) failed
+2026-09-06T16:19:08.5798473Z 
+2026-09-06T16:19:08.5798865Z       12941 pixels (ratio 0.01 of all image pixels) are different.
+2026-09-06T16:19:08.5799341Z 
+2026-09-06T16:19:08.5799686Z       Snapshot: dashboard-overview-discovery-desktop.png
+2026-09-06T16:19:08.5800137Z 
+2026-09-06T16:19:08.5800147Z 
+2026-09-06T16:19:08.5800313Z       377 |       }
+2026-09-06T16:19:08.5801103Z       378 |       const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
+2026-09-06T16:19:08.5802607Z     > 379 |       expect(actual).toMatchSnapshot(route.golden + '-' + viewport.name + '.png', {
+2026-09-06T16:19:08.5803473Z           |                      ^
+2026-09-06T16:19:08.5804027Z       380 |         maxDiffPixelRatio: 0.001,
+2026-09-06T16:19:08.5804540Z       381 |       })
+2026-09-06T16:19:08.5805254Z       382 |       expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+2026-09-06T16:19:08.5806427Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:379:22
+2026-09-06T16:19:08.5807092Z 
+2026-09-06T16:19:08.5808210Z     attachment #1: dashboard-overview-discovery-desktop (image/png) ────────────────────────────────
+2026-09-06T16:19:08.5809537Z     Expected: tests/visual/reference-goldens/dashboard-overview-discovery-desktop.png
+2026-09-06T16:19:08.5811197Z     Received: test-results/reference-port-dashboard-overview-discovery-desktop/dashboard-overview-discovery-desktop-actual.png
+2026-09-06T16:19:08.5813151Z     Diff:     test-results/reference-port-dashboard-overview-discovery-desktop/dashboard-overview-discovery-desktop-diff.png
+2026-09-06T16:19:08.5814831Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-09-06T16:19:08.5815378Z 
+2026-09-06T16:19:08.5816102Z     Error Context: test-results/reference-port-dashboard-overview-discovery-desktop/error-context.md
+2026-09-06T16:19:08.5816904Z 
+2026-09-06T16:19:08.5817978Z   4) tests/visual/reference-port.spec.ts:354:5 › dashboard-overview-discovery mobile ───────────────
+2026-09-06T16:19:08.5818725Z 
+2026-09-06T16:19:08.5819095Z     Error: expect(Buffer).toMatchSnapshot(expected) failed
+2026-09-06T16:19:08.5819536Z 
+2026-09-06T16:19:08.5820337Z       Expected an image 390px by 1181px, received 390px by 1171px. 12733 pixels (ratio 0.03 of all image pixels) are different.
+2026-09-06T16:19:08.5821396Z 
+2026-09-06T16:19:08.5821770Z       Snapshot: dashboard-overview-discovery-mobile.png
+2026-09-06T16:19:08.5822243Z 
+2026-09-06T16:19:08.5822252Z 
+2026-09-06T16:19:08.5822400Z       377 |       }
+2026-09-06T16:19:08.5823186Z       378 |       const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
+2026-09-06T16:19:08.5824417Z     > 379 |       expect(actual).toMatchSnapshot(route.golden + '-' + viewport.name + '.png', {
+2026-09-06T16:19:08.5825404Z           |                      ^
+2026-09-06T16:19:08.5825956Z       380 |         maxDiffPixelRatio: 0.001,
+2026-09-06T16:19:08.5826478Z       381 |       })
+2026-09-06T16:19:08.5827196Z       382 |       expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+2026-09-06T16:19:08.5828605Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:379:22
+2026-09-06T16:19:08.5829297Z 
+2026-09-06T16:19:08.5830267Z     attachment #1: dashboard-overview-discovery-mobile (image/png) ─────────────────────────────────
+2026-09-06T16:19:08.5831583Z     Expected: tests/visual/reference-goldens/dashboard-overview-discovery-mobile.png
+2026-09-06T16:19:08.5833211Z     Received: test-results/reference-port-dashboard-overview-discovery-mobile/dashboard-overview-discovery-mobile-actual.png
+2026-09-06T16:19:08.5834978Z     Diff:     test-results/reference-port-dashboard-overview-discovery-mobile/dashboard-overview-discovery-mobile-diff.png
+2026-09-06T16:19:08.5836526Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-09-06T16:19:08.5837006Z 
+2026-09-06T16:19:08.5837644Z     Error Context: test-results/reference-port-dashboard-overview-discovery-mobile/error-context.md
+2026-09-06T16:19:08.5838702Z 
+2026-09-06T16:19:08.5839560Z   5) tests/visual/reference-port.spec.ts:354:5 › dashboard-signals desktop ─────────────────────────
+2026-09-06T16:19:08.5840292Z 
+2026-09-06T16:19:08.5840656Z     Error: expect(locator).toContainText(expected) failed
+2026-09-06T16:19:08.5841104Z 
+2026-09-06T16:19:08.5841377Z     Locator: locator('aside[aria-labelledby]')
+2026-09-06T16:19:08.5844563Z     Expected substring: "Ce que le titulaire va devoir faire"
+2026-09-06T16:19:08.5847073Z     Received string:    "NouveauFermerPortes intérieures bois du Campus OstTitulaireTM Ausbau GmbHMontant428 157 €LieuMunichAttribué le6 juillet 2026CPV45421131 · 44221200Marquer contactéSauverIgnorerSource : TED 584863-2026 ↗"
+2026-09-06T16:19:08.5849214Z     Timeout: 5000ms
+2026-09-06T16:19:08.5849463Z 
+2026-09-06T16:19:08.5849618Z     Call log:
+2026-09-06T16:19:08.5850136Z       - Expect "toContainText" with timeout 5000ms
+2026-09-06T16:19:08.5850871Z       - waiting for locator('aside[aria-labelledby]')
+2026-09-06T16:19:08.5852410Z         14 × locator resolved to <aside aria-labelledby="_r_0_" class="_drawer_bcyzg_187" data-signal-key="tm-ausbau-campus-ost">…</aside>
+2026-09-06T16:19:08.5855547Z            - unexpected value "NouveauFermerPortes intérieures bois du Campus OstTitulaireTM Ausbau GmbHMontant428 157 €LieuMunichAttribué le6 juillet 2026CPV45421131 · 44221200Marquer contactéSauverIgnorerSource : TED 584863-2026 ↗"
+2026-09-06T16:19:08.5857243Z 
+2026-09-06T16:19:08.5857256Z 
+2026-09-06T16:19:08.5858000Z       292 |       // lieu d’afficher un libellé vide ou « — ».
+2026-09-06T16:19:08.5858972Z       293 |       await expect(drawer.getByText('Acheteur', { exact: true })).toHaveCount(0)
+2026-09-06T16:19:08.5860110Z     > 294 |       await expect(drawer).toContainText('Ce que le titulaire va devoir faire')
+2026-09-06T16:19:08.5860970Z           |                            ^
+2026-09-06T16:19:08.5862175Z       295 |       await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toHaveCount(0)
+2026-09-06T16:19:08.5863547Z       296 |       await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()
+2026-09-06T16:19:08.5864426Z       297 |     } else {
+2026-09-06T16:19:08.5865417Z         at waitForScenario (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:294:28)
+2026-09-06T16:19:08.5866891Z         at preparePage (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:349:3)
+2026-09-06T16:19:08.5868467Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:366:7
+2026-09-06T16:19:08.5869110Z 
+2026-09-06T16:19:08.5869740Z     Error Context: test-results/reference-port-dashboard-signals-desktop/error-context.md
+2026-09-06T16:19:08.5870469Z 
+2026-09-06T16:19:08.5871323Z   6) tests/visual/reference-port.spec.ts:354:5 › dashboard-signals mobile ──────────────────────────
+2026-09-06T16:19:08.5872088Z 
+2026-09-06T16:19:08.5872489Z     Error: expect(received).toEqual(expected) // deep equality
+2026-09-06T16:19:08.5872986Z 
+2026-09-06T16:19:08.5873161Z     - Expected  - 7
+2026-09-06T16:19:08.5873567Z     + Received  + 1
+2026-09-06T16:19:08.5873817Z 
+2026-09-06T16:19:08.5873981Z     - Array [
+2026-09-06T16:19:08.5874349Z     -   "Date",
+2026-09-06T16:19:08.5874743Z     -   "Titulaire",
+2026-09-06T16:19:08.5875162Z     -   "Objet",
+2026-09-06T16:19:08.5875946Z     -   "Montant",
+2026-09-06T16:19:08.5876344Z     -   "Match",
+2026-09-06T16:19:08.5876722Z     - ]
+2026-09-06T16:19:08.5877041Z     + Array []
+2026-09-06T16:19:08.5877253Z 
+2026-09-06T16:19:08.5877528Z       260 |     const table = page.locator('table')
+2026-09-06T16:19:08.5878720Z       261 |     const headers = await table.locator('thead th').allTextContents()
+2026-09-06T16:19:08.5879493Z     > 262 |     expect(headers).toEqual(
+2026-09-06T16:19:08.5880034Z           |                     ^
+2026-09-06T16:19:08.5880458Z       263 |       mobile
+2026-09-06T16:19:08.5881056Z       264 |         ? ['Date', 'Titulaire', 'Objet', 'Montant', 'Match']
+2026-09-06T16:19:08.5881870Z       265 |         : ['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu', 'Match'],
+2026-09-06T16:19:08.5883064Z         at waitForScenario (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:262:21)
+2026-09-06T16:19:08.5884542Z         at preparePage (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:349:3)
+2026-09-06T16:19:08.5885918Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:366:7
+2026-09-06T16:19:08.5886564Z 
+2026-09-06T16:19:08.5887185Z     Error Context: test-results/reference-port-dashboard-signals-mobile/error-context.md
+2026-09-06T16:19:08.5888142Z 
+2026-09-06T16:19:08.5889028Z   7) tests/visual/reference-port.spec.ts:354:5 › dashboard-companies desktop ───────────────────────
+2026-09-06T16:19:08.5889782Z 
+2026-09-06T16:19:08.5890159Z     Error: expect(Buffer).toMatchSnapshot(expected) failed
+2026-09-06T16:19:08.5890621Z 
+2026-09-06T16:19:08.5891034Z       404818 pixels (ratio 0.32 of all image pixels) are different.
+2026-09-06T16:19:08.5891543Z 
+2026-09-06T16:19:08.5891844Z       Snapshot: dashboard-companies-desktop.png
+2026-09-06T16:19:08.5892242Z 
+2026-09-06T16:19:08.5892252Z 
+2026-09-06T16:19:08.5892403Z       377 |       }
+2026-09-06T16:19:08.5893400Z       378 |       const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
+2026-09-06T16:19:08.5894638Z     > 379 |       expect(actual).toMatchSnapshot(route.golden + '-' + viewport.name + '.png', {
+2026-09-06T16:19:08.5895494Z           |                      ^
+2026-09-06T16:19:08.5896035Z       380 |         maxDiffPixelRatio: 0.001,
+2026-09-06T16:19:08.5896525Z       381 |       })
+2026-09-06T16:19:08.5897281Z       382 |       expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+2026-09-06T16:19:08.5898913Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:379:22
+2026-09-06T16:19:08.5899710Z 
+2026-09-06T16:19:08.5900678Z     attachment #1: dashboard-companies-desktop (image/png) ─────────────────────────────────────────
+2026-09-06T16:19:08.5902223Z     Expected: tests/visual/reference-goldens/dashboard-companies-desktop.png
+2026-09-06T16:19:08.5903906Z     Received: test-results/reference-port-dashboard-companies-desktop/dashboard-companies-desktop-actual.png
+2026-09-06T16:19:08.5905853Z     Diff:     test-results/reference-port-dashboard-companies-desktop/dashboard-companies-desktop-diff.png
+2026-09-06T16:19:08.5968015Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-09-06T16:19:08.5968549Z 
+2026-09-06T16:19:08.5969113Z     Error Context: test-results/reference-port-dashboard-companies-desktop/error-context.md
+2026-09-06T16:19:08.5969770Z 
+2026-09-06T16:19:08.5970566Z   8) tests/visual/reference-port.spec.ts:354:5 › dashboard-companies mobile ────────────────────────
+2026-09-06T16:19:08.5971304Z 
+2026-09-06T16:19:08.5971663Z     Error: expect(Buffer).toMatchSnapshot(expected) failed
+2026-09-06T16:19:08.5972121Z 
+2026-09-06T16:19:08.5972496Z       4753 pixels (ratio 0.02 of all image pixels) are different.
+2026-09-06T16:19:08.5972969Z 
+2026-09-06T16:19:08.5973265Z       Snapshot: dashboard-companies-mobile.png
+2026-09-06T16:19:08.5973659Z 
+2026-09-06T16:19:08.5973697Z 
+2026-09-06T16:19:08.5973850Z       377 |       }
+2026-09-06T16:19:08.5974644Z       378 |       const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
+2026-09-06T16:19:08.5976195Z     > 379 |       expect(actual).toMatchSnapshot(route.golden + '-' + viewport.name + '.png', {
+2026-09-06T16:19:08.5976990Z           |                      ^
+2026-09-06T16:19:08.5977360Z       380 |         maxDiffPixelRatio: 0.001,
+2026-09-06T16:19:08.5977920Z       381 |       })
+2026-09-06T16:19:08.5978401Z       382 |       expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+2026-09-06T16:19:08.5979054Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:379:22
+2026-09-06T16:19:08.5979422Z 
+2026-09-06T16:19:08.5979921Z     attachment #1: dashboard-companies-mobile (image/png) ──────────────────────────────────────────
+2026-09-06T16:19:08.5980571Z     Expected: tests/visual/reference-goldens/dashboard-companies-mobile.png
+2026-09-06T16:19:08.5981310Z     Received: test-results/reference-port-dashboard-companies-mobile/dashboard-companies-mobile-actual.png
+2026-09-06T16:19:08.5982161Z     Diff:     test-results/reference-port-dashboard-companies-mobile/dashboard-companies-mobile-diff.png
+2026-09-06T16:19:08.5982949Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-09-06T16:19:08.5983241Z 
+2026-09-06T16:19:08.5983574Z     Error Context: test-results/reference-port-dashboard-companies-mobile/error-context.md
+2026-09-06T16:19:08.5983958Z 
+2026-09-06T16:19:08.5984390Z   9) tests/visual/reference-port.spec.ts:354:5 › dashboard-account desktop ─────────────────────────
+2026-09-06T16:19:08.5984770Z 
+2026-09-06T16:19:08.5984961Z     Error: expect(locator).toHaveCount(expected) failed
+2026-09-06T16:19:08.5985205Z 
+2026-09-06T16:19:08.5985424Z     Locator:  locator('.settings-plan-card .settings-plan-facts')
+2026-09-06T16:19:08.5985793Z     Expected: 1
+2026-09-06T16:19:08.5986008Z     Received: 0
+2026-09-06T16:19:08.5986405Z     Timeout:  5000ms
+2026-09-06T16:19:08.5986552Z 
+2026-09-06T16:19:08.5986645Z     Call log:
+2026-09-06T16:19:08.5986924Z       - Expect "toHaveCount" with timeout 5000ms
+2026-09-06T16:19:08.5987379Z       - waiting for locator('.settings-plan-card .settings-plan-facts')
+2026-09-06T16:19:08.5988111Z         14 × locator resolved to 0 elements
+2026-09-06T16:19:08.5988435Z            - unexpected value "0"
+2026-09-06T16:19:08.5988606Z 
+2026-09-06T16:19:08.5988616Z 
+2026-09-06T16:19:08.5988695Z       333 |   }
+2026-09-06T16:19:08.5988956Z       334 |   if (golden === 'dashboard-account') {
+2026-09-06T16:19:08.5989510Z     > 335 |     await expect(page.locator('.settings-plan-card .settings-plan-facts')).toHaveCount(1)
+2026-09-06T16:19:08.5990069Z           |                                                                            ^
+2026-09-06T16:19:08.5990384Z       336 |   }
+2026-09-06T16:19:08.5990574Z       337 |
+2026-09-06T16:19:08.5990832Z       338 |   if (scenario === 'public-pricing') {
+2026-09-06T16:19:08.5991430Z         at waitForScenario (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:335:76)
+2026-09-06T16:19:08.5992228Z         at preparePage (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:349:3)
+2026-09-06T16:19:08.5992926Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:366:7
+2026-09-06T16:19:08.5993281Z 
+2026-09-06T16:19:08.5993606Z     Error Context: test-results/reference-port-dashboard-account-desktop/error-context.md
+2026-09-06T16:19:08.5993976Z 
+2026-09-06T16:19:08.5994408Z   10) tests/visual/reference-port.spec.ts:354:5 › dashboard-account mobile ─────────────────────────
+2026-09-06T16:19:08.5994791Z 
+2026-09-06T16:19:08.5994975Z     Error: expect(locator).toHaveCount(expected) failed
+2026-09-06T16:19:08.5995204Z 
+2026-09-06T16:19:08.5995536Z     Locator:  locator('.settings-plan-card .settings-plan-facts')
+2026-09-06T16:19:08.5996116Z     Expected: 1
+2026-09-06T16:19:08.5996339Z     Received: 0
+2026-09-06T16:19:08.5996538Z     Timeout:  5000ms
+2026-09-06T16:19:08.5996848Z 
+2026-09-06T16:19:08.5996932Z     Call log:
+2026-09-06T16:19:08.5997379Z       - Expect "toHaveCount" with timeout 5000ms
+2026-09-06T16:19:08.5998273Z       - waiting for locator('.settings-plan-card .settings-plan-facts')
+2026-09-06T16:19:08.5998770Z         14 × locator resolved to 0 elements
+2026-09-06T16:19:08.5999213Z            - unexpected value "0"
+2026-09-06T16:19:08.5999447Z 
+2026-09-06T16:19:08.5999453Z 
+2026-09-06T16:19:08.5999535Z       333 |   }
+2026-09-06T16:19:08.5999802Z       334 |   if (golden === 'dashboard-account') {
+2026-09-06T16:19:08.6000378Z     > 335 |     await expect(page.locator('.settings-plan-card .settings-plan-facts')).toHaveCount(1)
+2026-09-06T16:19:08.6000956Z           |                                                                            ^
+2026-09-06T16:19:08.6001281Z       336 |   }
+2026-09-06T16:19:08.6001482Z       337 |
+2026-09-06T16:19:08.6001748Z       338 |   if (scenario === 'public-pricing') {
+2026-09-06T16:19:08.6002355Z         at waitForScenario (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:335:76)
+2026-09-06T16:19:08.6003145Z         at preparePage (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:349:3)
+2026-09-06T16:19:08.6003835Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:366:7
+2026-09-06T16:19:08.6004213Z 
+2026-09-06T16:19:08.6004545Z     Error Context: test-results/reference-port-dashboard-account-mobile/error-context.md
+2026-09-06T16:19:08.6004911Z 
+2026-09-06T16:19:08.6005346Z   11) tests/visual/reference-port.spec.ts:444:1 › dashboard sidebar open mobile ────────────────────
+2026-09-06T16:19:08.6005729Z 
+2026-09-06T16:19:08.6005918Z     Error: expect(Buffer).toMatchSnapshot(expected) failed
+2026-09-06T16:19:08.6006164Z 
+2026-09-06T16:19:08.6006747Z       Expected an image 390px by 1181px, received 390px by 1171px. 11349 pixels (ratio 0.03 of all image pixels) are different.
+2026-09-06T16:19:08.6007210Z 
+2026-09-06T16:19:08.6007374Z       Snapshot: dashboard-sidebar-open-mobile.png
+2026-09-06T16:19:08.6007608Z 
+2026-09-06T16:19:08.6007613Z 
+2026-09-06T16:19:08.6008099Z       452 |   await normalizeConnectedText(page)
+2026-09-06T16:19:08.6008633Z       453 |   const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
+2026-09-06T16:19:08.6009254Z     > 454 |   expect(actual).toMatchSnapshot('dashboard-sidebar-open-mobile.png', {
+2026-09-06T16:19:08.6009698Z           |                  ^
+2026-09-06T16:19:08.6009981Z       455 |     maxDiffPixelRatio: 0.001,
+2026-09-06T16:19:08.6010254Z       456 |   })
+2026-09-06T16:19:08.6010637Z       457 |   expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+2026-09-06T16:19:08.6011257Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:454:18
+2026-09-06T16:19:08.6011617Z 
+2026-09-06T16:19:08.6012072Z     attachment #1: dashboard-sidebar-open-mobile (image/png) ───────────────────────────────────────
+2026-09-06T16:19:08.6012733Z     Expected: tests/visual/reference-goldens/dashboard-sidebar-open-mobile.png
+2026-09-06T16:19:08.6013698Z     Received: test-results/reference-port-dashboard-sidebar-open-mobile/dashboard-sidebar-open-mobile-actual.png
+2026-09-06T16:19:08.6014599Z     Diff:     test-results/reference-port-dashboard-sidebar-open-mobile/dashboard-sidebar-open-mobile-diff.png
+2026-09-06T16:19:08.6015408Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-09-06T16:19:08.6015696Z 
+2026-09-06T16:19:08.6016037Z     Error Context: test-results/reference-port-dashboard-sidebar-open-mobile/error-context.md
+2026-09-06T16:19:08.6016430Z 
+2026-09-06T16:19:08.6016909Z   12) tests/visual/reference-port.spec.ts:461:1 › dashboard Aujourd’hui tient sans défilement à 1280 × 800 
+2026-09-06T16:19:08.6017331Z 
+2026-09-06T16:19:08.6017516Z     Error: expect(locator).toContainText(expected) failed
+2026-09-06T16:19:08.6017945Z 
+2026-09-06T16:19:08.6018102Z     Locator: locator('.sidebar-plan-summary')
+2026-09-06T16:19:08.6018540Z     Expected substring: "Plan"
+2026-09-06T16:19:08.6019518Z     Received string:    "3 signaux ouverts ce moisTravaux de construction · Isère"
+2026-09-06T16:19:08.6020241Z     Timeout: 5000ms
+2026-09-06T16:19:08.6020460Z 
+2026-09-06T16:19:08.6020601Z     Call log:
+2026-09-06T16:19:08.6021049Z       - Expect "toContainText" with timeout 5000ms
+2026-09-06T16:19:08.6021709Z       - waiting for locator('.sidebar-plan-summary')
+2026-09-06T16:19:08.6022603Z         14 × locator resolved to <div class="sidebar-plan-summary">…</div>
+2026-09-06T16:19:08.6023431Z            - unexpected value "3 signaux ouverts ce moisTravaux de construction · Isère"
+2026-09-06T16:19:08.6023771Z 
+2026-09-06T16:19:08.6023777Z 
+2026-09-06T16:19:08.6023873Z       217 |     } else {
+2026-09-06T16:19:08.6024340Z       218 |       await expect(page.locator('.kivou-sidebar [data-sidebar="sidebar"]')).toBeVisible()
+2026-09-06T16:19:08.6025158Z     > 219 |       await expect(page.locator('.sidebar-plan-summary')).toContainText('Plan')
+2026-09-06T16:19:08.6025692Z           |                                                           ^
+2026-09-06T16:19:08.6026227Z       220 |       await expect(page.getByRole('link', { name: 'Signaux', exact: true })).toBeVisible()
+2026-09-06T16:19:08.6026679Z       221 |     }
+2026-09-06T16:19:08.6026885Z       222 |   }
+2026-09-06T16:19:08.6027398Z         at waitForScenario (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:219:59)
+2026-09-06T16:19:08.6028382Z         at preparePage (/home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:349:3)
+2026-09-06T16:19:08.6029088Z         at /home/runner/work/Kivou/Kivou/frontend/tests/visual/reference-port.spec.ts:466:3
+2026-09-06T16:19:08.6029449Z 
+2026-09-06T16:19:08.6029967Z     Error Context: test-results/reference-port-dashboard-A-d6bd9-ans-défilement-à-1280-×-800/error-context.md
+2026-09-06T16:19:08.6030427Z 
+2026-09-06T16:19:08.6030514Z   12 failed
+2026-09-06T16:19:08.6031059Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-overview desktop ─────────────────────────
+2026-09-06T16:19:08.6031869Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-overview mobile ──────────────────────────
+2026-09-06T16:19:08.6032664Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-overview-discovery desktop ───────────────
+2026-09-06T16:19:08.6033455Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-overview-discovery mobile ────────────────
+2026-09-06T16:19:08.6034240Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-signals desktop ──────────────────────────
+2026-09-06T16:19:08.6035011Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-signals mobile ───────────────────────────
+2026-09-06T16:19:08.6035779Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-companies desktop ────────────────────────
+2026-09-06T16:19:08.6036570Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-companies mobile ─────────────────────────
+2026-09-06T16:19:08.6037511Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-account desktop ──────────────────────────
+2026-09-06T16:19:08.6038473Z     tests/visual/reference-port.spec.ts:354:5 › dashboard-account mobile ───────────────────────────
+2026-09-06T16:19:08.6039250Z     tests/visual/reference-port.spec.ts:444:1 › dashboard sidebar open mobile ──────────────────────
+2026-09-06T16:19:08.6040056Z     tests/visual/reference-port.spec.ts:461:1 › dashboard Aujourd’hui tient sans défilement à 1280 × 800 
+2026-09-06T16:19:08.6040550Z   27 passed (1.5m)
+2026-09-06T16:19:08.6891728Z ##[error]Process completed with exit code 1.
+2026-09-06T16:19:08.6975981Z ##[group]Run actions/upload-artifact@v7
+2026-09-06T16:19:08.6976295Z with:
+2026-09-06T16:19:08.6976508Z   name: frontend-visual-diffs
+2026-09-06T16:19:08.6976848Z   path: frontend/test-results
+frontend/playwright-report
+
+2026-09-06T16:19:08.6977193Z   if-no-files-found: ignore
+2026-09-06T16:19:08.6977427Z   retention-days: 7
+2026-09-06T16:19:08.6977635Z   compression-level: 6
+2026-09-06T16:19:08.6978228Z   overwrite: false
+2026-09-06T16:19:08.6978458Z   include-hidden-files: false
+2026-09-06T16:19:08.6978713Z   archive: true
+2026-09-06T16:19:08.6978913Z ##[endgroup]
+2026-09-06T16:19:08.8636349Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-09-06T16:19:08.8639390Z The least common ancestor is /home/runner/work/Kivou/Kivou/frontend. This will be the root directory of the artifact
+2026-09-06T16:19:08.8640766Z With the provided path, there will be 58 files uploaded
+2026-09-06T16:19:08.8645699Z Artifact name is valid!
+2026-09-06T16:19:08.8646547Z Root directory input is valid!
+2026-09-06T16:19:09.0762995Z Uploading artifact: frontend-visual-diffs.zip
+2026-09-06T16:19:09.0806395Z Beginning upload of artifact content to blob storage
+2026-09-06T16:19:09.2667229Z Uploaded bytes 1363228
+2026-09-06T16:19:09.2796395Z Finished uploading artifact content to blob storage!
+2026-09-06T16:19:09.2798183Z SHA256 digest of uploaded artifact is b8934e88567bebbd568ac4ba6f69f60177b7e15095a98126df404933fc3a7c22
+2026-09-06T16:19:09.2799270Z Finalizing artifact upload
+2026-09-06T16:19:09.4922466Z Artifact frontend-visual-diffs successfully finalized. Artifact ID 9992829650
+2026-09-06T16:19:09.4923692Z Artifact frontend-visual-diffs has been successfully uploaded! Final size is 1363228 bytes. Artifact ID is 9992829650
+2026-09-06T16:19:09.4926758Z Artifact download URL: https://github.com/bruppacherrodrigue-art/Kivou/actions/runs/34044884141/artifacts/9992829650
+2026-09-06T16:19:09.5134731Z Post job cleanup.
+2026-09-06T16:19:09.6023053Z [command]/usr/bin/git version
+2026-09-06T16:19:09.6066769Z git version 2.55.0
+2026-09-06T16:19:09.6109948Z Temporarily overriding HOME='/home/runner/work/_temp/042bdb72-520b-4fe2-8070-181a2a4bcee5' before making global git config changes
+2026-09-06T16:19:09.6111624Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-06T16:19:09.6115214Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Kivou/Kivou
+2026-09-06T16:19:09.6150103Z Removing SSH command configuration
+2026-09-06T16:19:09.6157047Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-06T16:19:09.6195720Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-06T16:19:09.6461441Z Removing HTTP extra header
+2026-09-06T16:19:09.6462834Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-06T16:19:09.6501486Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-06T16:19:09.6769981Z Removing includeIf entries pointing to credentials config files
+2026-09-06T16:19:09.6771161Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-06T16:19:09.6805892Z includeif.gitdir:/home/runner/work/Kivou/Kivou/.git.path
+2026-09-06T16:19:09.6807140Z includeif.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path
+2026-09-06T16:19:09.6808509Z includeif.gitdir:/github/workspace/.git.path
+2026-09-06T16:19:09.6809325Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-06T16:19:09.6816115Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Kivou/Kivou/.git.path
+2026-09-06T16:19:09.6846609Z /home/runner/work/_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:19:09.6859548Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Kivou/Kivou/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-8d26663f\-27f5\-473c\-a6d8\-e9a48733a61d\.config
+2026-09-06T16:19:09.6903961Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path
+2026-09-06T16:19:09.6937074Z /home/runner/work/_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:19:09.6948385Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-8d26663f\-27f5\-473c\-a6d8\-e9a48733a61d\.config
+2026-09-06T16:19:09.6986587Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-06T16:19:09.7014678Z /github/runner_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:19:09.7024189Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-8d26663f\-27f5\-473c\-a6d8\-e9a48733a61d\.config
+2026-09-06T16:19:09.7071479Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-06T16:19:09.7108474Z /github/runner_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config
+2026-09-06T16:19:09.7115876Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-8d26663f\-27f5\-473c\-a6d8\-e9a48733a61d\.config
+2026-09-06T16:19:09.7168725Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-06T16:19:09.7416243Z Removing credentials config '/home/runner/work/_temp/git-credentials-8d26663f-27f5-473c-a6d8-e9a48733a61d.config'
+2026-09-06T16:19:09.7581206Z Cleaning up orphan processes

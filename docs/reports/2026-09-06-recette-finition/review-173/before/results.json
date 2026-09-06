@@ -1,0 +1,98 @@
+[
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "companies",
+    "status": "failed",
+    "error": "overlay intercepts company list"
+  },
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "settings",
+    "status": "failed",
+    "error": "Locator expected to have count '1'\nActual value: 0 \nCall log:\n  - Expect \"to_have_count\" with timeout 5000ms\n  - waiting for locator(\".settings-main\").locator(\"[data-ui=\\\"screen-header\\\"]\")\n    14 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "companies",
+    "status": "failed",
+    "error": "company list visible with mobile sheet"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "signals",
+    "status": "failed",
+    "error": "card must have three rows"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "zone",
+    "status": "failed",
+    "error": "Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for locator(\".topbar\").locator(\"[data-profile-zones]\")\n\nAria snapshot:\n- main:\n  - button \"Ouvrir la navigation\": Ouvrir ou fermer la navigation\n  - text: Matériaux · FR\n  - main:\n    - heading \"Rien de nouveau depuis dimanche · 3 signaux cette semaine\" [level=1]\n    - region \"Signaux prioritaires\":\n      - article:\n        - strong: NOUVELLE SOCIETE D ASCENSEURS - NSA\n        - img \"Correspondance 4/4\"\n        - paragraph: Appareils élévateurs\n        - strong: 101 200 €\n        - text: Selles Sur Cher · 3 sept.\n        - paragraph: \"Pour vous : Ce marché correspond à votre profil cible.\"\n        - button \"Ouvrir\"\n        - button \"Ignorer\"\n    - region \"À relancer\":\n      - heading \"À relancer\" [level=2]\n      - paragraph: Aucune entreprise à relancer.\n    - region \"Cette semaine\":\n      - heading \"Cette semaine\" [level=2]\n      - text: Nouveaux marchés 3 Sauvés 1 Entreprises contactées 0 Ont répondu 0"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "settings",
+    "status": "failed",
+    "error": "Locator expected to have count '1'\nActual value: 0 \nCall log:\n  - Expect \"to_have_count\" with timeout 5000ms\n  - waiting for locator(\".settings-main\").locator(\"[data-ui=\\\"screen-header\\\"]\")\n    14 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "companies",
+    "status": "failed",
+    "error": "overlay intercepts company list"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "settings",
+    "status": "failed",
+    "error": "Locator expected to have count '1'\nActual value: 0 \nCall log:\n  - Expect \"to_have_count\" with timeout 5000ms\n  - waiting for locator(\".settings-main\").locator(\"[data-ui=\\\"screen-header\\\"]\")\n    14 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "companies",
+    "status": "failed",
+    "error": "company list visible with mobile sheet"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "signals",
+    "status": "failed",
+    "error": "card must have three rows"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "zone",
+    "status": "failed",
+    "error": "Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for locator(\".topbar\").locator(\"[data-profile-zones]\")\n\nAria snapshot:\n- main:\n  - button \"Ouvrir la navigation\": Ouvrir ou fermer la navigation\n  - text: Bardage métallique · Isère\n  - main:\n    - heading \"Rien de nouveau depuis dimanche · 57 signaux cette semaine\" [level=1]\n    - region \"Signaux prioritaires\":\n      - article:\n        - strong: Losinger Marazzi AG\n        - img \"Correspondance 4/4\"\n        - paragraph: ETH HWS Neubau Lehr- und Forschungsgebäude\n        - strong: 310 274 025 CHF\n        - text: Zürich · 3 sept.\n        - paragraph: \"Pour vous : Le marché « ETH HWS Neubau Lehr- und Forschungsgebäude » à Zürich (310274025.00 CHF, attribué le 2026-09-03) peut concerner votre activité.\"\n        - button \"Ouvrir\"\n        - button \"Ignorer\"\n      - article:\n        - strong: PINSON PAYSAGE\n        - img \"Correspondance 4/4\"\n        - paragraph: Entretien et Aménagement des Espaces Verts de la Commune d'Elancourt\n        - strong: 12 000 000 €\n        - text: Elancourt · 3 sept.\n        - paragraph: \"Pour vous : Le marché « Entretien et Aménagement des Espaces Verts de la Commune d'Elancourt » à Elancourt (12000000.00 EUR) peut concerner votre activité.\"\n        - button \"Ouvrir\"\n        - button \"Ignorer\"\n      - article:\n        - strong: ERGC\n        - img \"Correspondance 4/4\"\n        - paragraph: Travaux relatifs à la construction du futur collège de Levens - lot n°2 - Fondation, gros oeuvre, charpente bois, façades, génie civil\n        - strong: 13 435 352 €\n        - text: Nice · 1 sept.\n        - paragraph: \"Pour vous : Le marché « Travaux relatifs à la construction du futur collège de Levens - lot n°2 - Fondation, gros oeuvre, charpente bois, façades, génie civil » à Nice (13435352.00 EUR) peut concerner votre activité.\"\n        - button \"Ouvrir\"\n        - button \"Ignorer\"\n    - region \"À relancer\":\n      - heading \"À relancer\" [level=2]\n      - text: engie home service LOT-Secteur Charleville-Mézières Sud (Haybions) contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_3RrTbZWZjJzjn_3UOfQcj4emrSO-OYut\n      - text: SOCIETE GENERALE DE TRAVAUX Réfection des voies d'accès et amélioration des conditions de circulation sur le terminal de Jarry (zone Opera) contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_3GFqw0GaifaSzZcWu7xzqIebdRGOjso-\n      - text: teamex Lot 3 contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_2VOjbViQhHJirZKZZSMt6vf_BGG5YAx6\n      - text: QUERTOUR TRANSPORTS Lignes 01 à 07 contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_2TAzGy0VV9jkch-3mhMGb0A3AvQFmehe\n      - text: Construction Millet Bois Lot N°02 CHARPENTE BOIS contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_2MHrixEDExKc4AapNWOJWan3HQhwGMeC\n      - text: ARCHITECTURE PATRICK MAUGER Services d'architecture contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_2CniYqKbfTQ5UoVD3EICZoz7T9nr0K5m\n      - text: BLUE CAR Services de transport routier public contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_2BrRkWc5CeZvLhAwr3dRwx-EA1JooZhl\n      - text: EIFFAGE Energies systèmes Services de réparation et d'entretien d'installations d'extinction d'incendie contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_2A8LQvpCtI1xpqwP0ExAmOzXSjQyKpry\n      - text: TG SERVICES Curage des réseaux-Sud contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_289d7PB-p8fGlUM-GQdYoKyHM8i-bvyj\n      - text: MONROSEAU SARL Espaces verts contactée il y a 7 j\n      - link \"Ouvrir\":\n        - /url: /app/companies/cmp_1Na89mG4JPO6Xc5xd_dwyL9dqYJoCu8S\n    - region \"Cette semaine\":\n      - heading \"Cette semaine\" [level=2]\n      - text: Nouveaux marchés 57 Sauvés 0 Entreprises contactées 0 Ont répondu 0"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "settings",
+    "status": "failed",
+    "error": "Locator expected to have count '1'\nActual value: 0 \nCall log:\n  - Expect \"to_have_count\" with timeout 5000ms\n  - waiting for locator(\".settings-main\").locator(\"[data-ui=\\\"screen-header\\\"]\")\n    14 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+  }
+]

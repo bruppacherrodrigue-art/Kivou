@@ -167,6 +167,7 @@ describe('contrat responsive connecté à 390 px', () => {
     const media = [...css.matchAll(/@media\s*\(([^)]+)\)/g)].map((match) => match[1])
     expect(media).toEqual([
       'min-width: 768px',
+      'max-width: 899px',
       'max-width: 1279px',
       'min-width: 768px',
       'max-width: 1599px',

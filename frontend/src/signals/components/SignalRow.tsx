@@ -1,6 +1,7 @@
-import type { MouseEvent } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
+import { LockKeyhole } from 'lucide-react'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
-import type { Locale, Place, UnlockedFeedItem } from '../../api/types'
+import type { Locale, Place, LockedFeedItem, UnlockedFeedItem } from '../../api/types'
 import { useI18n } from '../../i18n'
 import { MatchDots } from './MatchDots'
 import styles from './signals.module.css'
@@ -88,4 +89,50 @@ export function SignalRow({
       </td>
     </tr>
   )
+}
+
+export function SignalCardRow({ item, selected, onOpen }: {
+  item: UnlockedFeedItem
+  selected: boolean
+  onOpen: (signalKey: string) => void
+}) {
+  const { locale, amount, shortDate } = useI18n()
+  const object = signalObject(item)
+  const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
+  return (
+    <SignalCardFrame signalKey={item.signal_id} selected={selected} onOpen={() => onOpen(item.signal_id)}
+      title={item.company.name ?? MISSING} object={object ?? ''}
+      metadata={[money, placeLabel(item.contract.location, locale), shortDate(item.factual_display.date.value)]}
+      match={<MatchDots item={item} />} />
+  )
+}
+
+export function LockedSignalCardRow({ item, onOpen }: { item: LockedFeedItem; onOpen: () => void }) {
+  const { amount, shortDate } = useI18n()
+  return <SignalCardFrame signalKey={item.signal_id} locked selected={false} onOpen={onOpen}
+    title="Réservé aux offres Essentiel et Pro" object={item.headline}
+    metadata={[item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : null,
+      item.teaser.department, shortDate(item.teaser.date)]}
+    match={<span className={styles.matchDots} role="img" aria-label="Correspondance réservée">
+      {[1, 2, 3, 4].map((dot) => <i key={dot} aria-hidden="true" data-dot="empty" />)}
+    </span>} />
+}
+
+function SignalCardFrame({ signalKey, title, object, metadata, match, selected, locked = false, onOpen }: {
+  signalKey: string; title: string; object: string; metadata: (string | null)[]
+  match: ReactNode; selected: boolean; locked?: boolean; onOpen: () => void
+}) {
+  const facts = metadata.filter((value): value is string => Boolean(value) && value !== MISSING)
+  return <article className={styles.cardRow} data-signal-key={signalKey} data-locked={locked ? 'true' : undefined}
+    aria-current={selected ? 'true' : undefined} onClick={onOpen}>
+    <button type="button" className={styles.cardRowWinner} title={title}
+      onClick={(event) => { event.stopPropagation(); onOpen() }}>
+      {locked ? <LockKeyhole aria-hidden="true" /> : null}{title}
+    </button>
+    <span className={styles.cardRowObject} title={object}>{object}</span>
+    <div className={styles.cardRowFooter}>
+      <span className={styles.cardRowMeta} title={facts.join(' · ')}>{facts.join(' · ')}</span>
+      {match}
+    </div>
+  </article>
 }

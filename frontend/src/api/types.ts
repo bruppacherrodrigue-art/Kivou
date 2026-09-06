@@ -130,6 +130,7 @@ export interface Me {
   email: string
   account_id: string
   account_display_name: string
+  company_name?: string | null
   locale: string
   onboarding_status: OnboardingStatus
   capabilities: {
@@ -446,6 +447,8 @@ export interface PlausibleNeed {
   confidence: string | null
   timing: string | null
   timing_label: string | null
+  timing_status?: string | null
+  quantity_status?: string | null
   targeted_by_your_profile: boolean
   /** Présent seulement sur le détail (`full=True`). */
   reasoning?: string | null

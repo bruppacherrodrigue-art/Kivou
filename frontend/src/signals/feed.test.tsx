@@ -651,15 +651,8 @@ describe('écran Signaux — mobile et copy', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    // La feuille est modale : Radix masque le reste du document à
-    // l'accessibilité, le tableau se lit donc par le DOM.
-    const grid = await waitFor(() => {
-      const found = document.querySelector('table')
-      if (!found) throw new Error('tableau absent')
-      return found
-    })
-    const headers = [...grid.querySelectorAll('thead th')].map((cell) => cell.textContent)
-    expect(headers).toEqual(['Date', 'Titulaire', 'Objet', 'Montant', 'Match'])
+    await waitFor(() => expect(document.querySelector('table')).not.toBeInTheDocument())
+    expect(await screen.findByText(/Réfection de la voirie/)).toBeInTheDocument()
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(within(screen.getByRole('dialog')).getByRole('heading', { level: 2, name: 'Voirie' }))
       .toBeInTheDocument()

@@ -8,6 +8,7 @@ import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
 import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
+import { ScreenHeader } from '../components/ScreenChrome'
 import { useResource } from '../presentation/dashboard/resources'
 import { Button } from '../presentation/dashboard/ui/button'
 import { Input } from '../presentation/dashboard/ui/input'
@@ -153,11 +154,7 @@ export function Notifications() {
 
   return (
     <div className="settings-main">
-      <section className="settings-intro">
-        <p className="section-label">{copy.label}</p>
-        <h2>{copy.title}</h2>
-        <p>{copy.body}</p>
-      </section>
+      <ScreenHeader level={2} title={copy.title} description={copy.body} />
       <SettingsNav active="notifications" />
 
       {preferenceResource.loading ? (

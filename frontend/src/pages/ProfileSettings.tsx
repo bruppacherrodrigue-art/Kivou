@@ -9,6 +9,7 @@ import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
 import { Button } from '../presentation/dashboard/ui/button'
 import { Input } from '../presentation/dashboard/ui/input'
+import { ScreenHeader } from '../components/ScreenChrome'
 
 const PREFERENCES_RECEIPT = 'accountPreferencesSaved'
 
@@ -92,11 +93,7 @@ export function ProfileSettings() {
 
   return (
     <div className="settings-main">
-      <section className="settings-intro">
-        <p className="section-label">{copy.profileLabel}</p>
-        <h2>{copy.profileTitle}</h2>
-        <p>{copy.profileBody}</p>
-      </section>
+      <ScreenHeader level={2} title={copy.profileTitle} description={copy.profileBody} />
       <SettingsNav active="profile" />
       <form
         className="settings-form-card"
@@ -152,17 +149,6 @@ export function ProfileSettings() {
             >
               <option value="fr">Français</option>
               <option value="en">English</option>
-            </select>
-          </div>
-          <div className="form-field">
-            <label htmlFor="account-timezone">{copy.timezone}</label>
-            <select
-              id="account-timezone"
-              className="lifecycle-select"
-              value={t.reference.missingValue}
-              disabled
-            >
-              <option value={t.reference.missingValue}>{t.reference.missingValue}</option>
             </select>
           </div>
         </div>

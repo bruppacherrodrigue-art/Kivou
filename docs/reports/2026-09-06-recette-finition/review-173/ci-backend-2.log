@@ -1,0 +1,521 @@
+﻿2026-09-06T16:16:11.1729745Z Current runner version: '2.337.0'
+2026-09-06T16:16:11.1754660Z ##[group]Runner Image Provisioner
+2026-09-06T16:16:11.1755674Z Hosted Compute Agent
+2026-09-06T16:16:11.1756295Z Version: 20260828.587
+2026-09-06T16:16:11.1756995Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-06T16:16:11.1757778Z Build Date: 2026-08-28T16:44:25Z
+2026-09-06T16:16:11.1758509Z Worker ID: {5941f48a-2f19-4899-b2d2-9b46ee12166f}
+2026-09-06T16:16:11.1759533Z Azure Region: westus3
+2026-09-06T16:16:11.1760150Z ##[endgroup]
+2026-09-06T16:16:11.1761612Z ##[group]Operating System
+2026-09-06T16:16:11.1762369Z Ubuntu
+2026-09-06T16:16:11.1762942Z 24.04.4
+2026-09-06T16:16:11.1763546Z LTS
+2026-09-06T16:16:11.1764072Z ##[endgroup]
+2026-09-06T16:16:11.1764610Z ##[group]Runner Image
+2026-09-06T16:16:11.1765277Z Image: ubuntu-24.04
+2026-09-06T16:16:11.1765892Z Version: 20260831.293.1
+2026-09-06T16:16:11.1767181Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260831.293/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-06T16:16:11.1768737Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260831.293
+2026-09-06T16:16:11.1770093Z ##[endgroup]
+2026-09-06T16:16:11.1771245Z ##[group]GITHUB_TOKEN Permissions
+2026-09-06T16:16:11.1773209Z Contents: read
+2026-09-06T16:16:11.1773832Z Metadata: read
+2026-09-06T16:16:11.1774525Z ##[endgroup]
+2026-09-06T16:16:11.1777058Z Secret source: Actions
+2026-09-06T16:16:11.1778228Z Prepare workflow directory
+2026-09-06T16:16:11.2322574Z Prepare all required actions
+2026-09-06T16:16:11.2371578Z Getting action download info
+2026-09-06T16:16:11.5267710Z Download action repository 'actions/checkout@v7' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-09-06T16:16:11.6736726Z Download action repository 'astral-sh/setup-uv@v10.0.1' (SHA:20cfd1bf945f4377ade1205e4dbc17946fc9a30d)
+2026-09-06T16:16:12.6637180Z Complete job name: Backend · shard 2/4
+2026-09-06T16:16:12.7190130Z ##[group]Checking docker version
+2026-09-06T16:16:12.7203971Z ##[command]/usr/bin/docker version --format '{{.Server.APIVersion}}'
+2026-09-06T16:16:12.8224070Z '1.48'
+2026-09-06T16:16:12.8241512Z Docker daemon API version: '1.48'
+2026-09-06T16:16:12.8242576Z ##[command]/usr/bin/docker version --format '{{.Client.APIVersion}}'
+2026-09-06T16:16:12.8413281Z '1.48'
+2026-09-06T16:16:12.8428081Z Docker client API version: '1.48'
+2026-09-06T16:16:12.8435333Z ##[endgroup]
+2026-09-06T16:16:12.8440276Z ##[group]Clean up resources from previous jobs
+2026-09-06T16:16:12.8448749Z ##[command]/usr/bin/docker ps --all --quiet --no-trunc --filter "label=baa273"
+2026-09-06T16:16:12.8598396Z ##[command]/usr/bin/docker network prune --force --filter "label=baa273"
+2026-09-06T16:16:12.8734043Z ##[endgroup]
+2026-09-06T16:16:12.8734852Z ##[group]Create local container network
+2026-09-06T16:16:12.8745290Z ##[command]/usr/bin/docker network create --label baa273 github_network_d8f299611b794e008d0f4535eca045ed
+2026-09-06T16:16:12.9271433Z 5ef5ba2505b61c93ef718fcf80f53c27f88b2983010d13a7d5f727c984334dc6
+2026-09-06T16:16:12.9290344Z ##[endgroup]
+2026-09-06T16:16:12.9314694Z ##[group]Starting postgres service container
+2026-09-06T16:16:12.9335266Z ##[command]/usr/bin/docker pull postgres:16
+2026-09-06T16:16:13.7337818Z 16: Pulling from library/postgres
+2026-09-06T16:16:13.9599882Z 6310eb16bf42: Pulling fs layer
+2026-09-06T16:16:13.9601530Z 4d710b756578: Pulling fs layer
+2026-09-06T16:16:13.9607299Z 3fa541d8cac9: Pulling fs layer
+2026-09-06T16:16:13.9608730Z b3ffe1fd6e79: Pulling fs layer
+2026-09-06T16:16:13.9610656Z f122bc3261fc: Pulling fs layer
+2026-09-06T16:16:13.9612284Z 5322d81b9b21: Pulling fs layer
+2026-09-06T16:16:13.9613948Z 9bd242f25e75: Pulling fs layer
+2026-09-06T16:16:13.9615750Z 9d1e9c1e61f4: Pulling fs layer
+2026-09-06T16:16:13.9617560Z 48dd761b6bfe: Pulling fs layer
+2026-09-06T16:16:13.9618791Z 00034b17b963: Pulling fs layer
+2026-09-06T16:16:13.9620115Z 8a082189cfe1: Pulling fs layer
+2026-09-06T16:16:13.9621326Z 988d57697ad2: Pulling fs layer
+2026-09-06T16:16:13.9622539Z 9f809ec5ff35: Pulling fs layer
+2026-09-06T16:16:13.9624110Z af7708f26521: Pulling fs layer
+2026-09-06T16:16:13.9625269Z 9d1e9c1e61f4: Waiting
+2026-09-06T16:16:13.9626331Z 48dd761b6bfe: Waiting
+2026-09-06T16:16:13.9627542Z f122bc3261fc: Waiting
+2026-09-06T16:16:13.9629130Z 5322d81b9b21: Waiting
+2026-09-06T16:16:13.9630469Z 9bd242f25e75: Waiting
+2026-09-06T16:16:13.9631776Z 00034b17b963: Waiting
+2026-09-06T16:16:13.9633159Z 8a082189cfe1: Waiting
+2026-09-06T16:16:13.9634572Z 988d57697ad2: Waiting
+2026-09-06T16:16:13.9636045Z 9f809ec5ff35: Waiting
+2026-09-06T16:16:13.9637465Z b3ffe1fd6e79: Waiting
+2026-09-06T16:16:13.9638841Z af7708f26521: Waiting
+2026-09-06T16:16:14.1361175Z 4d710b756578: Verifying Checksum
+2026-09-06T16:16:14.1363713Z 4d710b756578: Download complete
+2026-09-06T16:16:14.1700757Z 3fa541d8cac9: Verifying Checksum
+2026-09-06T16:16:14.1703299Z 3fa541d8cac9: Download complete
+2026-09-06T16:16:14.2545140Z 6310eb16bf42: Verifying Checksum
+2026-09-06T16:16:14.2547065Z 6310eb16bf42: Download complete
+2026-09-06T16:16:14.3112326Z b3ffe1fd6e79: Verifying Checksum
+2026-09-06T16:16:14.3119353Z b3ffe1fd6e79: Download complete
+2026-09-06T16:16:14.3805957Z f122bc3261fc: Verifying Checksum
+2026-09-06T16:16:14.3811906Z f122bc3261fc: Download complete
+2026-09-06T16:16:14.4413315Z 5322d81b9b21: Download complete
+2026-09-06T16:16:14.4832482Z 9bd242f25e75: Verifying Checksum
+2026-09-06T16:16:14.4846815Z 9bd242f25e75: Download complete
+2026-09-06T16:16:14.5469796Z 9d1e9c1e61f4: Verifying Checksum
+2026-09-06T16:16:14.5472107Z 9d1e9c1e61f4: Download complete
+2026-09-06T16:16:14.6513168Z 00034b17b963: Verifying Checksum
+2026-09-06T16:16:14.6515260Z 00034b17b963: Download complete
+2026-09-06T16:16:14.7271988Z 8a082189cfe1: Verifying Checksum
+2026-09-06T16:16:14.7272967Z 8a082189cfe1: Download complete
+2026-09-06T16:16:14.8334673Z 988d57697ad2: Verifying Checksum
+2026-09-06T16:16:14.8339427Z 988d57697ad2: Download complete
+2026-09-06T16:16:14.9113429Z 9f809ec5ff35: Verifying Checksum
+2026-09-06T16:16:14.9114814Z 9f809ec5ff35: Download complete
+2026-09-06T16:16:15.0116665Z af7708f26521: Verifying Checksum
+2026-09-06T16:16:15.0118348Z af7708f26521: Download complete
+2026-09-06T16:16:15.0213981Z 48dd761b6bfe: Verifying Checksum
+2026-09-06T16:16:15.0215028Z 48dd761b6bfe: Download complete
+2026-09-06T16:16:15.4571619Z 6310eb16bf42: Pull complete
+2026-09-06T16:16:18.2411781Z 4d710b756578: Pull complete
+2026-09-06T16:16:18.4234779Z 3fa541d8cac9: Pull complete
+2026-09-06T16:16:18.4683558Z b3ffe1fd6e79: Pull complete
+2026-09-06T16:16:18.7871959Z f122bc3261fc: Pull complete
+2026-09-06T16:16:18.8733026Z 5322d81b9b21: Pull complete
+2026-09-06T16:16:18.8825252Z 9bd242f25e75: Pull complete
+2026-09-06T16:16:18.8940969Z 9d1e9c1e61f4: Pull complete
+2026-09-06T16:16:21.8861035Z 48dd761b6bfe: Pull complete
+2026-09-06T16:16:21.8993575Z 00034b17b963: Pull complete
+2026-09-06T16:16:21.9088611Z 8a082189cfe1: Pull complete
+2026-09-06T16:16:21.9302202Z 988d57697ad2: Pull complete
+2026-09-06T16:16:21.9446037Z 9f809ec5ff35: Pull complete
+2026-09-06T16:16:21.9541746Z af7708f26521: Pull complete
+2026-09-06T16:16:21.9580596Z Digest: sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+2026-09-06T16:16:21.9598698Z Status: Downloaded newer image for postgres:16
+2026-09-06T16:16:21.9608106Z docker.io/library/postgres:16
+2026-09-06T16:16:21.9671462Z ##[command]/usr/bin/docker create --name f177a4180e1448c28ff942680f116bc4_postgres16_df5f62 --label baa273 --network github_network_d8f299611b794e008d0f4535eca045ed --network-alias postgres -p 5432:5432 --health-cmd "pg_isready -U kivou_test -d kivou_test" --health-interval 5s --health-timeout 5s --health-retries 12 -e "POSTGRES_DB=kivou_test" -e "POSTGRES_USER=kivou_test" -e "POSTGRES_PASSWORD=kivou_test_password" -e GITHUB_ACTIONS=true -e CI=true postgres:16
+2026-09-06T16:16:21.9947774Z 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:21.9970654Z ##[command]/usr/bin/docker start 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:22.2532900Z 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:22.2553682Z ##[command]/usr/bin/docker ps --all --filter id=8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d --filter status=running --no-trunc --format "{{.ID}} {{.Status}}"
+2026-09-06T16:16:22.2682842Z 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d Up Less than a second (health: starting)
+2026-09-06T16:16:22.2706831Z ##[command]/usr/bin/docker port 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:22.2868046Z 5432/tcp -> 0.0.0.0:5432
+2026-09-06T16:16:22.2869521Z 5432/tcp -> [::]:5432
+2026-09-06T16:16:22.2926066Z ##[endgroup]
+2026-09-06T16:16:22.2936840Z ##[group]Waiting for all services to be ready
+2026-09-06T16:16:22.2951222Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:22.3099698Z starting
+2026-09-06T16:16:22.3122087Z postgres service is starting, waiting 2 seconds before checking again.
+2026-09-06T16:16:24.3118398Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:24.3245194Z starting
+2026-09-06T16:16:24.3258589Z postgres service is starting, waiting 4 seconds before checking again.
+2026-09-06T16:16:28.6752796Z ##[command]/usr/bin/docker inspect --format="{{if .Config.Healthcheck}}{{print .State.Health.Status}}{{end}}" 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:16:28.6883127Z healthy
+2026-09-06T16:16:28.6900564Z postgres service is healthy.
+2026-09-06T16:16:28.6901197Z ##[endgroup]
+2026-09-06T16:16:28.7272841Z ##[group]Run actions/checkout@v7
+2026-09-06T16:16:28.7273426Z with:
+2026-09-06T16:16:28.7273666Z   repository: bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:28.7276139Z   token: ***
+2026-09-06T16:16:28.7276353Z   ssh-strict: true
+2026-09-06T16:16:28.7276558Z   ssh-user: git
+2026-09-06T16:16:28.7276784Z   persist-credentials: true
+2026-09-06T16:16:28.7277017Z   clean: true
+2026-09-06T16:16:28.7277229Z   sparse-checkout-cone-mode: true
+2026-09-06T16:16:28.7277481Z   fetch-depth: 1
+2026-09-06T16:16:28.7277673Z   fetch-tags: false
+2026-09-06T16:16:28.7277879Z   show-progress: true
+2026-09-06T16:16:28.7278092Z   lfs: false
+2026-09-06T16:16:28.7278281Z   submodules: false
+2026-09-06T16:16:28.7278488Z   set-safe-directory: true
+2026-09-06T16:16:28.7278731Z   allow-unsafe-pr-checkout: false
+2026-09-06T16:16:28.7279554Z env:
+2026-09-06T16:16:28.7280184Z   KIVOU_TEST_POSTGRES_DSN: ***127.0.0.1:5432/kivou_test
+2026-09-06T16:16:28.7280493Z ##[endgroup]
+2026-09-06T16:16:28.8324198Z Syncing repository: bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:28.8326101Z ##[group]Getting Git version info
+2026-09-06T16:16:28.8326689Z Working directory is '/home/runner/work/Kivou/Kivou'
+2026-09-06T16:16:28.8327534Z [command]/usr/bin/git version
+2026-09-06T16:16:28.8405142Z git version 2.55.0
+2026-09-06T16:16:28.8428879Z ##[endgroup]
+2026-09-06T16:16:28.8442593Z Temporarily overriding HOME='/home/runner/work/_temp/ca6f7348-9661-43e9-9ee1-99f51c66c7fd' before making global git config changes
+2026-09-06T16:16:28.8444041Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-06T16:16:28.8449809Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Kivou/Kivou
+2026-09-06T16:16:28.8503333Z Deleting the contents of '/home/runner/work/Kivou/Kivou'
+2026-09-06T16:16:28.8506932Z ##[group]Determining repository object format
+2026-09-06T16:16:28.8508422Z ##[endgroup]
+2026-09-06T16:16:28.8509407Z ##[group]Initializing the repository
+2026-09-06T16:16:28.8513204Z [command]/usr/bin/git init /home/runner/work/Kivou/Kivou
+2026-09-06T16:16:28.8640230Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-06T16:16:28.8641159Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-06T16:16:28.8642045Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-06T16:16:28.8643005Z hint: call:
+2026-09-06T16:16:28.8643330Z hint:
+2026-09-06T16:16:28.8643824Z hint: 	git config --global init.defaultBranch <name>
+2026-09-06T16:16:28.8644344Z hint:
+2026-09-06T16:16:28.8644834Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-06T16:16:28.8645682Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-06T16:16:28.8646381Z hint:
+2026-09-06T16:16:28.8646694Z hint: 	git branch -m <name>
+2026-09-06T16:16:28.8647066Z hint:
+2026-09-06T16:16:28.8647617Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-06T16:16:28.8648569Z Initialized empty Git repository in /home/runner/work/Kivou/Kivou/.git/
+2026-09-06T16:16:28.8662830Z [command]/usr/bin/git remote add origin https://github.com/bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:28.8713586Z ##[endgroup]
+2026-09-06T16:16:28.8714344Z ##[group]Disabling automatic garbage collection
+2026-09-06T16:16:28.8718282Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-06T16:16:28.8753751Z ##[endgroup]
+2026-09-06T16:16:28.8754632Z ##[group]Setting up auth
+2026-09-06T16:16:28.8755249Z Removing SSH command configuration
+2026-09-06T16:16:28.8761268Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-06T16:16:28.8797841Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-06T16:16:28.9211609Z Removing HTTP extra header
+2026-09-06T16:16:28.9217412Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-06T16:16:28.9260472Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-06T16:16:28.9483791Z Removing includeIf entries pointing to credentials config files
+2026-09-06T16:16:28.9488548Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-06T16:16:28.9523885Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-06T16:16:28.9750515Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-06T16:16:28.9793006Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Kivou/Kivou/.git.path /home/runner/work/_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:16:28.9826899Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:16:28.9865257Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:16:28.9900469Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:16:28.9931043Z ##[endgroup]
+2026-09-06T16:16:28.9931562Z ##[group]Fetching the repository
+2026-09-06T16:16:28.9937690Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +83f6013718603e2fec25189b1e891d968ca138f7:refs/remotes/pull/173/merge
+2026-09-06T16:16:32.2236198Z From https://github.com/bruppacherrodrigue-art/Kivou
+2026-09-06T16:16:32.2237448Z  * [new ref]         83f6013718603e2fec25189b1e891d968ca138f7 -> pull/173/merge
+2026-09-06T16:16:32.2241844Z ##[endgroup]
+2026-09-06T16:16:32.2242576Z ##[group]Determining the checkout info
+2026-09-06T16:16:32.2243397Z ##[endgroup]
+2026-09-06T16:16:32.2250207Z [command]/usr/bin/git sparse-checkout disable
+2026-09-06T16:16:32.2307777Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-06T16:16:32.2342062Z ##[group]Checking out the ref
+2026-09-06T16:16:32.2346752Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/173/merge
+2026-09-06T16:16:32.5819452Z Note: switching to 'refs/remotes/pull/173/merge'.
+2026-09-06T16:16:32.5820223Z 
+2026-09-06T16:16:32.5820746Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-09-06T16:16:32.5821600Z changes and commit them, and you can discard any commits you make in this
+2026-09-06T16:16:32.5822145Z state without impacting any branches by switching back to a branch.
+2026-09-06T16:16:32.5822557Z 
+2026-09-06T16:16:32.5822904Z If you want to create a new branch to retain commits you create, you may
+2026-09-06T16:16:32.5823596Z do so (now or later) by using -c with the switch command. Example:
+2026-09-06T16:16:32.5823999Z 
+2026-09-06T16:16:32.5824188Z   git switch -c <new-branch-name>
+2026-09-06T16:16:32.5824468Z 
+2026-09-06T16:16:32.5824627Z Or undo this operation with:
+2026-09-06T16:16:32.5824883Z 
+2026-09-06T16:16:32.5825020Z   git switch -
+2026-09-06T16:16:32.5825244Z 
+2026-09-06T16:16:32.5825576Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-09-06T16:16:32.5826138Z 
+2026-09-06T16:16:32.5826705Z HEAD is now at 83f6013 Merge 18e37b8e454150a2e3b0670b9f8f7d150d885b41 into 87455c7313bef5900aa300709c8dcced69d89d52
+2026-09-06T16:16:32.5846083Z ##[endgroup]
+2026-09-06T16:16:32.5898368Z [command]/usr/bin/git log -1 --format=%H
+2026-09-06T16:16:32.5928706Z 83f6013718603e2fec25189b1e891d968ca138f7
+2026-09-06T16:16:32.6199611Z ##[group]Run astral-sh/setup-uv@v10.0.1
+2026-09-06T16:16:32.6199936Z with:
+2026-09-06T16:16:32.6200135Z   enable-cache: true
+2026-09-06T16:16:32.6200373Z   cache-dependency-glob: uv.lock
+2026-09-06T16:16:32.6200654Z   activate-environment: false
+2026-09-06T16:16:32.6200896Z   no-project: false
+2026-09-06T16:16:32.6201179Z   working-directory: /home/runner/work/Kivou/Kivou
+2026-09-06T16:16:32.6203816Z   github-token: ***
+2026-09-06T16:16:32.6204058Z   restore-cache: true
+2026-09-06T16:16:32.6204278Z   save-cache: true
+2026-09-06T16:16:32.6204483Z   prune-cache: false
+2026-09-06T16:16:32.6204695Z   cache-python: false
+2026-09-06T16:16:32.6204931Z   ignore-nothing-to-cache: false
+2026-09-06T16:16:32.6205194Z   ignore-empty-workdir: false
+2026-09-06T16:16:32.6205451Z   download-from-astral-mirror: true
+2026-09-06T16:16:32.6205719Z   add-problem-matchers: true
+2026-09-06T16:16:32.6205950Z   quiet: false
+2026-09-06T16:16:32.6206154Z   resolution-strategy: highest
+2026-09-06T16:16:32.6206417Z env:
+2026-09-06T16:16:32.6206976Z   KIVOU_TEST_POSTGRES_DSN: ***127.0.0.1:5432/kivou_test
+2026-09-06T16:16:32.6207285Z ##[endgroup]
+2026-09-06T16:16:32.8007098Z Trying to find version for uv in: /home/runner/work/Kivou/Kivou/uv.toml
+2026-09-06T16:16:32.8030012Z Could not find file: /home/runner/work/Kivou/Kivou/uv.toml
+2026-09-06T16:16:32.8048565Z Trying to find version for uv in: /home/runner/work/Kivou/Kivou/pyproject.toml
+2026-09-06T16:16:32.8059505Z Could not determine uv version from uv.toml or pyproject.toml. Falling back to latest.
+2026-09-06T16:16:32.8090388Z Fetching manifest data from https://raw.githubusercontent.com/astral-sh/versions/main/v1/uv.ndjson ...
+2026-09-06T16:16:32.8807862Z Downloading uv from "https://releases.astral.sh/github/uv/releases/download/0.12.10/uv-x86_64-unknown-linux-gnu.tar.gz" ...
+2026-09-06T16:16:33.0971247Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/6c5f5c6b-8dc9-412d-913d-fe20d4dce737 -f /home/runner/work/_temp/3246479a-0b32-4c24-b9fe-c47824b35dcd
+2026-09-06T16:16:33.4810583Z Added /home/runner/.local/bin to the path
+2026-09-06T16:16:33.4814805Z Added /opt/hostedtoolcache/uv/0.12.10/x86_64 to the path
+2026-09-06T16:16:33.4816361Z Set UV_PYTHON_INSTALL_DIR to /home/runner/work/_temp/uv-python-dir
+2026-09-06T16:16:33.4817194Z Added /home/runner/work/_temp/uv-python-dir to the path
+2026-09-06T16:16:33.4843196Z Set UV_CACHE_DIR to /home/runner/work/_temp/setup-uv-cache
+2026-09-06T16:16:33.4843844Z Successfully installed uv version 0.12.10
+2026-09-06T16:16:33.5411340Z Searching files using cache dependency glob: /home/runner/work/Kivou/Kivou/uv.lock
+2026-09-06T16:16:33.5466346Z /home/runner/work/Kivou/Kivou/uv.lock
+2026-09-06T16:16:33.5486572Z Found 1 files to hash.
+2026-09-06T16:16:33.5547755Z Trying to restore cache from GitHub Actions cache with key: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-211de56429f5b2a009cf0cd2c3de323289b1b795cb527006652cc45bf62d9459
+2026-09-06T16:16:33.7533100Z Cache hit for: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-211de56429f5b2a009cf0cd2c3de323289b1b795cb527006652cc45bf62d9459
+2026-09-06T16:16:34.8764277Z Received 31752536 of 31752536 (100.0%), 33.2 MBs/sec
+2026-09-06T16:16:34.8764930Z Cache Size: ~30 MB (31752536 B)
+2026-09-06T16:16:34.8794603Z [command]/usr/bin/tar -xf /home/runner/work/_temp/357a7168-6196-4f54-b37a-a51594547724/cache.tzst -P -C /home/runner/work/Kivou/Kivou --use-compress-program unzstd
+2026-09-06T16:16:35.1757473Z Cache restored successfully
+2026-09-06T16:16:35.1776165Z cache restored from GitHub Actions cache with key: setup-uv-2-x86_64-unknown-linux-gnu-ubuntu-24.04-3.12.3-211de56429f5b2a009cf0cd2c3de323289b1b795cb527006652cc45bf62d9459
+2026-09-06T16:16:35.2917620Z ##[group]Run uv sync --locked --extra postgres
+2026-09-06T16:16:35.2918052Z [36;1muv sync --locked --extra postgres[0m
+2026-09-06T16:16:35.2963567Z shell: /usr/bin/bash -e {0}
+2026-09-06T16:16:35.2963835Z env:
+2026-09-06T16:16:35.2964457Z   KIVOU_TEST_POSTGRES_DSN: ***127.0.0.1:5432/kivou_test
+2026-09-06T16:16:35.2964885Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+2026-09-06T16:16:35.2965288Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-09-06T16:16:35.2965591Z ##[endgroup]
+2026-09-06T16:16:35.3126570Z Using CPython 3.12.3 interpreter at: /usr/bin/python3
+2026-09-06T16:16:35.3127024Z Creating virtual environment at: .venv
+2026-09-06T16:16:35.3152295Z Resolved 57 packages in 0.69ms
+2026-09-06T16:16:35.3176127Z    Building signals @ file:///home/runner/work/Kivou/Kivou
+2026-09-06T16:16:35.6631075Z       Built signals @ file:///home/runner/work/Kivou/Kivou
+2026-09-06T16:16:35.6644729Z Prepared 1 package in 347ms
+2026-09-06T16:16:35.7068661Z Installed 45 packages in 42ms
+2026-09-06T16:16:35.7069566Z  + aiosmtpd==1.4.6
+2026-09-06T16:16:35.7089863Z  + alembic==1.19.1
+2026-09-06T16:16:35.7100163Z  + annotated-doc==0.0.5
+2026-09-06T16:16:35.7100754Z  + annotated-types==0.8.0
+2026-09-06T16:16:35.7101283Z  + anyio==4.14.2
+2026-09-06T16:16:35.7101779Z  + argon2-cffi==25.1.0
+2026-09-06T16:16:35.7102284Z  + argon2-cffi-bindings==25.1.0
+2026-09-06T16:16:35.7102866Z  + atpublic==7.0.0
+2026-09-06T16:16:35.7103325Z  + attrs==26.1.0
+2026-09-06T16:16:35.7103768Z  + certifi==2026.7.22
+2026-09-06T16:16:35.7104277Z  + cffi==2.1.1
+2026-09-06T16:16:35.7104749Z  + charset-normalizer==3.5.1
+2026-09-06T16:16:35.7105369Z  + cryptography==50.0.0
+2026-09-06T16:16:35.7105875Z  + defusedxml==0.7.1
+2026-09-06T16:16:35.7106381Z  + dnspython==2.8.0
+2026-09-06T16:16:35.7107067Z  + email-validator==2.3.0
+2026-09-06T16:16:35.7107643Z  + fastapi==0.141.1
+2026-09-06T16:16:35.7108094Z  + greenlet==3.5.5
+2026-09-06T16:16:35.7108503Z  + h11==0.16.0
+2026-09-06T16:16:35.7108922Z  + httpcore==1.0.9
+2026-09-06T16:16:35.7109663Z  + httpx==0.28.1
+2026-09-06T16:16:35.7133432Z  + idna==3.18
+2026-09-06T16:16:35.7134078Z  + iniconfig==2.3.0
+2026-09-06T16:16:35.7134471Z  + mako==1.4.1
+2026-09-06T16:16:35.7134821Z  + markupsafe==3.0.3
+2026-09-06T16:16:35.7135406Z  + packaging==26.3
+2026-09-06T16:16:35.7135867Z  + pluggy==1.6.0
+2026-09-06T16:16:35.7136309Z  + psycopg==3.3.4
+2026-09-06T16:16:35.7136840Z  + psycopg-binary==3.3.4
+2026-09-06T16:16:35.7137422Z  + pycparser==3.0
+2026-09-06T16:16:35.7137868Z  + pydantic==2.13.5
+2026-09-06T16:16:35.7138324Z  + pydantic-core==2.46.5
+2026-09-06T16:16:35.7138855Z  + pygments==2.20.0
+2026-09-06T16:16:35.7139976Z  + pypdf==6.16.1
+2026-09-06T16:16:35.7140447Z  + pytest==9.1.1
+2026-09-06T16:16:35.7140925Z  + requests==2.34.2
+2026-09-06T16:16:35.7141402Z  + ruff==0.16.5
+2026-09-06T16:16:35.7142042Z  + signals==0.1.0 (from file:///home/runner/work/Kivou/Kivou)
+2026-09-06T16:16:35.7142833Z  + sqlalchemy==2.0.52
+2026-09-06T16:16:35.7143731Z  + starlette==1.6.0
+2026-09-06T16:16:35.7144103Z  + stripe==15.6.0
+2026-09-06T16:16:35.7144344Z  + trustme==1.2.1
+2026-09-06T16:16:35.7144578Z  + typing-extensions==4.16.0
+2026-09-06T16:16:35.7144858Z  + typing-inspection==0.4.4
+2026-09-06T16:16:35.7145102Z  + urllib3==2.7.0
+2026-09-06T16:16:35.7227749Z ##[group]Run ops/bin/kivou-pytest-shard.sh "2" 4
+2026-09-06T16:16:35.7228167Z [36;1mops/bin/kivou-pytest-shard.sh "2" 4[0m
+2026-09-06T16:16:35.7265318Z shell: /usr/bin/bash -e {0}
+2026-09-06T16:16:35.7265581Z env:
+2026-09-06T16:16:35.7266203Z   KIVOU_TEST_POSTGRES_DSN: ***127.0.0.1:5432/kivou_test
+2026-09-06T16:16:35.7266617Z   UV_PYTHON_INSTALL_DIR: /home/runner/work/_temp/uv-python-dir
+2026-09-06T16:16:35.7267029Z   UV_CACHE_DIR: /home/runner/work/_temp/setup-uv-cache
+2026-09-06T16:16:35.7267337Z ##[endgroup]
+2026-09-06T16:17:20.3931929Z ........................................................................ [  4%]
+2026-09-06T16:17:31.7008397Z ........................................................................ [  9%]
+2026-09-06T16:17:52.2897598Z ........................................................................ [ 13%]
+2026-09-06T16:18:14.5352691Z ........................................................................ [ 18%]
+2026-09-06T16:19:11.1195272Z ........................................................................ [ 22%]
+2026-09-06T16:20:00.5465483Z ........................................................................ [ 27%]
+2026-09-06T16:20:23.6094735Z ........................................................................ [ 32%]
+2026-09-06T16:21:00.2325941Z ........................................................................ [ 36%]
+2026-09-06T16:21:27.8147755Z ........................................................................ [ 41%]
+2026-09-06T16:21:39.5981361Z ........................................................................ [ 45%]
+2026-09-06T16:21:41.1257020Z ........................................................................ [ 50%]
+2026-09-06T16:21:55.5430275Z ........................................................................ [ 54%]
+2026-09-06T16:22:36.1685186Z ........................................................................ [ 59%]
+2026-09-06T16:22:48.7045948Z ........................................................................ [ 64%]
+2026-09-06T16:22:53.8736779Z ........................................................................ [ 68%]
+2026-09-06T16:22:54.5752270Z ........................................................................ [ 73%]
+2026-09-06T16:23:18.1302425Z ..........................ss............................................ [ 77%]
+2026-09-06T16:23:33.2387057Z ........................................................................ [ 82%]
+2026-09-06T16:23:48.3520344Z .............................................x.......................... [ 86%]
+2026-09-06T16:24:01.4048379Z ................F....................................................... [ 91%]
+2026-09-06T16:24:14.3028503Z ........................................................................ [ 96%]
+2026-09-06T16:24:18.5466993Z ...............................................................          [100%]
+2026-09-06T16:24:18.5467932Z =================================== FAILURES ===================================
+2026-09-06T16:24:18.5468926Z _________ test_an_essential_plan_unlocks_subdivisions_but_not_sectors __________
+2026-09-06T16:24:18.5469900Z 
+2026-09-06T16:24:18.5470309Z alice = <starlette.testclient.TestClient object at 0x7f95660f6000>
+2026-09-06T16:24:18.5471608Z engine = Engine(sqlite+pysqlite:////tmp/pytest-of-runner/pytest-0/test_an_essential_plan_unlocks0/kivou.db)
+2026-09-06T16:24:18.5472344Z 
+2026-09-06T16:24:18.5472975Z     def test_an_essential_plan_unlocks_subdivisions_but_not_sectors(alice, engine):
+2026-09-06T16:24:18.5473546Z         """`essential` est `filter_level="basic"` : la zone s'ouvre, le secteur (qui
+2026-09-06T16:24:18.5473972Z         exige `advanced`) reste vide."""
+2026-09-06T16:24:18.5474259Z         icp = icp_of(alice)
+2026-09-06T16:24:18.5474535Z         pay(engine, alice, plan="essential")
+2026-09-06T16:24:18.5474842Z         pool = _SourcePool()
+2026-09-06T16:24:18.5475285Z         _seed(engine, icp, pool, award_date=dt.date(2026, 8, 10), place_of_performance=HAUTS_DE_SEINE,
+2026-09-06T16:24:18.5475993Z               cpv_main=TRAVAUX_DE_CONSTRUCTION)
+2026-09-06T16:24:18.5476297Z     
+2026-09-06T16:24:18.5476538Z         payload = alice.get("/signals/filters").json()
+2026-09-06T16:24:18.5476845Z     
+2026-09-06T16:24:18.5477229Z         assert payload["subdivisions"] == [{"code": "FR-92", "label": "Hauts-de-Seine", "country": "FR"}]
+2026-09-06T16:24:18.5477724Z >       assert payload["sectors"] == []
+2026-09-06T16:24:18.5478106Z E       AssertionError: assert [{'prefix': '...onstruction'}] == []
+2026-09-06T16:24:18.5478470Z E         
+2026-09-06T16:24:18.5478840Z E         Left contains one more item: {'prefix': '45', 'label': 'Travaux de construction'}
+2026-09-06T16:24:18.5479456Z E         
+2026-09-06T16:24:18.5479658Z E         Full diff:
+2026-09-06T16:24:18.5479883Z E         - []
+2026-09-06T16:24:18.5480089Z E         + [
+2026-09-06T16:24:18.5480289Z E         +     {
+2026-09-06T16:24:18.5480511Z E         +         'prefix': '45',
+2026-09-06T16:24:18.5480820Z E         +         'label': 'Travaux de construction',
+2026-09-06T16:24:18.5481128Z E         +     },
+2026-09-06T16:24:18.5481328Z E         + ]
+2026-09-06T16:24:18.5481447Z 
+2026-09-06T16:24:18.5481618Z tests/test_signal_filters_endpoint.py:153: AssertionError
+2026-09-06T16:24:18.5482031Z =========================== short test summary info ============================
+2026-09-06T16:24:18.5482903Z FAILED tests/test_signal_filters_endpoint.py::test_an_essential_plan_unlocks_subdivisions_but_not_sectors - AssertionError: assert [{'prefix': '...onstruction'}] == []
+2026-09-06T16:24:18.5483616Z   
+2026-09-06T16:24:18.5483932Z   Left contains one more item: {'prefix': '45', 'label': 'Travaux de construction'}
+2026-09-06T16:24:18.5484317Z   
+2026-09-06T16:24:18.5484490Z   Full diff:
+2026-09-06T16:24:18.5484684Z   - []
+2026-09-06T16:24:18.5484863Z   + [
+2026-09-06T16:24:18.5485034Z   +     {
+2026-09-06T16:24:18.5485222Z   +         'prefix': '45',
+2026-09-06T16:24:18.5485482Z   +         'label': 'Travaux de construction',
+2026-09-06T16:24:18.5485766Z   +     },
+2026-09-06T16:24:18.5485940Z   + ]
+2026-09-06T16:24:18.5486200Z 1 failed, 1571 passed, 2 skipped, 1 xfailed in 445.17s (0:07:25)
+2026-09-06T16:24:19.2914172Z ##[error]Process completed with exit code 1.
+2026-09-06T16:24:19.3050438Z Post job cleanup.
+2026-09-06T16:24:19.3933663Z [command]/usr/bin/git version
+2026-09-06T16:24:19.3979906Z git version 2.55.0
+2026-09-06T16:24:19.4024759Z Temporarily overriding HOME='/home/runner/work/_temp/87616e59-053c-44b6-bc35-e65e510ec10a' before making global git config changes
+2026-09-06T16:24:19.4026213Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-06T16:24:19.4029224Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/Kivou/Kivou
+2026-09-06T16:24:19.4064329Z Removing SSH command configuration
+2026-09-06T16:24:19.4072897Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-06T16:24:19.4113796Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-06T16:24:19.4361753Z Removing HTTP extra header
+2026-09-06T16:24:19.4381120Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-06T16:24:19.4441753Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-06T16:24:19.4688153Z Removing includeIf entries pointing to credentials config files
+2026-09-06T16:24:19.4696709Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-06T16:24:19.4735662Z includeif.gitdir:/home/runner/work/Kivou/Kivou/.git.path
+2026-09-06T16:24:19.4737525Z includeif.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path
+2026-09-06T16:24:19.4738679Z includeif.gitdir:/github/workspace/.git.path
+2026-09-06T16:24:19.4739620Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-06T16:24:19.4762912Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Kivou/Kivou/.git.path
+2026-09-06T16:24:19.4793553Z /home/runner/work/_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:24:19.4804655Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Kivou/Kivou/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a6d99218\-c6c7\-46e0\-ba7e\-62e7071898be\.config
+2026-09-06T16:24:19.4850892Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path
+2026-09-06T16:24:19.4891569Z /home/runner/work/_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:24:19.4900547Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/Kivou/Kivou/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a6d99218\-c6c7\-46e0\-ba7e\-62e7071898be\.config
+2026-09-06T16:24:19.4937992Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-09-06T16:24:19.4964756Z /github/runner_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:24:19.4972907Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a6d99218\-c6c7\-46e0\-ba7e\-62e7071898be\.config
+2026-09-06T16:24:19.5008936Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-09-06T16:24:19.5035136Z /github/runner_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config
+2026-09-06T16:24:19.5043217Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a6d99218\-c6c7\-46e0\-ba7e\-62e7071898be\.config
+2026-09-06T16:24:19.5081960Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-06T16:24:19.5308877Z Removing credentials config '/home/runner/work/_temp/git-credentials-a6d99218-c6c7-46e0-ba7e-62e7071898be.config'
+2026-09-06T16:24:19.5427293Z Print service container logs: f177a4180e1448c28ff942680f116bc4_postgres16_df5f62
+2026-09-06T16:24:19.5432291Z ##[command]/usr/bin/docker logs --details 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:24:19.5565076Z  The files belonging to this database system will be owned by user "postgres".
+2026-09-06T16:24:19.5566164Z  This user must also own the server process.
+2026-09-06T16:24:19.5568079Z  initdb: warning: enabling "trust" authentication for local connections
+2026-09-06T16:24:19.5569633Z  initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-09-06T16:24:19.5571272Z  2026-09-06 16:16:23.185 UTC [1] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-09-06T16:24:19.5572490Z  2026-09-06 16:16:23.185 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-09-06T16:24:19.5573359Z  2026-09-06 16:16:23.185 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-09-06T16:24:19.5574241Z  2026-09-06 16:16:23.186 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-09-06T16:24:19.5575433Z  2026-09-06 16:16:23.189 UTC [64] LOG:  database system was shut down at 2026-09-06 16:16:23 UTC
+2026-09-06T16:24:19.5576322Z  2026-09-06 16:16:23.193 UTC [1] LOG:  database system is ready to accept connections
+2026-09-06T16:24:19.5577071Z  2026-09-06 16:21:23.289 UTC [62] LOG:  checkpoint starting: time
+2026-09-06T16:24:19.5579128Z  2026-09-06 16:22:46.978 UTC [62] LOG:  checkpoint complete: wrote 838 buffers (5.1%); 0 WAL file(s) added, 0 removed, 1 recycled; write=83.662 s, sync=0.008 s, total=83.690 s; sync files=1261, longest=0.001 s, average=0.001 s; distance=9685 kB, estimate=9685 kB; lsn=0/22A4D40, redo lsn=0/2294868
+2026-09-06T16:24:19.5580864Z  
+2026-09-06T16:24:19.5581298Z  The database cluster will be initialized with locale "en_US.utf8".
+2026-09-06T16:24:19.5582015Z  The default database encoding has accordingly been set to "UTF8".
+2026-09-06T16:24:19.5582697Z  The default text search configuration will be set to "english".
+2026-09-06T16:24:19.5583296Z  
+2026-09-06T16:24:19.5583629Z  Data page checksums are disabled.
+2026-09-06T16:24:19.5584061Z  
+2026-09-06T16:24:19.5584585Z  fixing permissions on existing directory /var/lib/postgresql/data ... ok
+2026-09-06T16:24:19.5585287Z  creating subdirectories ... ok
+2026-09-06T16:24:19.5586011Z  selecting dynamic shared memory implementation ... posix
+2026-09-06T16:24:19.5586616Z  selecting default max_connections ... 100
+2026-09-06T16:24:19.5587134Z  selecting default shared_buffers ... 128MB
+2026-09-06T16:24:19.5587583Z  selecting default time zone ... Etc/UTC
+2026-09-06T16:24:19.5587885Z  creating configuration files ... ok
+2026-09-06T16:24:19.5588172Z  running bootstrap script ... ok
+2026-09-06T16:24:19.5588471Z  performing post-bootstrap initialization ... ok
+2026-09-06T16:24:19.5588795Z  syncing data to disk ... ok
+2026-09-06T16:24:19.5589269Z  
+2026-09-06T16:24:19.5589442Z  
+2026-09-06T16:24:19.5589686Z  Success. You can now start the database server using:
+2026-09-06T16:24:19.5589996Z  
+2026-09-06T16:24:19.5590232Z      pg_ctl -D /var/lib/postgresql/data -l logfile start
+2026-09-06T16:24:19.5590544Z  
+2026-09-06T16:24:19.5591209Z  waiting for server to start....2026-09-06 16:16:22.879 UTC [48] LOG:  starting PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit
+2026-09-06T16:24:19.5592103Z  2026-09-06 16:16:22.880 UTC [48] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-09-06T16:24:19.5592702Z  2026-09-06 16:16:22.882 UTC [51] LOG:  database system was shut down at 2026-09-06 16:16:22 UTC
+2026-09-06T16:24:19.5593235Z  2026-09-06 16:16:22.886 UTC [48] LOG:  database system is ready to accept connections
+2026-09-06T16:24:19.5593613Z   done
+2026-09-06T16:24:19.5593818Z  server started
+2026-09-06T16:24:19.5594259Z  CREATE DATABASE
+2026-09-06T16:24:19.5594531Z  
+2026-09-06T16:24:19.5594938Z  
+2026-09-06T16:24:19.5595365Z  /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+2026-09-06T16:24:19.5595901Z  
+2026-09-06T16:24:19.5596481Z  waiting for server to shut down...2026-09-06 16:16:23.063 UTC [48] LOG:  received fast shutdown request
+2026-09-06T16:24:19.5597101Z  .2026-09-06 16:16:23.063 UTC [48] LOG:  aborting any active transactions
+2026-09-06T16:24:19.5597854Z  2026-09-06 16:16:23.065 UTC [48] LOG:  background worker "logical replication launcher" (PID 54) exited with exit code 1
+2026-09-06T16:24:19.5598526Z  2026-09-06 16:16:23.066 UTC [49] LOG:  shutting down
+2026-09-06T16:24:19.5599360Z  2026-09-06 16:16:23.066 UTC [49] LOG:  checkpoint starting: shutdown immediate
+2026-09-06T16:24:19.5600653Z  2026-09-06 16:16:23.083 UTC [49] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.013 s, sync=0.003 s, total=0.017 s; sync files=301, longest=0.002 s, average=0.001 s; distance=4273 kB, estimate=4273 kB; lsn=0/191F0F0, redo lsn=0/191F0F0
+2026-09-06T16:24:19.5601841Z  2026-09-06 16:16:23.089 UTC [48] LOG:  database system is shut down
+2026-09-06T16:24:19.5602446Z   done
+2026-09-06T16:24:19.5602786Z  server stopped
+2026-09-06T16:24:19.5603149Z  
+2026-09-06T16:24:19.5603487Z  PostgreSQL init process complete; ready for start up.
+2026-09-06T16:24:19.5603967Z  
+2026-09-06T16:24:19.5622364Z Stop and remove container: f177a4180e1448c28ff942680f116bc4_postgres16_df5f62
+2026-09-06T16:24:19.5627399Z ##[command]/usr/bin/docker rm --force 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:24:19.6817002Z 8a2bee7e7cab80a55a54f7d6b0490f724a60af0bdd67750d76023f5d9e80983d
+2026-09-06T16:24:19.6890526Z Remove container network: github_network_d8f299611b794e008d0f4535eca045ed
+2026-09-06T16:24:19.6897315Z ##[command]/usr/bin/docker network rm github_network_d8f299611b794e008d0f4535eca045ed
+2026-09-06T16:24:19.7939321Z github_network_d8f299611b794e008d0f4535eca045ed
+2026-09-06T16:24:19.8012520Z Cleaning up orphan processes

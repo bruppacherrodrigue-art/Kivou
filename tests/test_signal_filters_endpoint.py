@@ -138,9 +138,8 @@ def test_an_account_without_basic_access_gets_empty_lists_but_200(alice, engine)
     assert payload["plan_code"] == "discovery"
 
 
-def test_an_essential_plan_unlocks_subdivisions_but_not_sectors(alice, engine):
-    """`essential` est `filter_level="basic"` : la zone s'ouvre, le secteur (qui
-    exige `advanced`) reste vide."""
+def test_an_essential_plan_unlocks_both_subdivisions_and_sectors(alice, engine):
+    """La decision de recette ouvre aussi le filtre Secteur en Essentiel."""
     icp = icp_of(alice)
     pay(engine, alice, plan="essential")
     pool = _SourcePool()
@@ -150,7 +149,10 @@ def test_an_essential_plan_unlocks_subdivisions_but_not_sectors(alice, engine):
     payload = alice.get("/signals/filters").json()
 
     assert payload["subdivisions"] == [{"code": "FR-92", "label": "Hauts-de-Seine", "country": "FR"}]
-    assert payload["sectors"] == []
+    assert payload["sectors"] == [{"prefix": "45", "label": "Travaux de construction"}]
+    assert payload["filter_access"]["subdivision"] is True
+    assert payload["filter_access"]["sector"] is True
+    assert payload["plan_code"] == "essential"
 
 
 def test_an_account_without_any_accessible_signal_gets_empty_lists(alice, engine):

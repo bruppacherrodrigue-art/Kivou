@@ -413,7 +413,18 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
 
 
 def fallback_sentence(value: ForYouInput) -> str:
-    return "Ce marché correspond à votre profil cible."
+    title = " ".join((value.title or value.cpv_label or "marché public").split())
+    location = " ".join((value.location or "").split())
+    if len(location) == 2 and location.isalpha():
+        location = ""
+    facts: list[str] = []
+    if value.amount:
+        facts.append(value.amount)
+    if value.awarded_on:
+        facts.append(f"attribué le {value.awarded_on}")
+    suffix = f" à {location}" if location else ""
+    parenthetical = f" ({', '.join(facts)})" if facts else ""
+    return f"Le marché « {title} »{suffix}{parenthetical} peut concerner votre activité."
 
 
 def client_safe_sentence(sentence: str | None) -> str | None:

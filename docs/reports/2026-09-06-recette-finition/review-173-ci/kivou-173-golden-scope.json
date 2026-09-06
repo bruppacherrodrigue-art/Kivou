@@ -1,0 +1,145 @@
+{
+  "changed": [
+    {
+      "file": "tests/visual/reference-goldens/dashboard-account-desktop.png",
+      "before": "b636cd6a601f38e139a0e0f27a00b9e71845fc7123219f6563cc4c5b280dc4c6",
+      "after": "b6f83f78f691c9d9fc4a3a44c9ef19bd8ca81ba6c98ab355da5a66e63091ea91"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-account-mobile.png",
+      "before": "0fafaf9e4767f800a3962fdf779f5cd8462579829716ff17d6b05b83d02225a4",
+      "after": "ff6551f177578106471d7148ef4abed4832b487bfd0d019c5e84d9bb52efed48"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-companies-desktop.png",
+      "before": "d29ae3581e032f9af79b515e933ad627c72321e8748d6986b1af7571f2076a2d",
+      "after": "e301f821f218bb73aa43cca834026d22bd72ee14cccc75e36e0ecb067cdcea3f"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-companies-mobile.png",
+      "before": "84779a2d51d67f42c127fa8819c6f2234dcff7688fcfd3a282216da1eee81a00",
+      "after": "00dbdd78ad699d7707fcc793312b42c38a5fa4240fd126432c162b79ecb2ba6b"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-overview-desktop.png",
+      "before": "57644e6b236cd34f06b7774e96b498c725ef2b1535ef5851e9d57d5bbbc719f8",
+      "after": "5618d43b8728f6f54c3c0c447ada375719451c299d34f4d1c41e528d7155b75a"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-overview-discovery-desktop.png",
+      "before": "57644e6b236cd34f06b7774e96b498c725ef2b1535ef5851e9d57d5bbbc719f8",
+      "after": "5618d43b8728f6f54c3c0c447ada375719451c299d34f4d1c41e528d7155b75a"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-overview-discovery-mobile.png",
+      "before": "13eb1cae3888a909c0e7e7f204864ff130f5c79334fbb0ca8db01e42fc55a71e",
+      "after": "308e08507c83ba55e72015329787cd4ab70a96cf9ac71a2589e451f839d99895"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-overview-mobile.png",
+      "before": "13eb1cae3888a909c0e7e7f204864ff130f5c79334fbb0ca8db01e42fc55a71e",
+      "after": "308e08507c83ba55e72015329787cd4ab70a96cf9ac71a2589e451f839d99895"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-sidebar-open-mobile.png",
+      "before": "a5b45a20aac7001bf195ef55c51f41ed80dc2e2303bb9dc78924df8e8e70e62d",
+      "after": "9eb904c4265aeeabc123952eb266b13d0035ab01642cd2becc730a158036dab2"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-signals-desktop.png",
+      "before": "e351a3ce333a53b69c809fe7d25d037cb520c42d1f8cc1e2cb7f8dfc2dafcbc5",
+      "after": "0336210ae1a8893966addae3ced59e486f39725f5ea9c1266f92f55d4d0e2567"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-signals-mobile.png",
+      "before": "353ec4c11157b6fb8524a08f83ed76d6f85f3fa0db50db487447aff341773287",
+      "after": "66f7dd949f43ccc2cdad8c64ec95682d5cc506c931843fc7d887ea61733aa780"
+    }
+  ],
+  "unchanged": [
+    {
+      "file": "tests/visual/reference-goldens/dashboard-login-desktop.png",
+      "sha256": "9135658140d55ba616346c9547189cf50818dce293b74e62cd8d85f8d3d93682"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-login-mobile.png",
+      "sha256": "4295c7d64fdc4e425ec2cd904032df0434b519001fa9ad3bc3f2bcac51773b5f"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-onboarding-desktop.png",
+      "sha256": "9cec1268bd8f352fc7e169d77d9de98c0ad8f772ef077f2ddd17224e89f1d7ab"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-onboarding-mobile.png",
+      "sha256": "43e51fd7c9891e7894117ba3d99343386e68c5997065791144586ae422905ef8"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-signup-desktop.png",
+      "sha256": "a01fdda7bd4a4b5887f4de41c7a04adeee1b9d41e0b21e8b5552336a00f450f2"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-signup-mobile.png",
+      "sha256": "0886160ba048a38c666318e07e4be5f3169cf0b3d1011aa33c6ac5a231291f48"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-targeting-desktop.png",
+      "sha256": "70864d009129197c928bcc659362e8c136c627c43b1199d97d7095f5e6764fb2"
+    },
+    {
+      "file": "tests/visual/reference-goldens/dashboard-targeting-mobile.png",
+      "sha256": "79697efe8433360bcfb8968f0d54482347a6f72554551cd5e28b11e5d9b1570a"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-contact-desktop.png",
+      "sha256": "2d3a60e4ad2818c6d85b33cfc0fad56690de82aae5ff18fe67c12c7547e583b6"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-contact-mobile.png",
+      "sha256": "9ac5958b15f9b36cf7caf411011eae60f7777be1ebd371435ff4980595acd9a7"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-home-desktop.png",
+      "sha256": "6d242e16afe42ea7a1bbcb5937580734a0369e13c3da9cd208b54aa26818299e"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-home-mobile.png",
+      "sha256": "cf03a165ecc9b4dd7791d4c1c1faa87b48aa66225e012fbfa67fff4a242723f5"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-legal-desktop.png",
+      "sha256": "ed69d74976e16b7c3fa2c524134a4716f3d8181d0b8602305e7883dc4628e68d"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-legal-mobile.png",
+      "sha256": "c2847e49cc0dd65c5a79d6d02359f69a6de815a5dd26b0acaa43ffc6159dd808"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-menu-open-mobile.png",
+      "sha256": "1f84a3961201b199c77983f3163edb98c23cd30dda1f929d4ab6a4d60700fc26"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-pricing-desktop.png",
+      "sha256": "1be405fbe372f799b362b8f9270a8b096a9b025e41721f6fefa68da5968e4d7d"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-pricing-mobile.png",
+      "sha256": "e9739ddf83b64143a6b37d3b30f9a4b31a001e8f226e939c2200b3fe58ba7108"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-product-desktop.png",
+      "sha256": "30049fd770489c6655cab56a6eeebe7526eadea1903fd69f441fd6a96e8855a3"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-product-mobile.png",
+      "sha256": "e72ef6e0c29ac2b91732995a9c5cf37bcffbb9aa83a5b35795fa49131153520a"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-signal-desktop.png",
+      "sha256": "d9e61a85b1b739ecafdc8cbc56183ae3c898c0303b8d96be654757d553d7d3ed"
+    },
+    {
+      "file": "tests/visual/reference-goldens/public-signal-mobile.png",
+      "sha256": "519419e15507b1464a60d469d0df172f348f74c05918b738394576e43545c829"
+    }
+  ]
+}

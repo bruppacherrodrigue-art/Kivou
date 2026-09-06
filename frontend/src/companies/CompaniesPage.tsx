@@ -6,6 +6,7 @@ import { useI18n } from '../i18n'
 import { MISSING } from '../signals/components/SignalRow'
 import { CompanyDrawer } from './CompanyDrawer'
 import styles from './CompaniesPage.module.css'
+import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 
 const PAGE_SIZE = 20
 const SEGMENTS: { status: CompanyContactStatus | null; label: string }[] = [
@@ -131,29 +132,27 @@ export function CompaniesPage() {
 
   return (
     <main className={styles.page}>
-      <header><h1>Entreprises</h1><p>Les titulaires de vos signaux, avec où vous en êtes</p></header>
+      <ScreenHeader title="Entreprises" description="Les titulaires de vos signaux, avec où vous en êtes" />
       <div className={styles.filters}>
-        <div className={styles.segments} aria-label="Statut de contact">
+        <ScreenSegments label="Statut de contact">
           {SEGMENTS.map((segment) => (
             <button key={segment.label} type="button" aria-pressed={status === segment.status} onClick={() => setStatus(segment.status)}>
               {segment.label} {counts[segment.status ?? 'all'] ?? 0}
             </button>
           ))}
-        </div>
+        </ScreenSegments>
         <input type="search" aria-label="Rechercher une entreprise" placeholder="Rechercher" value={q} onChange={(event) => setQ(event.target.value)} />
       </div>
 
       {loading ? <p role="status">Chargement…</p> : (
+        <div className={styles.contentLayout}>
         <div className={styles.tableWrap}>
           <table className={styles.table}>
-            <thead><tr><th>Entreprise</th><th>Ville</th><th>Marchés</th><th>Total</th><th>Dernier</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Entreprise</th>{profile ? null : <><th>Ville</th><th>Marchés</th><th>Total</th><th>Dernier</th></>}<th>Statut</th></tr></thead>
             <tbody>{items.map((item) => (
               <tr key={item.company_key} aria-current={item.company_key === companyKey ? 'true' : undefined} onClick={() => navigate(`/app/companies/${item.company_key}`)}>
                 <td><button type="button">{item.name}</button></td>
-                <td>{item.city ?? MISSING}</td>
-                <td className={styles.numeric}>{item.awards_count}</td>
-                <td className={styles.numeric}>{item.total_amount.length ? item.total_amount.map((money) => amount(money.value, money.currency)).join(' · ') : MISSING}</td>
-                <td>{shortDate(item.last_award_at) ?? MISSING}</td>
+                {profile ? null : <><td>{item.city ?? MISSING}</td><td className={styles.numeric}>{item.awards_count}</td><td className={styles.numeric}>{item.total_amount.length ? item.total_amount.map((money) => amount(money.value, money.currency)).join(' · ') : MISSING}</td><td>{shortDate(item.last_award_at) ?? MISSING}</td></>}
                 <td><span className={styles.status}>{SEGMENTS.find((segment) => segment.status === item.contact_status)?.label ?? MISSING}</span></td>
               </tr>
             ))}</tbody>
@@ -161,9 +160,9 @@ export function CompaniesPage() {
           {items.length === 0 ? <p>Les titulaires de vos signaux apparaîtront ici.</p> : null}
           {nextCursor ? <button className={styles.more} type="button" onClick={() => void loadMore()}>Charger plus</button> : null}
         </div>
+        {profile ? <CompanyDrawer key={profile.company_key} city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
+        </div>
       )}
-
-      {profile ? <CompanyDrawer city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
     </main>
   )
 }

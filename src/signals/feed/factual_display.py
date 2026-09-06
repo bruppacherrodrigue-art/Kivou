@@ -10,6 +10,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from signals.domain.cpv_labels import cpv_label
 from signals.feed import policy
 from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.location import normalized_city
@@ -124,7 +125,9 @@ def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     """
 
     company = item.display.name if item.display is not None else ""
-    market_object = _clean(item.signal.award.title, limit=_MAX_OBJECT_LENGTH)
+    market_object = _clean(item.signal.award.title, limit=_MAX_OBJECT_LENGTH) or _clean(
+        cpv_label(item.signal.award.cpv_main, lang=lang), limit=_MAX_OBJECT_LENGTH
+    )
     amount = _amount(item.signal.award.amount, item.signal.award.currency, lang=lang)
     location = _location(item.signal.award.place_of_performance, lang=lang)
     buyer = _buyer(item)

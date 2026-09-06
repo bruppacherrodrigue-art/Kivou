@@ -91,6 +91,16 @@
   background: var(--card-green);
 }
 
+.cardRow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; padding: 12px 10px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+.cardRow[aria-current='true'] { background: var(--card-green); }
+.cardRowWinner { display: block; width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.cardRowWinner svg { display: inline; width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; }
+.cardRowObject { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; color: var(--ink); line-height: 1.45; }
+.cardRowFooter { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.cardRowMeta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.cardRowFooter > [role='img'] { flex-shrink: 0; }
+.cardRow[data-locked='true'] { background: var(--surface-subtle); }
+
 .row td {
   padding: 9px 10px;
   vertical-align: middle;

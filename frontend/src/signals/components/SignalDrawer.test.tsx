@@ -25,7 +25,7 @@ function item(overrides: Partial<UnlockedFeedItem> = {}): UnlockedFeedItem {
 }
 
 function need(overrides: Partial<PlausibleNeed> = {}): PlausibleNeed {
-  return { ...UNLOCKED_ITEM.analysis.plausible_needs.items[0], ...overrides }
+  return { ...UNLOCKED_ITEM.analysis.plausible_needs.items[0], timing_status: 'determined', quantity_status: null, ...overrides }
 }
 
 function withNeeds(needs: PlausibleNeed[]): UnlockedFeedItem {
@@ -96,6 +96,10 @@ function listOf(heading: string): string[] {
 }
 
 describe('SignalDrawer', () => {
+  it('masque le bloc des besoins quand timing et quantité sont indéterminés', () => {
+    renderDrawer({ signal: withNeeds([need({ timing: null, timing_label: null, timing_status: null, quantity_status: null })]) })
+    expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
+  })
   it('rend le statut, la correspondance, le titre et l’objet', () => {
     renderDrawer()
 
@@ -158,7 +162,7 @@ describe('SignalDrawer', () => {
         },
       }),
     })
-    expect(fact('Publié le')).toContain('10 août 2026')
+    expect(fact('Attribué le')).toContain('10 août 2026')
   })
 
   it('omet la date quand aucune date n’est disponible', () => {
@@ -198,7 +202,7 @@ describe('SignalDrawer', () => {
     for (const value of drawer.querySelectorAll('dd')) expect(value).not.toHaveTextContent('—')
   })
 
-  it('rend au plus trois raisons sous « Pourquoi ça vous concerne »', () => {
+  it('rend uniquement la phrase persistée sous « Pourquoi ça vous concerne »', () => {
     renderDrawer({
       signal: item({
         analysis: {
@@ -213,8 +217,8 @@ describe('SignalDrawer', () => {
 
     const block = screen.getByText('Pourquoi ça vous concerne').closest('section')
     expect(block).not.toBeNull()
-    expect(within(block as HTMLElement).getAllByRole('listitem')).toHaveLength(3)
-    expect(screen.queryByText('Raison 4')).not.toBeInTheDocument()
+    expect(within(block as HTMLElement).getAllByRole('listitem')).toHaveLength(1)
+    expect(screen.queryByText('Raison 1')).not.toBeInTheDocument()
   })
 
   it('rend la même phrase Pour vous à la place du premier libellé de règle', () => {

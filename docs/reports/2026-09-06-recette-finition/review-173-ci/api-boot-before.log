@@ -1,0 +1,26 @@
+2026-09-06T16:22:36.444834+00:00 kivou-staging-01 systemd[1]: Stopping kivou-api.service - Kivou API (FastAPI/uvicorn)...
+2026-09-06T16:22:36.472246+00:00 kivou-staging-01 kivou-api[748490]: INFO:     Shutting down
+2026-09-06T16:22:36.474792+00:00 kivou-staging-01 kivou-api[748491]: INFO:     Shutting down
+2026-09-06T16:22:36.573202+00:00 kivou-staging-01 kivou-api[748490]: INFO:     Waiting for application shutdown.
+2026-09-06T16:22:36.573202+00:00 kivou-staging-01 kivou-api[748490]: INFO:     Application shutdown complete.
+2026-09-06T16:22:36.573202+00:00 kivou-staging-01 kivou-api[748490]: INFO:     Finished server process [748490]
+2026-09-06T16:22:36.575978+00:00 kivou-staging-01 kivou-api[748491]: INFO:     Waiting for application shutdown.
+2026-09-06T16:22:36.575978+00:00 kivou-staging-01 kivou-api[748491]: INFO:     Application shutdown complete.
+2026-09-06T16:22:36.575978+00:00 kivou-staging-01 kivou-api[748491]: INFO:     Finished server process [748491]
+2026-09-06T16:22:36.900490+00:00 kivou-staging-01 kivou-api[748481]: INFO:     Received SIGTERM, exiting.
+2026-09-06T16:22:36.902045+00:00 kivou-staging-01 kivou-api[748481]: INFO:     Waiting for child process [748490]
+2026-09-06T16:22:36.902045+00:00 kivou-staging-01 kivou-api[748481]: INFO:     Waiting for child process [748491]
+2026-09-06T16:22:36.902045+00:00 kivou-staging-01 kivou-api[748481]: INFO:     Stopping parent process [748481]
+2026-09-06T16:22:36.948615+00:00 kivou-staging-01 systemd[1]: kivou-api.service: Deactivated successfully.
+2026-09-06T16:22:36.949046+00:00 kivou-staging-01 systemd[1]: Stopped kivou-api.service - Kivou API (FastAPI/uvicorn).
+2026-09-06T16:22:36.949111+00:00 kivou-staging-01 systemd[1]: kivou-api.service: Consumed 2min 33.667s CPU time.
+2026-09-06T16:22:36.964325+00:00 kivou-staging-01 systemd[1]: Starting kivou-api.service - Kivou API (FastAPI/uvicorn)...
+2026-09-06T16:22:36.989309+00:00 kivou-staging-01 systemd[1]: Started kivou-api.service - Kivou API (FastAPI/uvicorn).
+2026-09-06T16:22:37.311432+00:00 kivou-staging-01 kivou-api[757301]: INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+2026-09-06T16:22:37.312586+00:00 kivou-staging-01 kivou-api[757301]: INFO:     Started parent process [757301]
+2026-09-06T16:22:41.568291+00:00 kivou-staging-01 kivou-api[757309]: INFO:     Started server process [757309]
+2026-09-06T16:22:41.568910+00:00 kivou-staging-01 kivou-api[757309]: INFO:     Waiting for application startup.
+2026-09-06T16:22:41.568910+00:00 kivou-staging-01 kivou-api[757309]: INFO:     Application startup complete.
+2026-09-06T16:22:41.571969+00:00 kivou-staging-01 kivou-api[757308]: INFO:     Started server process [757308]
+2026-09-06T16:22:41.572634+00:00 kivou-staging-01 kivou-api[757308]: INFO:     Waiting for application startup.
+2026-09-06T16:22:41.575613+00:00 kivou-staging-01 kivou-api[757308]: INFO:     Application startup complete.
