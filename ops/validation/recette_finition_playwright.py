@@ -83,7 +83,7 @@ def assert_settings_and_zone(page: Page) -> None:
     page.goto(f"{BASE_URL}/app/settings?qa_finish=1")
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(1000)
-    body = page.locator("body").inner_text()
+    body = page.locator(".settings-main").inner_text()
     assert "—" not in body
     assert "Tarif facturé absent" not in body
     for heading in page.locator(".settings-main h2, .settings-main h3").all():

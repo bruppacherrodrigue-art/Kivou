@@ -59,7 +59,7 @@ export function Settings() {
     <div className="settings-main">
       <section className="settings-intro" aria-labelledby="settings-title">
         <p className="section-label">{copy.overviewLabel}</p>
-        <h2 id="settings-title">{copy.overviewTitle}</h2>
+        <h2 id="settings-title" style={{ fontFamily: 'var(--kivou-font-sans)' }}>{copy.overviewTitle}</h2>
         <p>{copy.overviewBody}</p>
       </section>
 
