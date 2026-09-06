@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -70,7 +71,7 @@ def _read_unit_state(environment: dict[str, str]) -> subprocess.CompletedProcess
     )
 
 
-def test_api_readiness_is_bounded_and_fails_after_five_attempts(
+def test_api_readiness_is_bounded_and_fails_after_fifteen_attempts(
     tmp_path: Path,
 ) -> None:
     environment, calls = _fake_environment(
@@ -84,13 +85,16 @@ def test_api_readiness_is_bounded_and_fails_after_five_attempts(
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == (
-        "api_readiness=timeout unit=kivou-api.service attempts=5\n"
+    assert re.fullmatch(
+        r"api_readiness=timeout unit=kivou-api.service attempts=15 "
+        r"http_status=503 curl_exit=0 elapsed_seconds=\d+",
+        result.stderr.splitlines()[-1],
     )
+    assert result.stderr.count("api_readiness=waiting") == 15
     call_log = calls.read_text(encoding="utf-8").splitlines()
-    assert call_log.count("systemctl") == 5
-    assert call_log.count("curl") == 5
-    assert call_log.count("sleep") == 4
+    assert call_log.count("systemctl") == 15
+    assert call_log.count("curl") == 15
+    assert call_log.count("sleep") == 14
     assert call_log.count("sudo") == 0
     helper_source = READINESS_HELPER.read_text(encoding="utf-8")
     assert "set -euo pipefail" in helper_source
@@ -112,8 +116,10 @@ def test_api_readiness_succeeds_as_soon_as_openapi_returns_200(
     result = _run_helper(environment)
 
     assert result.returncode == 0
-    assert result.stdout == (
-        "api_readiness=ready unit=kivou-api.service port=8000 attempt=1\n"
+    assert re.fullmatch(
+        r"api_readiness=ready unit=kivou-api.service port=8000 "
+        r"attempt=1 elapsed_seconds=\d+\n",
+        result.stdout,
     )
     assert result.stderr == ""
     call_log = calls.read_text(encoding="utf-8").splitlines()
@@ -136,12 +142,48 @@ def test_api_readiness_never_accepts_200_from_a_failed_curl(tmp_path: Path) -> N
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == (
-        "api_readiness=timeout unit=kivou-api.service attempts=5\n"
+    assert re.fullmatch(
+        r"api_readiness=timeout unit=kivou-api.service attempts=15 "
+        r"http_status=200 curl_exit=28 elapsed_seconds=\d+",
+        result.stderr.splitlines()[-1],
     )
     call_log = calls.read_text(encoding="utf-8").splitlines()
-    assert call_log.count("curl") == 5
-    assert call_log.count("sleep") == 4
+    assert call_log.count("curl") == 15
+    assert call_log.count("sleep") == 14
+
+
+def test_api_readiness_waits_for_workers_after_the_old_five_probe_window(
+    tmp_path: Path,
+) -> None:
+    environment, calls = _fake_environment(
+        tmp_path,
+        "#!/bin/sh\n"
+        "printf 'systemctl\\n' >>\"$KIVOU_TEST_CALLS\"\n"
+        "exit 0\n",
+    )
+    _write_executable(
+        tmp_path / "bin" / "curl",
+        "#!/bin/sh\n"
+        "printf 'curl\\n' >>\"$KIVOU_TEST_CALLS\"\n"
+        "if [ \"$(grep -c '^curl$' \"$KIVOU_TEST_CALLS\")\" -le 5 ]; then\n"
+        "  printf '000'; exit 7\n"
+        "fi\n"
+        "printf '200'\n",
+    )
+
+    result = _run_helper(environment)
+
+    assert result.returncode == 0, result.stderr
+    assert re.fullmatch(
+        r"api_readiness=ready unit=kivou-api.service port=8000 "
+        r"attempt=6 elapsed_seconds=\d+\n",
+        result.stdout,
+    )
+    assert result.stderr.count("http_status=000 curl_exit=7") == 5
+    call_log = calls.read_text(encoding="utf-8").splitlines()
+    assert call_log.count("systemctl") == 6
+    assert call_log.count("curl") == 6
+    assert call_log.count("sleep") == 5
 
 
 def test_api_readiness_bounds_the_service_state_check(tmp_path: Path) -> None:
@@ -233,8 +275,8 @@ def test_api_readiness_fails_immediately_if_service_stops(tmp_path: Path) -> Non
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr == (
-        "api_readiness=service_inactive unit=kivou-api.service attempt=3\n"
+    assert result.stderr.splitlines()[-1] == (
+        "api_readiness=service_inactive unit=kivou-api.service attempt=3"
     )
     call_log = calls.read_text(encoding="utf-8").splitlines()
     assert call_log.count("systemctl") == 3

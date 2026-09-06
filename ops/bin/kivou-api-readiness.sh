@@ -56,8 +56,13 @@ case "$KIVOU_API_READY_UNIT:$KIVOU_API_READY_PORT" in
     ;;
 esac
 
-readonly KIVOU_API_READY_ATTEMPTS=5
+# Type=exec reports the supervisor as active before its workers import and
+# construct the ASGI application. Staging boot took 4.58s; five immediate
+# connection refusals exhausted the former window in 4.23s. Allow that measured
+# cold boot without relaxing HTTP timeouts or accepting an inactive service.
+readonly KIVOU_API_READY_ATTEMPTS=15
 readonly KIVOU_API_READY_DELAY_SECONDS=1
+readonly KIVOU_API_READY_STARTED_SECONDS=$SECONDS
 
 for ((KIVOU_API_READY_ATTEMPT = 1; \
   KIVOU_API_READY_ATTEMPT <= KIVOU_API_READY_ATTEMPTS; \
@@ -69,22 +74,33 @@ for ((KIVOU_API_READY_ATTEMPT = 1; \
     exit 1
   fi
 
+  KIVOU_API_READY_CURL_EXIT=0
   if KIVOU_API_READY_STATUS=$(curl --silent --output /dev/null \
     --connect-timeout 1 --max-time 1 --write-out '%{http_code}' \
     "http://127.0.0.1:$KIVOU_API_READY_PORT/openapi.json"); then
     if [[ "$KIVOU_API_READY_STATUS" == 200 ]]; then
-      printf 'api_readiness=ready unit=%s port=%s attempt=%s\n' \
+      printf 'api_readiness=ready unit=%s port=%s attempt=%s elapsed_seconds=%s\n' \
         "$KIVOU_API_READY_UNIT" "$KIVOU_API_READY_PORT" \
-        "$KIVOU_API_READY_ATTEMPT"
+        "$KIVOU_API_READY_ATTEMPT" \
+        "$((SECONDS - KIVOU_API_READY_STARTED_SECONDS))"
       exit 0
     fi
+  else
+    KIVOU_API_READY_CURL_EXIT=$?
   fi
+
+  printf 'api_readiness=waiting unit=%s attempt=%s http_status=%s curl_exit=%s elapsed_seconds=%s\n' \
+    "$KIVOU_API_READY_UNIT" "$KIVOU_API_READY_ATTEMPT" \
+    "${KIVOU_API_READY_STATUS:-000}" "$KIVOU_API_READY_CURL_EXIT" \
+    "$((SECONDS - KIVOU_API_READY_STARTED_SECONDS))" >&2
 
   if [[ "$KIVOU_API_READY_ATTEMPT" -lt "$KIVOU_API_READY_ATTEMPTS" ]]; then
     sleep "$KIVOU_API_READY_DELAY_SECONDS"
   fi
 done
 
-printf 'api_readiness=timeout unit=%s attempts=%s\n' \
-  "$KIVOU_API_READY_UNIT" "$KIVOU_API_READY_ATTEMPTS" >&2
+printf 'api_readiness=timeout unit=%s attempts=%s http_status=%s curl_exit=%s elapsed_seconds=%s\n' \
+  "$KIVOU_API_READY_UNIT" "$KIVOU_API_READY_ATTEMPTS" \
+  "${KIVOU_API_READY_STATUS:-000}" "$KIVOU_API_READY_CURL_EXIT" \
+  "$((SECONDS - KIVOU_API_READY_STARTED_SECONDS))" >&2
 exit 1
