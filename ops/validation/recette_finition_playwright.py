@@ -57,7 +57,7 @@ def assert_mobile_feed(page: Page) -> None:
     assert page.locator("[data-signal-key]").count() > 0
     assert page.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth")
     for card in page.locator("[data-signal-key]").all():
-        assert card.evaluate("el => el.scrollWidth <= el.clientWidth")
+        assert card.evaluate("el => el.scrollWidth <= el.clientWidth"), "mot coupé dans la carte"
 
 
 def assert_companies_panel(page: Page) -> None:
@@ -82,7 +82,8 @@ def assert_settings_and_zone(page: Page) -> None:
     assert "—" not in body
     assert "Tarif facturé absent" not in body
     for heading in page.locator(".settings-main h2, .settings-main h3").all():
-        assert "serif" not in heading.evaluate("el => getComputedStyle(el).fontFamily").lower()
+        family = heading.evaluate("el => getComputedStyle(el).fontFamily").lower()
+        assert not any(font in family for font in ("lora", "georgia", "times new roman")), f"police serif: {family}"
 
     page.goto(f"{BASE_URL}/app/dashboard")
     page.wait_for_load_state("networkidle")
