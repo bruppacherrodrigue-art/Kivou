@@ -719,7 +719,7 @@ export function SignalsFeed() {
               {hiddenDiscoveryCount ? (
                 <tr className={styles.lockedRow}>
                   <td colSpan={compact ? 5 : 6}>
-                    {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/pricing">voir les offres</Link>
+                    {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/tarifs">voir les offres</Link>
                   </td>
                 </tr>
               ) : null}

@@ -668,12 +668,12 @@ def test_filter_access_is_derived_from_the_existing_plan_level(alice, engine):
     assert essential["filter_access"]["country"] is True
     assert essential["filter_access"]["subdivision"] is True
     assert essential["filter_access"]["status"] is True
-    assert essential["filter_access"]["sector"] is False
+    assert essential["filter_access"]["sector"] is True
     assert essential["filter_access"]["min_amount"] is True
     assert essential["filter_access"]["search"] is True
     assert alice.get("/signals?view=history&country=CH").status_code == 200
     assert alice.get("/signals?view=history&status=recent_award").status_code == 200
-    assert alice.get("/signals?view=history&cpv_prefix=45").status_code == 403
+    assert alice.get("/signals?view=history&cpv_prefix=45").status_code == 200
     assert alice.get("/signals?view=history&min_amount=1000").status_code == 200
     assert alice.get("/signals?view=history&q=egli").status_code == 200
 

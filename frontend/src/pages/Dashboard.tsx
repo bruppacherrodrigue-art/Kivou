@@ -68,7 +68,7 @@ function TodayDashboard() {
     <main className={styles.page} data-page="today">
       <header className={styles.header}>
         <h1>{title}</h1>
-        <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {zoneLabels.join(', ') || MISSING}</p>
+        {data.strong_matches > 0 ? <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {zoneLabels.join(', ') || MISSING}</p> : null}
       </header>
 
       {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}

@@ -1,6 +1,4 @@
-import { KeyRound, LogOut, ShieldCheck } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
-import { useSession } from '../auth/SessionProvider'
+import { KeyRound, ShieldCheck } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
@@ -8,31 +6,8 @@ import { Button } from '../presentation/dashboard/ui/button'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function SecuritySettings() {
-  const { signOut } = useSession()
   const { t } = useI18n()
   const copy = t.reference.accountSettings
-  const [signingOut, setSigningOut] = useState(false)
-  const mounted = useRef(true)
-  const pending = useRef(false)
-
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
-
-  async function leaveAccount() {
-    if (pending.current) return
-    pending.current = true
-    setSigningOut(true)
-    try {
-      await signOut()
-    } finally {
-      pending.current = false
-      if (mounted.current) setSigningOut(false)
-    }
-  }
 
   return (
     <div className="settings-main">
@@ -59,22 +34,6 @@ export function SecuritySettings() {
           </div>
           <Button asChild className="primary-action">
             <ReferenceLink href="/forgot-password">{copy.resetPassword}</ReferenceLink>
-          </Button>
-        </div>
-        <div className="security-action-row">
-          <span><LogOut aria-hidden="true" /></span>
-          <div>
-            <strong>{copy.logoutTitle}</strong>
-            <p>{copy.logoutBody}</p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="secondary-action"
-            disabled={signingOut}
-            onClick={() => void leaveAccount()}
-          >
-            {signingOut ? t.common.loading : copy.logout}
           </Button>
         </div>
       </section>

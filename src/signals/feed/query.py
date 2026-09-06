@@ -442,6 +442,13 @@ def _object_short(title: str | None) -> str | None:
     return cleaned
 
 
+def _has_display_object(signal: StoredSignal) -> bool:
+    from signals.domain.cpv_labels import cpv_label
+    from signals.understanding.object_text import describes_object
+
+    return describes_object(signal.award.title) or bool(cpv_label(signal.award.cpv_main, lang="fr"))
+
+
 def _text_haystack(signal: StoredSignal, display: DisplayIdentity | None) -> list[str]:
     """§28.3bis — le nom affiché, le titre publié et l'objet court qui en dérive.
 
@@ -891,6 +898,9 @@ def history_page(
             display = identities.get(signal.signal_key)
             if display is None:
                 excluded_without_name += 1
+                continue
+            if not _has_display_object(signal):
+                excluded_by_filters += 1
                 continue
             profile = owned[signal.target_icp_id]
             item = FeedSignal(

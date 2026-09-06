@@ -29,7 +29,7 @@ from signals.feed.factual_display import factual_display
 from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
-from signals.personalization.for_you import client_safe_sentence
+from signals.personalization.for_you import ForYouInput, client_safe_sentence, fallback_sentence
 from signals.recency.claim import claim_for_status
 
 #: PR2b §46 — les seuls rôles qui, PORTÉS PAR UN MEMBRE, disent que ce membre
@@ -268,17 +268,23 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
             (need.get("category") for need in signal.plausible_needs or () if need.get("category")),
             None,
         )
-    if need_category is not None:
-        need_label = feed_copy.NEED_LABELS[need_category][lang]
-        deterministic_for_you = {
-            "fr": f"Ce type de marché peut créer des besoins autour de {need_label}.",
-            "en": f"This type of contract may create needs around {need_label}.",
-        }[lang]
-    else:
-        deterministic_for_you = {
-            "fr": "Ce marché correspond à la zone de votre profil cible.",
-            "en": "This contract matches the area in your target profile.",
-        }[lang]
+    place = _location(signal.award.place_of_performance)
+    location = None
+    if place:
+        location = place.get("locality") or place.get("subdivision_label")
+    deterministic_for_you = fallback_sentence(
+        ForYouInput(
+            title=signal.award.title,
+            amount=(
+                f"{signal.award.amount} {signal.award.currency}"
+                if signal.award.amount is not None and signal.award.currency
+                else None
+            ),
+            location=location,
+            awarded_on=_iso(signal.award.award_date),
+            cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
+        )
+    )
     return {
         "label": feed_copy.FIT_LABELS[key][lang],
         # PR2b — même table que `companies.listing` (§45) : `feed.policy.fit_band`

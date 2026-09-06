@@ -130,6 +130,7 @@ export interface Me {
   email: string
   account_id: string
   account_display_name: string
+  company_name?: string | null
   locale: string
   onboarding_status: OnboardingStatus
   capabilities: {

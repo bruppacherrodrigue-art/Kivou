@@ -283,6 +283,69 @@ a:focus-visible {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.sidebar-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sidebar-account-link {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sidebar-account-avatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  background: rgba(87, 214, 174, 0.18);
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.sidebar-account-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.sidebar-account-copy strong,
+.sidebar-account-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-account-copy strong { color: #fff; font-size: 12px; }
+.sidebar-account-copy small { color: rgba(247, 251, 249, 0.58); font-size: 10px; }
+
+.sidebar-account-logout {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(247, 251, 249, 0.72);
+  cursor: pointer;
+}
+
+.sidebar-account-logout:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.sidebar-account-logout svg { width: 16px; height: 16px; }
+
 .sidebar-plan-summary {
   display: grid;
   gap: 5px;

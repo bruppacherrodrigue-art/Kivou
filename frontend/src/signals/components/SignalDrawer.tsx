@@ -108,9 +108,12 @@ export function SignalDrawer({
   const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
   const place = placeLabel(item.contract.location, locale)
   const reasons = item.analysis.fit.for_you_sentence
-    ? [item.analysis.fit.for_you_sentence, ...item.analysis.fit.reasons.slice(1)].slice(0, MAX_ITEMS)
-    : item.analysis.fit.reasons.slice(0, MAX_ITEMS)
-  const needs = orderedNeeds(item.analysis.plausible_needs.items)
+    ? [item.analysis.fit.for_you_sentence]
+    : []
+  const needs = orderedNeeds(item.analysis.plausible_needs.items).filter((need) => {
+    const candidate = need as typeof need & { quantity?: unknown }
+    return Boolean(candidate.timing || candidate.quantity)
+  })
 
   /* Trois horloges, une seule vérité affichée : l'attribution prime, la
    * notification la remplace, la publication ferme la marche. L'intitulé
@@ -123,7 +126,7 @@ export function SignalDrawer({
     : dates.contract_notification
       ? { label: copy.notifiedOn, value: dates.contract_notification }
       : dates.publication
-        ? { label: copy.publishedOn, value: dates.publication }
+        ? { label: copy.awardedOn, value: dates.award ?? dates.publication }
         : { label: copy.awardedOn, value: null }
 
   const actions: {
