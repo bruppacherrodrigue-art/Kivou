@@ -10,10 +10,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from signals.domain.cpv_labels import cpv_label
 from signals.feed import policy
 from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.location import normalized_city
-from signals.domain.cpv_labels import cpv_label
 from signals.feed.query import FeedSignal, is_customer_display_name
 
 _MAX_OBJECT_LENGTH = 180

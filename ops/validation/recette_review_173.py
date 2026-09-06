@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import expect, sync_playwright
 
 BASE = os.environ.get("KIVOU_QA_BASE_URL", "https://staging.kivou.eu")
@@ -149,7 +150,7 @@ def main():
                     try:
                         check(page, width, label)
                         result["status"] = "passed"
-                    except Exception as error:
+                    except (AssertionError, PlaywrightError) as error:
                         result.update(status="failed", error=str(error))
                         capture(page, label + "-" + check.__name__ + "-failed")
                     finally:

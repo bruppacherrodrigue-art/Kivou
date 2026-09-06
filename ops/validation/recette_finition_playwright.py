@@ -9,7 +9,6 @@ from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
 
-
 BASE_URL = os.environ.get("KIVOU_QA_BASE_URL", "https://staging.kivou.eu")
 BROWSER = os.environ.get(
     "KIVOU_PLAYWRIGHT_EXECUTABLE",
