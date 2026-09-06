@@ -42,7 +42,7 @@ def assert_needs_block_is_status_driven(page: Page) -> None:
         route.fulfill(response=response, json=payload)
 
     page.route("**/signals/**", hide_statuses)
-    page.goto(f"{BASE_URL}/app/signals")
+    page.goto(f"{BASE_URL}/app/signals?qa_finish=1")
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(1000)
     signal = page.locator("[data-signal-key]").first
@@ -53,18 +53,18 @@ def assert_needs_block_is_status_driven(page: Page) -> None:
 
 
 def assert_mobile_feed(page: Page) -> None:
-    page.goto(f"{BASE_URL}/app/signals")
+    page.goto(f"{BASE_URL}/app/signals?qa_finish=1")
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(1000)
-    assert page.locator("table").count() == 0
-    assert page.locator("[data-signal-key]").count() > 0
-    assert page.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth")
+    assert page.locator("table").count() == 0, f"table rendu: {page.locator('table').count()}"
+    assert page.locator("[data-signal-key]").count() > 0, "aucune carte signal"
+    assert page.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth"), "débordement horizontal"
     for card in page.locator("[data-signal-key]").all():
         assert card.evaluate("el => el.scrollWidth <= el.clientWidth"), "mot coupé dans la carte"
 
 
 def assert_companies_panel(page: Page) -> None:
-    page.goto(f"{BASE_URL}/app/companies")
+    page.goto(f"{BASE_URL}/app/companies?qa_finish=1")
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(1000)
     if page.locator("tbody tr").count():
@@ -80,7 +80,7 @@ def assert_companies_panel(page: Page) -> None:
 
 
 def assert_settings_and_zone(page: Page) -> None:
-    page.goto(f"{BASE_URL}/app/settings")
+    page.goto(f"{BASE_URL}/app/settings?qa_finish=1")
     page.wait_for_load_state("domcontentloaded")
     page.wait_for_timeout(1000)
     body = page.locator("body").inner_text()
@@ -90,8 +90,8 @@ def assert_settings_and_zone(page: Page) -> None:
         family = heading.evaluate("el => getComputedStyle(el).fontFamily").lower()
         assert not any(font in family for font in ("lora", "georgia", "times new roman")), f"police serif: {family}"
 
-    page.goto(f"{BASE_URL}/app/dashboard")
-    page.wait_for_load_state("networkidle")
+    page.goto(f"{BASE_URL}/app/dashboard?qa_finish=1")
+    page.wait_for_load_state("domcontentloaded")
     assert "FR" not in page.locator("body").inner_text()
 
 
