@@ -6,7 +6,8 @@
 .segments button { padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
 .segments button[aria-pressed='true'] { background: var(--green); color: white; }
 .filters input { width: min(280px, 100%); padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; }
-.tableWrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.contentLayout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.tableWrap { min-width: 0; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: white; }
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table th { padding: 10px 14px; color: var(--text-muted); text-align: left; font-size: 11px; text-transform: uppercase; }
 .table td { padding: 13px 14px; border-top: 1px solid var(--line); }
@@ -17,7 +18,7 @@
 .status { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--surface-subtle); white-space: nowrap; }
 .more { display: block; margin: 14px auto; padding: 8px 14px; }
 .overlay { position: fixed; inset: 0; z-index: 40; background: rgb(15 35 28 / 25%); }
-.drawer { position: fixed; inset: 0 0 0 auto; z-index: 41; width: 50%; min-width: 520px; padding: 28px; overflow-y: auto; background: white; box-shadow: -16px 0 40px rgb(15 35 28 / 18%); }
+.drawer { position: static; width: 100%; min-width: 0; padding: 28px; overflow-y: auto; background: white; box-shadow: -16px 0 40px rgb(15 35 28 / 18%); }
 .drawerHeader { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
 .drawerHeader h2 { margin: 0 0 6px; font-size: 24px; }
 .drawerHeader p { margin: 0; color: var(--text-muted); }
@@ -35,6 +36,5 @@
 .saved { min-height: 20px; color: var(--green); font-size: 12px; }
 .compactTable { width: 100%; border-collapse: collapse; }
 .signalLayer { position: fixed; inset: 0 0 0 auto; z-index: 50; width: 50%; min-width: 520px; overflow-y: auto; background: white; box-shadow: -20px 0 48px rgb(15 35 28 / 25%); }
-@media (min-width: 900px) { .drawer, .signalLayer { width: 50%; min-width: 520px; } }
-@media (max-width: 899px) { .drawer, .signalLayer { width: 100%; min-width: 0; } }
-@media (max-width: 760px) { .page { padding: 20px 16px; } .filters { align-items: stretch; flex-direction: column; } .segments { overflow-x: auto; } .table th:nth-child(4), .table td:nth-child(4), .table th:nth-child(5), .table td:nth-child(5) { display: none; } }
+@media (min-width: 900px) { .contentLayout:has(.drawer) { grid-template-columns: minmax(0, 1fr) 520px; } }
+@media (max-width: 899px) { .page { padding: 20px 16px; } .filters { align-items: stretch; flex-direction: column; } .segments { overflow-x: auto; } .contentLayout:has(.drawer) { display: block; } .contentLayout:has(.drawer) .drawer { position: fixed; inset: 0; z-index: 41; overflow-y: auto; } }

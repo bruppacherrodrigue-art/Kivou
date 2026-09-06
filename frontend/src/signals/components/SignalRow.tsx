@@ -89,3 +89,22 @@ export function SignalRow({
     </tr>
   )
 }
+
+export function SignalCardRow({ item, selected, onOpen }: {
+  item: UnlockedFeedItem
+  selected: boolean
+  onOpen: (signalKey: string) => void
+}) {
+  const { t, locale, amount, shortDate } = useI18n()
+  const object = signalObject(item)
+  const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
+  return (
+    <article className={styles.cardRow} data-signal-key={item.signal_id} aria-current={selected ? 'true' : undefined} onClick={() => onOpen(item.signal_id)}>
+      <button type="button" className={styles.cardRowWinner} onClick={(event) => { event.stopPropagation(); onOpen(item.signal_id) }}>{item.company.name ?? MISSING}</button>
+      <span className={styles.cardRowObject}>{object ?? MISSING}{money ? ` / ${money}` : ''}</span>
+      <span className={styles.cardRowPlace}>{placeLabel(item.contract.location, locale)}</span>
+      <span className={styles.cardRowDate}>{shortDate(item.factual_display.date.value) ?? MISSING}</span>
+      <span className={styles.cardRowMatch} aria-label={t.signalsTable.columns.match}><MatchDots item={item} /></span>
+    </article>
+  )
+}

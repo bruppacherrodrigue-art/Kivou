@@ -357,6 +357,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
           statement: 'Le chantier peut nécessiter un approvisionnement en enrobés.',
           confidence: 'medium',
           timing: 'near_term',
+          timing_status: 'determined',
           timing_label: 'Court terme',
           targeted_by_your_profile: true,
           reasoning: 'Le cahier des charges impose 4 200 m² de reprise de chaussée.',

@@ -144,16 +144,14 @@ export function CompaniesPage() {
       </div>
 
       {loading ? <p role="status">Chargement…</p> : (
+        <div className={styles.contentLayout}>
         <div className={styles.tableWrap}>
           <table className={styles.table}>
-            <thead><tr><th>Entreprise</th><th>Ville</th><th>Marchés</th><th>Total</th><th>Dernier</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Entreprise</th>{profile ? null : <><th>Ville</th><th>Marchés</th><th>Total</th><th>Dernier</th></>}<th>Statut</th></tr></thead>
             <tbody>{items.map((item) => (
               <tr key={item.company_key} aria-current={item.company_key === companyKey ? 'true' : undefined} onClick={() => navigate(`/app/companies/${item.company_key}`)}>
                 <td><button type="button">{item.name}</button></td>
-                <td>{item.city ?? MISSING}</td>
-                <td className={styles.numeric}>{item.awards_count}</td>
-                <td className={styles.numeric}>{item.total_amount.length ? item.total_amount.map((money) => amount(money.value, money.currency)).join(' · ') : MISSING}</td>
-                <td>{shortDate(item.last_award_at) ?? MISSING}</td>
+                {profile ? null : <><td>{item.city ?? MISSING}</td><td className={styles.numeric}>{item.awards_count}</td><td className={styles.numeric}>{item.total_amount.length ? item.total_amount.map((money) => amount(money.value, money.currency)).join(' · ') : MISSING}</td><td>{shortDate(item.last_award_at) ?? MISSING}</td></>}
                 <td><span className={styles.status}>{SEGMENTS.find((segment) => segment.status === item.contact_status)?.label ?? MISSING}</span></td>
               </tr>
             ))}</tbody>
@@ -161,9 +159,9 @@ export function CompaniesPage() {
           {items.length === 0 ? <p>Les titulaires de vos signaux apparaîtront ici.</p> : null}
           {nextCursor ? <button className={styles.more} type="button" onClick={() => void loadMore()}>Charger plus</button> : null}
         </div>
+        {profile ? <CompanyDrawer city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
+        </div>
       )}
-
-      {profile ? <CompanyDrawer city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
     </main>
   )
 }

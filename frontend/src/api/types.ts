@@ -447,6 +447,8 @@ export interface PlausibleNeed {
   confidence: string | null
   timing: string | null
   timing_label: string | null
+  timing_status?: string | null
+  quantity_status?: string | null
   targeted_by_your_profile: boolean
   /** Présent seulement sur le détail (`full=True`). */
   reasoning?: string | null

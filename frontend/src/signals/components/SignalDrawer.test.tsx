@@ -25,7 +25,7 @@ function item(overrides: Partial<UnlockedFeedItem> = {}): UnlockedFeedItem {
 }
 
 function need(overrides: Partial<PlausibleNeed> = {}): PlausibleNeed {
-  return { ...UNLOCKED_ITEM.analysis.plausible_needs.items[0], ...overrides }
+  return { ...UNLOCKED_ITEM.analysis.plausible_needs.items[0], timing_status: 'determined', quantity_status: null, ...overrides }
 }
 
 function withNeeds(needs: PlausibleNeed[]): UnlockedFeedItem {
@@ -96,6 +96,10 @@ function listOf(heading: string): string[] {
 }
 
 describe('SignalDrawer', () => {
+  it('masque le bloc des besoins quand timing et quantité sont indéterminés', () => {
+    renderDrawer({ signal: withNeeds([need({ timing: null, timing_label: null, timing_status: null, quantity_status: null })]) })
+    expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
+  })
   it('rend le statut, la correspondance, le titre et l’objet', () => {
     renderDrawer()
 

@@ -7,7 +7,7 @@ import { useI18n } from '../i18n'
 import styles from './CompaniesPage.module.css'
 
 function identifier(profile: CompanyProfile): string | null {
-  const first = profile.official_identity.identifiers[0]
+  const first = profile.official_identity.identifiers.find((candidate) => ['SIRET', 'IDE', 'TVA'].includes(candidate.scheme.toUpperCase()))
   if (!first) return null
   const value = first.scheme.toUpperCase() === 'SIRET' && /^\d{14}$/.test(first.value)
     ? `${first.value.slice(0, 3)} ${first.value.slice(3, 6)} ${first.value.slice(6, 9)} ${first.value.slice(9)}`

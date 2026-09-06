@@ -839,7 +839,7 @@ a:focus-visible {
 .detail-hero h2 {
   max-width: 820px;
   margin: 7px 0 12px;
-  font-family: "Lora Variable", Lora, Georgia, serif;
+  font-family: var(--kivou-font-sans);
   font-size: clamp(27px, 2.6vw, 39px);
   font-weight: 450;
   letter-spacing: -0.03em;
@@ -1516,7 +1516,7 @@ a:focus-visible {
 
 .overview-intro h2 {
   margin: 7px 0 10px;
-  font-family: "Lora Variable", Lora, Georgia, serif;
+  font-family: var(--kivou-font-sans);
   font-size: clamp(28px, 3vw, 42px);
   font-weight: 450;
   letter-spacing: -0.035em;
@@ -3038,6 +3038,16 @@ a:focus-visible {
   margin-inline: auto;
   padding: 34px clamp(24px, 3.6vw, 56px) 58px;
   background: var(--canvas);
+}
+
+.settings-main h1,
+.settings-main h2,
+.settings-main h3,
+.settings-main label,
+.settings-main button,
+.settings-main input,
+.settings-main textarea {
+  font-family: var(--kivou-font-sans);
 }
 
 .settings-intro {

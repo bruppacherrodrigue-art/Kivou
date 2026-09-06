@@ -110,10 +110,9 @@ export function SignalDrawer({
   const reasons = item.analysis.fit.for_you_sentence
     ? [item.analysis.fit.for_you_sentence]
     : []
-  const needs = orderedNeeds(item.analysis.plausible_needs.items).filter((need) => {
-    const candidate = need as typeof need & { quantity?: unknown }
-    return Boolean(candidate.timing || candidate.quantity)
-  })
+  const needs = orderedNeeds(item.analysis.plausible_needs.items).filter((need) =>
+    need.timing_status === 'determined' || need.quantity_status === 'determined',
+  )
 
   /* Trois horloges, une seule vérité affichée : l'attribution prime, la
    * notification la remplace, la publication ferme la marche. L'intitulé

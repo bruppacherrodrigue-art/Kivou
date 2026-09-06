@@ -221,6 +221,8 @@ def _needs(item: FeedSignal, *, lang: str, full: bool) -> dict[str, Any]:
             "statement": need.get("statement"),
             "confidence": need.get("confidence"),
             "timing": need.get("timing"),
+            "timing_status": "determined" if need.get("timing") not in (None, "unknown") else None,
+            "quantity_status": need.get("quantity_status"),
             "timing_label": feed_copy.translate(
                 feed_copy.NEED_TIMING_LABELS, need.get("timing"), lang
             ),

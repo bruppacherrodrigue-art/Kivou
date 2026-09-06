@@ -91,6 +91,14 @@
   background: var(--card-green);
 }
 
+.cardRow { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr); gap: 5px 10px; padding: 12px 10px; border-bottom: 1px solid var(--line); cursor: pointer; overflow-wrap: anywhere; }
+.cardRow[aria-current='true'] { background: var(--card-green); }
+.cardRowWinner { grid-column: 1 / -1; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.cardRowObject { min-width: 0; color: var(--ink); }
+.cardRowPlace, .cardRowDate { min-width: 0; color: var(--text-muted); }
+.cardRowDate { text-align: right; }
+.cardRowMatch { grid-column: 1 / -1; }
+
 .row td {
   padding: 9px 10px;
   vertical-align: middle;

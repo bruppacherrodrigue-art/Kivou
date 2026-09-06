@@ -39,7 +39,7 @@ export function Settings() {
     const result = await accountData.requestDeletion()
     setDataMessage(`Suppression programmée avant le ${new Date(result.scheduled_for).toLocaleString(locale)}`)
   }
-  const plan = access.data ? t.reference.plans[access.data.plan_code] : t.reference.missingValue
+  const plan = access.data ? t.reference.plans[access.data.plan_code] : null
   const subscriptionStatus = access.data?.subscription_status
   const status = subscriptionStatus && subscriptionStatus in t.billing.status
     ? t.billing.status[subscriptionStatus as keyof typeof t.billing.status]
@@ -50,9 +50,9 @@ export function Settings() {
       : t.reference.missingValue
 
   const accountSettings = [
-    { icon: UserRound, label: copy.users, value: t.reference.missingValue },
+    { icon: UserRound, label: copy.users, value: null },
     { icon: Languages, label: copy.language, value: locale === 'fr' ? 'Français' : 'English' },
-    { icon: Clock3, label: copy.timezone, value: t.reference.missingValue },
+    { icon: Clock3, label: copy.timezone, value: null },
   ] as const
 
   return (
@@ -76,7 +76,7 @@ export function Settings() {
           </div>
 
           <dl className="settings-list">
-            {accountSettings.map(({ icon: Icon, label, value }) => (
+            {accountSettings.filter(({ value }) => value !== null).map(({ icon: Icon, label, value }) => (
               <div key={label}>
                 <span aria-hidden="true"><Icon /></span>
                 <dt>{label}</dt>
@@ -103,13 +103,12 @@ export function Settings() {
                   {access.loading
                     ? t.reference.loading
                     : access.error
-                      ? t.reference.missingValue
+                      ? null
                       : plan}
                 </h3>
                 {!access.loading && !access.error ? (
                   <p className="settings-price">
-                    <strong>{t.reference.missingValue}</strong>
-                    <span>{copy.currentPriceUnavailable}</span>
+                    <strong>{plan}</strong>
                   </p>
                 ) : null}
               </div>
@@ -125,7 +124,7 @@ export function Settings() {
               </div>
             ) : (
               <dl className="settings-plan-facts">
-                <div><dt>{copy.users}</dt><dd>{t.reference.missingValue}</dd></div>
+                {access.data?.plan_code ? null : null}
                 <div><dt>{copy.state}</dt><dd>{access.loading ? t.reference.loading : status}</dd></div>
               </dl>
             )}

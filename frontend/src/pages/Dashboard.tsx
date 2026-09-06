@@ -9,6 +9,7 @@ import { MatchDots } from '../signals/components/MatchDots'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, placeLabel, signalObject } from '../signals/components/SignalRow'
 import styles from './Dashboard.module.css'
+import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 export function Dashboard() {
   const me = useCurrentUser()
@@ -62,7 +63,7 @@ function TodayDashboard() {
       ? `Rien de nouveau depuis ${weekday(data.last_seen_at, locale)} · ${data.week.new} signaux cette semaine`
       : `${data.new_since_last_visit} nouveaux marchés depuis ${weekday(data.last_seen_at, locale)}`
     : 'Vos premiers signaux'
-  const zoneLabels = deduplicatedZoneLabels(data.profile?.zone_labels ?? [])
+  const zoneLabels = sharedZoneLabels(data.profile)
 
   return (
     <main className={styles.page} data-page="today">
@@ -144,9 +145,4 @@ function WeekRow({ label, value }: { label: string; value: number }) {
 function weekday(value: string, locale: string): string {
   return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long', timeZone: 'UTC' })
     .format(new Date(value))
-}
-
-function deduplicatedZoneLabels(values: string[]): string[] {
-  const labels = values.map((value) => value === 'FR' ? 'France' : value)
-  return [...new Set(labels)]
 }

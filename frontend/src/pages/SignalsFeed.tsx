@@ -14,7 +14,7 @@ import type {
 import { interpolate, plural, useI18n } from '../i18n'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
-import { MISSING, SignalRow, signalObject } from '../signals/components/SignalRow'
+import { MISSING, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
 import styles from './SignalsFeed.module.css'
 
 /* L'écran « Signaux ».
@@ -167,6 +167,15 @@ function LockedRow({
       <td>{MISSING}</td>
     </tr>
   )
+}
+
+function LockedCardRow({ item, note, onOpen }: { item: LockedFeedItem; note: string; onOpen: () => void }) {
+  const { amount, shortDate } = useI18n()
+  return <article className={styles.lockedCardRow} onClick={onOpen}>
+    <button type="button" className={styles.lockedButton} onClick={(event) => { event.stopPropagation(); onOpen() }}><LockKeyhole aria-hidden="true" /> {item.headline}</button>
+    <span>{note}</span><span>{item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : MISSING}</span>
+    <span>{item.teaser.department ?? MISSING} · {shortDate(item.teaser.date) ?? MISSING}</span>
+  </article>
 }
 
 export function SignalsFeed() {
@@ -687,7 +696,14 @@ export function SignalsFeed() {
 
       <div className={styles.layout}>
         <section className={styles.tableColumn} aria-busy={feed.loading}>
-          <table className={styles.table}>
+          {compact ? <div className={styles.cardList} role="list">
+            {displayedRows.map((entry) => entry.locked ? (
+              <LockedCardRow key={entry.signal_id} item={entry} note={t.reference.signalsPage.lockedReason} onOpen={() => openBilling(entry.signal_id)} />
+            ) : (
+              <SignalCardRow key={entry.signal_id} item={entry} selected={entry.signal_id === selectedKey} onOpen={openSignal} />
+            ))}
+            {hiddenDiscoveryCount ? <Link className={styles.lockedCardRow} to="/tarifs">{hiddenDiscoveryCount} autres signaux — voir les offres</Link> : null}
+          </div> : <table className={styles.table}>
             <thead>
               <tr>
                 <th scope="col">{copy.columns.date}</th>
@@ -724,7 +740,7 @@ export function SignalsFeed() {
                 </tr>
               ) : null}
             </tbody>
-          </table>
+          </table>}
 
           {feed.loading && !feed.data ? (
             <p className={styles.note} role="status">{t.common.loading}</p>

@@ -231,6 +231,10 @@
   padding: 9px 10px;
 }
 
+.cardList { border: 1px solid var(--card-border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.lockedCardRow { display: grid; gap: 5px; padding: 12px 10px; border-bottom: 1px solid var(--line); color: var(--text-muted); font-size: 12px; cursor: pointer; text-decoration: none; overflow-wrap: anywhere; }
+.lockedCardRow .lockedButton { justify-self: start; }
+
 .lockedButton {
   display: inline-flex;
   align-items: center;
@@ -332,10 +336,7 @@
     overflow: visible;
   }
 
-  .table {
-    display: block;
-    min-width: 0;
-  }
+  .table { min-width: 0; }
 
   .table thead {
     display: none;

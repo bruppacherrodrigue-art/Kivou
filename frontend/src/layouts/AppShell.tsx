@@ -33,6 +33,7 @@ import {
 } from '../presentation/dashboard/ui/sidebar'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 import { SurfaceBoundary } from '../presentation/surface/SurfaceBoundary'
+import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'alerts' | 'settings'
 
@@ -70,7 +71,7 @@ function ReadyAppShell({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   const current = connectedLocation(location.pathname, locale)
   const profileLabel = summary.data?.profile?.name ?? t.reference.missingValue
   const sectorLabel = summary.data?.profile?.sector_label ?? t.reference.missingValue
-  const zoneLabel = summary.data?.profile?.zone_labels?.join(', ') || t.reference.missingValue
+  const zoneLabel = sharedZoneLabels(summary.data?.profile).join(', ') || t.reference.missingValue
   const planLabel = summary.loading || summary.error
     ? t.reference.loading
     : summary.data?.plan?.name ?? t.reference.missingValue
