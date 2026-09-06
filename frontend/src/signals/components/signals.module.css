@@ -143,6 +143,19 @@
   color: var(--ink);
 }
 
+.companyCellObject {
+  width: 100%;
+  min-width: 0;
+  max-width: 0;
+}
+
+.companyCellObject span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cellAmount {
   text-align: right;
   white-space: nowrap;

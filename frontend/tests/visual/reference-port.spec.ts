@@ -288,7 +288,9 @@ async function waitForScenario(
       await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
         'Portes intérieures bois du Campus Ost',
       )
-      await expect(drawer).toContainText('Acheteur')
+      // Cette fixture ne publie pas d’acheteur : le drawer omet le champ au
+      // lieu d’afficher un libellé vide ou « — ».
+      await expect(drawer.getByText('Acheteur', { exact: true })).toHaveCount(0)
       await expect(drawer).toContainText('Ce que le titulaire va devoir faire')
       await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toHaveCount(0)
       await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()

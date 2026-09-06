@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { companies } from '../api/endpoints'
 import type { CompanyContactStatus, CompanyListItem, CompanyProfile } from '../api/types'
@@ -43,7 +43,10 @@ export function CompaniesPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<CompanyProfile | null>(null)
+  const [contactBusy, setContactBusy] = useState(false)
+  const [contactError, setContactError] = useState<string | null>(null)
   const generation = useRef(0)
+  const contactInFlight = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -73,13 +76,57 @@ export function CompaniesPage() {
     return () => { active = false }
   }, [companyKey])
 
-  const selected = useMemo(() => items.find((item) => item.company_key === companyKey), [items, companyKey])
-
   const loadMore = async () => {
     if (!nextCursor) return
     const response = await companies.list({ contact_status: status ? [status] : null, q: q || null, limit: PAGE_SIZE, cursor: nextCursor })
     setItems((current) => [...new Map([...current, ...response.items].map((item) => [item.company_key, item])).values()])
     setNextCursor(response.page.next_cursor)
+  }
+
+  const changeContactStatus = async (nextStatus: CompanyContactStatus) => {
+    if (!profile || profile.contact_status === nextStatus || contactInFlight.current) return
+
+    contactInFlight.current = true
+    const previousProfile = profile
+    const previousItems = items
+    const previousCounts = counts
+    const previousStatus = profile.contact_status
+    const occurredAt = new Date().toISOString()
+    const optimisticContactedAt = nextStatus === 'to_contact' ? null : occurredAt
+
+    setContactError(null)
+    setContactBusy(true)
+    setProfile({
+      ...profile,
+      contact_status: nextStatus,
+      contacted_at: optimisticContactedAt,
+      history: [{ type: nextStatus, occurred_at: occurredAt, signal_key: null }, ...profile.history],
+    })
+    setItems((current) => current.map((item) => item.company_key === profile.company_key
+      ? { ...item, contact_status: nextStatus, contacted_at: optimisticContactedAt }
+      : item))
+    setCounts((current) => {
+      const updated = { ...current }
+      if (previousStatus in updated) updated[previousStatus] = Math.max(0, updated[previousStatus] - 1)
+      if (nextStatus in updated) updated[nextStatus] += 1
+      return updated
+    })
+
+    try {
+      const result = await companies.contact(profile.company_key, nextStatus)
+      setProfile((current) => current ? { ...current, contacted_at: result.contacted_at } : current)
+      setItems((current) => current.map((item) => item.company_key === profile.company_key
+        ? { ...item, contacted_at: result.contacted_at }
+        : item))
+    } catch {
+      setProfile(previousProfile)
+      setItems(previousItems)
+      setCounts(previousCounts)
+      setContactError('Le statut n’a pas pu être mis à jour. Réessayez.')
+    } finally {
+      contactInFlight.current = false
+      setContactBusy(false)
+    }
   }
 
   return (
@@ -116,10 +163,7 @@ export function CompaniesPage() {
         </div>
       )}
 
-      {profile ? <CompanyDrawer city={selected?.city ?? null} profile={{ ...profile, contact_status: selected?.contact_status ?? profile.contact_status }} onClose={() => navigate('/app/companies')} onChanged={(nextStatus, contactedAt) => {
-        setProfile((current) => current ? { ...current, contact_status: nextStatus, contacted_at: contactedAt } : current)
-        setItems((current) => current.map((item) => item.company_key === profile.company_key ? { ...item, contact_status: nextStatus, contacted_at: contactedAt } : item))
-      }} /> : null}
+      {profile ? <CompanyDrawer city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
     </main>
   )
 }

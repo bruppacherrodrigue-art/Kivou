@@ -38,11 +38,13 @@ export function SignalRow({
   item,
   selected,
   compact,
+  companyCompact = false,
   onOpen,
 }: {
   item: UnlockedFeedItem
   selected: boolean
   compact: boolean
+  companyCompact?: boolean
   onOpen: (signalKey: string) => void
 }) {
   const { t, locale, amount, shortDate } = useI18n()
@@ -65,17 +67,17 @@ export function SignalRow({
       aria-current={selected ? 'true' : undefined}
       onClick={() => onOpen(item.signal_id)}
     >
-      <td className={styles.cellDate}>{shortDate(item.factual_display.date.value) ?? MISSING}</td>
-      <td className={styles.cellWinner}>
+      {companyCompact ? null : <td className={styles.cellDate}>{shortDate(item.factual_display.date.value) ?? MISSING}</td>}
+      {companyCompact ? null : <td className={styles.cellWinner}>
         <button type="button" className={styles.winnerButton} onClick={openFromButton}>
           {item.company.name ?? MISSING}
         </button>
         {item.company.consortium ? (
           <span className={styles.consortium}>{t.signalsTable.consortium}</span>
         ) : null}
-      </td>
-      <td className={styles.cellObject}>
-        {object ? <span title={object}>{truncate(object)}</span> : MISSING}
+      </td>}
+      <td className={companyCompact ? styles.companyCellObject : styles.cellObject}>
+        {object ? <span title={object}>{companyCompact ? object : truncate(object)}</span> : MISSING}
       </td>
       <td className={styles.cellAmount}>{money ?? MISSING}</td>
       {compact ? null : (

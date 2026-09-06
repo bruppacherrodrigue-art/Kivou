@@ -21,9 +21,14 @@
 .drawerHeader { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
 .drawerHeader h2 { margin: 0 0 6px; font-size: 24px; }
 .drawerHeader p { margin: 0; color: var(--text-muted); }
+.identityLine { display: flex; flex-wrap: wrap; align-items: center; }
 .drawerHeader > button { border: 0; background: transparent; font-size: 24px; cursor: pointer; }
 .drawerActions { display: flex; gap: 8px; margin: 18px 0 24px; }
 .drawerActions button { padding: 9px 12px; border: 1px solid var(--green); border-radius: 8px; background: white; color: var(--green); cursor: pointer; }
+.drawerActions .currentAction { background: var(--green); color: white; }
+.drawerActions button:disabled { cursor: default; }
+.drawerActions button:disabled:not(.currentAction) { opacity: .55; }
+.actionError { margin: -16px 0 20px; color: var(--danger, #a12622); font-size: 13px; }
 .drawer section { margin-top: 24px; }
 .drawer h3 { margin: 0 0 10px; font-size: 14px; }
 .drawer textarea { width: 100%; min-height: 110px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }

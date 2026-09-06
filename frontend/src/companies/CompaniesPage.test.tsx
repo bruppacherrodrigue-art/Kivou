@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
@@ -50,6 +50,16 @@ function routes(profile: CompanyProfile = COMPANY_PROFILE) {
       body: { company_key: COMPANY_PROFILE.company_key, note: 'À rappeler', updated_at: '2026-09-03T12:00:00Z' },
     },
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -124,18 +134,104 @@ describe('CompaniesPage', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3)
   })
 
-  it('opens the company drawer and performs both contact actions', async () => {
-    mockApi(routes())
+  it.each([
+    ['Marquer contactée', 'contacted', 'Contactées 2', 'Contactée'],
+    ['A répondu', 'replied', 'Ont répondu 2', 'A répondu'],
+  ] as const)('applique %s partout avant la réponse réseau', async (button, status, segment, history) => {
+    const pending = deferred<{ body: object }>()
+    mockApi({
+      ...routes(),
+      [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: () => pending.promise,
+    })
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
     const user = userEvent.setup()
     await user.click(await screen.findByText('H. Hüther GmbH'))
 
-    expect(await screen.findByRole('complementary', { name: 'H. Hüther GmbH' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Marquer contactée' }))
-    await user.click(screen.getByRole('button', { name: 'A répondu' }))
+    await user.click(await screen.findByRole('button', { name: button }))
 
-    const calls = callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact`)
-    expect(calls.map((call) => call.body)).toEqual([{ status: 'contacted' }, { status: 'replied' }])
+    expect(screen.getByRole('button', { name: button })).toBeDisabled()
+    expect(screen.getByRole('button', { name: button })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: segment })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'À contacter 0' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'H. Hüther GmbH' }).closest('tr')).toHaveTextContent(
+      status === 'contacted' ? 'Contactées' : 'Ont répondu',
+    )
+    expect(screen.getByText(new RegExp(`^${history} ·`))).toBeInTheDocument()
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact`)[0].body).toEqual({ status })
+
+    await act(async () => {
+      pending.resolve({
+        body: {
+          company_key: COMPANY_PROFILE.company_key,
+          contact_status: status,
+          contacted_at: '2026-09-03T12:00:00Z',
+          updated_at: '2026-09-03T12:00:00Z',
+        },
+      })
+      await pending.promise
+    })
+  })
+
+  it('restaure la fiche, la ligne, les compteurs et l’historique si l’action échoue', async () => {
+    const pending = deferred<{ body: object }>()
+    mockApi({
+      ...routes(),
+      [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: () => pending.promise,
+    })
+    renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('H. Hüther GmbH'))
+    await user.click(await screen.findByRole('button', { name: 'Marquer contactée' }))
+    await act(async () => {
+      pending.reject(new Error('network down'))
+      await pending.promise.catch(() => undefined)
+    })
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le statut n’a pas pu être mis à jour')
+    expect(screen.getByRole('button', { name: 'À contacter 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Contactées 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'H. Hüther GmbH' }).closest('tr')).toHaveTextContent('À contacter')
+    expect(screen.queryByText(/^Contactée ·/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Marquer contactée' })).not.toBeDisabled()
+  })
+
+  it('ne lance qu’une mutation si les deux statuts sont cliqués dans le même batch', async () => {
+    const pending = deferred<{ body: object }>()
+    mockApi({
+      ...routes(),
+      [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: () => pending.promise,
+    })
+    renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('H. Hüther GmbH'))
+
+    act(() => {
+      screen.getByRole('button', { name: 'Marquer contactée' }).click()
+      screen.getByRole('button', { name: 'A répondu' }).click()
+    })
+
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact`)).toHaveLength(1)
+
+    await act(async () => {
+      pending.reject(new Error('network down'))
+      await pending.promise.catch(() => undefined)
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le statut n’a pas pu être mis à jour')
+    expect(screen.getByRole('button', { name: 'À contacter 1' })).toBeInTheDocument()
+  })
+
+  it('n’envoie rien quand le statut courant est cliqué', async () => {
+    const contacted = { ...COMPANY_PROFILE, contact_status: 'contacted' as const }
+    mockApi(routes(contacted))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    const button = await screen.findByRole('button', { name: 'Marquer contactée' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('aria-pressed', 'true')
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact`)).toHaveLength(0)
   })
 
   it('saves the note on blur and confirms persistence', async () => {
@@ -153,6 +249,29 @@ describe('CompaniesPage', () => {
     expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/note`, 'PUT')[0].body).toEqual({ body: 'À rappeler' })
   })
 
+  it('ajoute la note à l’historique avant sa réponse réseau', async () => {
+    const pending = deferred<{ body: object }>()
+    mockApi({
+      ...routes(),
+      [`PUT /companies/${COMPANY_PROFILE.company_key}/note`]: () => pending.promise,
+    })
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+    const user = userEvent.setup()
+    const note = await screen.findByRole('textbox', { name: 'Notes' })
+    await user.type(note, 'À rappeler')
+    await user.tab()
+
+    expect(screen.getByText(/^Note mise à jour ·/)).toBeInTheDocument()
+
+    await act(async () => {
+      pending.resolve({ body: { company_key: COMPANY_PROFILE.company_key, note: 'À rappeler', updated_at: '2026-09-03T12:00:00Z' } })
+      await pending.promise
+    })
+  })
+
   it('formats a SIRET and refuses a non-HTTPS website', async () => {
     const unsafe: CompanyProfile = {
       ...COMPANY_PROFILE,
@@ -166,6 +285,29 @@ describe('CompaniesPage', () => {
 
     expect(await screen.findByText(/SIRET 123 456 789 00011/)).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Site ↗' })).not.toBeInTheDocument()
+  })
+
+  it('omet les segments d’identité absents et nomme un historique vide', async () => {
+    const sparse: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      city: null,
+      history: [],
+      official_identity: {
+        ...COMPANY_PROFILE.official_identity,
+        identifiers: [],
+        website_url: null,
+      },
+    }
+    mockApi(routes(sparse))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    const drawer = await screen.findByRole('complementary', { name: 'H. Hüther GmbH' })
+    expect(drawer).not.toHaveTextContent('· —')
+    expect(drawer).not.toHaveTextContent('—')
+    expect(screen.getByText("Aucune action pour l'instant")).toBeInTheDocument()
   })
 
   it('opens a signal drawer above the company drawer', async () => {

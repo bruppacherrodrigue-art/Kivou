@@ -19,8 +19,9 @@ function Fact({
 }: {
   label: string
   className?: string
-  children: ReactNode
+  children: ReactNode | null
 }) {
+  if (children === null || children === undefined || children === '' || children === MISSING) return null
   return (
     <>
       <dt>{label}</dt>
@@ -105,6 +106,7 @@ export function SignalDrawer({
   const title = signalObject(item)
   const objectLine = item.factual_display.object_short ?? item.contract.title ?? null
   const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
+  const place = placeLabel(item.contract.location, locale)
   const reasons = item.analysis.fit.for_you_sentence
     ? [item.analysis.fit.for_you_sentence, ...item.analysis.fit.reasons.slice(1)].slice(0, MAX_ITEMS)
     : item.analysis.fit.reasons.slice(0, MAX_ITEMS)
@@ -148,10 +150,13 @@ export function SignalDrawer({
     },
   ]
 
-  const sourceText = interpolate(copy.source, {
-    system: item.source.system ?? MISSING,
-    notice: item.source.notice_id ?? '',
-  }).trimEnd()
+  const sourceIdentity = [item.source.system, item.source.notice_id].filter(Boolean).join(' ')
+  const sourceText = sourceIdentity
+    ? interpolate(copy.source, {
+        system: item.source.system ?? '',
+        notice: item.source.notice_id ?? '',
+      }).replace(/\s+/g, ' ').trim()
+    : null
 
   return (
     <aside
@@ -170,7 +175,7 @@ export function SignalDrawer({
       </div>
 
       <h2 className={styles.drawerTitle} id={titleId}>
-        {title ?? MISSING}
+        {title ?? copy.select}
       </h2>
       {objectLine && objectLine !== title ? (
         <p className={styles.drawerObject}>{objectLine}</p>
@@ -179,7 +184,7 @@ export function SignalDrawer({
       <dl className={styles.facts}>
         <Fact label={copy.winner}>
           {item.company.name === null ? (
-            MISSING
+            null
           ) : item.company_key ? (
             <Link className={styles.factLink} to={`/app/companies/${item.company_key}`}>
               {item.company.name}
@@ -188,13 +193,13 @@ export function SignalDrawer({
             item.company.name
           )}
         </Fact>
-        <Fact label={copy.buyer}>{item.contract.buyer?.name ?? MISSING}</Fact>
+        <Fact label={copy.buyer}>{item.contract.buyer?.name ?? null}</Fact>
         <Fact label={copy.amount} className={styles.factAmount}>
-          {money ?? MISSING}
+          {money}
         </Fact>
-        <Fact label={copy.place}>{placeLabel(item.contract.location, locale)}</Fact>
-        <Fact label={clock.label}>{date(clock.value) ?? MISSING}</Fact>
-        <Fact label={copy.cpv}>{item.contract.cpv ?? MISSING}</Fact>
+        <Fact label={copy.place}>{place === MISSING ? null : place}</Fact>
+        <Fact label={clock.label}>{date(clock.value)}</Fact>
+        <Fact label={copy.cpv}>{item.contract.cpv ?? null}</Fact>
       </dl>
 
       {needs.length > 0 ? (
@@ -247,7 +252,7 @@ export function SignalDrawer({
         )}
       </div>
 
-      {item.source.url ? (
+      {sourceText && item.source.url ? (
         <a
           className={`${styles.source} source-link`}
           href={item.source.url}
@@ -256,9 +261,9 @@ export function SignalDrawer({
         >
           {sourceText} ↗
         </a>
-      ) : (
+      ) : sourceText ? (
         <p className={styles.source}>{sourceText}</p>
-      )}
+      ) : null}
     </aside>
   )
 }
