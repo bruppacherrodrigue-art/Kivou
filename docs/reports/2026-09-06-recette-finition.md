@@ -12,4 +12,4 @@
 11. Quota illimité: affichage « N signaux ouverts ce mois » lorsque le quota est nul/illimité; tests frontend verts.
 12. Zones: projection `zone_labels` et libellés lisibles conservés; aucun code pays ajouté aux phrases fallback.
 13. Performance: non mesurée sur client-3mois dans cet environnement; benchmark distant restant à exécuter.
-14. Secteur: disponible en Essentiel et Pro via niveau `basic`; test paywall vert. Recette: 670 tests frontend et backend ciblé verts; Playwright/staging non exécutés, variables DB absentes (`kivou-deploy.sh` bloque sur `KIVOU_DATABASE_URL`).
+14. Secteur: disponible en Essentiel et Pro via niveau `basic`; test paywall vert. Recette: 670 tests frontend et backend ciblé verts; staging bloqué avant script par `fatal: not a git repository (or any of the parent directories): .git` sur `/srv/kivou/source`, donc Playwright et performances distantes non exécutés.
