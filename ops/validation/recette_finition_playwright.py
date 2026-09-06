@@ -106,12 +106,24 @@ def main() -> int:
                 try:
                     login(page, email, password)
                     if width < 900:
-                        assert_mobile_feed(page)
+                        try:
+                            assert_mobile_feed(page)
+                        except AssertionError as error:
+                            raise AssertionError(f"mobile_feed: {error}") from error
                     else:
-                        assert_companies_panel(page)
-                    assert_settings_and_zone(page)
+                        try:
+                            assert_companies_panel(page)
+                        except AssertionError as error:
+                            raise AssertionError(f"companies_panel: {error}") from error
+                    try:
+                        assert_settings_and_zone(page)
+                    except AssertionError as error:
+                        raise AssertionError(f"settings_zone: {error}") from error
                     if width >= 900:
-                        assert_needs_block_is_status_driven(page)
+                        try:
+                            assert_needs_block_is_status_driven(page)
+                        except AssertionError as error:
+                            raise AssertionError(f"drawer_needs: {error}") from error
                     page.screenshot(path=str(CAPTURES / f"{account}-{label}.png"), full_page=True)
                 except Exception as error:  # noqa: BLE001 - report every account/viewport
                     failures.append(f"{account}:{label}:{type(error).__name__}:{error}")

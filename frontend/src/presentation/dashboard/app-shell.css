@@ -3047,7 +3047,7 @@ a:focus-visible {
 .settings-main button,
 .settings-main input,
 .settings-main textarea {
-  font-family: "Lora Variable", Lora, Georgia, serif;
+  font-family: var(--kivou-font-sans);
 }
 
 .settings-intro {
@@ -3057,7 +3057,7 @@ a:focus-visible {
 
 .settings-intro h2 {
   margin: 7px 0 10px;
-  font-family: "Lora Variable", Lora, Georgia, serif;
+  font-family: var(--kivou-font-sans) !important;
   font-size: clamp(28px, 3vw, 42px);
   font-weight: 450;
   letter-spacing: -0.035em;
@@ -3197,7 +3197,7 @@ a:focus-visible {
 
 .settings-price strong {
   color: var(--ink);
-  font-family: "Lora Variable", Lora, Georgia, serif;
+  font-family: var(--kivou-font-sans) !important;
   font-size: 30px;
   font-weight: 500;
   letter-spacing: -0.035em;
