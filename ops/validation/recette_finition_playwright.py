@@ -28,6 +28,7 @@ def login(page: Page, email: str, password: str) -> None:
     page.get_by_role("textbox", name="Mot de passe").fill(password)
     page.get_by_role("button", name="Se connecter").click()
     page.wait_for_url("**/app/**")
+    page.wait_for_load_state("domcontentloaded")
 
 
 def assert_needs_block_is_status_driven(page: Page) -> None:
@@ -42,7 +43,8 @@ def assert_needs_block_is_status_driven(page: Page) -> None:
 
     page.route("**/signals/**", hide_statuses)
     page.goto(f"{BASE_URL}/app/signals")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(1000)
     signal = page.locator("[data-signal-key]").first
     if signal.count():
         signal.click()
@@ -52,7 +54,8 @@ def assert_needs_block_is_status_driven(page: Page) -> None:
 
 def assert_mobile_feed(page: Page) -> None:
     page.goto(f"{BASE_URL}/app/signals")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(1000)
     assert page.locator("table").count() == 0
     assert page.locator("[data-signal-key]").count() > 0
     assert page.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth")
@@ -62,7 +65,8 @@ def assert_mobile_feed(page: Page) -> None:
 
 def assert_companies_panel(page: Page) -> None:
     page.goto(f"{BASE_URL}/app/companies")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(1000)
     if page.locator("tbody tr").count():
         page.locator("tbody tr").first.click()
         panel = page.locator("aside").last
@@ -77,7 +81,8 @@ def assert_companies_panel(page: Page) -> None:
 
 def assert_settings_and_zone(page: Page) -> None:
     page.goto(f"{BASE_URL}/app/settings")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(1000)
     body = page.locator("body").inner_text()
     assert "—" not in body
     assert "Tarif facturé absent" not in body
