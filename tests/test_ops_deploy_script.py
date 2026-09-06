@@ -43,6 +43,34 @@ def test_invalid_source_checkout_stops_before_deploy_actions(tmp_path: pathlib.P
     )
 
 
+def test_source_checkout_must_be_owned_by_kivou(tmp_path: pathlib.Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _fake_bin(fake_bin, "git", "exit 0\n")
+    _fake_bin(fake_bin, "stat", "printf 'root:root\\n'\n")
+    source = tmp_path / "source"
+    source.mkdir()
+    env = {
+        **os.environ,
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "KIVOU_SOURCE_DIR": str(source),
+        "KIVOU_DATABASE_URL": "postgresql://kivou@localhost/kivou",
+        "KIVOU_MIGRATION_ADMIN_URL": "postgresql://deploy@localhost/postgres",
+    }
+
+    result = subprocess.run(
+        [str(SCRIPT), "staging", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr.strip() == f"[kivou-deploy] ÉCHEC : propriétaire du checkout invalide : {source}"
+
+
 def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path) -> None:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -65,6 +93,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     recorder = 'printf "%s %s\\n" "$(basename "$0")" "$*" >> "$KIVOU_TEST_LOG"\n'
     for command in ("chmod", "npm", "createdb", "dropdb", "pg_restore", "systemctl"):
         _fake_bin(fake_bin, command, recorder)
+    _fake_bin(fake_bin, "stat", "printf 'kivou:kivou\\n'\n")
     _fake_bin(
         fake_bin,
         "runuser",

@@ -26,6 +26,7 @@ KIVOU_SOURCE_DIR=${KIVOU_SOURCE_DIR:-/srv/kivou/source}
 if [[ ! -d "$KIVOU_SOURCE_DIR" ]] || ! git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" rev-parse --git-dir >/dev/null 2>&1; then
   fail "checkout Git introuvable ou invalide : $KIVOU_SOURCE_DIR"
 fi
+[[ "$(stat -c '%U:%G' "$KIVOU_SOURCE_DIR")" == "kivou:kivou" ]] || fail "propriétaire du checkout invalide : $KIVOU_SOURCE_DIR"
 KIVOU_RELEASES_DIR=${KIVOU_RELEASES_DIR:-/srv/kivou/releases}
 KIVOU_BACKEND_LINK=${KIVOU_BACKEND_LINK:-/srv/kivou/app}
 KIVOU_FRONTEND_LINK=${KIVOU_FRONTEND_LINK:-/var/www/kivou/current}
