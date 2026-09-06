@@ -195,6 +195,31 @@ describe('CompaniesPage', () => {
     expect(screen.getByRole('button', { name: 'Marquer contactée' })).not.toBeDisabled()
   })
 
+  it('ne lance qu’une mutation si les deux statuts sont cliqués dans le même batch', async () => {
+    const pending = deferred<{ body: object }>()
+    mockApi({
+      ...routes(),
+      [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: () => pending.promise,
+    })
+    renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
+    const user = userEvent.setup()
+    await user.click(await screen.findByText('H. Hüther GmbH'))
+
+    act(() => {
+      screen.getByRole('button', { name: 'Marquer contactée' }).click()
+      screen.getByRole('button', { name: 'A répondu' }).click()
+    })
+
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact`)).toHaveLength(1)
+
+    await act(async () => {
+      pending.reject(new Error('network down'))
+      await pending.promise.catch(() => undefined)
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le statut n’a pas pu être mis à jour')
+    expect(screen.getByRole('button', { name: 'À contacter 1' })).toBeInTheDocument()
+  })
+
   it('n’envoie rien quand le statut courant est cliqué', async () => {
     const contacted = { ...COMPANY_PROFILE, contact_status: 'contacted' as const }
     mockApi(routes(contacted))

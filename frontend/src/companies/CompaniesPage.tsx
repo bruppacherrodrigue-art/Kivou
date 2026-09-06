@@ -46,6 +46,7 @@ export function CompaniesPage() {
   const [contactBusy, setContactBusy] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
   const generation = useRef(0)
+  const contactInFlight = useRef(false)
 
   useEffect(() => {
     let active = true
@@ -83,8 +84,9 @@ export function CompaniesPage() {
   }
 
   const changeContactStatus = async (nextStatus: CompanyContactStatus) => {
-    if (!profile || profile.contact_status === nextStatus || contactBusy) return
+    if (!profile || profile.contact_status === nextStatus || contactInFlight.current) return
 
+    contactInFlight.current = true
     const previousProfile = profile
     const previousItems = items
     const previousCounts = counts
@@ -122,6 +124,7 @@ export function CompaniesPage() {
       setCounts(previousCounts)
       setContactError('Le statut n’a pas pu être mis à jour. Réessayez.')
     } finally {
+      contactInFlight.current = false
       setContactBusy(false)
     }
   }
