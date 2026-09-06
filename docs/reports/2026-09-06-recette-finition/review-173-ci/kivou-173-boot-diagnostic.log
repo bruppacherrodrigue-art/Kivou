@@ -1,0 +1,9 @@
+Running as unit: kivou-173-boot-diagnostic.service
+{'import_seconds': 1.659, 'build_seconds': 0.332, 'total_seconds': 1.991}
+{'alembic_revision': ['0042_account_deletion'], 'blocked_sessions': 0}
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 2.624s
+CPU time consumed: 2.594s
+Memory peak: 2.8M
+Memory swap peak: 0B

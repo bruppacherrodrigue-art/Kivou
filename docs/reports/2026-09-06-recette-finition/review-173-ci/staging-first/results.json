@@ -1,0 +1,87 @@
+[
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "companies",
+    "status": "failed",
+    "error": "Locator expected to be visible\nActual value: None\nError: element(s) not found \nCall log:\n  - Expect \"to_be_visible\" with timeout 5000ms\n  - waiting for get_by_role(\"complementary\", name=\"N. JOHANN SDCI\", exact=True)\n\nAria snapshot:\n- link \"Kivou, vue d’ensemble\":\n  - /url: /app/dashboard\n  - strong: KIVOU\n  - text: Signaux commerciaux\n- text: Navigation\n- list:\n  - listitem:\n    - link \"Aujourd’hui\":\n      - /url: /app/dashboard\n  - listitem:\n    - link \"Signaux\":\n      - /url: /app/signals\n  - listitem:\n    - link \"Entreprises\":\n      - /url: /app/companies\n  - listitem:\n    - link \"Profil cible\":\n      - /url: /app/icps\n  - listitem:\n    - link \"Alertes\":\n      - /url: /app/notifications\n  - listitem:\n    - link \"Réglages\":\n      - /url: /app/settings\n- link \"QA PR2b\":\n  - /url: /app/settings\n  - strong: QA PR2b\n- button \"Se déconnecter\"\n- strong: Plan Chargement… · 0/∞ signaux ce mois\n- text: — · —\n- main:\n  - main:\n    - heading \"Entreprises\" [level=1]\n    - paragraph: Les titulaires de vos signaux, avec où vous en êtes\n    - group \"Statut de contact\":\n      - button \"Toutes 3\" [pressed]\n      - button \"À contacter 3\"\n      - button \"Contactées 0\"\n      - button \"Ont répondu 0\"\n    - searchbox \"Rechercher une entreprise\"\n    - table:\n      - rowgroup:\n        - row \"Entreprise Ville Marchés Total Dernier Statut\":\n          - columnheader \"Entreprise\"\n          - columnheader \"Ville\"\n          - columnheader \"Marchés\"\n          - columnheader \"Total\"\n          - columnheader \"Dernier\"\n          - columnheader \"Statut\"\n      - rowgroup:\n        - row \"N. JOHANN SDCI — 1 1 436 674 € 3 sept. À contacter\":\n          - cell \"N. JOHANN SDCI\":\n            - button \"N. JOHANN SDCI\"\n          - cell \"—\"\n          - cell \"1\"\n          - cell \"1 436 674 €\"\n          - cell \"3 sept.\"\n          - cell \"À contacter\"\n        - row \"NOUVELLE SOCIETE D ASCENSEURS - NSA Selles Sur Cher 1 101 200 € 3 sept. À contacter\":\n          - cell \"NOUVELLE SOCIETE D ASCENSEURS - NSA\":\n            - button \"NOUVELLE SOCIETE D ASCENSEURS - NSA\"\n          - cell \"Selles Sur Cher\"\n          - cell \"1\"\n          - cell \"101 200 €\"\n          - cell \"3 sept.\"\n          - cell \"À contacter\"\n        - row \"TK ELEVATOR — 1 53 624 € 3 sept. À contacter\":\n          - cell \"TK ELEVATOR\":\n            - button \"TK ELEVATOR\"\n          - cell \"—\"\n          - cell \"1\"\n          - cell \"53 624 €\"\n          - cell \"3 sept.\"\n          - cell \"À contacter\""
+  },
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "settings",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "zone",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "settings",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "settings",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "zone",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "settings",
+    "status": "passed"
+  }
+]

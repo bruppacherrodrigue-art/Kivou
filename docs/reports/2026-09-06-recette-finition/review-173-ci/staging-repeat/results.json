@@ -1,0 +1,86 @@
+[
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 1440,
+    "check": "settings",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "zone",
+    "status": "passed"
+  },
+  {
+    "account": "decouverte",
+    "width": 390,
+    "check": "settings",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 1440,
+    "check": "settings",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "companies",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "signals",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "zone",
+    "status": "passed"
+  },
+  {
+    "account": "essentiel",
+    "width": 390,
+    "check": "settings",
+    "status": "passed"
+  }
+]

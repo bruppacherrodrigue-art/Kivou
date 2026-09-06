@@ -149,8 +149,13 @@ def test_fallback_never_reads_analysis_or_adds_a_person_or_urgency(client, engin
     item = _feed_item(client, signal_key)
     display_text = str(item["factual_display"])
 
+    cpv_label = item["contract"]["cpv_label"]
+    assert cpv_label == (
+        "Services de technologies de l'information, conseil, "
+        "développement de logiciels, internet et appui"
+    )
     assert item["factual_display"]["headline"] == (
-        f"Marché attribué à {item['company']['name']}"
+        f"{item['company']['name']} remporte « {cpv_label} »"
     )
     assert "Jean Dupont" not in display_text
     assert "URGENT" not in display_text

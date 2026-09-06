@@ -1,0 +1,31 @@
+[WebServer] (node:591844) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 11 tests using 1 worker
+
+(node:591864) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-overview-desktop.png does not match, writing actual.
+  ✓   1 tests/visual/reference-port.spec.ts:378:5 › dashboard-overview desktop (2.1s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-overview-mobile.png does not match, writing actual.
+  ✓   2 tests/visual/reference-port.spec.ts:378:5 › dashboard-overview mobile (1.1s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-overview-discovery-desktop.png does not match, writing actual.
+  ✓   3 tests/visual/reference-port.spec.ts:378:5 › dashboard-overview-discovery desktop (1.2s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-overview-discovery-mobile.png does not match, writing actual.
+  ✓   4 tests/visual/reference-port.spec.ts:378:5 › dashboard-overview-discovery mobile (1.1s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-signals-desktop.png does not match, writing actual.
+  ✓   5 tests/visual/reference-port.spec.ts:378:5 › dashboard-signals desktop (1.3s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-signals-mobile.png does not match, writing actual.
+  ✓   6 tests/visual/reference-port.spec.ts:378:5 › dashboard-signals mobile (1.1s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-companies-desktop.png does not match, writing actual.
+  ✓   7 tests/visual/reference-port.spec.ts:378:5 › dashboard-companies desktop (1.3s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-companies-mobile.png does not match, writing actual.
+  ✓   8 tests/visual/reference-port.spec.ts:378:5 › dashboard-companies mobile (1.1s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-account-desktop.png does not match, writing actual.
+  ✓   9 tests/visual/reference-port.spec.ts:378:5 › dashboard-account desktop (1.4s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-account-mobile.png does not match, writing actual.
+  ✓  10 tests/visual/reference-port.spec.ts:378:5 › dashboard-account mobile (1.1s)
+/home/jaybe/projects/Kivou/frontend/tests/visual/reference-goldens/dashboard-sidebar-open-mobile.png does not match, writing actual.
+  ✓  11 tests/visual/reference-port.spec.ts:468:1 › dashboard sidebar open mobile (1.2s)
+
+  11 passed (15.7s)
