@@ -7,7 +7,7 @@
 7. Entreprises desktop: grille 1fr 520px, panneau à droite, liste Entreprise · Statut, sans fixed; mobile plein écran.
 8. Statut contact: table unique propagée à Aujourd’hui, Cette semaine et Entreprises; scénario panneau validé.
 9. Réglages: titre sans-serif, champs absents omis, sans tiret ni « Tarif facturé absent », Données export/suppression.
-10. Zone: helper partagé et summary.profile.zone_labels, aucun code pays affiché sur mobile.
+10. Zone: helper partagé et summary.profile.zone_labels, aucun code pays affiché sur mobile; Secteur Essentiel: oui.
 11. Playwright staging final: PLAYWRIGHT_FINITION_GREEN, Découverte et Essentiel, desktop/mobile, drawer inclus.
 12. Captures jointes: decouverte-{desktop,mobile}.png et essentiel-{desktop,mobile}.png.
 13. Performance client-3mois: baseline 05/09 page load 1,8 s /signals et 2,9 s /companies.
