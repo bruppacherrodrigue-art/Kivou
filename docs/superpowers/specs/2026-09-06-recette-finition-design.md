@@ -29,14 +29,14 @@ Le frontend partage les primitives de navigation, identité et statut entre le s
 1. Le bloc des besoins est masqué lorsqu'aucun besoin n'a de timing ou quantité déterminés. `Pourquoi ça vous concerne` affiche exclusivement la phrase persistée, générée ou fallback déterministe à partir de l'objet court, lieu, montant et date; aucune phrase générique ni code pays ne peut être produite.
 2. À moins de `900px`, chaque signal est une ligne-carte avec les cinq groupes d'information requis et un hit-area complet.
 3. Aucun objet ne s'affiche sous `—`. Un objet manquant empêche la matérialisation profil, sauf fallback sur le libellé CPV; les données existantes sont backfillées.
-4. Le panneau Entreprises est côte à côte, sans recouvrement, avec seulement Entreprise et Statut lorsqu'il est ouvert.
+4. Sur desktop (`>= 900px`), le panneau Entreprises reste visible à côté du contenu et la liste se réduit à Entreprise et Statut, sans recouvrement. Sous `900px`, le panneau prend tout l'écran, comme le drawer Signaux, et la liste n'est pas visible simultanément.
 5. Aujourd'hui, « Cette semaine », le segment Entreprises et le panneau utilisent la table de contact unique; une mutation du panneau met à jour les trois compteurs.
 6. Les réglages utilisent le design system, omettent les champs absents, n'affichent ni `—` ni « Tarif facturé absent », exposent l'onglet Données avec export JSON et suppression de compte, et affichent « Enregistré » après chaque sauvegarde de note ou réglage.
 
 ### Non bloquants
 
 7. Une ligne verrouillée ouvre un mini-panneau « Réservé aux offres Essentiel et Pro » avec bouton `/tarifs`; la ligne « N autres signaux — voir les offres » navigue aussi vers `/tarifs`.
-8. L'identité entreprise n'expose que SIRET, IDE ou TVA; TED et SIMAP sont exclus de toutes les surfaces.
+8. La ligne d'identité entreprise n'expose que SIRET, IDE ou TVA; TED et SIMAP sont exclus de cette ligne uniquement. La ligne du drawer `Source : TED 568562-2026 ↗` reste affichée comme référence de l'avis.
 9. Les cartes et le drawer utilisent « Attribué le ».
 10. La ligne « N correspondent fortement » est absente lorsque `N = 0`.
 11. Un quota illimité affiche « 27 signaux ouverts ce mois ».
