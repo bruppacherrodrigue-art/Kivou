@@ -3266,6 +3266,14 @@ a:focus-visible {
   width: auto;
   margin-top: 14px;
   padding-inline: 14px;
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--primary-foreground);
+}
+
+.settings-help-action:hover {
+  border-color: var(--forest);
+  background: var(--forest);
 }
 
 .fact-grid,
