@@ -1,0 +1,9 @@
+.header { display: flex; flex-direction: column; gap: 4px; }
+.header h1, .header h2 { margin: 0; color: var(--ink); font-family: var(--kivou-font-sans); font-size: 20px; font-weight: 740; letter-spacing: -.01em; line-height: 1.3; }
+.header p { margin: 0; color: var(--text-muted); font-size: 13px; }
+.segments.segments { display: inline-flex; flex-wrap: wrap; align-items: center; width: fit-content; max-width: 100%; gap: 2px; padding: 3px; border: 1px solid var(--card-border); border-radius: 9px; background: var(--surface-subtle); overflow: visible; }
+.segments.segments button, .segments.segments a { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-muted); font-family: var(--kivou-font-sans); font-size: 12px; font-weight: 680; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.segments.segments [aria-pressed='true'], .segments.segments [aria-current='page'] { background: var(--surface); color: var(--forest); box-shadow: 0 1px 3px rgb(23 33 29 / 8%); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--text-muted); font-family: var(--kivou-font-sans); font-size: 13px; }
+.row b, .row dd { margin: 0; color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.row dt { margin: 0; }

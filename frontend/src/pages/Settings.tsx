@@ -1,11 +1,8 @@
 import {
   ArrowUpRight,
   CircleUserRound,
-  Clock3,
   CreditCard,
   Headphones,
-  Languages,
-  UserRound,
 } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { accountData, billing } from '../api/endpoints'
@@ -14,6 +11,7 @@ import { SettingsNav } from '../presentation/dashboard/SettingsNav'
 import { useResource } from '../presentation/dashboard/resources'
 import { Button } from '../presentation/dashboard/ui/button'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
+import { ScreenHeader, SummaryRow } from '../components/ScreenChrome'
 
 export function Settings() {
   const { locale, t } = useI18n()
@@ -47,21 +45,11 @@ export function Settings() {
       ? subscriptionStatus === null
         ? t.billing.status.none
         : t.billing.status.unknown
-      : t.reference.missingValue
-
-  const accountSettings = [
-    { icon: UserRound, label: copy.users, value: null },
-    { icon: Languages, label: copy.language, value: locale === 'fr' ? 'Français' : 'English' },
-    { icon: Clock3, label: copy.timezone, value: null },
-  ] as const
+      : null
 
   return (
     <div className="settings-main">
-      <section className="settings-intro" aria-labelledby="settings-title">
-        <p className="section-label">{copy.overviewLabel}</p>
-        <h2 id="settings-title" style={{ fontFamily: 'var(--kivou-font-sans)' }}>{copy.overviewTitle}</h2>
-        <p>{copy.overviewBody}</p>
-      </section>
+      <ScreenHeader level={2} id="settings-title" title={copy.overviewTitle} description={copy.overviewBody} />
 
       <SettingsNav active="overview" />
 
@@ -75,14 +63,8 @@ export function Settings() {
             <CircleUserRound aria-hidden="true" />
           </div>
 
-          <dl className="settings-list">
-            {accountSettings.filter(({ value }) => value !== null).map(({ icon: Icon, label, value }) => (
-              <div key={label}>
-                <span aria-hidden="true"><Icon /></span>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
+          <dl>
+            <SummaryRow definition label={copy.language} value={locale === 'fr' ? 'Français' : 'English'} />
           </dl>
           <div className="settings-card-actions">
             <ReferenceLink dashboard className="text-link" href="/settings/profile">
@@ -106,11 +88,6 @@ export function Settings() {
                       ? null
                       : plan}
                 </h3>
-                {!access.loading && !access.error ? (
-                  <p className="settings-price">
-                    <strong>{plan}</strong>
-                  </p>
-                ) : null}
               </div>
               <CreditCard aria-hidden="true" />
             </div>
@@ -123,9 +100,8 @@ export function Settings() {
                 </button>
               </div>
             ) : (
-              <dl className="settings-plan-facts">
-                {access.data?.plan_code ? null : null}
-                <div><dt>{copy.state}</dt><dd>{access.loading ? t.reference.loading : status}</dd></div>
+              <dl>
+                <SummaryRow definition label={copy.state} value={access.loading ? t.reference.loading : status} />
               </dl>
             )}
             <ReferenceLink dashboard className="text-link" href="/settings/billing">

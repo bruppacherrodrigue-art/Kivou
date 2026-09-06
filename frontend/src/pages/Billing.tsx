@@ -22,6 +22,7 @@ import { useCurrentUser } from '../auth/SessionProvider'
 import { interpolate, plural, useI18n } from '../i18n'
 import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
+import { ScreenHeader } from '../components/ScreenChrome'
 import { useResource } from '../presentation/dashboard/resources'
 import { Button } from '../presentation/dashboard/ui/button'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
@@ -223,11 +224,7 @@ export function Billing() {
 
   return (
     <div className="settings-main">
-      <section className="settings-intro">
-        <p className="section-label">{copy.label}</p>
-        <h2>{copy.title}</h2>
-        <p>{copy.body}</p>
-      </section>
+      <ScreenHeader level={2} title={copy.title} description={copy.body} />
       <SettingsNav active="billing" />
       <section className="settings-form-card billing-settings-card" aria-labelledby="billing-card-title">
         <div className="settings-form-heading">

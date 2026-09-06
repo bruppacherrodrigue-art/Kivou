@@ -451,6 +451,13 @@ a:focus-visible {
   }
 }
 
+.shell-profile-mobile { display: none; }
+@media (max-width: 899px) {
+  .topbar .shell-profile-name { display: none; }
+  .topbar .shell-profile-mobile { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin-left: auto; font-size: 11px; text-align: right; color: var(--text-muted); }
+  .shell-profile-mobile > * { white-space: normal; overflow-wrap: break-word; }
+}
+
 .shell-profile-name {
   color: var(--text-muted);
   font-size: 12px;

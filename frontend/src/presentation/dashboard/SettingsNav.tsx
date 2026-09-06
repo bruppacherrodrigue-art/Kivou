@@ -1,5 +1,6 @@
 import { useI18n } from '../../i18n'
 import { ReferenceLink } from '../router/ReferenceLink'
+import { ScreenSegments } from '../../components/ScreenChrome'
 
 export type SettingsView = 'overview' | 'profile' | 'security' | 'notifications' | 'billing'
 
@@ -15,7 +16,7 @@ export function SettingsNav({ active }: { active: SettingsView }) {
   const { t } = useI18n()
 
   return (
-    <nav className="settings-nav" aria-label={t.reference.accountSettings.navLabel}>
+    <ScreenSegments navigation className="settings-nav" label={t.reference.accountSettings.navLabel}>
       {settingsLinks.map((link) => (
         <ReferenceLink
           dashboard
@@ -27,6 +28,6 @@ export function SettingsNav({ active }: { active: SettingsView }) {
           {t.reference.accountSettings.nav[link.id]}
         </ReferenceLink>
       ))}
-    </nav>
+    </ScreenSegments>
   )
 }

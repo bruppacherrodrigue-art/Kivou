@@ -4,6 +4,7 @@ import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
 import { Button } from '../presentation/dashboard/ui/button'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
+import { ScreenHeader } from '../components/ScreenChrome'
 
 export function SecuritySettings() {
   const { t } = useI18n()
@@ -11,11 +12,7 @@ export function SecuritySettings() {
 
   return (
     <div className="settings-main">
-      <section className="settings-intro">
-        <p className="section-label">{copy.profileLabel}</p>
-        <h2>{copy.securityTitle}</h2>
-        <p>{copy.securityBody}</p>
-      </section>
+      <ScreenHeader level={2} title={copy.securityTitle} description={copy.securityBody} />
       <SettingsNav active="security" />
       <section className="settings-form-card">
         <div className="settings-form-heading">

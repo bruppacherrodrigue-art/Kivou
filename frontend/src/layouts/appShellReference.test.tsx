@@ -39,7 +39,8 @@ describe('shell Kivou', () => {
     expect(summary).toHaveTextContent('Plan Découverte')
     expect(summary).toHaveTextContent('signaux ce mois')
     expect(summary).toHaveTextContent('Routes et génie civil')
-    expect(summary).toHaveTextContent(ICP.customer_input.territories[0])
+    expect(summary).toHaveTextContent('France')
+    expect(summary).not.toHaveTextContent(/\bFR\b/)
   })
 
   it.each([['/app/notifications', 'Alertes'], ['/app/settings', 'Réglages']])(

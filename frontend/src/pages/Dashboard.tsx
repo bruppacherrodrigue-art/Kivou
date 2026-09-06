@@ -9,6 +9,7 @@ import { MatchDots } from '../signals/components/MatchDots'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, placeLabel, signalObject } from '../signals/components/SignalRow'
 import styles from './Dashboard.module.css'
+import { ScreenHeader, SummaryRow } from '../components/ScreenChrome'
 import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 export function Dashboard() {
@@ -67,10 +68,8 @@ function TodayDashboard() {
 
   return (
     <main className={styles.page} data-page="today">
-      <header className={styles.header}>
-        <h1>{title}</h1>
-        {data.strong_matches > 0 ? <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {zoneLabels.join(', ') || MISSING}</p> : null}
-      </header>
+      <ScreenHeader title={title} description={data.strong_matches > 0
+        ? `${data.strong_matches} correspondent fortement à votre profil ${data.profile?.sector_label ?? MISSING} · ${zoneLabels.join(', ') || MISSING}` : undefined} />
 
       {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}
       {data.top3.length ? (
@@ -111,10 +110,10 @@ function TodayDashboard() {
         </section>
         <section className={styles.list} aria-label="Cette semaine">
           <h2>Cette semaine</h2>
-          <WeekRow label="Nouveaux marchés" value={data.week.new} />
-          <WeekRow label="Sauvés" value={data.week.saved} />
-          <WeekRow label="Entreprises contactées" value={data.week.contacted} />
-          <WeekRow label="Ont répondu" value={data.week.replied} />
+          <SummaryRow label="Nouveaux marchés" value={data.week.new} />
+          <SummaryRow label="Sauvés" value={data.week.saved} />
+          <SummaryRow label="Entreprises contactées" value={data.week.contacted} />
+          <SummaryRow label="Ont répondu" value={data.week.replied} />
         </section>
       </div>
 
@@ -136,10 +135,6 @@ function TodayDashboard() {
       ) : null}
     </main>
   )
-}
-
-function WeekRow({ label, value }: { label: string; value: number }) {
-  return <div className={styles.weekRow}><span>{label}</span><b>{value}</b></div>
 }
 
 function weekday(value: string, locale: string): string {

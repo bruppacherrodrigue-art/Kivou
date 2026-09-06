@@ -20,7 +20,7 @@ const shell = {
 }
 
 describe('compte exact connecté', () => {
-  it('conserve le slot du tarif actuel sans inventer le montant facturé', async () => {
+  it('omet le tarif actuel inconnu', async () => {
     mockApi(shell)
     renderApp(<AppRoutes />, {
       route: '/app/settings',
@@ -29,8 +29,8 @@ describe('compte exact connecté', () => {
 
     await screen.findByRole('heading', { level: 2, name: 'Informations du compte' })
     const price = document.querySelector('.settings-price')
-    expect(price).toHaveTextContent('Tarif facturé absent')
-    expect(price).not.toHaveTextContent(/CHF|EUR|\b\d+[,.]?\d*\b/)
+    expect(price).not.toBeInTheDocument()
+    expect(screen.queryByText('Tarif facturé absent')).not.toBeInTheDocument()
   })
 
   it('n’invente aucun fuseau horaire absent du contrat du compte', async () => {
@@ -40,9 +40,8 @@ describe('compte exact connecté', () => {
       session: AUTHENTICATED,
     })
 
-    const timezone = await screen.findByText('Fuseau horaire')
-    expect(timezone.closest('div')).toHaveTextContent('—')
-    expect(timezone.closest('div')).not.toHaveTextContent('Europe/Zurich')
+    await screen.findByRole('heading', { level: 2, name: 'Informations du compte' })
+    expect(screen.queryByText('Fuseau horaire')).not.toBeInTheDocument()
   })
 
   it('modifie la langue connectée depuis le formulaire exact du compte', async () => {
@@ -147,8 +146,7 @@ describe('compte exact connecté', () => {
     expect(within(form).getByLabelText('Entreprise')).toHaveAttribute('readonly')
     expect(within(form).getByLabelText('Adresse professionnelle')).toHaveValue(ME.email)
     expect(within(form).getByLabelText('Adresse professionnelle')).toHaveAttribute('readonly')
-    expect(within(form).getByLabelText('Fuseau horaire')).toHaveValue('—')
-    expect(within(form).getByLabelText('Fuseau horaire')).toBeDisabled()
+    expect(within(form).queryByLabelText('Fuseau horaire')).not.toBeInTheDocument()
     expect(form).not.toHaveTextContent('Europe/Zurich')
     expect(container.querySelectorAll('main')).toHaveLength(1)
     expect(container.querySelectorAll('h1')).toHaveLength(1)

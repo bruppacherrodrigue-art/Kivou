@@ -1,6 +1,5 @@
 .page { padding: 28px 32px; color: var(--ink); }
-.page header h1 { margin: 0; font-size: 28px; }
-.page header p { margin: 6px 0 22px; color: var(--text-muted); }
+.page > header { margin-bottom: 22px; }
 .filters { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .segments { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; }
 .segments button { padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
@@ -17,7 +16,6 @@
 .numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .status { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--surface-subtle); white-space: nowrap; }
 .more { display: block; margin: 14px auto; padding: 8px 14px; }
-.overlay { position: fixed; inset: 0; z-index: 40; background: rgb(15 35 28 / 25%); }
 .drawer { position: static; width: 100%; min-width: 0; padding: 28px; overflow-y: auto; background: white; box-shadow: -16px 0 40px rgb(15 35 28 / 18%); }
 .drawerHeader { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
 .drawerHeader h2 { margin: 0 0 6px; font-size: 24px; }
@@ -36,5 +34,5 @@
 .saved { min-height: 20px; color: var(--green); font-size: 12px; }
 .compactTable { width: 100%; border-collapse: collapse; }
 .signalLayer { position: fixed; inset: 0 0 0 auto; z-index: 50; width: 50%; min-width: 520px; overflow-y: auto; background: white; box-shadow: -20px 0 48px rgb(15 35 28 / 25%); }
-@media (min-width: 900px) { .contentLayout:has(.drawer) { grid-template-columns: minmax(0, 1fr) 520px; } }
-@media (max-width: 899px) { .page { padding: 20px 16px; } .filters { align-items: stretch; flex-direction: column; } .segments { overflow-x: auto; } .contentLayout:has(.drawer) { display: block; } .contentLayout:has(.drawer) .drawer { position: fixed; inset: 0; z-index: 41; overflow-y: auto; } }
+@media (min-width: 900px) { .contentLayout:has(.drawer) { grid-template-columns: minmax(0, 1fr) 520px; } .drawer { box-shadow: none; border: 1px solid var(--line); border-radius: 10px; } }
+@media (max-width: 899px) { .page { padding: 20px 16px; } .filters { align-items: stretch; flex-direction: column; } .contentLayout:has(.drawer) { display: block; } .contentLayout:has(.drawer) .tableWrap { display: none; } .contentLayout:has(.drawer) .drawer { position: fixed; inset: 0; z-index: 41; overflow-y: auto; } .signalLayer { width: 100%; min-width: 0; } }

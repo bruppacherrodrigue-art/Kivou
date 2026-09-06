@@ -81,7 +81,6 @@ export function CompanyDrawer({
   const identityText = [identifier(profile), city].filter((part): part is string => Boolean(part))
   return (
     <>
-      <div className={styles.overlay} onClick={onClose} aria-hidden="true" />
       <aside className={styles.drawer} aria-label={identity.name}>
         <header className={styles.drawerHeader}>
           <div>

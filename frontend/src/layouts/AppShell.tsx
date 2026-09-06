@@ -237,7 +237,13 @@ function ConnectedShell({
             <button type="button" className="shell-resource-retry" onClick={profileError ? retryProfile : retryPlan}>
               {profileError ? t.reference.messages.profileLoadError : t.reference.messages.billingLoadError}
             </button>
-          ) : <span className="shell-profile-name">{profileLabel}</span>}
+          ) : <>
+            <span className="shell-profile-name">{profileLabel}</span>
+            <span className="shell-profile-mobile">
+              <strong>{sectorLabel === t.reference.missingValue ? '' : sectorLabel}</strong>
+              <span data-profile-zones>{zoneLabel === t.reference.missingValue ? '' : zoneLabel}</span>
+            </span>
+          </>}
         </header>
 
         <Outlet context={dashboardResource} />

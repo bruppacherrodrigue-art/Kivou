@@ -6,6 +6,7 @@ import { useI18n } from '../i18n'
 import { MISSING } from '../signals/components/SignalRow'
 import { CompanyDrawer } from './CompanyDrawer'
 import styles from './CompaniesPage.module.css'
+import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 
 const PAGE_SIZE = 20
 const SEGMENTS: { status: CompanyContactStatus | null; label: string }[] = [
@@ -131,15 +132,15 @@ export function CompaniesPage() {
 
   return (
     <main className={styles.page}>
-      <header><h1>Entreprises</h1><p>Les titulaires de vos signaux, avec où vous en êtes</p></header>
+      <ScreenHeader title="Entreprises" description="Les titulaires de vos signaux, avec où vous en êtes" />
       <div className={styles.filters}>
-        <div className={styles.segments} aria-label="Statut de contact">
+        <ScreenSegments label="Statut de contact">
           {SEGMENTS.map((segment) => (
             <button key={segment.label} type="button" aria-pressed={status === segment.status} onClick={() => setStatus(segment.status)}>
               {segment.label} {counts[segment.status ?? 'all'] ?? 0}
             </button>
           ))}
-        </div>
+        </ScreenSegments>
         <input type="search" aria-label="Rechercher une entreprise" placeholder="Rechercher" value={q} onChange={(event) => setQ(event.target.value)} />
       </div>
 
@@ -159,7 +160,7 @@ export function CompaniesPage() {
           {items.length === 0 ? <p>Les titulaires de vos signaux apparaîtront ici.</p> : null}
           {nextCursor ? <button className={styles.more} type="button" onClick={() => void loadMore()}>Charger plus</button> : null}
         </div>
-        {profile ? <CompanyDrawer city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
+        {profile ? <CompanyDrawer key={profile.company_key} city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
         </div>
       )}
     </main>
