@@ -260,18 +260,18 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
 
   return <AuthShell screenHeader eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Quatre réponses pour recevoir les signaux qui vous concernent." wide showBrand={false} navigationDisabled={submitting}>
     {options.error ? <><p className="form-error" role="alert">Impossible de charger les zones et secteurs. Réessayez.</p><Button onClick={() => void options.retry()}>Réessayer</Button></> : !options.data ? <p role="status">Chargement des choix…</p> :
-      <form noValidate onSubmit={(event) => { event.preventDefault(); void confirm() }}>
+      <form className="provisional-confirmation" noValidate onSubmit={(event) => { event.preventDefault(); void confirm() }}>
         <div className="onboarding-form-grid">
           <div className="form-field form-field-wide">
             <label htmlFor="confirmation-zone">Zone</label>
-            <select id="confirmation-zone" multiple value={zones} disabled={submitting} aria-invalid={Boolean(errors.zone)} aria-describedby={errors.zone ? 'confirmation-error-zone' : undefined}
+            <select id="confirmation-zone" className="lifecycle-select" multiple size={4} value={zones} disabled={submitting} aria-invalid={Boolean(errors.zone)} aria-describedby={errors.zone ? 'confirmation-error-zone' : undefined}
               onChange={(event) => { setZones(Array.from(event.target.selectedOptions, (option) => option.value)); clear('zone') }}>
               {options.data.zones.map((zone) => <option key={zone.code} value={zone.code}>{zone.label} ({zone.code})</option>)}
             </select>{errorFor('zone')}
           </div>
           <div className="form-field form-field-wide">
             <label htmlFor="confirmation-sector">Secteur</label>
-            <select id="confirmation-sector" value={sectorPrefix} disabled={submitting} aria-invalid={Boolean(errors.sector)} aria-describedby={errors.sector ? 'confirmation-error-sector' : undefined}
+            <select id="confirmation-sector" className="lifecycle-select" value={sectorPrefix} disabled={submitting} aria-invalid={Boolean(errors.sector)} aria-describedby={errors.sector ? 'confirmation-error-sector' : undefined}
               onChange={(event) => { setSectorPrefix(event.target.value); clear('sector') }}>
               <option value="">Choisissez votre secteur</option>
               {options.data.sectors.map((sector) => <option key={sector.prefix} value={sector.prefix}>{sector.prefix === initialSector ? tokenSector : sector.label}</option>)}
@@ -293,7 +293,7 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
         </div>
         {sentEmail === email.trim() ? <p role="status">Lien de vérification envoyé. Consultez votre messagerie pour valider votre adresse.</p> : null}
         {errorFor('general')}
-        <div className="onboarding-actions"><Button type="submit" disabled={submitting}>{submitting ? 'Enregistrement…' : sentEmail === email.trim() ? 'Voir mes signaux' : profileSaved ? 'Renvoyer le lien de vérification' : 'Recevoir mes signaux'}</Button></div>
+        <div className="onboarding-actions"><Button className="primary-action" type="submit" disabled={submitting}>{submitting ? 'Enregistrement…' : sentEmail === email.trim() ? 'Voir mes signaux' : profileSaved ? 'Renvoyer le lien de vérification' : 'Recevoir mes signaux'}</Button></div>
       </form>}
   </AuthShell>
 }

@@ -7017,3 +7017,24 @@ button.public-cta {
   max-width: 100%;
   white-space: normal;
 }
+
+/* Native selects otherwise size themselves from the longest catalogue option,
+ * including unselected options. Keep the confirmation controls inside their
+ * grid track rather than concealing the resulting horizontal overflow. */
+.provisional-confirmation .form-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.provisional-confirmation .lifecycle-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.provisional-confirmation .lifecycle-select[multiple] {
+  min-height: 128px;
+  padding: 6px;
+}
+
+.provisional-confirmation .lifecycle-select[multiple] option {
+  padding: 6px 8px;
+}
