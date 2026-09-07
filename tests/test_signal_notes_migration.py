@@ -12,7 +12,7 @@ from signals.persistence.database import (
 
 PREVIOUS = "0026_acquisition_runtime"
 HEAD = "0027_signal_notes"
-CURRENT_HEAD = "0042_account_deletion"
+CURRENT_HEAD = "0043_qa_landing"
 
 
 def _engine(tmp_path, name):

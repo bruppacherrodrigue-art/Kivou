@@ -31,7 +31,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
-LATEST = "0042_account_deletion"
+LATEST = "0043_qa_landing"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)

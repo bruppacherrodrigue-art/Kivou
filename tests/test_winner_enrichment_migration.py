@@ -23,7 +23,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
-LATEST = "0042_account_deletion"
+LATEST = "0043_qa_landing"
 
 
 def _engine(path: pathlib.Path):
