@@ -13,6 +13,7 @@ les tests et le code du feed.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 DEPARTMENTS: dict[str, str] = {
@@ -94,12 +95,56 @@ def department_label(subdivision_code: str | None) -> str | None:
     return DEPARTMENTS.get(department) if department else None
 
 
+@lru_cache(maxsize=256)
+def subdivision_coverage(code: str | None) -> tuple[str, ...]:
+    """Canonical departments covered by a French NUTS code; never pick just one.
+
+    NUTS 1/2 coverage is derived from the existing NUTS 3 reference, not from
+    postal-code guesses. Other subdivision codes retain their exact identity.
+    """
+    if not code:
+        return ()
+    if code in NUTS3_DEPARTMENTS:
+        return (f"FR-{NUTS3_DEPARTMENTS[code]}",)
+    if code.startswith("FR") and 3 <= len(code) <= 4 and "-" not in code:
+        covered = tuple(sorted({f"FR-{department}" for nuts, department
+                                in NUTS3_DEPARTMENTS.items() if nuts.startswith(code)}))
+        if covered:
+            return covered
+    return (code,)
+
+
+def location_matches_subdivision(
+    place: dict[str, Any] | None,
+    requested: str,
+    *,
+    requested_scheme: str | None = None,
+) -> bool:
+    """Shared location/profile overlap for matching and both feed filters."""
+    if not place or place.get("country") != requested[:2]:
+        return False
+    published = place.get("subdivision_code")
+    actual = published or location_subdivision(place)
+    if not actual:
+        return False
+    actual_kind = "ISO-3166-2" if "-" in actual else "NUTS"
+    requested_kind = "ISO-3166-2" if "-" in requested else "NUTS"
+    actual_scheme = place.get("subdivision_scheme") if published else "ISO-3166-2"
+    if actual_scheme not in (None, actual_kind):
+        return False
+    if requested_scheme not in (None, requested_kind):
+        return False
+    return bool(set(subdivision_coverage(actual)).intersection(subdivision_coverage(requested)))
+
+
 def location_subdivision(place: dict[str, Any] | None) -> str | None:
     """La subdivision publiée, sinon le département dérivé d'un code postal français."""
     if not place:
         return None
     published = place.get("subdivision_code")
     if published:
+        if place.get("country") == "FR" and published in NUTS3_DEPARTMENTS:
+            return subdivision_coverage(published)[0]
         return published
     if place.get("country") != "FR":
         return None
@@ -112,5 +157,7 @@ __all__ = [
     "NUTS3_DEPARTMENTS",
     "department_from_postal_code",
     "department_label",
+    "location_matches_subdivision",
     "location_subdivision",
+    "subdivision_coverage",
 ]

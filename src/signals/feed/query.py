@@ -28,7 +28,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
-from signals.domain.french_departments import location_subdivision
+from signals.domain.french_departments import location_matches_subdivision
 from signals.engagement.status import UNIFIED_STATUSES
 from signals.feed import policy
 from signals.feed.history import (
@@ -657,7 +657,7 @@ def feed_page(
             place = item.signal.award.place_of_performance or {}
             if (
                 subdivision_code is not None
-                and location_subdivision(place) != subdivision_code
+                and not location_matches_subdivision(place, subdivision_code)
             ) or (needle is not None and not _matches_text_query(item.signal, display, needle)):
                 excluded_by_filters += 1
                 continue
@@ -916,7 +916,7 @@ def history_page(
             if (
                 (
                     subdivision_code is not None
-                    and location_subdivision(place) != subdivision_code
+                    and not location_matches_subdivision(place, subdivision_code)
                 )
                 or (status is not None and item.status != status)
                 or (

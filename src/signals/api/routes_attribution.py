@@ -35,12 +35,15 @@ from fastapi.responses import RedirectResponse
 
 from signals.accounts import service as accounts
 from signals.accounts.icp_input import MonetaryThreshold, TargetIcpInput, offer_for_need
+from signals.accounts.schema import account_landing_signal
 from signals.api.config import ATTRIBUTION_COOKIE_NAME
 from signals.api.dependencies import request_now
 from signals.api.errors import api_error
 from signals.api.routes_auth import set_session_cookie
+from signals.conversion import qa_token
+from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.cpv_labels import cpv_label
-from signals.domain.french_departments import location_subdivision
+from signals.domain.french_departments import department_label, location_subdivision
 from signals.engagement import analytics
 from signals.ingestion.backfill import (
     materialize_landing_opportunity_in_transaction,
@@ -169,7 +172,8 @@ def attribution_click(token: str, request: Request) -> RedirectResponse:
 
     try:
         with request.app.state.engine.begin() as connection:
-            landing = _land(connection, service, raw_token=token, now=now, config=config)
+            land = _land_qa if token.startswith("kqa1.") else _land
+            landing = land(connection, service, raw_token=token, now=now, config=config)
     except ValueError:
         # Signature fausse, jeton périmé, membre inconnu : aucune session, aucun
         # compte, et une page d'inscription qui sait pourquoi elle est là.
@@ -179,6 +183,11 @@ def attribution_click(token: str, request: Request) -> RedirectResponse:
     destination = FEED_PATH if signal_key is None else f"{FEED_PATH}/{quote(signal_key)}"
     response = _redirect(destination)
     set_session_cookie(response, request, session)
+    if token.startswith("kqa1."):
+        # QA must not inherit or create a commercial signup-attribution cookie.
+        response.delete_cookie(ATTRIBUTION_COOKIE_NAME, path="/auth/signup",
+                               secure=config.cookie_secure, httponly=True, samesite="lax")
+        return response
     # Le cookie d'attribution reste posé : il ne sert plus à CE compte — sa
     # journey est déjà liée — mais il garde attribuée une inscription ordinaire
     # faite ensuite depuis le même navigateur (adresse réelle, mot de passe
@@ -328,6 +337,83 @@ def _land(
         },
     )
     return session, signal_key, click.expires_at
+
+
+def _land_qa(connection, service, *, raw_token: str, now: dt.datetime, config):
+    if not config.attribution_hmac_key or not config.attribution_hmac_key_version:
+        raise ValueError("QA attribution key is unavailable")
+    keyring = AttributionTokenKeyring(
+        current_key_version=config.attribution_hmac_key_version,
+        keys={config.attribution_hmac_key_version: config.attribution_hmac_key},
+    )
+    payload = qa_token.verify(raw_token, keyring=keyring, at=now)
+    fingerprint = qa_token.fingerprint(raw_token)
+    email = f"qa+{fingerprint}@{LANDING_EMAIL_DOMAIN}"
+    landing = connection.execute(sa.select(account_landing_signal).where(
+        account_landing_signal.c.token_fingerprint == fingerprint,
+        account_landing_signal.c.qa.is_(True),
+    )).mappings().one_or_none()
+    replayed = landing is not None
+    if landing is None:
+        if accounts.user_id_for_email(connection, email=email) is not None:
+            raise ValueError("QA identity already exists outside this landing")
+        _, cpv_prefix, subdivision = _profile_seed(connection, payload.opportunity_key)
+        available = connection.scalar(sa.select(sa.exists().where(
+            opportunity_representation.c.opportunity_key == payload.opportunity_key,
+            opportunity_representation.c.award_key == contract_award.c.award_key,
+            contract_award.c.place_country == payload.country,
+        )))
+        if not available:
+            raise ValueError("QA opportunity unavailable")
+        session = accounts.sign_up(
+            connection, email=email, password=secrets.token_urlsafe(48),
+            company_name="Compte de recette", locale="fr", now=now,
+            session_ttl=min(config.session_ttl, payload.expires_at - now),
+        )
+        account_id = session.account_id
+        accounts.record_landing_signal(
+            connection, account_id=account_id, opportunity_key=payload.opportunity_key,
+            signal_key=None, token_fingerprint=fingerprint, qa=True, now=now,
+        )
+        zone = department_label(subdivision)
+        label = f"{payload.sector} · {zone}" if zone else payload.sector
+        provisional = accounts.create_target_icp(
+            connection, account_id=account_id, label=label,
+            customer_input=_draft_icp_input(
+                country=payload.country, need_ref=payload.need, sector_label=payload.sector,
+                cpv_prefix=cpv_prefix, subdivision=subdivision,
+            ), now=now,
+        )
+        materialize_landing_opportunity_in_transaction(
+            connection, target_icp_id=provisional.target_icp_id,
+            opportunity_key=payload.opportunity_key, as_of=now.date(), materialized_at=now,
+        )
+        accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
+    else:
+        account_id = landing["account_id"]
+        user_id = accounts.active_user_id(connection, account_id=account_id)
+        if user_id is None or accounts.user_id_for_email(connection, email=email) != user_id:
+            raise ValueError("QA identity has been confirmed or deactivated")
+        session = accounts.open_session(
+            connection, user_id=user_id, now=now,
+            session_ttl=min(config.session_ttl, payload.expires_at - now),
+        )
+    signal_key = accounts.resolve_landing_signal_key(
+        connection, account_id=account_id, opportunity_key=payload.opportunity_key,
+    )
+    if signal_key is None:
+        raise ValueError("QA opportunity could not be materialized")
+    accounts.record_landing_signal(
+        connection, account_id=account_id, opportunity_key=payload.opportunity_key,
+        signal_key=signal_key, token_fingerprint=fingerprint, qa=True, now=now,
+    )
+    analytics.record(
+        connection, account_id=account_id, event_type="attribution_landed", occurred_at=now,
+        user_id=session.user_id, signal_key=signal_key,
+        properties={"qa": True, "has_signal": True, "replayed": replayed,
+                    "wedge": payload.wedge, "sector": payload.sector, "need": payload.need},
+    )
+    return session, signal_key, payload.expires_at
 
 
 __all__ = ["router"]

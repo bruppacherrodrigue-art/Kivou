@@ -36,6 +36,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from signals.domain.french_departments import subdivision_coverage
 from signals.matching.icp import TargetICP, Territory, ValueThreshold
 
 #: Ce que le client vend, dans ses mots.
@@ -160,6 +161,9 @@ class TargetIcpInput(BaseModel):
     @field_validator("territory_subdivisions")
     @classmethod
     def valid_subdivisions(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        values = tuple(dict.fromkeys(
+            department for value in values for department in subdivision_coverage(value)
+        ))
         if any("-" not in value or len(value.split("-", 1)[0]) != 2 for value in values):
             raise ValueError("subdivision codes must use an ISO 3166-2 country prefix")
         return values

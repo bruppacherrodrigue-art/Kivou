@@ -830,6 +830,7 @@ def record_landing_signal(
     opportunity_key: str | None,
     signal_key: str | None,
     token_fingerprint: str | None = None,
+    qa: bool = False,
     now: dt.datetime,
 ) -> LandingSignal:
     """Enregistre — ou complète — la promesse faite au prospect.
@@ -857,6 +858,7 @@ def record_landing_signal(
                 opportunity_key=opportunity_key,
                 signal_key=signal_key,
                 token_fingerprint=token_fingerprint,
+                qa=qa,
                 created_at=now,
             )
         )
