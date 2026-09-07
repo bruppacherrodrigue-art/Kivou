@@ -58,8 +58,8 @@ def test_shared_prospect_requires_named_holder_and_object(name, title, reason):
 
 
 def test_qa_provisional_contract_and_visible_landing(prepared_qa):
-    _, client, opportunity = prepared_qa
-    response = client.get(f"/a/{issue(opportunity)}", follow_redirects=False)
+    engine, client, opportunity = prepared_qa
+    response = client.get(f"/a/{issue(opportunity, engine=engine)}", follow_redirects=False)
     assert response.headers["location"].startswith("/app/signals/")
     key = response.headers["location"].rsplit("/", 1)[1]
     assert client.get("/me").json()["provisional_profile"] is True
@@ -83,7 +83,8 @@ def test_mint_rejects_old_attribution_despite_recent_publication(prepared_qa):
     with pytest.raises(ValueError, match="SIGNAL_OUTSIDE_ACQUISITION_WINDOW"):
         mint_url(engine=engine, keyring=keyring(), origin="https://kivou.test",
                  opportunity=opportunity, wedge="construction", country="FR",
-                 sector="bardage", need="materials_or_components", ttl="7d", now=NOW)
+                 sector="bardage", need="materials_or_components", ttl="7d", now=NOW,
+                 recipient_email="qa@example.com")
 
 
 @pytest.mark.parametrize("reason", [
@@ -111,7 +112,7 @@ def test_persisted_sentence_is_identical_in_feed_drawer_and_mail_components(prep
     from signals.personalization.catalog import render_catalog_message
 
     engine, client, opportunity = prepared_qa
-    response = client.get(f"/a/{issue(opportunity)}", follow_redirects=False)
+    response = client.get(f"/a/{issue(opportunity, engine=engine)}", follow_redirects=False)
     key = response.headers["location"].rsplit("/", 1)[1]
     card = next(item for item in client.get("/signals?view=history").json()["items"]
                 if item["signal_id"] == key)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import importlib.util
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -13,6 +15,7 @@ from signals.accounts import service as accounts
 from signals.accounts.schema import account, account_landing_signal, auth_user, target_icp
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
+from signals.conversion.recipient_records import attribution_recipient, bind_recipient
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement import analytics
 from signals.engagement.schema import product_event, signal_feedback
@@ -31,6 +34,7 @@ from signals.persistence.schema import (
 # Published facts are unchanged; exercise the inclusive 30-day eligibility edge.
 NOW = MATERIALIZED_AT - dt.timedelta(days=2) + dt.timedelta(hours=1)
 SECRET = b"synthetic-qa-attribution-test-secret"
+RECIPIENT = "qa-addressed@example.com"
 
 
 def qa_module():
@@ -46,7 +50,7 @@ def keyring():
     return AttributionTokenKeyring(current_key_version="test-v1", keys={"test-v1": SECRET})
 
 
-def issue(opportunity_key="opp_test", **overrides):
+def issue(opportunity_key="opp_test", *, engine=None, recipient_email=RECIPIENT, **overrides):
     data = {
         "opportunity_key": opportunity_key, "wedge": "construction", "country": "FR",
         "sector": "bardage metallique", "need": "materials_or_components",
@@ -54,7 +58,15 @@ def issue(opportunity_key="opp_test", **overrides):
     }
     data.update(overrides)
     qa = qa_module()
-    return qa.issue(qa.QaTokenPayload(**data), keyring=keyring())
+    payload = qa.QaTokenPayload(**data)
+    raw = qa.issue(payload, keyring=keyring())
+    if engine is not None:
+        with engine.begin() as connection:
+            bind_recipient(
+                connection, nonce=payload.nonce, recipient_email=recipient_email,
+                expires_at=payload.expires_at, created_at=payload.issued_at,
+            )
+    return raw
 
 
 def test_signed_recipe_token_without_campaign_or_member():
@@ -106,6 +118,7 @@ def test_cli_refuses_absent_key_before_database_or_send(monkeypatch, capsys):
     assert main([
         "--opportunity", "opp_test", "--wedge", "construction", "--country", "FR",
         "--sector", "bardage", "--need", "materials_or_components", "--ttl", "7d",
+        "--recipient-email", RECIPIENT,
     ]) == 2
     output = capsys.readouterr()
     assert not output.out
@@ -128,6 +141,7 @@ def prepared_qa(tmp_path):
     config = ApiConfig(
         cookie_secure=True, attribution_hmac_key=SECRET,
         attribution_hmac_key_version="test-v1", public_app_url="https://kivou.test",
+        allowed_origin="https://kivou.test",
     )
     client = TestClient(
         create_app(engine, config, now_override=lambda: NOW), base_url="https://kivou.test",
@@ -136,7 +150,7 @@ def prepared_qa(tmp_path):
     engine.dispose()
 
 
-def test_mint_is_read_only_and_logs_no_secret(prepared_qa, capsys):
+def test_mint_only_persists_recipient_and_logs_no_secret(prepared_qa, capsys):
     from signals.conversion.mint_token import mint_url
 
     engine, _, opportunity = prepared_qa
@@ -146,26 +160,40 @@ def test_mint_is_read_only_and_logs_no_secret(prepared_qa, capsys):
         engine=engine, keyring=keyring(), origin="https://kivou.test",
         opportunity=opportunity, wedge="construction", country="FR",
         sector="bardage metallique", need="materials_or_components", ttl="7d", now=NOW,
+        recipient_email=RECIPIENT,
     )
     assert url.startswith("https://kivou.test/a/kqa1.")
     output = capsys.readouterr()
     assert '"qa": true' in output.err
     assert url not in output.err
     assert SECRET.decode() not in output.err
+    assert RECIPIENT not in output.err
+    raw = url.rsplit("/", 1)[1]
+    decoded = base64.urlsafe_b64decode(raw.split(".")[2] + "=" * (-len(raw.split(".")[2]) % 4))
+    assert RECIPIENT not in url
+    assert RECIPIENT not in decoded.decode()
+    assert "email" not in decoded.decode()
     with engine.connect() as connection:
         assert connection.scalar(sa.select(sa.func.count()).select_from(account)) == before
         assert connection.scalar(sa.select(sa.func.count()).select_from(account_landing_signal)) == 0
+        binding = connection.execute(sa.select(attribution_recipient)).mappings().one()
+        assert binding["email_normalized"] == RECIPIENT
+        assert binding["nonce"] == json.loads(decoded)["nonce"]
+        for table in (acquisition_campaign, acquisition_campaign_member,
+                      acquisition_conversion_event, acquisition_conversion_journey, target_icp):
+            assert connection.scalar(sa.select(sa.func.count()).select_from(table)) == 0
     with pytest.raises(ValueError):
         mint_url(
             engine=engine, keyring=keyring(), origin="https://kivou.test",
             opportunity="opp_missing", wedge="construction", country="FR",
             sector="bardage", need="materials_or_components", ttl="7d", now=NOW,
+            recipient_email=RECIPIENT,
         )
 
 
 def test_qa_landing_is_replayable_and_has_no_commercial_attribution(prepared_qa):
     engine, client, opportunity = prepared_qa
-    raw = issue(opportunity)
+    raw = issue(opportunity, engine=engine)
     first = client.get(f"/a/{raw}", follow_redirects=False)
     second = client.get(f"/a/{raw}", follow_redirects=False)
     assert first.status_code == second.status_code == 303
@@ -191,7 +219,7 @@ def test_qa_landing_is_replayable_and_has_no_commercial_attribution(prepared_qa)
 
 def test_qa_link_cannot_reopen_a_confirmed_identity(prepared_qa):
     engine, client, opportunity = prepared_qa
-    raw = issue(opportunity)
+    raw = issue(opportunity, engine=engine)
     first = client.get(f"/a/{raw}", follow_redirects=False)
     assert first.status_code == 303
     assert first.headers["location"].startswith("/app/signals/")
@@ -203,7 +231,7 @@ def test_qa_link_cannot_reopen_a_confirmed_identity(prepared_qa):
 
 def test_qa_activity_is_excluded_from_product_and_founder_metrics(prepared_qa):
     engine, client, opportunity = prepared_qa
-    client.get(f"/a/{issue(opportunity)}", follow_redirects=False)
+    client.get(f"/a/{issue(opportunity, engine=engine)}", follow_redirects=False)
     with engine.begin() as connection:
         landing = connection.execute(sa.select(account_landing_signal)).mappings().one()
         analytics.record(connection, account_id=landing["account_id"],
@@ -263,8 +291,211 @@ def test_missing_execution_location_still_refuses_country_claim(prepared_qa):
             engine=engine, keyring=keyring(), origin="https://kivou.test",
             opportunity=opportunity, wedge="construction", country="FR",
             sector="bardage", need="materials_or_components", ttl="7d", now=NOW,
+            recipient_email=RECIPIENT,
         )
     response = client.get(f"/a/{issue(opportunity)}", follow_redirects=False)
     assert response.headers["location"] == "/signup?attribution=expired"
     with engine.connect() as connection:
         assert connection.scalar(sa.select(sa.func.count()).select_from(account)) == 0
+
+
+def _preview(client, raw, *, origin="https://kivou.test"):
+    return client.post("/auth/attribution/preview", json={"token": raw},
+                       headers={"Origin": origin})
+
+
+def _counts(engine):
+    from signals.accounts.schema import auth_session
+    from signals.persistence.schema import materialized_signal
+
+    with engine.connect() as connection:
+        return tuple(connection.scalar(sa.select(sa.func.count()).select_from(table))
+                     for table in (account, auth_user, auth_session, target_icp,
+                                   account_landing_signal, materialized_signal,
+                                   acquisition_campaign, acquisition_campaign_member,
+                                   acquisition_conversion_event, acquisition_conversion_journey,
+                                   product_event, attribution_recipient))
+
+
+def test_cli_requires_recipient_before_accessing_runtime(capsys):
+    from signals.conversion.mint_token import main
+
+    with pytest.raises(SystemExit) as failure:
+        main(["--opportunity", "opp_test", "--wedge", "construction", "--country", "FR",
+              "--sector", "bardage", "--need", "materials_or_components"])
+    assert failure.value.code == 2
+    assert "--recipient-email" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("recipient", ["", "not-an-address", "a@example.com\nBcc:b@example.com"])
+def test_mint_refuses_invalid_recipient_without_writes(prepared_qa, recipient):
+    from signals.conversion.mint_token import mint_url
+
+    engine, _, opportunity = prepared_qa
+    before = _counts(engine)
+    with pytest.raises(ValueError):
+        mint_url(engine=engine, keyring=keyring(), origin="https://kivou.test",
+                 opportunity=opportunity, wedge="construction", country="FR", sector="bardage",
+                 need="materials_or_components", ttl="7d", now=NOW, recipient_email=recipient)
+    assert _counts(engine) == before
+
+
+def test_qa_account_uses_actual_address_without_verification_proof(prepared_qa):
+    from signals.accounts.email_verification import email_identity, is_user_verified
+
+    engine, client, opportunity = prepared_qa
+    raw = issue(opportunity, engine=engine, recipient_email="  QA-Addressed@Example.com  ")
+    response = client.get(f"/a/{raw}", follow_redirects=False)
+    assert response.headers["location"].startswith("/app/signals/")
+    with engine.connect() as connection:
+        user = connection.execute(sa.select(auth_user)).mappings().one()
+        assert user["email_normalized"] == RECIPIENT
+        assert not is_user_verified(connection, user_id=user["user_id"])
+        assert connection.scalar(sa.select(sa.func.count()).select_from(email_identity)) == 0
+
+
+def test_unbound_qa_token_cannot_create_an_account_or_preview(prepared_qa):
+    engine, client, opportunity = prepared_qa
+    raw = issue(opportunity)
+    before = _counts(engine)
+    response = client.get(f"/a/{raw}", follow_redirects=False)
+    assert response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in response.headers
+    assert _preview(client, raw).status_code == 400
+    assert _counts(engine) == before
+
+
+def test_existing_address_receives_public_signal_without_session(prepared_qa):
+    engine, client, opportunity = prepared_qa
+    with engine.begin() as connection:
+        accounts.sign_up(connection, email=RECIPIENT, password="unrelated-password-long",
+                         company_name="Unrelated", locale="fr", now=NOW,
+                         session_ttl=dt.timedelta(days=1))
+    raw = issue(opportunity, engine=engine)
+    before = _counts(engine)
+    response = client.get(f"/a/{raw}", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == f"/public-signal#{raw}"
+    assert "set-cookie" not in response.headers
+    assert client.get("/me").status_code == 401
+    preview = _preview(client, raw)
+    assert preview.status_code == 200
+    assert preview.json()["recipient_email"] == RECIPIENT
+    assert preview.json()["signal"]["object"]
+    assert preview.json()["signal"]["holder"]
+    assert _counts(engine) == before
+
+
+def test_preview_exposes_only_real_public_facts_and_never_materializes(prepared_qa):
+    from signals.supplier_discovery.seed import resolve_public_acquisition_context_in_transaction
+
+    engine, client, opportunity = prepared_qa
+    raw = issue(opportunity, engine=engine)
+    before = _counts(engine)
+    response = _preview(client, raw)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "set-cookie" not in response.headers
+    data = response.json()
+    assert set(data) == {"recipient_email", "signal"}
+    signal = data["signal"]
+    assert set(signal) == {"object", "holder", "buyer", "amount", "currency", "location",
+                           "date", "date_label", "for_you_sentence"}
+    with engine.connect() as connection:
+        public = resolve_public_acquisition_context_in_transaction(connection, opportunity)
+    award = public.award
+    assert signal["object"] == ((award.lot.title if award.lot else None) or award.title)
+    assert signal["holder"] in [org.legal_name for org in award.awardee_organizations()]
+    assert signal["buyer"] in [org.legal_name for org in public.event.procedure_buyers]
+    assert signal["amount"] == (str(award.value.amount) if award.value else None)
+    assert signal["currency"] == (award.value.currency if award.value else None)
+    assert signal["location"]
+    assert signal["date"] == award.award_date.isoformat()
+    assert signal["date_label"] == "Attribué le"
+    assert signal["for_you_sentence"]
+    assert _counts(engine) == before
+
+
+def test_verified_bound_qa_replay_only_shows_public_preview(prepared_qa):
+    from signals.accounts.email_verification import request_verification, verify
+
+    engine, client, opportunity = prepared_qa
+    raw = issue(opportunity, engine=engine)
+    assert client.get(f"/a/{raw}", follow_redirects=False).headers["location"].startswith(
+        "/app/signals/")
+    with engine.begin() as connection:
+        user_id = connection.scalar(sa.select(auth_user.c.user_id))
+        proof = request_verification(connection, user_id=user_id, email=RECIPIENT, now=NOW)
+        verify(connection, token=proof.token, now=NOW)
+    client.cookies.clear()
+    before = _counts(engine)
+    response = client.get(f"/a/{raw}", follow_redirects=False)
+    assert response.headers["location"] == f"/public-signal#{raw}"
+    assert "set-cookie" not in response.headers
+    assert client.get("/me").status_code == 401
+    assert _preview(client, raw).status_code == 200
+    assert _counts(engine) == before
+
+
+def test_changed_bound_address_also_refuses_public_preview(prepared_qa):
+    engine, client, opportunity = prepared_qa
+    raw = issue(opportunity, engine=engine)
+    client.get(f"/a/{raw}", follow_redirects=False)
+    with engine.begin() as connection:
+        connection.execute(sa.update(auth_user).values(email_normalized="changed@example.com"))
+    before = _counts(engine)
+    response = client.get(f"/a/{raw}", follow_redirects=False)
+    assert response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in response.headers
+    assert _preview(client, raw).status_code == 400
+    assert _counts(engine) == before
+
+
+@pytest.mark.parametrize("invalid", ["tampered", "expired", "binding_expired", "stale_signal"])
+def test_preview_refuses_invalid_tokens_and_ineligible_signals(prepared_qa, invalid):
+    from signals.persistence.schema import contract_award
+
+    engine, client, opportunity = prepared_qa
+    kwargs = ({"issued_at": NOW - dt.timedelta(days=8),
+               "expires_at": NOW - dt.timedelta(days=1)} if invalid == "expired" else {})
+    raw = issue(opportunity, engine=engine, **kwargs)
+    if invalid == "tampered":
+        raw += "x"
+    elif invalid == "binding_expired":
+        with engine.begin() as connection:
+            connection.execute(sa.update(attribution_recipient).values(expires_at=NOW))
+    elif invalid == "stale_signal":
+        with engine.begin() as connection:
+            connection.execute(sa.update(contract_award).values(
+                award_date=(NOW - dt.timedelta(days=31)).date()))
+    before = _counts(engine)
+    assert _preview(client, raw).status_code == 400
+    response = client.get(f"/a/{raw}", follow_redirects=False)
+    assert response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in response.headers
+    assert _counts(engine) == before
+
+
+def test_preview_enforces_origin(prepared_qa):
+    engine, client, opportunity = prepared_qa
+    raw = issue(opportunity, engine=engine)
+    before = _counts(engine)
+    assert _preview(client, raw, origin="https://other.example.com").status_code == 403
+    assert _counts(engine) == before
+
+
+def test_preview_labels_publication_when_both_attribution_dates_are_unknown(tmp_path):
+    from test_public_preview_dates import public_date_context
+
+    with public_date_context(tmp_path) as context:
+        assert context.award.award_date is None
+        assert context.award.contract_notification_date is None
+        assert context.event.published_at <= NOW.date()
+        before = _counts(context.engine)
+        response = _preview(context.client, context.token)
+        assert response.status_code == 200
+        signal = response.json()["signal"]
+        assert signal["date"] == context.event.published_at.isoformat()
+        assert signal["date_label"] == "Publié le"
+        assert _counts(context.engine) == before

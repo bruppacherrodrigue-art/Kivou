@@ -48,6 +48,7 @@ from signals.compliance.rules import RULESET_V1
 from signals.compliance.store import SuppressionStore
 from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.conversion.link import AttributionLinkBuilder
+from signals.conversion.recipient_records import bind_recipient
 from signals.conversion.source import AttributionSourceFacts, AttributionSourceResolver
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.operations.circuit_breakers import (
@@ -1174,15 +1175,31 @@ class CampaignService:
             raise CampaignInputChanged("queued mailbox is unsafe or UNKNOWN")
 
     def attribution_url_for_member(
-        self, member: dict[str, object], campaign: dict[str, object]
+        self, member: dict[str, object], campaign: dict[str, object],
+        *, recipient_email: str | None = None,
     ) -> str | None:
         if self._attribution_link_builder is None:
             return None
-        with self._engine.connect() as connection:
+        with self._engine.begin() as connection:
             payload = self._attribution_source_resolver.for_member(
                 connection, str(member["member_ref"])
             )
-        return self._attribution_link_builder.build(payload).url
+            if recipient_email is None:
+                recipient_email = connection.execute(
+                    sa.select(acquisition_contact.c.business_email)
+                    .select_from(acquisition_campaign_member.join(
+                        acquisition_contact,
+                        acquisition_contact.c.contact_ref
+                        == acquisition_campaign_member.c.contact_ref,
+                    ))
+                    .where(acquisition_campaign_member.c.member_ref == payload.member_ref)
+                ).scalar_one()
+            link = self._attribution_link_builder.build(payload)
+            bind_recipient(
+                connection, nonce=link.token_fingerprint, recipient_email=recipient_email,
+                expires_at=payload.expires_at, created_at=self._clock(),
+            )
+        return link.url
 
     def _attribution_url(
         self,

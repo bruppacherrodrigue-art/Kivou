@@ -24,6 +24,8 @@ import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
 import { Settings } from './pages/Settings'
 import { ProfileSettings } from './pages/ProfileSettings'
+import { VerifyEmail } from './pages/VerifyEmail'
+import { PublicSignal } from './pages/PublicSignal'
 import { SecuritySettings } from './pages/SecuritySettings'
 import { Checkout, CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
@@ -90,6 +92,8 @@ export function AppRoutes() {
 
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
+          <Route path="verify-email" element={<VerifyEmail />} />
+          <Route path="public-signal" element={<PublicSignal />} />
         </Route>
       </Route>
 

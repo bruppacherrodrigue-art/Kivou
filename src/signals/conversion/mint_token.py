@@ -13,6 +13,7 @@ import sqlalchemy as sa
 
 from signals.accounts.icp_input import offer_for_need
 from signals.conversion import qa_token
+from signals.conversion.recipient_records import bind_recipient, normalize_recipient
 from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.prospect import require_prospect_eligible
 from signals.persistence.schema import contract_award, opportunity_representation
@@ -22,8 +23,9 @@ from signals.supplier_discovery.seed import resolve_public_acquisition_context_i
 def mint_url(
     *, engine, keyring: AttributionTokenKeyring, origin: str,
     opportunity: str, wedge: str, country: str, sector: str, need: str,
-    ttl: str, now: dt.datetime,
+    ttl: str, now: dt.datetime, recipient_email: str,
 ) -> str:
+    recipient_email = normalize_recipient(recipient_email)
     parsed = urlsplit(origin)
     if (parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password
             or parsed.query or parsed.fragment or parsed.path not in ("", "/")):
@@ -38,7 +40,7 @@ def mint_url(
         opportunity_key=opportunity, wedge=wedge, country=country, sector=sector,
         need=need, issued_at=now, expires_at=now + dt.timedelta(hours=hours),
     )
-    with engine.connect() as connection:
+    with engine.begin() as connection:
         exists = connection.scalar(sa.select(sa.exists().where(
             opportunity_representation.c.opportunity_key == opportunity,
             opportunity_representation.c.award_key == contract_award.c.award_key,
@@ -50,9 +52,13 @@ def mint_url(
             if place is None or place.country != country:
                 raise ValueError("Opportunity unavailable in the requested country")
             require_prospect_eligible(public.award, public.event, as_of=now.date())
-    if not exists:
-        raise ValueError("Opportunity unavailable in the requested country")
-    raw = qa_token.issue(payload, keyring=keyring)
+        if not exists:
+            raise ValueError("Opportunity unavailable in the requested country")
+        raw = qa_token.issue(payload, keyring=keyring)
+        bind_recipient(
+            connection, nonce=payload.nonce, recipient_email=recipient_email,
+            expires_at=payload.expires_at, created_at=now,
+        )
     print(json.dumps({
         "event": "qa_token_minted", "qa": True,
         "fingerprint": qa_token.fingerprint(raw), "opportunity_key": opportunity,
@@ -66,6 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("opportunity", "wedge", "country", "sector", "need"):
         parser.add_argument(f"--{name}", required=True)
     parser.add_argument("--ttl", default="7d")
+    parser.add_argument("--recipient-email", required=True)
     args = parser.parse_args(argv)
     try:
         keyring = qa_token.keyring_from_environment()
@@ -86,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             engine.dispose()
     except (ValueError, RuntimeError, sa.exc.SQLAlchemyError):
-        print("QA mint refused: check runtime configuration, opportunity, country, need and TTL",
+        print("QA mint refused: check runtime configuration, recipient, opportunity, country, need and TTL",
               file=sys.stderr)
         return 2
     print(url)

@@ -22,6 +22,8 @@ function mount(overrides: Routes = {}, route = '/app/confirm-profile') {
     'GET /target-icps/options': { body: options },
     [`PATCH ${updatePath}`]: { body: { ...profile, provisional: false } },
     'GET /me': { body: { ...ME, provisional_profile: false } },
+    'GET /auth/email': { body: { email: ME.email, verified: false, pending_email: null } },
+    'POST /auth/email/request': { body: { status: 'sent' } },
     'GET /dashboard': { body: { ...DASHBOARD, top3: [UNLOCKED_ITEM] } },
     'GET /signals': { body: feedPage([UNLOCKED_ITEM], { provisional_profile: true }) },
     ...overrides,
@@ -37,14 +39,15 @@ describe('B2 confirmation du profil depuis un jeton QA', () => {
     expect(document.querySelector('.sidebar-account-link')).toHaveAttribute('href', '/app/confirm-profile')
   })
 
-  it('préremplit les trois champs et confirme le même profil vers un accueil non vide', async () => {
+  it('préremplit les quatre champs et demande la vérification après le profil', async () => {
     mount()
     const user = userEvent.setup()
     expect(await screen.findByLabelText('Zone')).toHaveValue(['FR-41'])
     expect(screen.getByLabelText('Secteur')).toHaveValue('45')
     expect(within(screen.getByLabelText('Secteur')).getByRole('option', { selected: true })).toHaveTextContent('bardage métallique')
     expect(screen.getByLabelText('Ce que vous vendez')).toHaveValue('bardage métallique')
-    expect(document.querySelectorAll('input, select, textarea')).toHaveLength(3)
+    expect(screen.getByLabelText('Adresse professionnelle')).toHaveValue(ME.email)
+    expect(document.querySelectorAll('input, select, textarea')).toHaveLength(4)
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     await user.clear(screen.getByLabelText('Ce que vous vendez'))
     await user.type(screen.getByLabelText('Ce que vous vendez'), 'Panneaux métalliques et accessoires sur mesure')
@@ -56,6 +59,9 @@ describe('B2 confirmation du profil depuis un jeton QA', () => {
     } })
     expect(callsTo('/target-icps', 'POST')).toHaveLength(0)
     expect(await screen.findByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
+    expect(callsTo('/auth/email/request')[0].body).toEqual({ email: ME.email })
+    expect(screen.getByRole('status')).toHaveTextContent(`Un email de confirmation a été envoyé à ${ME.email}`)
+    expect(screen.getByRole('status')).toHaveTextContent('Votre adresse est en attente de vérification.')
     expect(screen.queryByRole('button', { name: 'Recevoir mes signaux' })).not.toBeInTheDocument()
   })
 
@@ -117,5 +123,55 @@ describe('B2 confirmation du profil depuis un jeton QA', () => {
     await user.click(screen.getByRole('button', { name: 'Continuer' }))
     expect(screen.getByLabelText('Devise')).toHaveValue('EUR')
     expect(within(screen.getByLabelText('Devise')).queryByRole('option', { name: 'CHF' })).not.toBeInTheDocument()
+  })
+
+  it.each([422, 409, 429, 503])('garde une erreur email %s visible et permet un renvoi sans refaire le profil', async (status) => {
+    let attempts = 0
+    mount({ 'POST /auth/email/request': () => {
+      expect(callsTo(updatePath, 'PATCH')).toHaveLength(1)
+      return ++attempts === 1 ? { status, body: { detail: [{ loc: ['body', 'email'], msg: 'Adresse invalide' }] } } : { body: { status: 'sent' } }
+    } })
+    const user = userEvent.setup()
+    const email = await screen.findByLabelText('Adresse professionnelle')
+    await user.clear(email)
+    await user.type(email, 'nouveau@example.test')
+    await user.click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
+    expect(await within(email.closest('.form-field')!).findByRole('alert')).not.toHaveTextContent(/^$/)
+    expect(email).toHaveValue('nouveau@example.test')
+    expect(callsTo('/me', 'GET')).toHaveLength(0)
+    await user.click(screen.getByRole('button', { name: 'Renvoyer le lien de vérification' }))
+    expect(await screen.findByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
+    expect(callsTo(updatePath, 'PATCH')).toHaveLength(1)
+    expect(callsTo('/auth/email/request')).toHaveLength(2)
+  })
+
+  it('reprend un profil déjà confirmé sans quitter silencieusement une adresse non vérifiée', async () => {
+    mockApi({
+      'GET /target-icps': { body: [{ ...profile, provisional: false }] },
+      'GET /auth/email': { body: { email: ME.email, verified: false, pending_email: null } },
+      'POST /auth/email/request': { body: { status: 'sent' } },
+      'GET /me': { body: ME },
+      'GET /dashboard': { body: DASHBOARD },
+    })
+    renderApp(<AppRoutes />, { route: '/app/confirm-profile', session: { status: 'authenticated', me: ME } })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Envoyer le lien de vérification' }))
+    expect(await screen.findByRole('status')).toHaveTextContent(/Lien de vérification envoyé/)
+    await user.click(screen.getByRole('button', { name: 'Voir mes signaux' }))
+    expect(await screen.findByRole('heading', { name: 'Vos premiers signaux' })).toBeVisible()
+    expect(callsTo('/auth/email/request')).toHaveLength(1)
+    expect(callsTo(updatePath, 'PATCH')).toHaveLength(0)
+  })
+
+  it('ne renvoie pas un email déjà envoyé quand seule la relecture de session échoue', async () => {
+    let reads = 0
+    mount({ 'GET /me': () => ++reads === 1 ? { status: 503 } : { body: ME } })
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Recevoir mes signaux' }))
+    expect(await screen.findByRole('alert')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Voir mes signaux' }))
+    expect(await screen.findByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
+    expect(callsTo('/auth/email/request')).toHaveLength(1)
+    expect(callsTo(updatePath, 'PATCH')).toHaveLength(1)
   })
 })

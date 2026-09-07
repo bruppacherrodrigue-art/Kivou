@@ -5,7 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { describeError } from '../api/errorCopy'
 import { useCurrentUser, useSession } from '../auth/SessionProvider'
 import { useI18n, type Locale } from '../i18n'
-import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
+import { EmailIdentityForm } from '../auth/EmailIdentityForm'
 import { SettingsNav } from '../presentation/dashboard/SettingsNav'
 import { Button } from '../presentation/dashboard/ui/button'
 import { Input } from '../presentation/dashboard/ui/input'
@@ -111,7 +111,6 @@ export function ProfileSettings() {
             </span>
           ) : null}
         </div>
-        <PrototypeNotice>{copy.profileNotice}</PrototypeNotice>
         {errorCopy ? (
           <div className="prototype-notice" role="alert">
             <div>
@@ -129,10 +128,6 @@ export function ProfileSettings() {
               value={me.account_display_name}
               readOnly
             />
-          </div>
-          <div className="form-field">
-            <label htmlFor="account-email">{copy.professionalEmail}</label>
-            <Input id="account-email" type="email" autoComplete="email" value={me.email} readOnly />
           </div>
           <div className="form-field">
             <label htmlFor="account-language">{copy.language}</label>
@@ -158,6 +153,7 @@ export function ProfileSettings() {
           </Button>
         </div>
       </form>
+      <EmailIdentityForm key={me.user_id} />
     </div>
   )
 }

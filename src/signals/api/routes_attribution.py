@@ -14,13 +14,9 @@ Le mail promet UN signal. Une page publique le montrerait sans rien
 retenir : ni retour, ni note, ni alerte, ni le reste du feed. Le compte
 Découverte est ce qui transforme une promesse tenue en produit.
 
-L'identité du prospect n'est PAS connue
-───────────────────────────────────────
-La chaîne d'acquisition est sans PII par construction : le jeton ne porte
-qu'une empreinte opaque de destinataire. Le compte est donc créé avec une
-identité de remplacement non délivrable (`…@landing.kivou.invalid`) et un
-mot de passe aléatoire que personne ne connaît. La vraie adresse se
-collecte à la confirmation du profil, pas ici.
+L'adresse reste côté serveur, liée à un identifiant opaque signé. Un compte
+préexistant ou vérifié reçoit un aperçu public sans session ; seul le compte
+non vérifié créé par ce jeton peut être rouvert avec la même adresse.
 """
 
 from __future__ import annotations
@@ -31,20 +27,24 @@ from urllib.parse import quote
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from signals.accounts import service as accounts
 from signals.accounts.icp_input import MonetaryThreshold, TargetIcpInput, offer_for_need
-from signals.accounts.schema import account_landing_signal
+from signals.accounts.schema import account_landing_signal, auth_user
 from signals.api.config import ATTRIBUTION_COOKIE_NAME
-from signals.api.dependencies import request_now
+from signals.api.dependencies import enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.api.routes_auth import set_session_cookie
 from signals.conversion import qa_token
+from signals.conversion.recipient_records import resolve_recipient
 from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.cpv_labels import cpv_label
 from signals.domain.french_departments import department_label, location_subdivision
+from signals.domain.prospect import require_prospect_eligible
 from signals.engagement import analytics
+from signals.feed.query import is_customer_display_name
 from signals.ingestion.backfill import (
     materialize_landing_feed_in_transaction,
 )
@@ -55,6 +55,11 @@ from signals.persistence.schema import (
     for_you_sentence,
     opportunity_representation,
 )
+from signals.personalization.for_you import ForYouInput, client_safe_sentence, fallback_sentence
+from signals.supplier_discovery.seed import (
+    AcquisitionSeedNotFound,
+    resolve_public_acquisition_context_in_transaction,
+)
 
 router = APIRouter()
 
@@ -63,10 +68,6 @@ FEED_PATH = "/app/signals"
 
 #: Là où repart un lien invalide ou périmé : l'inscription ordinaire, prévenue.
 EXPIRED_PATH = "/signup?attribution=expired"
-
-#: Domaine réservé (RFC 2606) : rien n'y est délivrable, donc aucun message ne
-#: partira jamais vers cette adresse par accident.
-LANDING_EMAIL_DOMAIN = "landing.kivou.invalid"
 
 #: Le nom affiché tant que le client n'a pas confirmé le sien.
 LANDING_COMPANY_NAME = "Compte à confirmer"
@@ -83,10 +84,6 @@ PROVISIONAL_OFFERS = (
     "safety_equipment",
     "waste_and_environmental_services",
 )
-
-
-def _landing_email(token_fingerprint: str) -> str:
-    return f"landing+{token_fingerprint[:12]}@{LANDING_EMAIL_DOMAIN}"
 
 
 def _draft_icp_input(
@@ -161,6 +158,143 @@ def _mail_for_you_sentence(connection, *, member_ref: str) -> str | None:
     return snapshot.get("for_you_sentence") if isinstance(snapshot, dict) else None
 
 
+def _verify_addressed_token(connection, service, *, raw_token, now, config, lock=False):
+    is_qa = raw_token.startswith("kqa1.")
+    if is_qa:
+        if not config.attribution_hmac_key or not config.attribution_hmac_key_version:
+            raise ValueError("QA attribution key is unavailable")
+        keyring = AttributionTokenKeyring(
+            current_key_version=config.attribution_hmac_key_version,
+            keys={config.attribution_hmac_key_version: config.attribution_hmac_key},
+        )
+        payload = qa_token.verify(raw_token, keyring=keyring, at=now)
+        fingerprint = qa_token.fingerprint(raw_token)
+        recipient_key = payload.nonce
+    else:
+        if service is None:
+            raise ValueError("Attribution service unavailable")
+        verified = service.verify_in_transaction(connection, raw_token=raw_token, at=now)
+        payload, fingerprint = verified.payload, verified.token_fingerprint
+        recipient_key = fingerprint
+    email = resolve_recipient(connection, nonce=recipient_key, now=now, lock=lock)
+    return payload, fingerprint, email, is_qa
+
+
+def _landing_identity(connection, *, fingerprint, email, lock=False):
+    """Return only the identity created by this token, rejecting address drift."""
+    account_id = connection.scalar(sa.select(account_landing_signal.c.account_id).where(
+        account_landing_signal.c.token_fingerprint == fingerprint,
+    ))
+    if account_id is None:
+        return None, None
+    query = sa.select(auth_user.c.user_id, auth_user.c.email_normalized).where(
+        auth_user.c.account_id == account_id, auth_user.c.is_active.is_(True),
+    )
+    if lock:
+        query = query.with_for_update()
+    user = connection.execute(query).one_or_none()
+    if user is None or accounts.normalize_email(user.email_normalized) != email:
+        raise ValueError("Attribution identity changed or deactivated")
+    return account_id, user.user_id
+
+
+def _requires_public_preview(connection, *, user_id, email):
+    if user_id is None:
+        return accounts.user_id_for_email(connection, email=email) is not None
+    from signals.accounts.email_verification import is_user_verified
+
+    return is_user_verified(connection, user_id=user_id)
+
+
+def _public_context(connection, payload, *, now):
+    if not payload.opportunity_key:
+        raise ValueError("Attribution opportunity unavailable")
+    public = resolve_public_acquisition_context_in_transaction(connection, payload.opportunity_key)
+    require_prospect_eligible(public.award, public.event, as_of=now.date())
+    place = public.award.place_of_performance
+    if place is None or place.country != payload.country:
+        raise ValueError("Attribution opportunity unavailable in the requested country")
+    return public
+
+
+def _public_signal(connection, *, public, payload, fingerprint, is_qa):
+    award, event = public.award, public.event
+    title = (award.lot.title if award.lot else None) or award.title
+    if not title or not title.strip(" \t\n—-"):
+        title = cpv_label(award.cpv_main.code, lang="fr") if award.cpv_main else None
+
+    def published_name(organizations):
+        return next((organization.legal_name for organization in organizations
+                     if is_customer_display_name(
+                         organization.legal_name,
+                         organization.identifiers[0].value if organization.identifiers else None,
+                     )), None)
+
+    holder = published_name(award.awardee_organizations())
+    buyer = published_name(event.procedure_buyers)
+    place = award.place_of_performance
+    location = (place.locality or department_label(location_subdivision(
+        place.model_dump(mode="json"))) or place.country) if place else None
+    attribution_date = award.award_date or award.contract_notification_date
+    date = attribution_date or event.published_at
+    if isinstance(date, dt.datetime):
+        date = date.date()
+    amount = str(award.value.amount) if award.value else None
+    currency = award.value.currency if award.value else None
+    sentence = None if is_qa else _mail_for_you_sentence(
+        connection, member_ref=payload.member_ref,
+    )
+    if not client_safe_sentence(sentence):
+        sentence = connection.scalar(
+            sa.select(for_you_sentence.c.sentence)
+            .join(account_landing_signal,
+                  account_landing_signal.c.signal_key == for_you_sentence.c.signal_key)
+            .where(account_landing_signal.c.token_fingerprint == fingerprint)
+            .order_by(for_you_sentence.c.created_at.desc()).limit(1)
+        )
+    sentence = client_safe_sentence(sentence) or fallback_sentence(ForYouInput(
+        holder=holder, buyer_name=buyer, title=title,
+        amount=f"{amount} {currency}" if amount is not None else None,
+        location=location, awarded_on=date.isoformat() if date else None,
+    ))
+    return {
+        "object": title, "holder": holder, "buyer": buyer, "amount": amount,
+        "currency": currency, "location": location, "date": date.isoformat() if date else None,
+        "date_label": "Attribué le" if attribution_date else "Publié le",
+        "for_you_sentence": sentence,
+    }
+
+
+class AttributionPreviewInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    token: str = Field(min_length=1, max_length=4096)
+
+
+@router.post("/auth/attribution/preview")
+def attribution_preview(body: AttributionPreviewInput, request: Request) -> JSONResponse:
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    service = getattr(request.app.state, "conversion_attribution_service", None)
+    try:
+        with request.app.state.engine.connect() as connection:
+            payload, fingerprint, email, is_qa = _verify_addressed_token(
+                connection, service, raw_token=body.token, now=now, config=config,
+            )
+            _landing_identity(connection, fingerprint=fingerprint, email=email)
+            public = _public_context(connection, payload, now=now)
+            signal = _public_signal(
+                connection, public=public, payload=payload,
+                fingerprint=fingerprint, is_qa=is_qa,
+            )
+    except (ValueError, AcquisitionSeedNotFound):
+        raise api_error(400, "attribution_not_found", "lien invalide ou expiré") from None
+    return JSONResponse(
+        {"recipient_email": email, "signal": signal},
+        headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+    )
+
+
 @router.get("/a/{token}", include_in_schema=False)
 def attribution_click(token: str, request: Request) -> RedirectResponse:
     service = getattr(request.app.state, "conversion_attribution_service", None)
@@ -173,12 +307,14 @@ def attribution_click(token: str, request: Request) -> RedirectResponse:
         with request.app.state.engine.begin() as connection:
             land = _land_qa if token.startswith("kqa1.") else _land
             landing = land(connection, service, raw_token=token, now=now, config=config)
-    except ValueError:
+    except (ValueError, AcquisitionSeedNotFound):
         # Signature fausse, jeton périmé, membre inconnu : aucune session, aucun
         # compte, et une page d'inscription qui sait pourquoi elle est là.
         return _redirect(EXPIRED_PATH)
 
     session, signal_key, expires_at = landing
+    if session is None:
+        return _redirect(f"/public-signal#{token}")
     destination = FEED_PATH if signal_key is None else f"{FEED_PATH}/{quote(signal_key)}"
     response = _redirect(destination)
     set_session_cookie(response, request, session)
@@ -216,20 +352,17 @@ def _land(
     Un compte à moitié créé — sans utilisateur, sans journey, sans promesse
     enregistrée — serait un compte que personne ne peut ni ouvrir ni réclamer.
     """
-    verified = service.verify_in_transaction(connection, raw_token=raw_token, at=now)
-    click = service.record_click_in_transaction(connection, raw_token=raw_token, at=now)
-    payload = verified.payload
-
-    account_id = service.landed_account_in_transaction(
-        connection, token_fingerprint=click.token_fingerprint
+    payload, fingerprint, email, _ = _verify_addressed_token(
+        connection, service, raw_token=raw_token, now=now, config=config, lock=True,
     )
+    _public_context(connection, payload, now=now)
+    account_id, user_id = _landing_identity(
+        connection, fingerprint=fingerprint, email=email, lock=True,
+    )
+    if _requires_public_preview(connection, user_id=user_id, email=email):
+        return None, None, payload.expires_at
+    click = service.record_click_in_transaction(connection, raw_token=raw_token, at=now)
     if account_id is None:
-        email = _landing_email(click.token_fingerprint)
-        if accounts.user_id_for_email(connection, email=email) is not None:
-            # L'identité d'atterrissage existe sans ligne d'atterrissage : ce
-            # compte n'a pas été créé par ce lien, et le lien n'ouvre que ce
-            # qu'il a créé. On refuse plutôt que d'offrir une session.
-            raise ValueError("landing identity is already used")
         session = accounts.sign_up(
             connection,
             email=email,
@@ -239,18 +372,16 @@ def _land(
             company_name=LANDING_COMPANY_NAME,
             locale="fr",
             now=now,
-            session_ttl=config.session_ttl,
+            session_ttl=min(config.session_ttl, payload.expires_at - now),
         )
         account_id = session.account_id
         service.bind_signup_in_transaction(
             connection, account_id=account_id, raw_token=raw_token, at=now
         )
     else:
-        user_id = accounts.active_user_id(connection, account_id=account_id)
-        if user_id is None:
-            raise ValueError("landing account has no active user")
         session = accounts.open_session(
-            connection, user_id=user_id, now=now, session_ttl=config.session_ttl
+            connection, user_id=user_id, now=now,
+            session_ttl=min(config.session_ttl, payload.expires_at - now),
         )
 
     if not accounts.list_target_icps(connection, account_id=account_id):
@@ -333,23 +464,17 @@ def _land(
 
 
 def _land_qa(connection, service, *, raw_token: str, now: dt.datetime, config):
-    if not config.attribution_hmac_key or not config.attribution_hmac_key_version:
-        raise ValueError("QA attribution key is unavailable")
-    keyring = AttributionTokenKeyring(
-        current_key_version=config.attribution_hmac_key_version,
-        keys={config.attribution_hmac_key_version: config.attribution_hmac_key},
+    payload, fingerprint, email, _ = _verify_addressed_token(
+        connection, service, raw_token=raw_token, now=now, config=config, lock=True,
     )
-    payload = qa_token.verify(raw_token, keyring=keyring, at=now)
-    fingerprint = qa_token.fingerprint(raw_token)
-    email = f"qa+{fingerprint}@{LANDING_EMAIL_DOMAIN}"
-    landing = connection.execute(sa.select(account_landing_signal).where(
-        account_landing_signal.c.token_fingerprint == fingerprint,
-        account_landing_signal.c.qa.is_(True),
-    )).mappings().one_or_none()
-    replayed = landing is not None
-    if landing is None:
-        if accounts.user_id_for_email(connection, email=email) is not None:
-            raise ValueError("QA identity already exists outside this landing")
+    _public_context(connection, payload, now=now)
+    account_id, user_id = _landing_identity(
+        connection, fingerprint=fingerprint, email=email, lock=True,
+    )
+    if _requires_public_preview(connection, user_id=user_id, email=email):
+        return None, None, payload.expires_at
+    replayed = account_id is not None
+    if account_id is None:
         _, cpv_prefix, subdivision = _profile_seed(connection, payload.opportunity_key)
         available = connection.scalar(sa.select(sa.exists().where(
             opportunity_representation.c.opportunity_key == payload.opportunity_key,
@@ -383,10 +508,6 @@ def _land_qa(connection, service, *, raw_token: str, now: dt.datetime, config):
         )
         accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
     else:
-        account_id = landing["account_id"]
-        user_id = accounts.active_user_id(connection, account_id=account_id)
-        if user_id is None or accounts.user_id_for_email(connection, email=email) != user_id:
-            raise ValueError("QA identity has been confirmed or deactivated")
         session = accounts.open_session(
             connection, user_id=user_id, now=now,
             session_ttl=min(config.session_ttl, payload.expires_at - now),

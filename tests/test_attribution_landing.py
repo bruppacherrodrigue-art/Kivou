@@ -21,13 +21,14 @@ from test_conversion_attribution import NOW
 from test_conversion_attribution import prepared as conversion_prepared
 
 from signals.accounts import service as accounts
-from signals.accounts.schema import account, account_landing_signal, target_icp
+from signals.accounts.schema import account, account_landing_signal, auth_user, target_icp
 from signals.api.app import create_app
 from signals.api.config import ATTRIBUTION_COOKIE_NAME, ApiConfig
 from signals.api.routes_auth import SESSION_COOKIE_NAME
 from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
+from signals.conversion.recipient_records import attribution_recipient
 from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.values import Location
 from signals.engagement.schema import product_event
@@ -136,8 +137,10 @@ def test_landing_opens_the_promised_signal_with_a_provisional_profile(tmp_path) 
         ).mappings().all()
         events = connection.execute(sa.select(product_event)).mappings().all()
 
-    # L'identité est un remplacement non délivrable : le jeton ne porte aucune
-    # adresse, et en inventer une devinable serait pire que de ne rien mettre.
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(auth_user.c.email_normalized)) == connection.scalar(
+            sa.select(attribution_recipient.c.email_normalized)
+        )
     assert stored["display_name"] == "Compte à confirmer"
     assert stored["onboarding_status"] == "icp_incomplete"
     # Le profil est techniquement exploitable pour tenir la promesse, mais reste
@@ -348,48 +351,36 @@ def test_a_link_issued_before_the_promise_still_verifies(tmp_path) -> None:
     assert verified.payload.opportunity_key is None
 
 
-def test_a_link_issued_before_the_promise_still_lands(tmp_path) -> None:
+def test_a_link_issued_before_recipient_binding_fails_closed(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     client = client_for(engine, service, now=CLICKED_AT)
 
     response = land(client, _legacy_token(token).raw_token)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/signals"
-    pin_session_cookie(client, response)
-    assert client.get("/me").status_code == 200
+    assert response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in response.headers
+    assert client.get("/me").status_code == 401
 
 
-def test_a_legacy_keyless_token_still_lands_and_replays_the_same_account(tmp_path) -> None:
-    """Les jetons déjà émis sans clé restent en mode feed et sont rejouables."""
+def test_a_legacy_keyless_token_never_creates_a_synthetic_account(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     unresolved = _legacy_token(token)
 
     first = client_for(engine, service, now=CLICKED_AT)
     first_response = land(first, unresolved.raw_token)
     assert first_response.status_code == 303
-    assert first_response.headers["location"] == "/app/signals"
-    pin_session_cookie(first, first_response)
-    first_account_id = first.get("/me").json()["account_id"]
-
-    with engine.connect() as connection:
-        promise = connection.execute(
-            sa.select(account_landing_signal).where(
-                account_landing_signal.c.account_id == first_account_id
-            )
-        ).mappings().one()
-    assert promise["opportunity_key"] is None
-    assert promise["signal_key"] is None
+    assert first_response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in first_response.headers
 
     second = client_for(engine, service, now=CLICKED_AT + dt.timedelta(days=2))
     replayed = land(second, unresolved.raw_token)
 
     assert replayed.status_code == 303
-    assert replayed.headers["location"] == "/app/signals"
-    pin_session_cookie(second, replayed)
+    assert replayed.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in replayed.headers
     me = second.get("/me")
-    assert me.status_code == 200
-    assert me.json()["account_id"] == first_account_id
+    assert me.status_code == 401
 
     with engine.connect() as connection:
         accounts_created = connection.execute(
@@ -398,8 +389,8 @@ def test_a_legacy_keyless_token_still_lands_and_replays_the_same_account(tmp_pat
         landings = connection.execute(
             sa.select(sa.func.count()).select_from(account_landing_signal)
         ).scalar_one()
-    assert accounts_created == 1
-    assert landings == 1
+    assert accounts_created == 0
+    assert landings == 0
 
 
 def test_the_landing_still_carries_the_attribution_cookie_for_a_real_signup(tmp_path) -> None:
@@ -466,3 +457,86 @@ def test_confirmation_drops_a_promised_signal_that_no_longer_matches(tmp_path) -
 
     assert confirmed.status_code == 200
     assert all(item["signal_id"] != signal_key for item in client.get("/dashboard").json()["top3"])
+
+
+def test_real_token_without_recipient_binding_fails_closed(tmp_path):
+    engine, service, token, _ = prepared(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(sa.delete(attribution_recipient))
+    client = client_for(engine, service, now=CLICKED_AT)
+    response = land(client, token.raw_token)
+    assert response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in response.headers
+    preview = client.post("/auth/attribution/preview", json={"token": token.raw_token},
+                          headers={"Origin": "https://testserver"})
+    assert preview.status_code == 400
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(account)) == 0
+
+
+def test_real_token_existing_address_has_public_payload_and_no_session(tmp_path):
+    from signals.accounts.schema import auth_session
+    from signals.persistence.schema import acquisition_personalization_artifact
+
+    engine, service, token, _ = prepared(tmp_path)
+    with engine.begin() as connection:
+        email = connection.scalar(sa.select(attribution_recipient.c.email_normalized))
+        accounts.sign_up(connection, email=email, password="unrelated-password-long",
+                         company_name="Unrelated", locale="fr", now=CLICKED_AT,
+                         session_ttl=dt.timedelta(days=1))
+        before = connection.scalar(sa.select(sa.func.count()).select_from(auth_session))
+        snapshot = connection.scalar(sa.select(acquisition_personalization_artifact.c.input_snapshot))
+    client = client_for(engine, service, now=CLICKED_AT)
+    response = land(client, token.raw_token)
+    assert response.headers["location"] == f"/public-signal#{token.raw_token}"
+    assert "set-cookie" not in response.headers
+    assert client.get("/me").status_code == 401
+    preview = client.post("/auth/attribution/preview", json={"token": token.raw_token},
+                          headers={"Origin": "https://testserver"})
+    assert preview.status_code == 200
+    data = preview.json()
+    assert data["recipient_email"] == email
+    assert all(data["signal"][field] for field in ("object", "holder", "location", "date"))
+    if snapshot.get("for_you_sentence"):
+        assert data["signal"]["for_you_sentence"] == snapshot["for_you_sentence"]
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(auth_session)) == before
+        assert connection.scalar(sa.select(sa.func.count()).select_from(account_landing_signal)) == 0
+        assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_conversion_journey)) == 0
+
+
+def test_real_verified_replay_never_opens_a_session(tmp_path):
+    from signals.accounts.email_verification import request_verification, verify
+    from signals.accounts.schema import auth_session
+
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+    assert land(client, token.raw_token).headers["location"].startswith("/app/signals/")
+    with engine.begin() as connection:
+        user = connection.execute(sa.select(auth_user)).mappings().one()
+        proof = request_verification(connection, user_id=user["user_id"],
+                                     email=user["email_normalized"], now=CLICKED_AT)
+        verify(connection, token=proof.token, now=CLICKED_AT)
+        before = connection.scalar(sa.select(sa.func.count()).select_from(auth_session))
+    client.cookies.clear()
+    response = land(client, token.raw_token)
+    assert response.headers["location"] == f"/public-signal#{token.raw_token}"
+    assert "set-cookie" not in response.headers
+    assert client.get("/me").status_code == 401
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(account)) == 1
+        assert connection.scalar(sa.select(sa.func.count()).select_from(auth_session)) == before
+
+
+def test_real_bound_address_drift_refuses_session_and_preview(tmp_path):
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+    land(client, token.raw_token)
+    with engine.begin() as connection:
+        connection.execute(sa.update(auth_user).values(email_normalized="changed@example.com"))
+    response = land(client, token.raw_token)
+    assert response.headers["location"] == "/signup?attribution=expired"
+    assert "set-cookie" not in response.headers
+    preview = client.post("/auth/attribution/preview", json={"token": token.raw_token},
+                          headers={"Origin": "https://testserver"})
+    assert preview.status_code == 400

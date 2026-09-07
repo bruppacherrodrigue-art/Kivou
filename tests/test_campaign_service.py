@@ -398,7 +398,7 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     client = client_for(
         engine,
         ConversionAttributionService(engine, keyring),
-        now=payload.issued_at,
+        now=max(payload.issued_at, NOW),
     )
 
     landing = land(client, token)

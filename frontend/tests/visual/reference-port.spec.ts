@@ -27,6 +27,10 @@ const EXPECTED_GOLDENS = [
   )),
   'public-menu-open-mobile.png',
   'dashboard-sidebar-open-mobile.png',
+  'dashboard-settings-profile-desktop.png',
+  'dashboard-settings-profile-mobile.png',
+  'dashboard-notifications-desktop.png',
+  'dashboard-notifications-mobile.png',
 ].sort()
 
 test.beforeAll(() => {
@@ -226,6 +230,8 @@ async function waitForScenario(
     await expect(page.getByLabel('Zone')).toHaveValues(['CH-VD'])
     await expect(page.getByLabel('Secteur')).toHaveValue('45')
     await expect(page.getByLabel('Ce que vous vendez')).not.toHaveValue('')
+    await expect(page.getByLabel('Adresse professionnelle')).toHaveValue(/\S+@\S+/)
+    await expect(page.locator('input, select, textarea')).toHaveCount(4)
     await expect(page.getByRole('button', { name: 'Recevoir mes signaux' })).toBeVisible()
   }
   if (golden === 'dashboard-signals') {

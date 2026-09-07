@@ -7,8 +7,8 @@ pytest_plugins = ("test_qa_attribution",)
 
 
 def test_qa_confirmation_state_is_shared_and_confirmation_keeps_signals(prepared_qa):
-    _, client, opportunity = prepared_qa
-    landed = client.get(f"/a/{issue(opportunity)}", follow_redirects=False)
+    engine, client, opportunity = prepared_qa
+    landed = client.get(f"/a/{issue(opportunity, engine=engine)}", follow_redirects=False)
     assert landed.status_code == 303
     assert client.get("/me").json()["provisional_profile"] is True
     profiles = client.get("/target-icps").json()

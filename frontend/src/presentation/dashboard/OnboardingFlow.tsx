@@ -2,7 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ArrowLeft, ArrowRight, Check, Info, Target } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { MVP_TERRITORIES, MVP_THRESHOLD_CURRENCIES } from '../../api/capabilities'
-import { icps } from '../../api/endpoints'
+import { auth, icps } from '../../api/endpoints'
+import { emailRequestError, validEmail } from '../../api/email'
+import { EmailIdentityForm } from '../../auth/EmailIdentityForm'
 import { ApiError } from '../../api/client'
 import { PROFILE_CONFIRMATION_PATH } from '../../auth/profileRoute'
 import { describeError } from '../../api/errorCopy'
@@ -131,7 +133,7 @@ export function OnboardingFlow({ confirmationOnly = false }: { confirmationOnly?
   const requiresConfirmation = confirmationOnly || provisional || (session.status === 'authenticated' && session.me.provisional_profile)
 
   if (confirmationOnly && session.status === 'authenticated' && session.me.onboarding_status === 'ready_for_signals') {
-    return <Navigate to="/app" replace />
+    return <ConfirmationEmailRecovery />
   }
   if (profiles.loading && !profiles.data) {
     return <AuthShell screenHeader eyebrow="Première configuration" title="Votre profil cible" description="Chargement…" showBrand={false}><p role="status">Chargement…</p></AuthShell>
@@ -139,6 +141,7 @@ export function OnboardingFlow({ confirmationOnly = false }: { confirmationOnly?
   if (requiresConfirmation) {
     if (!confirmationOnly) return <Navigate to={PROFILE_CONFIRMATION_PATH} replace />
     if (provisional) return <ProvisionalOnboarding key={provisional.target_icp_id} profile={provisional} />
+    if (profiles.data?.some((profile) => !profile.provisional && !profile.missing_fields.length)) return <ConfirmationEmailRecovery />
     return <AuthShell screenHeader eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Retrouvez les choix de votre signal." showBrand={false}>
       <p className="form-error" role="alert">Impossible de charger votre profil provisoire. Réessayez sans recommencer votre inscription.</p>
       <Button onClick={() => void profiles.retry()}>Réessayer</Button>
@@ -151,7 +154,18 @@ export function OnboardingFlow({ confirmationOnly = false }: { confirmationOnly?
   return <LegacyOnboardingFlow />
 }
 
-type ConfirmationField = 'zone' | 'sector' | 'offer' | 'general'
+function ConfirmationEmailRecovery() {
+  const { adopt } = useSession()
+  const navigate = useNavigate()
+  return <AuthShell screenHeader eyebrow="Profil confirmé" title="Vérifiez votre adresse email" description="Votre profil est enregistré. Confirmez votre adresse pour recevoir vos alertes." showBrand={false}>
+    <EmailIdentityForm onContinue={async (pendingEmail) => {
+      adopt(await auth.me())
+      navigate('/app', { replace: true, state: { firstSignals: true, emailVerificationSent: pendingEmail } })
+    }} />
+  </AuthShell>
+}
+
+type ConfirmationField = 'zone' | 'sector' | 'offer' | 'email' | 'general'
 type ConfirmationErrors = Partial<Record<ConfirmationField, string>>
 const confirmationFields: Record<string, ConfirmationField> = {
   territories: 'zone', territory_subdivisions: 'zone',
@@ -160,7 +174,7 @@ const confirmationFields: Record<string, ConfirmationField> = {
 
 function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
   const navigate = useNavigate()
-  const { refresh } = useSession()
+  const { refresh, state: session } = useSession()
   const { t } = useI18n()
   const loadOptions = useCallback(() => icps.options(), [])
   const options = useResource(loadOptions)
@@ -171,6 +185,10 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
   const tokenSector = profile.customer_input.offer_summary
   const [sectorPrefix, setSectorPrefix] = useState(initialSector)
   const [offer, setOffer] = useState(profile.customer_input.offer_summary)
+  const [email, setEmail] = useState(session.status === 'authenticated' ? session.me.email : '')
+  const [profileSaved, setProfileSaved] = useState(false)
+  const [sentEmail, setSentEmail] = useState<string | null>(null)
+  const savedPayload = useRef<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<ConfirmationErrors>({})
   const busy = useRef(false)
@@ -184,6 +202,7 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
     if (!zones.length || zones.some((zone) => !options.data?.zones.some((item) => item.code === zone))) invalid.zone = 'Choisissez un département ou un canton proposé.'
     if (!sectorPrefix || !options.data?.sectors.some((item) => item.prefix === sectorPrefix)) invalid.sector = 'Choisissez votre secteur.'
     if (!offer.trim()) invalid.offer = 'Décrivez ce que vous vendez.'
+    if (!validEmail(email)) invalid.email = 'Indiquez une adresse email valide.'
     setErrors(invalid)
     if (Object.keys(invalid).length) return
     busy.current = true
@@ -191,21 +210,35 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
     const countries = [...new Set(zones.map((zone) => zone.split('-')[0]))]
     const sectorLabel = sectorPrefix === initialSector ? tokenSector : options.data?.sectors.find((item) => item.prefix === sectorPrefix)?.label
     const zoneLabels = zones.map((zone) => options.data?.zones.find((item) => item.code === zone)?.label).filter(Boolean)
+    let phase: 'profile' | 'email' | 'session' = 'profile'
     try {
-      const saved = await icps.update(profile.target_icp_id, {
+      const payload = {
         label: [sectorLabel, ...zoneLabels].filter(Boolean).join(' · '),
         customer_input: { ...profile.customer_input, offer_summary: offer.trim(), territories: countries,
           territory_subdivisions: zones.filter((zone) => zone.includes('-')), sector_cpv_prefixes: [sectorPrefix] },
-      })
-      if (saved.missing_fields.length) {
-        const missing: ConfirmationErrors = {}
-        for (const field of saved.missing_fields) missing[confirmationFields[field] ?? 'general'] = 'Complétez ce champ pour recevoir vos signaux.'
-        setErrors(missing)
-        return
       }
+      const snapshot = JSON.stringify(payload)
+      if (savedPayload.current !== snapshot) {
+        const saved = await icps.update(profile.target_icp_id, payload)
+        if (saved.missing_fields.length) {
+          const missing: ConfirmationErrors = {}
+          for (const field of saved.missing_fields) missing[confirmationFields[field] ?? 'general'] = 'Complétez ce champ pour recevoir vos signaux.'
+          setErrors(missing)
+          return
+        }
+        savedPayload.current = snapshot
+        setProfileSaved(true)
+      }
+      phase = 'email'
+      if (sentEmail !== email.trim()) {
+        await auth.requestEmail(email.trim())
+        setSentEmail(email.trim())
+      }
+      phase = 'session'
       await refresh()
-      navigate('/app', { replace: true, state: { firstSignals: true } })
+      navigate('/app', { replace: true, state: { firstSignals: true, emailVerificationSent: email.trim() } })
     } catch (caught) {
+      if (phase === 'email') { setErrors({ email: emailRequestError(caught) }); return }
       const invalid: ConfirmationErrors = {}
       if (caught instanceof ApiError) {
         for (const detail of caught.fields) {
@@ -225,7 +258,7 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
     }
   }
 
-  return <AuthShell screenHeader eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Trois réponses pour recevoir les signaux qui vous concernent." wide showBrand={false} navigationDisabled={submitting}>
+  return <AuthShell screenHeader eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Quatre réponses pour recevoir les signaux qui vous concernent." wide showBrand={false} navigationDisabled={submitting}>
     {options.error ? <><p className="form-error" role="alert">Impossible de charger les zones et secteurs. Réessayez.</p><Button onClick={() => void options.retry()}>Réessayer</Button></> : !options.data ? <p role="status">Chargement des choix…</p> :
       <form noValidate onSubmit={(event) => { event.preventDefault(); void confirm() }}>
         <div className="onboarding-form-grid">
@@ -249,9 +282,18 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
             <Textarea id="confirmation-offer" value={offer} disabled={submitting} aria-invalid={Boolean(errors.offer)} aria-describedby={errors.offer ? 'confirmation-error-offer' : undefined}
               onChange={(event) => { setOffer(event.target.value); clear('offer') }} />{errorFor('offer')}
           </div>
+          <div className="form-field form-field-wide">
+            <label htmlFor="confirmation-email">Adresse professionnelle</label>
+            <Input id="confirmation-email" type="email" autoComplete="email" value={email} disabled={submitting}
+              aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'confirmation-email-help confirmation-error-email' : 'confirmation-email-help'}
+              onChange={(event) => { setEmail(event.target.value); clear('email') }} />
+            <p id="confirmation-email-help">Vous recevrez un lien de vérification. Aucune alerte ne sera envoyée avant validation de votre adresse.</p>
+            {errorFor('email')}
+          </div>
         </div>
+        {sentEmail === email.trim() ? <p role="status">Lien de vérification envoyé. Consultez votre messagerie pour valider votre adresse.</p> : null}
         {errorFor('general')}
-        <div className="onboarding-actions"><Button type="submit" disabled={submitting}>{submitting ? 'Enregistrement…' : 'Recevoir mes signaux'}</Button></div>
+        <div className="onboarding-actions"><Button type="submit" disabled={submitting}>{submitting ? 'Enregistrement…' : sentEmail === email.trim() ? 'Voir mes signaux' : profileSaved ? 'Renvoyer le lien de vérification' : 'Recevoir mes signaux'}</Button></div>
       </form>}
   </AuthShell>
 }

@@ -73,7 +73,7 @@ def test_landing_and_both_feed_filters_share_the_same_coverage(prepared_qa):
     from signals.feed.query import feed_page, history_page
 
     engine, client, opportunity = prepared_qa
-    response = client.get(f"/a/{issue(opportunity)}", follow_redirects=False)
+    response = client.get(f"/a/{issue(opportunity, engine=engine)}", follow_redirects=False)
     assert response.headers["location"].startswith("/app/signals/")
     with engine.connect() as connection:
         landing = connection.execute(sa.select(account_landing_signal)).mappings().one()

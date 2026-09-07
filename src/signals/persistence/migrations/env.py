@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from alembic import context
 
+import signals.accounts.email_verification
+
 # L'import enregistre les tables de SPEC-011 dans le même `METADATA`.
 import signals.accounts.schema
 import signals.billing.schema
 import signals.companies.schema
-import signals.engagement.schema  # noqa: F401
+import signals.conversion.recipient_records
+import signals.engagement.schema  # noqa: F401 - registers engagement tables in shared metadata.
 from signals.persistence.schema import METADATA
 
 target_metadata = METADATA

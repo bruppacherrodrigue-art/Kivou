@@ -825,3 +825,47 @@ def test_contact_email_drift_before_add_is_caught_by_protected_identity_binding(
         worker.process(operation_ref, NOW)
 
     assert provider.add_calls == 0
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_real_issuance_binds_actual_transport_recipient_before_provider_io(tmp_path, override):
+    from signals.conversion.recipient_records import attribution_recipient
+    from signals.conversion.service import ConversionAttributionService
+    from signals.conversion.token import AttributionTokenKeyring
+
+    engine, _, _, provider, worker, _ = _planned(
+        tmp_path, recipient_override=_ControlledRecipientOverride() if override else None,
+    )
+    with engine.connect() as connection:
+        member = dict(connection.execute(sa.select(acquisition_campaign_member)).mappings().one())
+        campaign = dict(connection.execute(sa.select(acquisition_campaign)).mappings().one())
+        assert connection.scalar(sa.select(sa.func.count()).select_from(attribution_recipient)) == 0
+    lead = worker._lead_payload(member, campaign)
+    raw = lead["custom_variables"]["kivou_attribution_url"].rsplit("/", 1)[1]
+    keyring = AttributionTokenKeyring(current_key_version="attribution-test-v1",
+                                    keys={"attribution-test-v1": b"synthetic-attribution-secret"})
+    with engine.connect() as connection:
+        verified = ConversionAttributionService(engine, keyring).verify_in_transaction(
+            connection, raw_token=raw, at=NOW,
+        )
+        stored = connection.execute(sa.select(attribution_recipient)).mappings().one()
+    assert stored["nonce"] == verified.token_fingerprint
+    assert stored["email_normalized"] == lead["email"]
+    assert lead["email"] not in raw
+    assert provider.add_calls == 0
+    assert worker._lead_payload(member, campaign) == lead
+
+
+def test_real_issuance_refuses_rebinding_an_emitted_token(tmp_path):
+    from signals.conversion.recipient_records import attribution_recipient
+
+    engine, _, service, provider, worker, _ = _planned(tmp_path)
+    with engine.connect() as connection:
+        member = dict(connection.execute(sa.select(acquisition_campaign_member)).mappings().one())
+        campaign = dict(connection.execute(sa.select(acquisition_campaign)).mappings().one())
+    lead = worker._lead_payload(member, campaign)
+    with pytest.raises(ValueError, match="binding conflicts"):
+        service.attribution_url_for_member(member, campaign, recipient_email="other@example.com")
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(attribution_recipient.c.email_normalized)) == lead["email"]
+    assert provider.add_calls == 0
