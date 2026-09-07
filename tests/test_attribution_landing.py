@@ -11,6 +11,7 @@ Ce que ces tests tiennent, et qu'aucun autre ne tient :
 from __future__ import annotations
 
 import datetime as dt
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import sqlalchemy as sa
@@ -39,7 +40,8 @@ from signals.persistence.schema import (
 CLICKED_AT = NOW + dt.timedelta(hours=1)
 
 
-def prepared(tmp_path):
+@contextmanager
+def recent_landing_context(*, place: Location | None = None):
     """Recent, geographically coherent synthetic cold-landing fixture.
 
     Archived source files are unchanged. The refreshed facts enter ingestion
@@ -49,14 +51,14 @@ def prepared(tmp_path):
         event, awards = simap_award(name)
         refreshed = []
         for award in awards:
-            place = Location(
+            location = place or Location(
                 country="FR", subdivision_code="FRB05",
                 subdivision_scheme="NUTS", locality="Selles Sur Cher",
                 postal_code="41130",
             )
             refreshed.append(award.model_copy(update={
                 "award_date": (NOW - dt.timedelta(days=10)).date(),
-                "place_of_performance": place,
+                "place_of_performance": location,
             }))
         return event, tuple(refreshed)
 
@@ -66,6 +68,11 @@ def prepared(tmp_path):
         patch("test_decision_engine_service.EVALUATED_AT", evaluated_at),
         patch("test_compliance_service.EVALUATED_AT", evaluated_at),
     ):
+        yield
+
+
+def prepared(tmp_path):
+    with recent_landing_context():
         return conversion_prepared(tmp_path)
 
 

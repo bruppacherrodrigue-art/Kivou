@@ -39,6 +39,7 @@ from signals.conversion.service import ConversionAttributionService
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
+from signals.domain.values import Location
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -345,9 +346,18 @@ def test_campaign_attribution_freezes_versioned_public_sector_dimension(tmp_path
 
 def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(tmp_path) -> None:
     """Le parcours part bien du lien composé dans le mail du runtime."""
-    from test_attribution_landing import client_for, land, pin_session_cookie
+    from test_attribution_landing import (
+        client_for,
+        land,
+        pin_session_cookie,
+        recent_landing_context,
+    )
 
-    engine, opportunity_id, _, _ = _prepared(tmp_path)
+    with recent_landing_context(place=Location(
+        country="FR", subdivision_code="FR-75", subdivision_scheme="ISO-3166-2",
+        locality="Paris", postal_code="75001",
+    )):
+        engine, opportunity_id, _, _ = _prepared(tmp_path)
     with engine.begin() as connection:
         connection.execute(
             sa.update(contract_award).values(
@@ -397,7 +407,7 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     assert client.get(f"/signals/{promised_key}").status_code == 200
     profile = client.get("/target-icps").json()[0]
     # La fixture runtime ne porte qu'un marché. Cinq projections du même marché
-    # rendent ici explicite le contrat d'accès « appât + cinq voisins » sans
+    # exercent la limite « appât + quatre voisins » sans
     # fabriquer de nouveaux faits publics ni court-circuiter l'API d'atterrissage.
     with engine.begin() as connection:
         promised = connection.execute(
@@ -423,7 +433,7 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     account_id = client.get("/me").json()["account_id"]
     with engine.connect() as connection:
         landing_keys = account_service.landing_signal_keys(connection, account_id=account_id)
-    assert len(landing_keys) == 6
+    assert len(landing_keys) == 5
     assert promised_key in landing_keys
     assert client.patch(
         f'/target-icps/{profile["target_icp_id"]}',
