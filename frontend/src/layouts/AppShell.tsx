@@ -8,7 +8,8 @@ import {
   Settings,
   Target,
 } from 'lucide-react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { PROFILE_CONFIRMATION_PATH } from '../auth/profileRoute'
 import { dashboard } from '../api/endpoints'
 import type { DashboardResponse } from '../api/types'
 import { useCurrentUser, useSession } from '../auth/SessionProvider'
@@ -221,7 +222,7 @@ function ConnectedShell({
         <SidebarFooter className="sidebar-footer">
           <AccountBlock me={me} />
           <div className="sidebar-plan-summary">
-            {me.provisional_profile ? <strong>Découverte · profil provisoire</strong> : null}
+            {me.provisional_profile ? <Link to={PROFILE_CONFIRMATION_PATH}><strong>Découverte · profil provisoire</strong></Link> : null}
             <strong>{signalQuota === null && openedSignals !== null ? `${openedSignals} signaux ouverts ce mois` : `Plan ${planLabel} · ${openedSignals ?? 0}/${signalQuota ?? '∞'} signaux ce mois`}</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>
@@ -281,13 +282,13 @@ function AccountBlock({ me }: { me: ReturnType<typeof useCurrentUser> }) {
 
   return (
     <div className="sidebar-account">
-      <ReferenceLink dashboard className="sidebar-account-link" href="/settings">
+      <Link className="sidebar-account-link" to={me.provisional_profile ? PROFILE_CONFIRMATION_PATH : '/app/settings'}>
         <span className="sidebar-account-avatar" aria-hidden="true">{initials}</span>
         <span className="sidebar-account-copy">
           <strong>{displayName}</strong>
           {me.company_name ? <small>{me.company_name}</small> : null}
         </span>
-      </ReferenceLink>
+      </Link>
       <button
         type="button"
         className="sidebar-account-logout"

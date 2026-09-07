@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ArrowLeft, Check } from 'lucide-react'
 import { ReferenceLink } from '../router/ReferenceLink'
+import { ScreenHeader } from '../../components/ScreenChrome'
 
 export function KivouMark() {
   return (
@@ -33,6 +34,7 @@ export function AuthShell({
   wide = false,
   showBrand = true,
   navigationDisabled = false,
+  screenHeader = false,
 }: {
   eyebrow: string
   title: string
@@ -41,6 +43,7 @@ export function AuthShell({
   wide?: boolean
   showBrand?: boolean
   navigationDisabled?: boolean
+  screenHeader?: boolean
 }) {
   const blockNavigation = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (navigationDisabled) event.preventDefault()
@@ -48,7 +51,7 @@ export function AuthShell({
 
   return (
     <main
-      className={`auth-page auth-shell${showBrand ? '' : ' auth-page-no-brand'}`}
+      className={`auth-page auth-shell${showBrand ? '' : ' auth-page-no-brand'}${screenHeader ? ' auth-screen-heading' : ''}`}
       id="kivou-main"
     >
       {showBrand ? (
@@ -63,8 +66,7 @@ export function AuthShell({
         </ReferenceLink>
         <div className="auth-heading">
           <p className="section-label">{eyebrow}</p>
-          <h1>{title}</h1>
-          <p>{description}</p>
+          {screenHeader ? <ScreenHeader title={title} description={description} /> : <><h1>{title}</h1><p>{description}</p></>}
         </div>
         {children}
       </section>

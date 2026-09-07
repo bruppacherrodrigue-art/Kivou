@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, Info, Target } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { MVP_THRESHOLD_CURRENCIES } from '../../api/capabilities'
+import { MVP_TERRITORIES, MVP_THRESHOLD_CURRENCIES } from '../../api/capabilities'
 import { icps } from '../../api/endpoints'
+import { ApiError } from '../../api/client'
+import { PROFILE_CONFIRMATION_PATH } from '../../auth/profileRoute'
 import { describeError } from '../../api/errorCopy'
 import type { TargetIcp } from '../../api/types'
 import { useSession } from '../../auth/SessionProvider'
@@ -121,78 +123,137 @@ function fieldStep(field: LocalField): number {
   return 3
 }
 
-export function OnboardingFlow() {
+export function OnboardingFlow({ confirmationOnly = false }: { confirmationOnly?: boolean }) {
   const { state: session } = useSession()
   const loadProfiles = useCallback(() => icps.list(), [])
   const profiles = useResource(loadProfiles)
-  const provisional = session.status === 'authenticated'
-    && session.me.onboarding_status !== 'ready_for_signals'
-    ? profiles.data?.find((profile) => profile.provisional)
-    : undefined
+  const provisional = profiles.data?.find((profile) => profile.provisional)
+  const requiresConfirmation = confirmationOnly || provisional || (session.status === 'authenticated' && session.me.provisional_profile)
 
-  if (profiles.loading && !profiles.data) {
-    return <AuthShell eyebrow="Première configuration" title="Votre profil cible" description="Chargement…" showBrand={false}><p role="status">Chargement…</p></AuthShell>
+  if (confirmationOnly && session.status === 'authenticated' && session.me.onboarding_status === 'ready_for_signals') {
+    return <Navigate to="/app" replace />
   }
-  if (provisional) return <ProvisionalOnboarding profile={provisional} />
+  if (profiles.loading && !profiles.data) {
+    return <AuthShell screenHeader eyebrow="Première configuration" title="Votre profil cible" description="Chargement…" showBrand={false}><p role="status">Chargement…</p></AuthShell>
+  }
+  if (requiresConfirmation) {
+    if (!confirmationOnly) return <Navigate to={PROFILE_CONFIRMATION_PATH} replace />
+    if (provisional) return <ProvisionalOnboarding key={provisional.target_icp_id} profile={provisional} />
+    return <AuthShell screenHeader eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Retrouvez les choix de votre signal." showBrand={false}>
+      <p className="form-error" role="alert">Impossible de charger votre profil provisoire. Réessayez sans recommencer votre inscription.</p>
+      <Button onClick={() => void profiles.retry()}>Réessayer</Button>
+    </AuthShell>
+  }
+  if (profiles.error) return <AuthShell screenHeader eyebrow="Première configuration" title="Votre profil cible" description="Chargement du profil" showBrand={false}>
+    <p className="form-error" role="alert">Impossible de charger votre profil. Réessayez.</p>
+    <Button onClick={() => void profiles.retry()}>Réessayer</Button>
+  </AuthShell>
   return <LegacyOnboardingFlow />
+}
+
+type ConfirmationField = 'zone' | 'sector' | 'offer' | 'general'
+type ConfirmationErrors = Partial<Record<ConfirmationField, string>>
+const confirmationFields: Record<string, ConfirmationField> = {
+  territories: 'zone', territory_subdivisions: 'zone',
+  sector_cpv_prefixes: 'sector', offer_summary: 'offer',
 }
 
 function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
   const navigate = useNavigate()
   const { refresh } = useSession()
+  const { t } = useI18n()
   const loadOptions = useCallback(() => icps.options(), [])
   const options = useResource(loadOptions)
-  const [zones, setZones] = useState<string[]>(
-    ((profile.customer_input.territory_subdivisions?.length ?? 0) > 0
-      ? profile.customer_input.territory_subdivisions ?? []
-      : profile.customer_input.territories),
-  )
-  const [sectorPrefix, setSectorPrefix] = useState(profile.customer_input.sector_cpv_prefixes?.[0] ?? '')
+  const [zones, setZones] = useState<string[]>(profile.customer_input.territory_subdivisions?.length
+    ? profile.customer_input.territory_subdivisions : profile.customer_input.territories)
+  const initialSector = profile.customer_input.sector_cpv_prefixes?.[0] ?? ''
+  // Landing persists the token's literal sector, not the broad CPV label.
+  const tokenSector = profile.customer_input.offer_summary
+  const [sectorPrefix, setSectorPrefix] = useState(initialSector)
   const [offer, setOffer] = useState(profile.customer_input.offer_summary)
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState(false)
+  const [errors, setErrors] = useState<ConfirmationErrors>({})
+  const busy = useRef(false)
+  const errorFor = (field: ConfirmationField) => errors[field]
+    ? <p id={'confirmation-error-' + field} className="form-error" role="alert">{errors[field]}</p> : null
+  const clear = (field: ConfirmationField) => setErrors((previous) => ({ ...previous, [field]: undefined, general: undefined }))
 
   const confirm = async () => {
-    const zoneCodes = zones
-    const territories = [...new Set(zoneCodes.map((zone) => zone.split('-', 1)[0]))]
-    const territorySubdivisions = zoneCodes.filter((zone) => zone.includes('-'))
-    if (!zoneCodes.length || !sectorPrefix || !offer.trim()) return setError(true)
+    if (busy.current) return
+    const invalid: ConfirmationErrors = {}
+    if (!zones.length || zones.some((zone) => !options.data?.zones.some((item) => item.code === zone))) invalid.zone = 'Choisissez un département ou un canton proposé.'
+    if (!sectorPrefix || !options.data?.sectors.some((item) => item.prefix === sectorPrefix)) invalid.sector = 'Choisissez votre secteur.'
+    if (!offer.trim()) invalid.offer = 'Décrivez ce que vous vendez.'
+    setErrors(invalid)
+    if (Object.keys(invalid).length) return
+    busy.current = true
     setSubmitting(true)
-    setError(false)
+    const countries = [...new Set(zones.map((zone) => zone.split('-')[0]))]
+    const sectorLabel = sectorPrefix === initialSector ? tokenSector : options.data?.sectors.find((item) => item.prefix === sectorPrefix)?.label
+    const zoneLabels = zones.map((zone) => options.data?.zones.find((item) => item.code === zone)?.label).filter(Boolean)
     try {
-      await icps.update(profile.target_icp_id, {
-        label: options.data?.sectors.find((item) => item.prefix === sectorPrefix)?.label || profile.label,
-        customer_input: {
-          ...profile.customer_input,
-          offer_summary: offer.trim(),
-          territories,
-          territory_subdivisions: territorySubdivisions,
-          sector_cpv_prefixes: sectorPrefix ? [sectorPrefix] : [],
-        },
+      const saved = await icps.update(profile.target_icp_id, {
+        label: [sectorLabel, ...zoneLabels].filter(Boolean).join(' · '),
+        customer_input: { ...profile.customer_input, offer_summary: offer.trim(), territories: countries,
+          territory_subdivisions: zones.filter((zone) => zone.includes('-')), sector_cpv_prefixes: [sectorPrefix] },
       })
+      if (saved.missing_fields.length) {
+        const missing: ConfirmationErrors = {}
+        for (const field of saved.missing_fields) missing[confirmationFields[field] ?? 'general'] = 'Complétez ce champ pour recevoir vos signaux.'
+        setErrors(missing)
+        return
+      }
       await refresh()
       navigate('/app', { replace: true, state: { firstSignals: true } })
-    } catch {
-      setError(true)
+    } catch (caught) {
+      const invalid: ConfirmationErrors = {}
+      if (caught instanceof ApiError) {
+        for (const detail of caught.fields) {
+          const field = confirmationFields[detail.field] ?? 'general'
+          invalid[field] = [invalid[field], detail.message || 'Vérifiez cette valeur.'].filter(Boolean).join(' ')
+        }
+        if (caught.code === 'territory_limit_exceeded') invalid.zone = 'Votre offre ne permet pas autant de zones. Réduisez votre sélection.'
+      }
+      if (!Object.keys(invalid).length) {
+        const copy = describeError(caught, t)
+        invalid.general = [copy.title, copy.body].filter(Boolean).join(' ') || 'Impossible d’enregistrer votre profil. Réessayez.'
+      }
+      setErrors(invalid)
     } finally {
+      busy.current = false
       setSubmitting(false)
     }
   }
 
-  return (
-    <AuthShell eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Trois réponses suffisent pour recevoir vos signaux." wide showBrand={false} navigationDisabled={submitting}>
-      <section className="onboarding-step">
+  return <AuthShell screenHeader eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Trois réponses pour recevoir les signaux qui vous concernent." wide showBrand={false} navigationDisabled={submitting}>
+    {options.error ? <><p className="form-error" role="alert">Impossible de charger les zones et secteurs. Réessayez.</p><Button onClick={() => void options.retry()}>Réessayer</Button></> : !options.data ? <p role="status">Chargement des choix…</p> :
+      <form noValidate onSubmit={(event) => { event.preventDefault(); void confirm() }}>
         <div className="onboarding-form-grid">
-          <div className="form-field form-field-wide"><label htmlFor="onboarding-zone">Zone</label><select id="onboarding-zone" multiple value={zones} onChange={(event) => setZones(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>{options.data?.zones.map((zone) => <option key={zone.code} value={zone.code}>{zone.label} ({zone.code})</option>)}</select><p className="field-hint">Sélectionnez un ou plusieurs départements ou cantons.</p></div>
-          <div className="form-field form-field-wide"><label htmlFor="onboarding-sector">Secteur</label><select id="onboarding-sector" value={sectorPrefix} onChange={(event) => setSectorPrefix(event.target.value)}><option value="">Sélectionner un secteur</option>{options.data?.sectors.map((sector) => <option key={sector.prefix} value={sector.prefix}>{sector.label}</option>)}</select></div>
-          <div className="form-field form-field-wide"><label htmlFor="onboarding-offer">Ce que vous vendez</label><Textarea id="onboarding-offer" value={offer} onChange={(event) => setOffer(event.target.value)} /></div>
+          <div className="form-field form-field-wide">
+            <label htmlFor="confirmation-zone">Zone</label>
+            <select id="confirmation-zone" multiple value={zones} disabled={submitting} aria-invalid={Boolean(errors.zone)} aria-describedby={errors.zone ? 'confirmation-error-zone' : undefined}
+              onChange={(event) => { setZones(Array.from(event.target.selectedOptions, (option) => option.value)); clear('zone') }}>
+              {options.data.zones.map((zone) => <option key={zone.code} value={zone.code}>{zone.label} ({zone.code})</option>)}
+            </select>{errorFor('zone')}
+          </div>
+          <div className="form-field form-field-wide">
+            <label htmlFor="confirmation-sector">Secteur</label>
+            <select id="confirmation-sector" value={sectorPrefix} disabled={submitting} aria-invalid={Boolean(errors.sector)} aria-describedby={errors.sector ? 'confirmation-error-sector' : undefined}
+              onChange={(event) => { setSectorPrefix(event.target.value); clear('sector') }}>
+              <option value="">Choisissez votre secteur</option>
+              {options.data.sectors.map((sector) => <option key={sector.prefix} value={sector.prefix}>{sector.prefix === initialSector ? tokenSector : sector.label}</option>)}
+            </select>{errorFor('sector')}
+          </div>
+          <div className="form-field form-field-wide">
+            <label htmlFor="confirmation-offer">Ce que vous vendez</label>
+            <Textarea id="confirmation-offer" value={offer} disabled={submitting} aria-invalid={Boolean(errors.offer)} aria-describedby={errors.offer ? 'confirmation-error-offer' : undefined}
+              onChange={(event) => { setOffer(event.target.value); clear('offer') }} />{errorFor('offer')}
+          </div>
         </div>
-      </section>
-      {options.loading && !options.data ? <p role="status">Chargement des zones et secteurs…</p> : null}
-      {error || options.error ? <p className="form-error" role="alert">Vérifiez les trois champs puis réessayez.</p> : null}
-      <div className="onboarding-actions"><span /><Button type="button" className="primary-action" disabled={submitting} onClick={() => void confirm()}>Recevoir mes signaux</Button></div>
-    </AuthShell>
-  )
+        {errorFor('general')}
+        <div className="onboarding-actions"><Button type="submit" disabled={submitting}>{submitting ? 'Enregistrement…' : 'Recevoir mes signaux'}</Button></div>
+      </form>}
+  </AuthShell>
 }
 
 function LegacyOnboardingFlow() {
@@ -218,6 +279,16 @@ function LegacyOnboardingFlow() {
   const activeOperationRef = useRef<OnboardingOperation | null>(null)
   const currentAccountRef = useRef(currentAccountId)
   currentAccountRef.current = currentAccountId
+
+  const countryCurrencies = [...new Set(draft.territory.split(',').map((raw) => {
+    const value = raw.trim().toLocaleLowerCase('fr')
+    const country = MVP_TERRITORIES.find((item) => [item.code, item.fr, item.en].some((name) => name.toLocaleLowerCase('fr') === value))
+    return country ? (country.code === 'CH' ? 'CHF' : 'EUR') : null
+  }).filter((currency): currency is 'EUR' | 'CHF' => currency !== null))]
+  const countryCurrency = countryCurrencies.length === 1 ? countryCurrencies[0] : null
+  useEffect(() => {
+    if (countryCurrency) setDraft((previous) => previous.currency === countryCurrency ? previous : { ...previous, currency: countryCurrency })
+  }, [countryCurrency])
 
   const terms = useMemo(
     () => [...new Set(draft.terms.split(',').map((term) => term.trim()).filter(Boolean))],
@@ -331,7 +402,9 @@ function LegacyOnboardingFlow() {
         goToInvalidField(visible.field)
         return
       }
-      throw caught
+      const copy = describeError(caught, t)
+      setError({ field: 'general', message: [copy.title, copy.body].filter(Boolean).join(' ') })
+      return
     }
 
     busyRef.current = true
@@ -361,8 +434,12 @@ function LegacyOnboardingFlow() {
           message: 'Votre profil cible a bien été enregistré, mais Kivou n’a pas pu finaliser l’ouverture de votre compte. Réessayez sans recréer le profil.',
         })
       } else {
+        const fields: Record<string, LocalField> = { offer_summary: 'offer', label: 'name', offers: 'offers', buyer_trades: 'buyer_trades', territories: 'territories', minimum_amount: 'threshold', maximum_amount: 'threshold', currency: 'threshold' }
+        const detail = caught instanceof ApiError ? caught.fields[0] : undefined
         const copy = describeError(caught, t)
-        setError({ field: 'general', message: `${copy.title} ${copy.body}`.trim() })
+        const visible: VisibleError = { field: detail ? fields[detail.field] ?? 'general' : 'general', message: detail?.message || [copy.title, copy.body].filter(Boolean).join(' ') }
+        setError(visible)
+        goToInvalidField(visible.field)
       }
     } finally {
       if (activeOperationRef.current?.id === operation.id) {
@@ -395,7 +472,7 @@ function LegacyOnboardingFlow() {
   }
 
   return (
-    <AuthShell
+    <AuthShell screenHeader
       eyebrow="Première configuration"
       title="Définir ce que Kivou doit surveiller"
       description="Quatre étapes courtes suffisent pour expliquer votre offre, votre marché et le seuil utile."
@@ -481,8 +558,7 @@ function LegacyOnboardingFlow() {
             <div className="form-field">
               <label htmlFor="onboarding-currency">Devise</label>
               <select id="onboarding-currency" className="lifecycle-select" value={draft.currency} aria-invalid={error?.field === 'threshold' || undefined} onChange={(event) => update('currency', event.target.value)}>
-                <option value="CHF">CHF</option>
-                <option value="EUR">EUR</option>
+                {MVP_THRESHOLD_CURRENCIES.filter((currency) => !countryCurrency || currency === countryCurrency).map((currency) => <option key={currency} value={currency}>{currency}</option>)}
               </select>
               <p className="field-hint">Le seuil porte sur la valeur publique du marché, pas sur un budget fournisseur disponible.</p>
             </div>

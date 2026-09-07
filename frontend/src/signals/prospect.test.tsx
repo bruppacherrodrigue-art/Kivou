@@ -54,7 +54,7 @@ describe('prospect de production', () => {
     } })
     expect(await screen.findByText('Découverte · profil provisoire')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Confirmer mon profil/ })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Confirmer mon profil/ })).toBeInTheDocument()
   })
 
   it('affiche un titre court et l’objet complet séparément', () => {

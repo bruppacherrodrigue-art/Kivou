@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useCurrentUser } from '../auth/SessionProvider'
+import { PROFILE_CONFIRMATION_PATH } from '../auth/profileRoute'
 import { billing, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import type {
@@ -586,7 +587,7 @@ export function SignalsFeed() {
       {feed.data?.provisional_profile ? (
         <aside className={styles.provisionalBanner} role="note">
           <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
-          <Link to="/onboarding">Confirmer mon profil</Link>
+          <Link to={PROFILE_CONFIRMATION_PATH}>Confirmer mon profil</Link>
         </aside>
       ) : null}
 

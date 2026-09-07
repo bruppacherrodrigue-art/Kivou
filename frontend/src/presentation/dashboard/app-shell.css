@@ -6989,3 +6989,31 @@ button.public-cta {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* PR5 and the retained signup wizard use the connected screens' heading. */
+.auth-screen-heading .auth-card,
+.auth-screen-heading .form-field,
+.auth-screen-heading .onboarding-review > div {
+  min-width: 0;
+}
+
+.auth-screen-heading .onboarding-step-heading h2 {
+  font-family: inherit;
+}
+
+.auth-screen-heading .onboarding-review dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.auth-screen-heading .onboarding-actions {
+  flex-wrap: wrap;
+}
+
+.auth-screen-heading .onboarding-actions button {
+  height: auto;
+  min-height: 40px;
+  max-width: 100%;
+  white-space: normal;
+}

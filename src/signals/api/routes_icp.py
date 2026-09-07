@@ -111,9 +111,7 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
         )
         stored = service.list_target_icps(connection, account_id=session.account_id)
         landing = service.landing_signal(connection, account_id=session.account_id)
-        provisional = landing is not None and service.onboarding_status(
-            connection, account_id=session.account_id
-        ) != "ready_for_signals"
+        provisional = service.is_provisional_profile(connection, account_id=session.account_id)
         if landing is not None:
             service.mark_landing_step(
                 connection,
@@ -217,7 +215,10 @@ def get_target_icp(target_icp_id: str, request: Request) -> TargetIcpResponse:
             )
         except service.TargetIcpNotFound as error:
             raise api_error(404, error.code, "profil de ciblage introuvable") from error
-    return TargetIcpResponse.of(stored, max_territories=entitlements.max_territories_per_icp)
+        provisional = service.is_provisional_profile(connection, account_id=session.account_id)
+    return TargetIcpResponse.of(
+        stored, max_territories=entitlements.max_territories_per_icp, provisional=provisional,
+    )
 
 
 @router.patch("/target-icps/{target_icp_id}")
