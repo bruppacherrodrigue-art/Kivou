@@ -44,6 +44,8 @@ try {
   if (viewportName === 'mobile') await page.locator('.sidebar-account-link:visible').click();
   else await banner.click();
   await expect(page).toHaveURL(/\/app\/confirm-profile$/);
+  // The URL changes before React removes the feed's own Zone filter.
+  await expect(page.getByRole('heading', { level: 1, name: 'Confirmez votre profil cible', exact: true })).toBeVisible();
   await expect(page.getByLabel('Zone', { exact: true })).toHaveValues(['FR-41']);
   await expect(page.getByLabel('Secteur', { exact: true })).toHaveValue('45');
   await expect(page.getByLabel('Secteur', { exact: true }).locator('option:checked')).toHaveText('bardage métallique');
