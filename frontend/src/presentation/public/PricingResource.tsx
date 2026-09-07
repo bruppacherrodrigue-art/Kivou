@@ -33,9 +33,7 @@ export function usePricingResource(): PricingResourceState {
     setState({ status: 'loading', catalogue: null, currency: null })
     billing.plans().then((catalogue) => {
       if (!active) return
-      const currency = catalogue.currencies.includes('chf')
-        ? 'chf'
-        : catalogue.currencies[0] ?? null
+      const currency = catalogue.currencies.includes('eur') ? 'eur' : null
       setState({ status: 'ready', catalogue, currency })
     }).catch(() => {
       if (active) setState({ status: 'error', catalogue: null, currency: null })
@@ -73,7 +71,7 @@ export function publicPrice(
   const price = plan.monthly_price[currency]
   if (!price) return null
   return {
-    currency: price.currency.toUpperCase(),
+    currency: price.currency === 'eur' ? '€' : price.currency.toUpperCase(),
     amount: withRenderableSpaces(new Intl.NumberFormat('fr-CH', {
       minimumFractionDigits: price.amount_minor_units % 100 === 0 ? 0 : 2,
       maximumFractionDigits: 2,

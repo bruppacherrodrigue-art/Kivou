@@ -229,6 +229,7 @@ class StripeGateway(Protocol):
         coupon_id: str | None,
         expires_at: dt.datetime,
         idempotency_key: str,
+        currency: str = "eur",
     ) -> CheckoutSession: ...
 
     def create_portal_session(
@@ -465,9 +466,11 @@ class StripeApiGateway:
         coupon_id: str | None,
         expires_at: dt.datetime,
         idempotency_key: str,
+        currency: str = "eur",
     ) -> CheckoutSession:
         params: dict[str, Any] = {
             "mode": "subscription",
+            "currency": currency,
             "customer": customer_id,
             "line_items": [{"price": price_id, "quantity": 1}],
             "success_url": success_url,

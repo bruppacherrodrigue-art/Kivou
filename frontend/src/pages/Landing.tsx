@@ -132,7 +132,7 @@ export function Landing() {
                 return (
                   <div key={code}>
                     <span><strong>{PUBLIC_PLAN_NAMES[code]}</strong><small>{plan ? plan.plan_code === 'discovery' ? discoveryCompact(plan) : `${profileLabel(plan)} · ${territoryLabel(plan)}` : unavailable.detail}</small></span>
-                    <b>{plan ? plan.plan_code === 'discovery' ? 'Gratuit' : price ? `${price.currency} ${price.amount}` : 'Indisponible' : unavailable.price}</b>
+                    <b>{plan ? plan.plan_code === 'discovery' ? 'Gratuit' : price ? `${price.amount}\u00a0${price.currency}` : 'Indisponible' : unavailable.price}</b>
                   </div>
                 )
               })}

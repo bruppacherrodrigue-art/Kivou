@@ -78,7 +78,7 @@ describe('facturation exacte sous autorité backend', () => {
     expect(callsTo('/billing/checkout')).toHaveLength(0)
     await user.click(await screen.findByRole('button', { name: /choisir essentiel/i }))
     expect(exactBillingPanel()).not.toBeNull()
-    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'essential', currency: 'chf' })
+    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'essential', currency: 'eur' })
   })
 
   it.each([
@@ -106,7 +106,7 @@ describe('facturation exacte sous autorité backend', () => {
       const selector = await screen.findByLabelText('Offre')
       expect(selector).toHaveValue(planCode)
       await user.click(screen.getByRole('button', { name: new RegExp(`choisir ${planName}`, 'i') }))
-      expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: planCode, currency: 'chf' })
+      expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: planCode, currency: 'eur' })
     },
   )
 
@@ -120,8 +120,8 @@ describe('facturation exacte sous autorité backend', () => {
       return element
     })
     const plan = within(panel).getByLabelText('Offre')
-    expect(within(plan).getByRole('option', { name: /Essentiel · 49/ })).toBeVisible()
-    expect(within(plan).getByRole('option', { name: /Pro · 99/ })).toBeVisible()
+    expect(within(plan).getByRole('option', { name: /Essentiel · 29/ })).toBeVisible()
+    expect(within(plan).getByRole('option', { name: /Pro · 49/ })).toBeVisible()
     expect(within(plan).getByRole('option', { name: /Scale · 199/ })).toBeVisible()
     expect(document.body).not.toHaveTextContent(/29[.,]00|59[.,]00|129[.,]00/)
   })
@@ -133,7 +133,7 @@ describe('facturation exacte sous autorité backend', () => {
 
     const selector = await screen.findByLabelText('Offre')
     expect(within(selector).getByRole('option', { name: /Découverte · Gratuit/ })).toBeVisible()
-    expect(within(selector).getByRole('option', { name: /Pro · 99.*Recommandé/ })).toBeVisible()
+    expect(within(selector).getByRole('option', { name: /Pro · 49.*Recommandé/ })).toBeVisible()
 
     await user.selectOptions(selector, 'discovery')
     expect(screen.getByRole('link', { name: /voir les signaux accessibles/i })).toHaveAttribute(
@@ -167,7 +167,7 @@ describe('facturation exacte sous autorité backend', () => {
     await screen.findByLabelText('Offre')
     const panel = exactBillingPanel()
     expect(within(panel).getByText('Offre sélectionnée')).toBeVisible()
-    expect(within(panel).getByRole('heading', { level: 3 })).toHaveTextContent(/Essentiel · 49/)
+    expect(within(panel).getByRole('heading', { level: 3 })).toHaveTextContent(/Essentiel · 29/)
     expect(panel.querySelector(':scope > .billing-plan-selector.form-field')).not.toBeNull()
     expect(panel.querySelectorAll('.billing-entitlements > div')).toHaveLength(5)
     expect(within(panel).getByText(/7 signaux réels débloqués/)).toBeVisible()
@@ -239,17 +239,17 @@ describe('facturation exacte sous autorité backend', () => {
 
   it('ne présente jamais comme gratuit un prix absent dans la devise sélectionnée', async () => {
     const user = userEvent.setup()
-    const missingChf = {
+    const missingEur = {
       ...CATALOGUE,
       plans: CATALOGUE.plans.map((plan) =>
         plan.plan_code === 'essential'
-          ? { ...plan, monthly_price: { eur: plan.monthly_price.eur } }
+          ? { ...plan, monthly_price: { chf: plan.monthly_price.chf } }
           : plan,
       ),
     }
     mockApi({
       ...routes(DISCOVERY_STATUS),
-      'GET /billing/plans': { body: missingChf },
+      'GET /billing/plans': { body: missingEur },
     })
     renderApp(<AppRoutes />, { route: '/app/billing', session: AUTHENTICATED })
 

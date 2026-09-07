@@ -63,10 +63,10 @@ describe('grille tarifaire', () => {
     const optionOf = (plan: string) =>
       within(selector).getByRole('option', { name: new RegExp(`^${plan}\\b`) }).textContent ?? ''
 
-    // Les montants viennent du catalogue : 0 / 49 / 99 / 199, en CHF par défaut.
+    // Les montants viennent du catalogue : 0 / 29 / 49 / 199, en euros.
     expect(optionOf('Découverte')).toContain('Gratuit')
-    expect(optionOf('Essentiel')).toMatch(/49/)
-    expect(optionOf('Pro')).toMatch(/(^|\D)99/)
+    expect(optionOf('Essentiel')).toMatch(/29/)
+    expect(optionOf('Pro')).toMatch(/(^|\D)49/)
     expect(optionOf('Scale')).toMatch(/199/)
 
     // Les anciens prix des maquettes ne doivent apparaître nulle part.
@@ -96,23 +96,19 @@ describe('grille tarifaire', () => {
     expect(page).not.toContain('founding')
     expect(page).not.toContain('fondateur')
     expect(page).not.toContain('design partner')
-    expect(page).not.toMatch(/\b29\b/)
+    expect(page).not.toMatch(/offre fondateur/i)
   })
 })
 
 describe('devise', () => {
-  it('demande un choix EXPLICITE, jamais déduit de la langue', async () => {
-    const user = userEvent.setup()
+  it('propose les nouvelles offres en euros', async () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing', locale: 'fr' })
 
     const group = await screen.findByRole('group', { name: 'Devise' })
-    expect(within(group).getByLabelText('CHF')).toBeInTheDocument()
+    expect(within(group).getAllByRole('radio')).toHaveLength(1)
     expect(within(group).getByLabelText('EUR')).toBeInTheDocument()
 
-    // Une locale française ne présélectionne PAS l'euro.
-    expect(within(group).getByLabelText('CHF')).toBeChecked()
-    await user.click(within(group).getByLabelText('EUR'))
     expect(within(group).getByLabelText('EUR')).toBeChecked()
   })
 })
@@ -136,7 +132,7 @@ describe('checkout', () => {
 
     await waitFor(() => expect(callsTo('/billing/checkout')).toHaveLength(1))
     const sent = callsTo('/billing/checkout')[0].body as Record<string, unknown>
-    expect(sent).toEqual({ plan: 'pro', currency: 'chf' })
+    expect(sent).toEqual({ plan: 'pro', currency: 'eur' })
 
     const serialised = JSON.stringify(sent)
     expect(serialised).not.toContain('price_')

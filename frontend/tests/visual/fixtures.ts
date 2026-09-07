@@ -1040,7 +1040,7 @@ export const VISUAL_COMPANIES = awardSignals.map(toCompanyProfile)
 export const VISUAL_CATALOGUE = {
   catalogue_version: 'reference-2026-08-29',
   billing_interval: 'month',
-  currencies: ['chf'],
+  currencies: ['eur'],
   plans: [
     {
       plan_code: 'discovery',
@@ -1054,7 +1054,7 @@ export const VISUAL_CATALOGUE = {
       purchasable: true,
       recommended: false,
       monthly_price: {
-        chf: { amount_minor_units: 4900, currency: 'chf' },
+        eur: { amount_minor_units: 2900, currency: 'eur' },
       },
       entitlements: entitlements({ profiles: 1, cadence: 'weekly', history: 30 }),
     },
@@ -1063,7 +1063,7 @@ export const VISUAL_CATALOGUE = {
       purchasable: true,
       recommended: true,
       monthly_price: {
-        chf: { amount_minor_units: 9900, currency: 'chf' },
+        eur: { amount_minor_units: 4900, currency: 'eur' },
       },
       entitlements: entitlements({
         profiles: 3,
@@ -1077,7 +1077,7 @@ export const VISUAL_CATALOGUE = {
       purchasable: true,
       recommended: false,
       monthly_price: {
-        chf: { amount_minor_units: 19900, currency: 'chf' },
+        eur: { amount_minor_units: 19900, currency: 'eur' },
       },
       entitlements: entitlements({
         profiles: 10,

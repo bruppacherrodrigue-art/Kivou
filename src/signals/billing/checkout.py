@@ -143,6 +143,7 @@ def open_checkout_session(
     return gateway.create_checkout_session(
         customer_id=prepared.customer_id,
         price_id=prepared.price_id,
+        currency=prepared.attempt.currency,
         account_id=account_id,
         success_url=configuration.success_url,
         cancel_url=configuration.cancel_url,

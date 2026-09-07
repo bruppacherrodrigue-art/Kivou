@@ -34,7 +34,7 @@ describe('contenu et agencement exacts de la référence publique', () => {
     expect(screen.getByRole('link', { name: 'Voir l’exemple complet' })).toHaveAttribute('href', '/exemple-de-signal')
     expect(screen.getByRole('link', { name: 'Voir la méthode' })).toHaveAttribute('href', '/produit')
     expect(screen.getByRole('link', { name: 'Comparer les offres' })).toHaveAttribute('href', '/tarifs')
-    await screen.findByText('CHF 49')
+    await screen.findByText('29 €')
   })
 
   it('rend la page produit complète dans les classes de la référence', async () => {

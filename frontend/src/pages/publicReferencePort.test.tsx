@@ -66,9 +66,9 @@ describe('port exact de la référence publique', () => {
         ...plan,
         monthly_price:
           plan.plan_code === 'essential'
-            ? { chf: { amount_minor_units: 5700, currency: 'chf' as const } }
+            ? { eur: { amount_minor_units: 5700, currency: 'eur' as const } }
             : plan.plan_code === 'pro'
-              ? { chf: { amount_minor_units: 11300, currency: 'chf' as const } }
+              ? { eur: { amount_minor_units: 11300, currency: 'eur' as const } }
               : plan.monthly_price,
       })),
     }
@@ -76,7 +76,7 @@ describe('port exact de la référence publique', () => {
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     await screen.findByText('57')
     const essential = screen.getByRole('heading', { name: 'Essentiel' }).closest('article')!
-    expect(within(essential).getByText('CHF')).toBeInTheDocument()
+    expect(within(essential).getByText('€')).toBeInTheDocument()
     expect(within(essential).getByText('57')).toBeInTheDocument()
     expect(within(essential).queryByText('49')).not.toBeInTheDocument()
     const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
@@ -103,13 +103,13 @@ describe('port exact de la référence publique', () => {
       plans: CATALOGUE.plans.map((plan) => ({
         ...plan,
         monthly_price: plan.plan_code === 'essential'
-          ? { chf: { amount_minor_units: 5700, currency: 'chf' as const } }
+          ? { eur: { amount_minor_units: 5700, currency: 'eur' as const } }
           : plan.monthly_price,
       })),
     }
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-    expect(await screen.findByText(/CHF\s+57/)).toBeInTheDocument()
+    expect(await screen.findByText(/57\s+€/)).toBeInTheDocument()
     expect(screen.queryByText('CHF 49')).not.toBeInTheDocument()
   })
 
@@ -316,4 +316,23 @@ describe('port exact de la référence publique', () => {
       })).not.toBeInTheDocument())
     },
   )
+})
+
+
+it('shows the same EUR monthly prices in cards and comparison, with safe metadata', async () => {
+  const catalogue = { ...CATALOGUE, plans: CATALOGUE.plans.map((plan) => ({
+    ...plan, monthly_price: plan.plan_code === 'discovery' ? {} : {
+      eur: { amount_minor_units: { essential: 2900, pro: 4900, scale: 19900 }[plan.plan_code as 'essential' | 'pro' | 'scale'], currency: 'eur' as const },
+    },
+  })) }
+  mockApi({ 'GET /billing/plans': { body: catalogue } })
+  renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
+  await screen.findByRole('link', { name: 'Choisir Essentiel' })
+  for (const [name, price] of [['Essentiel', '29'], ['Pro', '49'], ['Scale', '199']]) {
+    const card = screen.getByRole('heading', { name }).closest('article')!
+    expect(card.querySelector('.plan-price')?.textContent).toContain(`${price}\u00a0€`)
+    expect(screen.getByRole('table').textContent).toContain(`${price}\u00a0€`)
+  }
+  expect(document.body.textContent).not.toMatch(/CHF/)
+  expect(document.querySelector('meta[name="description"]')?.getAttribute('content')).not.toMatch(/occasion|ciblage|déblocage|documenté/i)
 })

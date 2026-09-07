@@ -86,7 +86,7 @@ def list_plans() -> dict[str, Any]:
     return {
         "catalogue_version": catalogue.CATALOGUE_VERSION,
         "billing_interval": "month",
-        "currencies": list(catalogue.CURRENCIES),
+        "currencies": ["eur"],
         "plans": list(catalogue.public_catalogue()),
     }
 
@@ -232,6 +232,7 @@ def start_checkout(payload: CheckoutRequest, request: Request) -> dict[str, Any]
         # paramètre de requête. Aucun `?founding=true` n'existe.
         founding = (
             payload.plan == catalogue.FOUNDING_PLAN_CODE
+            and payload.currency == "chf"
             and configuration.founding_coupon_id is not None
             and service.founding_available(connection, account_id=account_id)
             and _founding_eligible(request, account_id)

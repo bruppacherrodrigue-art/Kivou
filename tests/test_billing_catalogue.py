@@ -63,12 +63,14 @@ def test_scale_history_is_what_is_persisted_not_an_infinite_promise():
     assert safe["history_scope"] == "all_available"
 
 
-# ─── §6 — 49 / 99 / 199, dans les deux devises, sans conversion ───────────────
+# ─── Nouveaux prix EUR et contrats CHF historiques ──────────────────────────
 
 
-@pytest.mark.parametrize("currency", ["chf", "eur"])
-@pytest.mark.parametrize(("plan", "amount"), [("essential", 4900), ("pro", 9900), ("scale", 19900)])
-def test_the_price_is_the_same_number_in_both_currencies(plan: str, currency: str, amount: int):
+@pytest.mark.parametrize(("plan", "currency", "amount"), [
+    ("essential", "eur", 2900), ("pro", "eur", 4900), ("scale", "eur", 19900),
+    ("essential", "chf", 4900), ("pro", "chf", 9900), ("scale", "chf", 19900),
+])
+def test_new_eur_prices_and_legacy_chf_contracts(plan: str, currency: str, amount: int):
     """§6 — une décision commerciale, pas un taux de change."""
     assert catalogue.amount_for(plan, currency) == amount
 
@@ -76,11 +78,11 @@ def test_the_price_is_the_same_number_in_both_currencies(plan: str, currency: st
 def test_every_purchasable_plan_has_a_lookup_key_in_each_currency():
     expected = {
         "kivou_essential_monthly_chf",
-        "kivou_essential_monthly_eur",
+        "kivou_essential_monthly_eur_202609",
         "kivou_pro_monthly_chf",
-        "kivou_pro_monthly_eur",
+        "kivou_pro_monthly_eur_202609",
         "kivou_scale_monthly_chf",
-        "kivou_scale_monthly_eur",
+        "kivou_scale_monthly_eur_202609",
     }
     produced = {
         catalogue.lookup_key_for(plan, currency)
@@ -195,3 +197,17 @@ def test_the_expected_stripe_prices_match_the_kivou_catalogue_exactly():
         assert price.currency == currency
         assert price.recurring_interval == "month"
         assert price.livemode is False
+
+
+@pytest.mark.parametrize("currency", ["eur", "chf"])
+@pytest.mark.parametrize("plan", ["essential", "pro", "scale"])
+def test_price_resolution_keeps_both_currencies_on_the_same_plan(plan, currency):
+    import dataclasses
+
+    from billing_helpers import subscription_state
+
+    from signals.billing.service import resolve_plan
+
+    state = subscription_state(plan=plan, currency=currency)
+    state = dataclasses.replace(state, price_id="price_new_opaque_identifier")
+    assert resolve_plan(state) == (plan, currency)

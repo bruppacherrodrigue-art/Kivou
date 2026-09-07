@@ -15,9 +15,8 @@
     et un `Price` inconnu ne rend **aucun** droit payant. Jamais Pro « par
     défaut » : un défaut permissif est une faille qui attend son incident.
 
-Les montants sont des décisions commerciales, pas des conversions. 49 CHF **ou**
-49 EUR : le client suisse et le client français paient le même nombre, pas le
-même montant converti.
+Les nouvelles offres sont mensuelles en euros. Les montants historiques en
+francs suisses restent disponibles pour la gestion des contrats existants.
 """
 
 from __future__ import annotations
@@ -25,7 +24,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Literal
 
-CATALOGUE_VERSION = "kivou-plans-v0.1"
+CATALOGUE_VERSION = "kivou-plans-eur-v1"
 
 PlanCode = Literal["discovery", "essential", "pro", "scale"]
 PLAN_CODES: tuple[str, ...] = ("discovery", "essential", "pro", "scale")
@@ -169,8 +168,8 @@ PLANS: dict[str, PlanEntitlements] = {
 #: Prix mensuels, en unités mineures, par plan et par devise. Explicites dans
 #: les deux devises : aucune conversion automatique (§6).
 MONTHLY_MINOR_UNITS: dict[str, dict[str, int]] = {
-    "essential": {"chf": 4900, "eur": 4900},
-    "pro": {"chf": 9900, "eur": 9900},
+    "essential": {"chf": 4900, "eur": 2900},
+    "pro": {"chf": 9900, "eur": 4900},
     "scale": {"chf": 19900, "eur": 19900},
 }
 
@@ -178,7 +177,10 @@ MONTHLY_MINOR_UNITS: dict[str, dict[str, int]] = {
 #: tarification évolue ; la clé de recherche, elle, se transfère au nouveau prix.
 #: C'est donc elle que le code connaît, et jamais un identifiant Stripe en dur.
 LOOKUP_KEYS: dict[str, dict[str, str]] = {
-    plan: {currency: f"kivou_{plan}_monthly_{currency}" for currency in CURRENCIES}
+    plan: {
+        currency: f"kivou_{plan}_monthly_{currency}" + ("_202609" if currency == "eur" else "")
+        for currency in CURRENCIES
+    }
     for plan in PURCHASABLE_PLANS
 }
 
@@ -245,6 +247,9 @@ def amount_for(plan_code: str, currency: str) -> int:
 _BY_LOOKUP_KEY: dict[str, tuple[str, str]] = {
     key: (plan, currency) for plan, keys in LOOKUP_KEYS.items() for currency, key in keys.items()
 }
+
+# Les anciens Prices EUR gardent leur clé et leurs abonnements.
+_BY_LOOKUP_KEY.update({f"kivou_{plan}_monthly_eur": (plan, "eur") for plan in PURCHASABLE_PLANS})
 
 
 def plan_for_lookup_key(lookup_key: str | None) -> tuple[str, str] | None:

@@ -108,7 +108,7 @@ function PricingCard({
       <h2 className="plan-name">{PUBLIC_PLAN_NAMES[plan.plan_code]}</h2>
       <p className="plan-who">{PUBLIC_PLAN_WHO[plan.plan_code]}</p>
       <p className={`plan-price${free ? ' free' : ''}`}>
-        {free ? <strong>Gratuit</strong> : price ? <><small>{price.currency}</small><strong>{price.amount}</strong><span>/mois</span></> : <strong>Indisponible</strong>}
+        {free ? <strong>Gratuit</strong> : price ? <><strong>{price.amount}</strong>{"\u00a0"}<small>{price.currency}</small><span>/mois</span></> : <strong>Indisponible</strong>}
       </p>
       <p className="plan-billing">{free ? 'Accès gratuit' : price ? 'par mois' : 'Tarif indisponible'}</p>
       <hr />
@@ -162,7 +162,7 @@ function ComparisonRow({
 
 function priceText(plan: CataloguePlan, currency: Currency | null): string {
   const price = publicPrice(plan, currency)
-  return price ? `${price.currency} ${price.amount}` : 'Indisponible'
+  return price ? `${price.amount}\u00a0${price.currency}` : 'Indisponible'
 }
 
 function capitalize(value: string): string {

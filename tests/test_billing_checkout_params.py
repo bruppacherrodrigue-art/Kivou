@@ -80,7 +80,7 @@ def gateway_recording(
 def open_session(gateway: StripeApiGateway, *, automatic_tax: bool = False):
     return gateway.create_checkout_session(
         customer_id="cus_existing_1",
-        price_id="price_pro_chf",
+        price_id="price_pro_eur",
         account_id="acc_1",
         success_url="https://staging.kivou.eu/checkout/success",
         cancel_url="https://staging.kivou.eu/checkout/cancel",
@@ -123,7 +123,7 @@ def test_le_client_stripe_reste_celui_que_kivou_a_resolu():
     params = sessions.calls[0]["params"]
     assert params["customer"] == "cus_existing_1"
     assert params["mode"] == "subscription"
-    assert params["line_items"] == [{"price": "price_pro_chf", "quantity": 1}]
+    assert params["line_items"] == [{"price": "price_pro_eur", "quantity": 1}]
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -218,3 +218,9 @@ def test_un_echec_ambigu_n_est_pas_un_refus_definitif():
         open_session(gateway)
 
     assert not isinstance(raised.value, CheckoutSessionRejected)
+
+
+def test_checkout_explicitly_uses_euros():
+    gateway, sessions = gateway_recording()
+    open_session(gateway)
+    assert sessions.calls[0]["params"]["currency"] == "eur"

@@ -53,7 +53,7 @@ export function Billing() {
   const status = useResource(loadStatus)
   const catalogue = useResource(loadCatalogue)
   const requestedPlanCode = purchasablePlanFromSearch(location.search)
-  const [currency, setCurrency] = useState<Currency>('chf')
+  const [currency, setCurrency] = useState<Currency>('eur')
   const [selectedPlanCode, setSelectedPlanCode] = useState<PlanCode>(
     () => requestedPlanCode ?? 'essential',
   )
@@ -83,16 +83,14 @@ export function Billing() {
   useEffect(() => {
     if (currencyInitialised.current) return
     const billedCurrency = status.data?.currency
-    if (billedCurrency === 'chf' || billedCurrency === 'eur') {
+    if (status.data?.billing_action !== 'choose_plan' && (billedCurrency === 'chf' || billedCurrency === 'eur')) {
       currencyInitialised.current = true
       setCurrency(billedCurrency)
       return
     }
     if (catalogue.data) {
       currencyInitialised.current = true
-      setCurrency(catalogue.data.currencies.includes('chf')
-        ? 'chf'
-        : catalogue.data.currencies[0] ?? 'chf')
+      setCurrency('eur')
     }
   }, [catalogue.data, status.data])
 

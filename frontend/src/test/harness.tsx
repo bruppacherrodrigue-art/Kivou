@@ -552,7 +552,7 @@ export const COMPANY_PROFILE: CompanyProfile = {
 export const CATALOGUE: PlanCatalogue = {
   catalogue_version: 'kivou-plans-v0.1',
   billing_interval: 'month',
-  currencies: ['chf', 'eur'],
+  currencies: ['eur'],
   plans: [
     {
       plan_code: 'discovery',
@@ -565,14 +565,14 @@ export const CATALOGUE: PlanCatalogue = {
       plan_code: 'essential',
       purchasable: true,
       recommended: false,
-      monthly_price: { chf: { amount_minor_units: 4900, currency: 'chf' }, eur: { amount_minor_units: 4900, currency: 'eur' } },
+      monthly_price: { chf: { amount_minor_units: 4900, currency: 'chf' }, eur: { amount_minor_units: 2900, currency: 'eur' } },
       entitlements: entitlements({ icps: 1, cadence: 'weekly', history: 30 }),
     },
     {
       plan_code: 'pro',
       purchasable: true,
       recommended: true,
-      monthly_price: { chf: { amount_minor_units: 9900, currency: 'chf' }, eur: { amount_minor_units: 9900, currency: 'eur' } },
+      monthly_price: { chf: { amount_minor_units: 9900, currency: 'chf' }, eur: { amount_minor_units: 4900, currency: 'eur' } },
       entitlements: entitlements({ icps: 3, cadence: 'daily', history: 365, territory: 'multiple' }),
     },
     {

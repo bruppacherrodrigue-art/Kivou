@@ -387,3 +387,14 @@ def test_the_founding_discount_never_applies_to_another_plan(engine, stripe: Fak
 
     client.post("/billing/checkout", json={"plan": "scale", "currency": "chf"})
     assert stripe.checkout_calls[-1]["coupon_id"] is None
+
+
+def test_new_eur_checkout_does_not_use_the_legacy_founding_coupon(engine, stripe):
+    app = build(engine, stripe, stripe_founding_coupon_id="coupon_test_legacy")
+    client = signed_up(app)
+    account_id = client.get("/me").json()["account_id"]
+    app.state.founding_accounts = frozenset({account_id})
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
+    assert response.status_code == 200
+    assert stripe.checkout_calls[-1]["coupon_id"] is None
+    assert stripe.checkout_calls[-1]["currency"] == "eur"

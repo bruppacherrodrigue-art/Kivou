@@ -125,7 +125,7 @@ describe('vérité du packaging', () => {
     await selectPro()
     const page = document.body.textContent ?? ''
     expect(page).toContain('49')
-    expect(page).toContain('99')
+    expect(page).toContain('29')
     expect(page).toContain('199')
     expect(page).toContain('Gratuit')
   })
@@ -135,7 +135,6 @@ describe('vérité du packaging', () => {
     await selectPro()
     const page = document.body.textContent ?? ''
     expect(page).not.toMatch(/founding|fondateur/i)
-    expect(page).not.toContain('29')
   })
 
   it('garde Pro recommandé', async () => {
