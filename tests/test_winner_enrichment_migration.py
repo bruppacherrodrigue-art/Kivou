@@ -43,7 +43,8 @@ def test_migration_is_the_single_additive_head(tmp_path) -> None:
     }
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
+    assert scripts.get_revision("0042_account_deletion").down_revision == "0041_for_you_model_fit"
+    assert scripts.get_revision(LATEST).down_revision == "0042_account_deletion"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision

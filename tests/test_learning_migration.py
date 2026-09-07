@@ -46,7 +46,8 @@ def test_learning_migration_is_one_linear_head_with_exactly_two_tables(tmp_path)
 
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
+    assert scripts.get_revision("0042_account_deletion").down_revision == "0041_for_you_model_fit"
+    assert scripts.get_revision(LATEST).down_revision == "0042_account_deletion"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision

@@ -62,7 +62,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
+    assert scripts.get_revision("0042_account_deletion").down_revision == "0041_for_you_model_fit"
+    assert scripts.get_revision(LATEST).down_revision == "0042_account_deletion"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
