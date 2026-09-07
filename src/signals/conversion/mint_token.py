@@ -14,7 +14,9 @@ import sqlalchemy as sa
 from signals.accounts.icp_input import offer_for_need
 from signals.conversion import qa_token
 from signals.conversion.token import AttributionTokenKeyring
+from signals.domain.prospect import require_prospect_eligible
 from signals.persistence.schema import contract_award, opportunity_representation
+from signals.supplier_discovery.seed import resolve_public_acquisition_context_in_transaction
 
 
 def mint_url(
@@ -42,6 +44,12 @@ def mint_url(
             opportunity_representation.c.award_key == contract_award.c.award_key,
             contract_award.c.place_country == country,
         )))
+        if exists:
+            public = resolve_public_acquisition_context_in_transaction(connection, opportunity)
+            place = public.award.place_of_performance
+            if place is None or place.country != country:
+                raise ValueError("Opportunity unavailable in the requested country")
+            require_prospect_eligible(public.award, public.event, as_of=now.date())
     if not exists:
         raise ValueError("Opportunity unavailable in the requested country")
     raw = qa_token.issue(payload, keyring=keyring)

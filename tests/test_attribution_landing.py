@@ -11,10 +11,13 @@ Ce que ces tests tiennent, et qu'aucun autre ne tient :
 from __future__ import annotations
 
 import datetime as dt
+from unittest.mock import patch
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
-from test_conversion_attribution import NOW, prepared
+from feed_helpers import simap_award
+from test_conversion_attribution import NOW
+from test_conversion_attribution import prepared as conversion_prepared
 
 from signals.accounts import service as accounts
 from signals.accounts.schema import account, account_landing_signal, target_icp
@@ -25,6 +28,7 @@ from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
 from signals.conversion.token import AttributionTokenKeyring
+from signals.domain.values import Location
 from signals.engagement.schema import product_event
 from signals.persistence.schema import (
     acquisition_conversion_journey,
@@ -33,6 +37,36 @@ from signals.persistence.schema import (
 )
 
 CLICKED_AT = NOW + dt.timedelta(hours=1)
+
+
+def prepared(tmp_path):
+    """Recent, geographically coherent synthetic cold-landing fixture.
+
+    Archived source files are unchanged. The refreshed facts enter ingestion
+    before decision, personalization and signing, not after their evidence.
+    """
+    def recent_award(name):
+        event, awards = simap_award(name)
+        refreshed = []
+        for award in awards:
+            place = Location(
+                country="FR", subdivision_code="FRB05",
+                subdivision_scheme="NUTS", locality="Selles Sur Cher",
+                postal_code="41130",
+            )
+            refreshed.append(award.model_copy(update={
+                "award_date": (NOW - dt.timedelta(days=10)).date(),
+                "place_of_performance": place,
+            }))
+        return event, tuple(refreshed)
+
+    evaluated_at = NOW - dt.timedelta(days=3)
+    with (
+        patch("test_decision_engine_service.simap_award", side_effect=recent_award),
+        patch("test_decision_engine_service.EVALUATED_AT", evaluated_at),
+        patch("test_compliance_service.EVALUATED_AT", evaluated_at),
+    ):
+        return conversion_prepared(tmp_path)
 
 
 def client_for(engine, service, *, now: dt.datetime) -> TestClient:

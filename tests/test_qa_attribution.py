@@ -28,7 +28,8 @@ from signals.persistence.schema import (
     opportunity_representation,
 )
 
-NOW = MATERIALIZED_AT + dt.timedelta(hours=1)
+# Published facts are unchanged; exercise the inclusive 30-day eligibility edge.
+NOW = MATERIALIZED_AT - dt.timedelta(days=2) + dt.timedelta(hours=1)
 SECRET = b"synthetic-qa-attribution-test-secret"
 
 

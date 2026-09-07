@@ -114,6 +114,7 @@ class CurrentUser:
     account_display_name: str
     locale: str
     onboarding_status: str
+    provisional_profile: bool = False
 
 
 def normalize_email(email: str) -> str:
@@ -465,7 +466,23 @@ def current_user(connection: sa.Connection, *, user_id: str) -> CurrentUser:
         .select_from(auth_user.join(account, auth_user.c.account_id == account.c.account_id))
         .where(auth_user.c.user_id == user_id)
     ).one()
-    return CurrentUser(*row)
+    return CurrentUser(*row, provisional_profile=is_provisional_profile(
+        connection, account_id=row.account_id,
+    ))
+
+
+def is_provisional_profile(connection: sa.Connection, *, account_id: str) -> bool:
+    """A materializable landing profile is not yet a confirmed customer choice."""
+    return bool(connection.scalar(
+        sa.select(sa.literal(True)).select_from(
+            account.join(account_landing_signal,
+                         account.c.account_id == account_landing_signal.c.account_id)
+        ).where(
+            account.c.account_id == account_id,
+            account.c.onboarding_status != "ready_for_signals",
+            account_landing_signal.c.profile_confirmed_at.is_(None),
+        ).limit(1)
+    ))
 
 
 def onboarding_status(connection: sa.Connection, *, account_id: str) -> str:
@@ -915,7 +932,7 @@ def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSign
 
 
 def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozenset[str]:
-    """Le signal promis et au plus cinq voisins du même profil provisoire."""
+    """Le signal promis et au plus quatre voisins du même profil provisoire."""
     key = connection.execute(
         sa.select(account_landing_signal.c.signal_key).where(
             account_landing_signal.c.account_id == account_id
@@ -941,7 +958,7 @@ def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozen
             materialized_signal.c.materialized_at.desc(),
             materialized_signal.c.signal_key,
         )
-        .limit(6)
+        .limit(5)
     ).scalars()
     return frozenset(related)
 

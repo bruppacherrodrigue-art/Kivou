@@ -11,7 +11,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-POLICY_VERSION = "for-you-v6"
+POLICY_VERSION = "for-you-v7"
 FOR_YOU_SYSTEM_PROMPT = (
     "Tu réponds uniquement par un objet JSON {short_object, consequence, fit}. "
     "Aucun texte hors JSON."
@@ -414,17 +414,27 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
 
 def fallback_sentence(value: ForYouInput) -> str:
     title = " ".join((value.title or value.cpv_label or "marché public").split())
+    if len(title) > 60:
+        title = title[:59].rstrip() + "…"
     location = " ".join((value.location or "").split())
     if len(location) == 2 and location.isalpha():
         location = ""
     facts: list[str] = []
     if value.amount:
-        facts.append(value.amount)
+        match = re.fullmatch(r"\s*(\d+(?:[.,]\d+)?)\s*(EUR|€|CHF)\s*", value.amount)
+        if match:
+            amount = Decimal(match[1].replace(",", "."))
+            precision = 0 if amount == amount.to_integral_value() else 2
+            number = format(amount, f",.{precision}f").replace(",", " ").replace(".", ",")
+            currency = "€" if match[2] in {"EUR", "€"} else "CHF"
+            facts.append(f"{number} {currency}")
+        else:
+            facts.append(value.amount)
     if value.awarded_on:
-        facts.append(f"attribué le {value.awarded_on}")
+        facts.append(_display_month(value.awarded_on))
     suffix = f" à {location}" if location else ""
     parenthetical = f" ({', '.join(facts)})" if facts else ""
-    return f"Le marché « {title} »{suffix}{parenthetical} peut concerner votre activité."
+    return f"{title}{suffix}{parenthetical} : dans votre zone et votre secteur."
 
 
 def client_safe_sentence(sentence: str | None) -> str | None:
@@ -432,6 +442,8 @@ def client_safe_sentence(sentence: str | None) -> str | None:
     if not sentence:
         return None
     folded = sentence.casefold()
+    if "peut concerner votre activité" in folded:
+        return None
     if any(term in folded for term in _ENGINE_TERMS):
         return None
     return sentence

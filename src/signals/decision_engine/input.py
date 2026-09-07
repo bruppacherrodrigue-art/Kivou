@@ -25,8 +25,12 @@ def build_public_decision_context(
     contract_notification_date: dt.date | None,
     publication_date: dt.date | None,
     public_evidence_refs: tuple[str, ...],
+    prospect_policy_version: str | None = None,
+    prospect_refusal_codes: tuple[str, ...] = (),
 ) -> PublicDecisionContext:
     values = {
+        "prospect_policy_version": prospect_policy_version,
+        "prospect_refusal_codes": prospect_refusal_codes,
         "opportunity_key": opportunity_key,
         "representative_award_key": representative_award_key,
         "source_event_key": source_event_key,
@@ -126,6 +130,8 @@ def build_acquisition_decision_input(
         "source_event_key": public_context.source_event_key,
         "public_evidence_refs": public_context.public_evidence_refs,
         "public_context_fingerprint": public_context.public_context_fingerprint,
+        "prospect_policy_version": public_context.prospect_policy_version,
+        "prospect_refusal_codes": public_context.prospect_refusal_codes,
         "award_date": public_context.award_date,
         "contract_notification_date": public_context.contract_notification_date,
         "publication_date": public_context.publication_date,

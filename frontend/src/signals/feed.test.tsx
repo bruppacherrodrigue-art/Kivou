@@ -406,7 +406,7 @@ describe('écran Signaux — tiroir', () => {
     const grid = await table()
     await userEvent.click(within(grid).getByRole('button', { name: 'Constructions Bertrand SA' }))
 
-    const drawer = await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    const drawer = await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     const panel = drawer.closest('aside')!
     expect(within(panel).getByText('Nouveau')).toBeInTheDocument()
     expect(within(panel).getByLabelText(/Correspondance \d\/4/)).toBeInTheDocument()
@@ -429,7 +429,7 @@ describe('écran Signaux — tiroir', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
   })
 
@@ -440,7 +440,7 @@ describe('écran Signaux — tiroir', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}?zone=FR-31`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
@@ -454,7 +454,7 @@ describe('écran Signaux — tiroir', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}?zone=FR-31`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
 
     await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
@@ -485,7 +485,7 @@ describe('écran Signaux — tiroir', () => {
 
     const grid = await table()
     await userEvent.click(within(grid).getByRole('button', { name: 'Constructions Bertrand SA' }))
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     expect(screen.getByTestId('nav-type')).toHaveTextContent('PUSH')
 
     await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
@@ -502,7 +502,7 @@ describe('écran Signaux — tiroir', () => {
     winnerButton.focus()
     await userEvent.keyboard('{Enter}')
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
   })
 
   it('la fermeture du tiroir rend le focus à la ligne qui l’a ouvert', async () => {
@@ -512,7 +512,7 @@ describe('écran Signaux — tiroir', () => {
     const grid = await table()
     const winnerButton = within(grid).getByRole('button', { name: 'Constructions Bertrand SA' })
     await userEvent.click(winnerButton)
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
 
@@ -540,7 +540,7 @@ describe('écran Signaux — actions', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.click(screen.getByRole('button', { name: 'Marquer contacté' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Contacté ✓' })).toBeInTheDocument())
@@ -561,7 +561,7 @@ describe('écran Signaux — actions', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.click(screen.getByRole('button', { name: 'Sauver' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Sauvé ✓' })).toBeInTheDocument())
@@ -579,7 +579,7 @@ describe('écran Signaux — actions', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.click(screen.getByRole('button', { name: 'Ignorer' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Ignoré ✓' })).toBeInTheDocument())
@@ -599,7 +599,7 @@ describe('écran Signaux — actions', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.click(screen.getByRole('button', { name: 'Marquer contacté' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
@@ -624,7 +624,7 @@ describe('écran Signaux — actions', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     await userEvent.click(screen.getByRole('button', { name: 'Marquer contacté' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
@@ -654,7 +654,7 @@ describe('écran Signaux — mobile et copy', () => {
     await waitFor(() => expect(document.querySelector('table')).not.toBeInTheDocument())
     expect(await screen.findByText(/Réfection de la voirie/)).toBeInTheDocument()
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
-    expect(within(screen.getByRole('dialog')).getByRole('heading', { level: 2, name: 'Voirie' }))
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' }))
       .toBeInTheDocument()
     // La feuille porte déjà son propre bouton de fermeture : le tiroir ne
     // doit pas doubler ce contrôle, sous peine de deux « Fermer » pour un
@@ -670,7 +670,7 @@ describe('écran Signaux — mobile et copy', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     const text = normalise(document.body.textContent ?? '')
     for (const forbidden of [
       'documente',
@@ -690,7 +690,7 @@ describe('écran Signaux — mobile et copy', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     // La coque (barre du haut, navigation) garde son propre vocabulaire ; c'est
     // la SURFACE de la page qui est sous contrat.
     const page = document.querySelector('[data-page="signals"]')

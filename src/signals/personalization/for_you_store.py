@@ -182,7 +182,7 @@ def enqueue_for_you_sentence(
     value = ForYouInput(
         holder=_holder(award),
         buyer_name=_buyer(award),
-        title=award.title,
+        title=(award.lot.title if award.lot else None) or award.title,
         amount=(
             f"{award.value.amount} {award.value.currency}" if award.value is not None else None
         ),
@@ -192,7 +192,7 @@ def enqueue_for_you_sentence(
             else None
         ),
         location=_location(award.place_of_performance),
-        awarded_on=award.award_date.isoformat() if award.award_date is not None else None,
+        awarded_on=_sentence_date(connection, signal_key),
         cpv=award.cpv_main.code if award.cpv_main is not None else None,
         cpv_label=(
             cpv_label(award.cpv_main.code, lang="fr") if award.cpv_main is not None else None
@@ -256,7 +256,7 @@ def enqueue_stored_for_you_sentence(
     value = ForYouInput(
         holder=_stored_holder(organization.get("legal_name"), row["winner_name"]),
         buyer_name=_stored_buyer(row["procedure_buyers"]),
-        title=row["title"],
+        title=row["lot_title"] or row["title"],
         amount=(
             f"{row['amount']} {row['currency']}"
             if row["amount"] is not None and row["currency"]
@@ -264,7 +264,7 @@ def enqueue_stored_for_you_sentence(
         ),
         duration=_duration(row["duration_value"], row["duration_unit"]),
         location=_stored_location(row["place_of_performance"]),
-        awarded_on=row["award_date"].isoformat() if row["award_date"] is not None else None,
+        awarded_on=_sentence_date(connection, signal_key),
         cpv=row["cpv_main"],
         cpv_label=cpv_label(row["cpv_main"], lang="fr"),
         plausible_needs=tuple(item.get("statement") for item in needs if item.get("statement")),
@@ -282,6 +282,18 @@ def enqueue_stored_for_you_sentence(
         value=value,
         now=now,
     )
+
+
+def _sentence_date(connection: sa.Connection, signal_key: str) -> str | None:
+    date = connection.scalar(sa.select(sa.func.coalesce(
+        contract_award.c.award_date, contract_award.c.contract_notification_date,
+        source_event.c.published_on,
+    )).select_from(materialized_signal.join(
+        contract_award,
+        materialized_signal.c.materialization_award_key == contract_award.c.award_key,
+    ).join(source_event, contract_award.c.event_key == source_event.c.event_key))
+        .where(materialized_signal.c.signal_key == signal_key))
+    return date.isoformat() if date else None
 
 
 def sentence_for_opportunity(connection: sa.Connection, *, opportunity_key: str) -> str | None:

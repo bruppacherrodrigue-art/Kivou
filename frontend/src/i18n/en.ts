@@ -1449,7 +1449,7 @@ export const en: Dictionary = {
       amount: 'Amount',
       place: 'Place',
       awardedOn: 'Awarded on',
-      notifiedOn: 'Notified on',
+      notifiedOn: 'Awarded on',
       publishedOn: 'Published on',
       cpv: 'CPV',
       needs: 'What the winner will have to do',

@@ -133,6 +133,7 @@ export interface Me {
   company_name?: string | null
   locale: string
   onboarding_status: OnboardingStatus
+  provisional_profile?: boolean
   capabilities: {
     commercial_cockpit: boolean
   }

@@ -56,7 +56,7 @@ const navigation = [
 export function AppShell() {
   const me = useCurrentUser()
 
-  if (me.onboarding_status !== 'ready_for_signals') {
+  if (me.onboarding_status !== 'ready_for_signals' && !me.provisional_profile) {
     return <Outlet />
   }
 
@@ -221,6 +221,7 @@ function ConnectedShell({
         <SidebarFooter className="sidebar-footer">
           <AccountBlock me={me} />
           <div className="sidebar-plan-summary">
+            {me.provisional_profile ? <strong>Découverte · profil provisoire</strong> : null}
             <strong>{signalQuota === null && openedSignals !== null ? `${openedSignals} signaux ouverts ce mois` : `Plan ${planLabel} · ${openedSignals ?? 0}/${signalQuota ?? '∞'} signaux ce mois`}</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>

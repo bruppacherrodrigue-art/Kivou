@@ -46,8 +46,7 @@ from signals.domain.cpv_labels import cpv_label
 from signals.domain.french_departments import department_label, location_subdivision
 from signals.engagement import analytics
 from signals.ingestion.backfill import (
-    materialize_landing_opportunity_in_transaction,
-    rematerialize_target_in_transaction,
+    materialize_landing_feed_in_transaction,
 )
 from signals.persistence.schema import (
     acquisition_campaign_member,
@@ -269,14 +268,8 @@ def _land(
             ),
             now=now,
         )
-        rematerialize_target_in_transaction(
-            connection,
-            target_icp_id=provisional.target_icp_id,
-            as_of=now.date(),
-            materialized_at=now,
-        )
         if payload.opportunity_key is not None:
-            materialize_landing_opportunity_in_transaction(
+            materialize_landing_feed_in_transaction(
                 connection,
                 target_icp_id=provisional.target_icp_id,
                 opportunity_key=payload.opportunity_key,
@@ -384,7 +377,7 @@ def _land_qa(connection, service, *, raw_token: str, now: dt.datetime, config):
                 cpv_prefix=cpv_prefix, subdivision=subdivision,
             ), now=now,
         )
-        materialize_landing_opportunity_in_transaction(
+        materialize_landing_feed_in_transaction(
             connection, target_icp_id=provisional.target_icp_id,
             opportunity_key=payload.opportunity_key, as_of=now.date(), materialized_at=now,
         )
