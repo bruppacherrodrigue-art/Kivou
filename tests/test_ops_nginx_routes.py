@@ -16,6 +16,10 @@ PUBLIC_ASGI_ROUTES = frozenset(
     {
         ("GET", "/a/{token}"),
         ("GET", "/account/export"),
+        ("POST", "/auth/attribution/preview"),
+        ("GET", "/auth/email"),
+        ("POST", "/auth/email/request"),
+        ("POST", "/auth/email/verify"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
         ("POST", "/auth/password-reset/confirm"),
