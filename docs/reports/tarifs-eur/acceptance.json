@@ -1,0 +1,97 @@
+{
+  "verified_at_utc": "2026-09-08T12:40:11.998890+00:00",
+  "deployed_sha": "a8ca58bfcd316a10f523e1f9edf607ef2da1a67f",
+  "raw_html_chf_count": 0,
+  "checkouts": [
+    {
+      "browser": {
+        "origin": "https://staging.kivou.eu",
+        "prices": [
+          29,
+          49,
+          199
+        ],
+        "currency": "eur",
+        "bodyChfCount": 0,
+        "meta": "Les quatre offres mensuelles Kivou, de Découverte à Scale.",
+        "plan": "essential",
+        "amount": 29,
+        "paymentSubmitted": false
+      },
+      "stripe": {
+        "plan": "essential",
+        "currency": "eur",
+        "amount_subtotal": 2900,
+        "interval": "month",
+        "tax_behavior": "exclusive",
+        "automatic_tax": true,
+        "adaptive_pricing": false,
+        "livemode": false,
+        "qa_email_verified": true,
+        "payment_submitted": false,
+        "session_status": "expired",
+        "expiry_webhook_applied": true
+      }
+    },
+    {
+      "browser": {
+        "origin": "https://staging.kivou.eu",
+        "prices": [
+          29,
+          49,
+          199
+        ],
+        "currency": "eur",
+        "bodyChfCount": 0,
+        "meta": "Les quatre offres mensuelles Kivou, de Découverte à Scale.",
+        "plan": "pro",
+        "amount": 49,
+        "paymentSubmitted": false
+      },
+      "stripe": {
+        "plan": "pro",
+        "currency": "eur",
+        "amount_subtotal": 4900,
+        "interval": "month",
+        "tax_behavior": "exclusive",
+        "automatic_tax": true,
+        "adaptive_pricing": false,
+        "livemode": false,
+        "qa_email_verified": true,
+        "payment_submitted": false,
+        "session_status": "expired",
+        "expiry_webhook_applied": true
+      }
+    },
+    {
+      "browser": {
+        "origin": "https://staging.kivou.eu",
+        "prices": [
+          29,
+          49,
+          199
+        ],
+        "currency": "eur",
+        "bodyChfCount": 0,
+        "meta": "Les quatre offres mensuelles Kivou, de Découverte à Scale.",
+        "plan": "scale",
+        "amount": 199,
+        "paymentSubmitted": false
+      },
+      "stripe": {
+        "plan": "scale",
+        "currency": "eur",
+        "amount_subtotal": 19900,
+        "interval": "month",
+        "tax_behavior": "exclusive",
+        "automatic_tax": true,
+        "adaptive_pricing": false,
+        "livemode": false,
+        "qa_email_verified": true,
+        "payment_submitted": false,
+        "session_status": "expired",
+        "expiry_webhook_applied": true
+      }
+    }
+  ]
+}

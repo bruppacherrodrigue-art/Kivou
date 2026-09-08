@@ -39,6 +39,7 @@ try {
   await page.screenshot({ path: `${output}/tarifs-mobile.png`, fullPage: true })
   const proof = { origin, prices: [29, 49, 199], currency: 'eur', bodyChfCount: 0, meta }
   if (plan) {
+    await page.setViewportSize({ width: 1440, height: 1100 })
     const me = await context.request.get(`${origin}/me`)
     assert.equal(me.status(), 200)
     assert.equal((await me.json()).email, qaEmail)
@@ -48,15 +49,14 @@ try {
     await page.getByRole('button', { name: `Choisir ${plans[plan].name}`, exact: true }).click()
     const response = await responsePromise
     assert.equal(response.status(), 200, 'Checkout doit ouvrir une session')
-    const payload = await response.json()
-    const destination = new URL(payload.checkout_url)
+    await page.waitForURL('https://checkout.stripe.com/**')
+    const destination = new URL(page.url())
     assert.equal(destination.hostname, 'checkout.stripe.com')
     const sessionId = destination.pathname.split('/').at(-1)
     assert(sessionId.startsWith('cs_test_'), 'Seules les sessions Stripe test sont admises')
-    await page.waitForURL('https://checkout.stripe.com/**')
+    await writeFile(`${output}/${plan}-session.json`, JSON.stringify({ sessionId }), { mode: 0o600 })
     await page.getByText(qaEmail, { exact: false }).first().waitFor({ timeout: 30000 })
     await page.screenshot({ path: `${output}/checkout-${plan}.png`, fullPage: true })
-    await writeFile(`${output}/${plan}-session.json`, JSON.stringify({ sessionId }), { mode: 0o600 })
     const expectedPrice = new RegExp(`(?:^|\\s)${plans[plan].amount}(?:[,.]00)?\\s*(?:€|EUR)`)
     try {
       await page.getByText(expectedPrice).first().waitFor({ timeout: 30000 })
@@ -66,6 +66,7 @@ try {
     }
     const text = await page.locator('body').innerText()
     assert(!text.includes('CHF'))
+    assert(!banned.test(text), 'Vocabulaire autorisé dans Stripe Checkout')
     assert(/€|EUR/.test(text))
     assert(expectedPrice.test(text), 'Montant EUR attendu sur Stripe Checkout')
     await page.screenshot({ path: `${output}/checkout-${plan}.png`, fullPage: true })
