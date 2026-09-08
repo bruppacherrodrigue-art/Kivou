@@ -1,0 +1,45 @@
+{
+  "status": "pass",
+  "results": [
+    {
+      "surface": "today",
+      "width": 1440,
+      "screenshot": "today-1440.png"
+    },
+    {
+      "surface": "signals",
+      "width": 1440,
+      "screenshot": "signals-1440.png"
+    },
+    {
+      "surface": "companies",
+      "width": 1440,
+      "screenshot": "companies-1440.png"
+    },
+    {
+      "surface": "settings",
+      "width": 1440,
+      "screenshot": "settings-1440.png"
+    },
+    {
+      "surface": "today",
+      "width": 2560,
+      "screenshot": "today-2560.png"
+    },
+    {
+      "surface": "signals",
+      "width": 2560,
+      "screenshot": "signals-2560.png"
+    },
+    {
+      "surface": "companies",
+      "width": 2560,
+      "screenshot": "companies-2560.png"
+    },
+    {
+      "surface": "settings",
+      "width": 2560,
+      "screenshot": "settings-2560.png"
+    }
+  ]
+}
