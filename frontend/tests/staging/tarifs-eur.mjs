@@ -14,7 +14,7 @@ await mkdir(output, { recursive: true })
 const browser = await chromium.launch()
 try {
   const context = await browser.newContext({
-    locale: 'fr-FR', viewport: { width: 1440, height: 1100 },
+    locale: 'fr-FR', reducedMotion: 'reduce', viewport: { width: 1440, height: 1100 },
     ...(plan ? { storageState: process.env.KIVOU_QA_STORAGE_STATE } : {}),
   })
   const page = await context.newPage()
@@ -55,10 +55,19 @@ try {
     assert(sessionId.startsWith('cs_test_'), 'Seules les sessions Stripe test sont admises')
     await page.waitForURL('https://checkout.stripe.com/**')
     await page.getByText(qaEmail, { exact: false }).first().waitFor({ timeout: 30000 })
+    await page.screenshot({ path: `${output}/checkout-${plan}.png`, fullPage: true })
+    await writeFile(`${output}/${plan}-session.json`, JSON.stringify({ sessionId }), { mode: 0o600 })
+    const expectedPrice = new RegExp(`(?:^|\\s)${plans[plan].amount}(?:[,.]00)?\\s*(?:€|EUR)`)
+    try {
+      await page.getByText(expectedPrice).first().waitFor({ timeout: 30000 })
+    } catch (error) {
+      console.error((await page.locator('body').innerText()).slice(0, 2500))
+      throw error
+    }
     const text = await page.locator('body').innerText()
     assert(!text.includes('CHF'))
-    assert(text.includes('€'))
-    assert(new RegExp(`(?:^|\\s)${plans[plan].amount}(?:[,.]00)?\\s*€`).test(text), 'Montant EUR attendu sur Stripe Checkout')
+    assert(/€|EUR/.test(text))
+    assert(expectedPrice.test(text), 'Montant EUR attendu sur Stripe Checkout')
     await page.screenshot({ path: `${output}/checkout-${plan}.png`, fullPage: true })
     Object.assign(proof, { plan, amount: plans[plan].amount, sessionId, paymentSubmitted: false })
   }

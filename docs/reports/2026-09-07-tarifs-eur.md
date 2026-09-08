@@ -52,7 +52,7 @@ Commande de recherche sur les fichiers suivis : `rg -n "CHF|\b49\b|\b99\b|\b199\
 
 - Aucun prix d’abonnement trouvé dans `src/signals/alerts/`, `src/signals/transactional_email/`, `src/signals/personalization/`, `src/signals/responses/` ni `frontend/src/pages/LegalInformation.tsx`. Le seul 99 de ces répertoires est une borne de regex dans `personalization/contracts.py`.
 - Métadonnées publiques et footer : le seul terme banni trouvé dans la surface inspectée était dans `frontend/index.html`. Aucune balise OG statique présente. Recette DOM prévue ci-dessous.
-- Les devises des marchés SIMAP, seuils de profils et métriques historiques restent distinctes de la tarification SaaS. Le grep global frontend n’est donc pas nul : `api/capabilities.ts`, `api/types.ts`, `pages/Icps.tsx`, `presentation/dashboard/OnboardingFlow.tsx` et leurs tests conservent CHF. Les assertions négatives de tests conservent aussi le mot CHF. Aucun remplacement artificiel ni retrait de support métier.
+- Les devises des marchés SIMAP, seuils de profils et métriques historiques restent distinctes de la tarification SaaS. Le grep global frontend n’est donc pas nul : `frontend/founder/src/FounderApp.tsx` (1), `frontend/founder/src/types.ts` (2), `frontend/src/api/capabilities.ts` (1), `frontend/src/api/types.ts` (1), `frontend/src/pages/Icps.tsx` (1), `frontend/src/presentation/dashboard/OnboardingFlow.tsx` (3) conservent neuf lignes métier CHF hors tests. Les assertions négatives de tests conservent aussi le mot CHF. Aucun remplacement artificiel ni retrait de support métier.
 - Les autres nombres sont coordonnées SVG/CSS, codes de département, indicatif téléphonique allemand, limites de regex et références de spécification. `ops/validation/plan_change_testclock.py` vérifie toujours les contrats historiques CHF.
 
 ## Stripe et configuration
@@ -77,4 +77,6 @@ Commande de recherche sur les fichiers suivis : `rg -n "CHF|\b49\b|\b99\b|\b199\
 
 ## CI et staging
 
-PR créée en brouillon pendant la CI. La fusion de la base staging conserve `locale=fr` et ajoute `currency=eur` dans Checkout. Déploiement et recette live à compléter sur le SHA validé ; aucune demande de review avant ces preuves.
+PR [#183](https://github.com/bruppacherrodrigue-art/Kivou/pull/183) créée en brouillon pendant la CI. La fusion de la base staging conserve `locale=fr` et ajoute `currency=eur` dans Checkout. Déploiement et recette live à compléter sur le SHA validé ; aucune demande de review avant ces preuves.
+
+CI executable : [34197781919](https://github.com/bruppacherrodrigue-art/Kivou/actions/runs/34197781919), sept jobs réussis, SHA `a13e007b01f58a5d704bcbb1a5356c1a14b6e626`. Après intégration de la base staging : 61 tests catalogue/paramètres Stripe et 190 tests frontend ciblés exécutés.
