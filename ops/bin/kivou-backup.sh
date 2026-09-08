@@ -15,6 +15,7 @@
 # été relu par `pg_restore --list`, et la rétention n'efface jamais quoi que ce
 # soit avant qu'une nouvelle copie soit acceptée.
 set -Eeuo pipefail
+cd /
 
 # Tout ce que ce script crée contient des données client : personne d'autre ne
 # lit. `umask` le garantit dès la création — un `chmod` après coup laisserait
