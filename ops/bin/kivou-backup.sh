@@ -161,6 +161,22 @@ log "sauvegarde acceptée : $(basename "${TARGET}") (${ACTUAL} octets)"
 #
 # APRÈS succès seulement. Purger avant, ou purger après un échec, c'est effacer
 # les bonnes copies le jour précis où elles deviennent indispensables.
-DELETED="$(cd / && find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'kivou-*.dump' \
-    -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)"
+DELETED="$(python3 - "${BACKUP_DIR}" "${RETENTION_DAYS}" <<'PY'
+from pathlib import Path
+import sys
+import time
+
+backup_dir = Path(sys.argv[1])
+cutoff = time.time() - int(sys.argv[2]) * 86400
+deleted = 0
+for dump in backup_dir.glob("kivou-*.dump"):
+    try:
+        if dump.is_file() and dump.stat().st_mtime < cutoff:
+            dump.unlink()
+            deleted += 1
+    except FileNotFoundError:
+        pass
+print(deleted)
+PY
+)"
 log "rétention ${RETENTION_DAYS} j — ${DELETED} archive(s) supprimée(s)"
