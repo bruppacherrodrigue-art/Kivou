@@ -63,7 +63,7 @@ interface LocationState {
 function messageFor(error: unknown): string {
   if (typeof error === 'string') return error
   const copy = describeError(error, fr)
-  return `${copy.title} ${copy.body}`.trim()
+  return [copy.title, copy.body].filter((part): part is string => Boolean(part)).join(' ').trim()
 }
 
 export function AuthFlow({ mode }: { mode: AuthMode }) {

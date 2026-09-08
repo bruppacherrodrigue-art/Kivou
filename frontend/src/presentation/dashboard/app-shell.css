@@ -599,7 +599,7 @@ a:focus-visible {
   display: grid;
   grid-template-columns: minmax(320px, 352px) minmax(0, 1fr);
   width: calc(100% - 48px);
-  max-width: 1360px;
+  max-width: 1280px;
   min-height: calc(100svh - 124px);
   margin: 24px auto;
   overflow: clip;
@@ -1964,7 +1964,7 @@ a:focus-visible {
   display: grid;
   grid-template-columns: minmax(320px, 352px) minmax(0, 1fr);
   width: calc(100% - 48px);
-  max-width: 1360px;
+  max-width: 1280px;
   min-height: calc(100svh - 124px);
   margin: 24px auto;
   overflow: clip;
@@ -2572,7 +2572,7 @@ a:focus-visible {
 .target-profile-main {
   display: grid;
   width: 100%;
-  max-width: 1240px;
+  max-width: 1280px;
   gap: 24px;
   margin-inline: auto;
   padding: 34px clamp(24px, 3.6vw, 56px) 58px;

@@ -281,7 +281,9 @@ describe('connexion', () => {
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Adresse e-mail ou mot de passe incorrect.')
+    expect(alert).toHaveTextContent('Adresse ou mot de passe incorrect.')
+    expect(alert).not.toHaveTextContent('undefined')
+    expect(screen.queryByText('Faits sourcés')).not.toBeInTheDocument()
     // Aucune formulation ne doit distinguer « compte inconnu » de « mot de passe faux ».
     expect(alert.textContent).not.toMatch(/inexistant|inconnu|introuvable/i)
   })

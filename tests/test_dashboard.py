@@ -224,6 +224,28 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert second["new_since_last_visit"] == 0
 
 
+def test_dashboard_response_uses_only_the_canonical_fallback_sentence(client, engine):
+    _seed_new_signals(client, engine)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(for_you_sentence).values(
+                sentence=(
+                    "Le marché « Travaux de voirie » à Isère "
+                    "(250000 EUR, attribué le 2026-09-01) peut concerner votre activité."
+                )
+            )
+        )
+
+    payload = _dashboard(client)
+    sentence = payload["top3"][0]["analysis"]["fit"]["for_you_sentence"]
+
+    assert sentence.endswith(" : dans votre zone et votre secteur.")
+    assert "peut concerner votre activité" not in sentence
+    assert "attribué le" not in sentence
+    assert "«" not in sentence
+    assert len(sentence.split(" : ", 1)[0].rsplit(" (", 1)[0]) <= 60
+
+
 def test_strong_matches_counts_only_new_signals_with_a_strong_band(client, engine):
     keys = _seed_new_signals(client, engine)
     _set_band_and_score(engine, keys[0], band="strong", score=80)

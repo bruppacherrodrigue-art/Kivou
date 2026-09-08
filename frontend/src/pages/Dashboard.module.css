@@ -1,7 +1,7 @@
-.page { display: flex; flex-direction: column; gap: 16px; min-height: 0; padding: 24px 32px; color: #173c2b; }
+.page { display: flex; width: min(100%, 1280px); margin-inline: auto; flex-direction: column; gap: 16px; min-height: 0; padding: 24px 32px; color: #173c2b; }
 .header h1 { margin: 0; font-size: 28px; line-height: 1.15; font-weight: 700; letter-spacing: -.02em; }
 .header p { margin: 6px 0 0; color: #617267; font-size: 14px; }
-.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 400px)); justify-content: center; gap: 12px; }
 .card { display: flex; min-width: 0; flex-direction: column; gap: 10px; padding: 16px; border: 1px solid #dce6df; border-radius: 8px; background: #fff; }
 .cardHead, .meta, .actions, .weekRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .cardHead strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

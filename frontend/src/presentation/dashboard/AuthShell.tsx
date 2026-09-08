@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, Check } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { ReferenceLink } from '../router/ReferenceLink'
 
 export function KivouMark() {
@@ -69,11 +69,6 @@ export function AuthShell({
         {children}
       </section>
 
-      <aside className="auth-trust" aria-label="Principes Kivou">
-        <span><Check aria-hidden="true" /> Faits sourcés</span>
-        <span><Check aria-hidden="true" /> Hypothèses signalées</span>
-        <span><Check aria-hidden="true" /> Sources et provenances séparées</span>
-      </aside>
     </main>
   )
 }

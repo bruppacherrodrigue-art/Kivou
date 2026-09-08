@@ -4,7 +4,7 @@ from signals.alerts.renderer import line_from_card, render_html, render_text
 
 
 def test_four_channels_reuse_the_same_signal_facts_and_persisted_sentence():
-    sentence = "Le marché « Travaux de voirie » à Isère (250000 EUR, attribué le 2026-09-01) peut concerner votre activité."
+    sentence = "Travaux de voirie à Isère (250 k€, septembre 2026) : dans votre zone et votre secteur."
     card = {
         "signal_id": "sig-contract",
         "company": {"name": "ACME"},

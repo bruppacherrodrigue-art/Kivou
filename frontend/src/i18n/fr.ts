@@ -940,7 +940,7 @@ export const fr = {
         genericBody: 'L’action n’a pas pu aboutir. Vous pouvez réessayer.',
         networkTitle: 'Connexion impossible',
         networkBody: 'Kivou n’a pas pu être joint. Vérifiez votre connexion, puis réessayez.',
-        invalidCredentials: 'Adresse e-mail ou mot de passe incorrect.',
+        invalidCredentials: 'Adresse ou mot de passe incorrect.',
         emailAlreadyUsed: 'Ce compte n’a pas pu être créé.',
         unsupportedLocale: 'Cette langue n’est pas prise en charge.',
         invalidResetToken: 'Ce lien de réinitialisation n’est plus valide. Demandez-en un nouveau.',
