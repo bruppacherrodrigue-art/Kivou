@@ -76,6 +76,7 @@ PLAYWRIGHT_BROWSERS_PATH="$KIVOU_PLAYWRIGHT_BROWSERS_DIR" \
 chmod -R a+rX "$KIVOU_PLAYWRIGHT_BROWSERS_DIR"
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" ci
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" run build
+chmod -R a+rX "$KIVOU_RELEASE_DIR"
 
 marker=$(mktemp)
 rehearsal_name="kivou_rehearsal_${KIVOU_SHA:0:12}_$$"
