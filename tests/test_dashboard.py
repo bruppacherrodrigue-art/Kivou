@@ -437,7 +437,17 @@ def test_dashboard_counts_and_ranks_beyond_a_single_page(tmp_path):
 
     keys: list[str] = []
     for index in range(5):
-        keys.extend(seed(engine, icp_of(client, label=f"Suivi {index}"), count=12))
+        target_icp_id = icp_of(client, label=f"Suivi {index}")
+        # Pro n'alimente que les trois ICP les plus anciens. La création de
+        # cinq profils dans la même seconde rendait cet ordre dépendant du
+        # moteur SQL, ce qui pouvait sortir `keys[0]` du périmètre testé.
+        with engine.begin() as connection:
+            connection.execute(
+                sa.update(target_icp)
+                .where(target_icp.c.target_icp_id == target_icp_id)
+                .values(created_at=HELPERS_NOW - dt.timedelta(days=5 - index))
+            )
+        keys.extend(seed(engine, target_icp_id, count=12))
     assert len(keys) == 60
 
     #: Le premier signal reste visible sous la limite de profils actifs de Pro.
