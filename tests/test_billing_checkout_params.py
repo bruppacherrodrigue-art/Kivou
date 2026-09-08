@@ -235,3 +235,9 @@ def test_checkout_explicitly_uses_euros():
     gateway, sessions = gateway_recording()
     open_session(gateway)
     assert sessions.calls[0]["params"]["currency"] == "eur"
+
+
+def test_checkout_keeps_the_catalogue_currency_without_adaptive_conversion():
+    gateway, sessions = gateway_recording()
+    open_session(gateway)
+    assert sessions.calls[0]["params"]["adaptive_pricing"] == {"enabled": False}

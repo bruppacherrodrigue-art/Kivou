@@ -24,7 +24,7 @@ Branche `feat/tarifs-eur`, base initiale `efa995c`. Recette sur la base staging 
 | `src/signals/billing/catalogue.py` | Montants EUR 2900/4900/19900 ; clés EUR versionnées ; anciens montants CHF et anciennes clés conservés. |
 | `src/signals/api/routes_billing.py` | Catalogue des devises achetables limité à EUR ; coupon historique réservé au parcours historique CHF. |
 | `src/signals/billing/checkout.py` | Devise de la tentative transmise explicitement à Stripe. |
-| `src/signals/billing/gateway.py` | Paramètre currency explicite dans Checkout. |
+| `src/signals/billing/gateway.py` | Paramètre currency explicite et Adaptive Pricing désactivé dans Checkout pour empêcher la conversion géographique. |
 | `tests/test_billing_catalogue.py` | Montants EUR corrigés, anciens CHF et résolution des deux devises avec Price ID opaque. |
 | `tests/test_billing_checkout.py` | Régression du coupon historique sur nouveau Pro EUR. |
 | `tests/test_billing_checkout_params.py` | Vérification du dictionnaire réellement envoyé au SDK : currency=eur. |
@@ -80,3 +80,5 @@ Commande de recherche sur les fichiers suivis : `rg -n "CHF|\b49\b|\b99\b|\b199\
 PR [#183](https://github.com/bruppacherrodrigue-art/Kivou/pull/183) créée en brouillon pendant la CI. La fusion de la base staging conserve `locale=fr` et ajoute `currency=eur` dans Checkout. Déploiement et recette live à compléter sur le SHA validé ; aucune demande de review avant ces preuves.
 
 CI executable : [34197781919](https://github.com/bruppacherrodrigue-art/Kivou/actions/runs/34197781919), sept jobs réussis, SHA `a13e007b01f58a5d704bcbb1a5356c1a14b6e626`. Après intégration de la base staging : 61 tests catalogue/paramètres Stripe et 190 tests frontend ciblés exécutés.
+
+Première recette : session en EUR 2900, mais Adaptive Pricing activé par défaut ; ajout explicite de `adaptive_pricing.enabled=false` après un test rouge du paramètre. Un déploiement concurrent a ensuite remplacé la release par `d52fae6` ; nouvelle base `1ed73e3` conservée et recette relancée sur le nouveau SHA.
