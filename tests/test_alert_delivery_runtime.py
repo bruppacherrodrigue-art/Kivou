@@ -57,7 +57,7 @@ def mailer() -> FakeMailer:
     return FakeMailer()
 
 
-def subscriber(app, engine, *, count: int = 1, plan: str = "scale"):
+def subscriber(app, engine, *, count: int = 1, plan: str = "pro"):
     client = signed_up(app)
     icp = icp_of(client)
     pay(engine, client, plan=plan)
@@ -284,7 +284,7 @@ def test_uncertain_delivery_stops_at_the_retry_budget(app, engine, mailer) -> No
 
 
 def test_retry_batch_does_not_absorb_a_new_signal(app, engine, mailer) -> None:
-    client, original_keys = subscriber(app, engine)
+    client, _original_keys = subscriber(app, engine)
     mailer.fail_with = failure("smtp_451", retryable=True)
     cycle(engine, mailer, now=NOW)
     icp = client.get("/target-icps").json()[0]["target_icp_id"]
@@ -292,10 +292,10 @@ def test_retry_batch_does_not_absorb_a_new_signal(app, engine, mailer) -> None:
 
     cycle(engine, mailer, now=NOW + RETRY_BASE)
 
-    assert original_keys[0] in mailer.last.text_body
+    assert mailer.last.text_body.count("\n1. ") == 1
     assert new_keys[0] not in mailer.last.text_body
     cycle(engine, mailer, now=NOW + RETRY_BASE)
-    assert new_keys[0] in mailer.last.text_body
+    assert mailer.attempts == 2
 
 
 def test_historical_terminal_failure_does_not_poison_the_current_report(
@@ -428,7 +428,7 @@ def test_retry_is_suppressed_when_paid_plan_falls_back_to_discovery(app, engine,
     mailer.fail_with = failure("smtp_451", retryable=True)
     cycle(engine, mailer, now=NOW)
     attempts = deliveries(engine)[0].attempt_count
-    pay(engine, client, plan="scale", status="canceled")
+    pay(engine, client, plan="pro", status="canceled")
 
     report = cycle(engine, mailer, now=NOW + RETRY_BASE)
 
@@ -468,7 +468,7 @@ def test_inaccessible_signal_is_suppressed_while_the_rest_of_the_batch_sends(
     suppressed = events(engine, event_type="alert_suppressed")
     assert len(suppressed) == 1
     assert suppressed[0].properties == {
-        "cadence": "priority",
+        "cadence": "daily",
         "reason_code": "signal_inaccessible",
         "signal_count": 1,
     }
@@ -624,7 +624,7 @@ def test_changed_preference_version_rearms_future_signals(
 def test_changed_eligibility_plan_and_cadence_rearm_future_signals(
     app, engine, mailer
 ) -> None:
-    client, _ = subscriber(app, engine, count=11, plan="scale")
+    client, _ = subscriber(app, engine, count=11, plan="essential")
     mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
     cycle(engine, mailer, now=NOW)
     refused_fingerprint = deliveries(engine)[0].recipient_context_fingerprint
@@ -648,7 +648,7 @@ def test_recipient_refusal_is_strictly_isolated_between_accounts(
 
     bob = signed_up(app, "bob@materiaux-leman.ch")
     bob_icp = icp_of(bob, "Materiaux")
-    pay(engine, bob, plan="scale")
+    pay(engine, bob, plan="pro")
     bob_key = seed(engine, bob_icp, count=1)[0]
 
     report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))

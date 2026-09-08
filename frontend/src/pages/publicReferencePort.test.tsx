@@ -81,7 +81,7 @@ describe('port exact de la référence publique', () => {
     expect(within(essential).queryByText('49')).not.toBeInTheDocument()
     const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
     expect(within(pro).getByText('113')).toBeInTheDocument()
-    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(4)
+    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(3)
   })
 
   it('shows an honest same-geometry error when the catalogue is unavailable', async () => {
@@ -94,7 +94,7 @@ describe('port exact de la référence publique', () => {
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     expect(await screen.findByRole('alert')).toHaveTextContent('tarifs')
     expect(document.querySelector('.pricing-grid')).not.toBeNull()
-    expect(screen.queryByText(/CHF 49|CHF 99|CHF 199/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/CHF 49|CHF 99/)).not.toBeInTheDocument()
   })
 
   it('uses the same catalogue authority in the home offer matrix', async () => {
@@ -171,18 +171,17 @@ describe('port exact de la référence publique', () => {
     expect(container).toHaveTextContent('Plusieurs territoires par profil')
   })
 
-  it('keeps all four public slots honest when a catalogue plan is absent', async () => {
+  it('does not render a phantom public slot when a catalogue plan is absent', async () => {
     const catalogue = {
       ...CATALOGUE,
-      plans: CATALOGUE.plans.filter((plan) => plan.plan_code !== 'scale'),
+      plans: CATALOGUE.plans.filter((plan) => plan.plan_code !== 'pro'),
     }
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     await screen.findByRole('link', { name: 'Choisir Essentiel' })
-    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(4)
-    const scale = screen.getByRole('heading', { name: 'Scale' }).closest('article')!
-    expect(scale).toHaveTextContent('Indisponible')
-    expect(within(scale).queryByRole('link')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(2)
+    expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+    expect(document.body).toHaveTextContent('Besoin de plus de profils ou de zones ? Écrivez-nous')
   })
 
   it('keeps the landing Discovery CTA grammatical and explained while loading', () => {

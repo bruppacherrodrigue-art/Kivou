@@ -15,7 +15,7 @@
 - Modify `src/signals/feed/view.py`, `src/signals/feed/query.py`, and `src/signals/personalization/service.py` for canonical signal presentation, deterministic sentence fallback, and missing-object filtering.
 - Modify `src/signals/alerts/content.py` and `src/signals/api/routes_attribution.py` so alert and email use the canonical sentence and attribution date.
 - Modify `src/signals/api/routes_signals.py`, `src/signals/api/routes_companies.py`, and `src/signals/companies/listing.py` for response shape, contact mutation, and aggregation performance.
-- Add the required migration/backfill under `alembic/versions/` for existing missing-object signals and any materialized aggregation needed by the chosen existing database pattern.
+- Add `src/signals/persistence/migrations/versions/0043_signal_display_object_backfill.py` for existing missing-object signals and any materialized aggregation needed by the chosen existing database pattern.
 - Modify `frontend/src/layouts/AppShell.tsx`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/SignalsFeed.tsx`, `frontend/src/signals/components/SignalDrawer.tsx`, `frontend/src/pages/CompaniesPage.tsx`, `frontend/src/pages/Settings.tsx`, and shared frontend API/types/i18n files for the shell, responsive surfaces, settings, labels, and plan behavior.
 - Add or extend focused tests beside existing backend and frontend tests, plus one Playwright CLI recipe under `tests/e2e/` or the repository's existing browser-test location.
 - Add `docs/reports/2026-09-06-recette-finition.md` containing exactly 15 lines with test, staging, and performance evidence.
@@ -36,7 +36,7 @@
 
 **Files:**
 - Test: `tests/test_feed_facts.py`, `tests/test_card_presentation_api.py`
-- Create: `alembic/versions/<timestamp>_backfill_signal_display_objects.py`
+- Create: `src/signals/persistence/migrations/versions/0043_signal_display_object_backfill.py`
 - Modify: `src/signals/feed/query.py`, `src/signals/feed/view.py`, `src/signals/api/routes_signals.py`
 
 - [ ] **Step 1: Add failing tests** for exclusion of a signal without an exploitable object, CPV-label fallback as display object, and absence of `—` in the object field.
@@ -50,7 +50,7 @@
 **Files:**
 - Test: `tests/test_company_engagement.py`, `tests/test_companies_list.py`, `tests/test_dashboard.py`
 - Modify: `src/signals/api/routes_companies.py`, `src/signals/companies/listing.py`, relevant dashboard/contact service module
-- Add only if required by the existing schema: `alembic/versions/<timestamp>_company_contact_aggregation.py`
+- Add only if required by the existing schema in `src/signals/persistence/migrations/versions/0044_company_contact_aggregation.py`
 
 - [ ] **Step 1: Add a failing integration test** that marks a company contacted through the panel API and asserts the Today, “Cette semaine”, segment, and panel counters all change from the same persisted row.
 - [ ] **Step 2: Add a failing performance benchmark** for `client-3mois` with 1,002 signals and one-second thresholds for `/companies` and `/signals`.

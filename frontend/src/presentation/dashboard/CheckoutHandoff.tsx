@@ -16,7 +16,6 @@ const PLAN_NAMES = {
   discovery: 'Découverte',
   essential: 'Essentiel',
   pro: 'Pro',
-  scale: 'Scale',
 } as const
 
 function priceFor(plan: CataloguePlan, currency: Currency): string | null {

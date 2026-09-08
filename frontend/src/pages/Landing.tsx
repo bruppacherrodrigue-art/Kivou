@@ -1,6 +1,7 @@
 import type { CataloguePlan } from '../api/types'
 import { PublicPageMeta } from '../components/PublicPageMeta'
 import {
+  PUBLIC_PLAN_CODES,
   PUBLIC_PLAN_NAMES,
   PublicPlanLink,
   PublicPricingRetry,
@@ -9,6 +10,7 @@ import {
   discoveryCompact,
   profileLabel,
   publicPlan,
+  publicPlans,
   publicPrice,
   signalCountLabel,
   territoryLabel,
@@ -19,12 +21,12 @@ import { ReferenceLink } from '../presentation/router/ReferenceLink'
 export function Landing() {
   const pricing = usePricingResource()
   const discovery = publicPlan(pricing, 'discovery')
+  const visiblePlans = pricing.status === 'ready' ? publicPlans(pricing.catalogue) : []
+  const visiblePlanCodes = pricing.status === 'ready'
+    ? visiblePlans.map((plan) => plan.plan_code)
+    : PUBLIC_PLAN_CODES
   const discoveryStatusId = discovery ? undefined : 'landing-discovery-status'
-  const plansByCode = new Map(
-    pricing.status === 'ready'
-      ? pricing.catalogue.plans.map((plan) => [plan.plan_code, plan])
-      : [],
-  )
+  const plansByCode = new Map(visiblePlans.map((plan) => [plan.plan_code, plan]))
 
   return (
     <>
@@ -125,7 +127,7 @@ export function Landing() {
               <div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary" ariaDescribedBy={discoveryStatusId}>Commencer gratuitement</PublicPlanLink><ReferenceLink className="btn secondary" href="/tarifs">Comparer les offres</ReferenceLink></div>
             </div>
             <div className="glass offer-matrix" aria-label="Aperçu des offres Kivou">
-              {(['discovery', 'essential', 'pro', 'scale'] as const).map((code) => {
+              {visiblePlanCodes.map((code) => {
                 const plan = plansByCode.get(code)
                 const price = plan ? publicPrice(plan, pricing.currency) : null
                 const unavailable = landingOfferUnavailable(pricing)
@@ -137,6 +139,7 @@ export function Landing() {
                 )
               })}
               <p>{pricing.status === 'ready' ? 'Tous les prix affichés sont mensuels.' : pricing.status === 'loading' ? 'Chargement des tarifs…' : 'Les tarifs ne peuvent pas être affichés.'}</p>
+              <p className="pricing-contact"><ReferenceLink href="/contact">Besoin de plus de profils ou de zones ? Écrivez-nous</ReferenceLink></p>
             </div>
           </div>
         </section>

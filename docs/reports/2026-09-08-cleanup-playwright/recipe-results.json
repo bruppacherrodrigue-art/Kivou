@@ -1,0 +1,16 @@
+[
+  {
+    "name": "recette",
+    "device": "desktop",
+    "url": "https://staging.kivou.eu/app/signals/21acdd18b5088b1591b2e9f132dd0505b4c78240",
+    "tables": 1,
+    "drawers": 0
+  },
+  {
+    "name": "recette",
+    "device": "mobile",
+    "url": "https://staging.kivou.eu/app/signals/21acdd18b5088b1591b2e9f132dd0505b4c78240",
+    "tables": 0,
+    "drawers": 1
+  }
+]

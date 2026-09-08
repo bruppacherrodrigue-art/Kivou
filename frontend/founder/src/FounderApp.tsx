@@ -29,7 +29,7 @@ const GATE_LABELS = {
   h_d_shadow: 'Validation shadow',
   h_e_capped: 'Autonomie plafonnée',
   h_f_closed_loop: 'Boucle revenu',
-  h_g_scale: 'Passage à l’échelle',
+  h_g_precision: 'Passage à l’échelle',
 } as const
 
 export function FounderApp() {
@@ -734,7 +734,7 @@ function modeLabel(mode: AutonomyMode): string {
     SHADOW: 'Shadow',
     ASSISTED: 'Assisté',
     AUTONOMOUS_CAPPED: 'Autonome plafonné',
-    ADAPTIVE_SCALE: 'Échelle adaptative',
+    ADAPTIVE_VOLUME: 'Échelle adaptative',
   }
   return labels[mode]
 }

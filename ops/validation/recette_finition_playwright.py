@@ -54,9 +54,10 @@ def assert_needs_block_is_status_driven(page: Page) -> None:
 def assert_mobile_feed(page: Page) -> None:
     page.goto(f"{BASE_URL}/app/signals?qa_finish=1")
     page.wait_for_load_state("domcontentloaded")
-    page.wait_for_timeout(1000)
+    cards = page.locator("[data-signal-key]")
+    cards.first.wait_for(state="attached", timeout=10_000)
     assert page.locator("table").count() == 0, f"table rendu: {page.locator('table').count()}"
-    assert page.locator("[data-signal-key]").count() > 0, "aucune carte signal"
+    assert cards.count() > 0, "aucune carte signal"
     assert page.locator("body").evaluate("el => el.scrollWidth <= window.innerWidth"), "débordement horizontal"
     for card in page.locator("[data-signal-key]").all():
         assert card.evaluate("el => el.scrollWidth <= el.clientWidth"), "mot coupé dans la carte"

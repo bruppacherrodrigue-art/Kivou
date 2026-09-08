@@ -14,7 +14,7 @@ import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 export function Dashboard() {
   const me = useCurrentUser()
-  if (me.onboarding_status !== 'ready_for_signals') return <Navigate to="/onboarding" replace />
+  if (me.onboarding_status !== 'ready_for_signals') return <Navigate to="/app/confirm-profile" replace />
   return <TodayDashboard />
 }
 

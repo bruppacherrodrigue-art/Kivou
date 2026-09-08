@@ -240,10 +240,10 @@ describe('parcours d’entrée de la référence connectée', () => {
 
     expect(await screen.findByRole('heading', {
       level: 1,
-      name: 'Définir ce que Kivou doit surveiller',
+      name: 'Confirmez votre profil cible',
     })).toBeVisible()
     await waitFor(() =>
-      expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=discovery'),
+      expect(screen.getByTestId('location')).toHaveTextContent('/app/confirm-profile?plan=discovery'),
     )
     expect(storage).not.toHaveBeenCalled()
   })
@@ -279,7 +279,7 @@ describe('parcours d’entrée de la référence connectée', () => {
     await user.click(screen.getByRole('button', { name: /continuer vers le profil cible/i }))
 
     await waitFor(() =>
-      expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=pro'),
+      expect(screen.getByTestId('location')).toHaveTextContent('/app/confirm-profile?plan=pro'),
     )
     expect(storage).not.toHaveBeenCalled()
   })
@@ -317,7 +317,7 @@ describe('plan porté uniquement dans l’URL', () => {
     expect(planFromSearch('')).toBe('discovery')
   })
 
-  it.each(['essential', 'pro', 'scale'] as const)(
+  it.each(['essential', 'pro'] as const)(
     'préserve le plan %s vers la facturation pour un compte déjà prêt sans démarrer de checkout',
     async (plan) => {
       mockApi({
@@ -363,7 +363,7 @@ describe('plan porté uniquement dans l’URL', () => {
         <AppRoutes />
         <LocationProbe />
       </>,
-      { route: '/login?plan=scale', session: UNAUTHENTICATED },
+      { route: '/login?plan=pro', session: UNAUTHENTICATED },
     )
 
     await user.type(screen.getByLabelText(/adresse/i), 'test@example.test')
@@ -371,7 +371,7 @@ describe('plan porté uniquement dans l’URL', () => {
     await user.click(screen.getByRole('button', { name: /se connecter/i }))
 
     await waitFor(() =>
-      expect(screen.getByTestId('location')).toHaveTextContent('/app/billing?plan=scale'),
+      expect(screen.getByTestId('location')).toHaveTextContent('/app/billing?plan=pro'),
     )
     expect(callsTo('/billing/checkout')).toHaveLength(0)
   })

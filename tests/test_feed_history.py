@@ -373,7 +373,7 @@ def test_the_subdivision_filter_compares_the_derived_department(engine) -> None:
     pin_session_cookie(client, signup)
     account_id = client.get("/me").json()["account_id"]
     with engine.begin() as connection:
-        subscribe(connection, account_id=account_id, plan="scale", subscription_id="sub_hist_subdiv", now=now)
+        subscribe(connection, account_id=account_id, plan="pro", subscription_id="sub_hist_subdiv", now=now)
 
     icp_id = client.post(
         "/target-icps", json={"label": "Subdivision", "customer_input": COMPLETE_ICP_INPUT}

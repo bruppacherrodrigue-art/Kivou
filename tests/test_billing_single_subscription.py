@@ -147,7 +147,7 @@ def test_every_open_status_blocks_a_second_checkout(client, engine, stripe, stat
 @pytest.mark.parametrize("status", ["past_due", "unpaid", "paused", "incomplete"])
 def test_an_open_but_unpaid_subscription_still_gives_only_discovery(client, engine, status: str):
     """L'accès et l'existence sont deux questions différentes."""
-    pay(engine, client, plan="scale", status=status)
+    pay(engine, client, plan="pro", status=status)
     body = client.get("/billing/status").json()
     assert body["plan_code"] == "discovery", "aucun droit payant"
     assert body["subscription_status"] == status, "mais l'abonnement existe"
@@ -233,7 +233,7 @@ def test_a_second_open_subscription_raises_an_explicit_conflict(client, engine):
     with pytest.raises(service.BillingSubscriptionConflict) as raised, engine.begin() as connection:
         service.synchronize_subscription(
             connection,
-            subscription_state(subscription_id="sub_second", plan="scale", status="active"),
+            subscription_state(subscription_id="sub_second", plan="pro", status="active"),
             account_id=account_id,
             event_created_at=NOW,
             expect_livemode=False,
@@ -257,7 +257,7 @@ def test_a_conflict_never_grants_the_more_expensive_plan(client, engine):
     with pytest.raises(service.BillingSubscriptionConflict), engine.begin() as connection:
         service.synchronize_subscription(
             connection,
-            subscription_state(subscription_id="sub_second", plan="scale"),
+            subscription_state(subscription_id="sub_second", plan="pro"),
             account_id=account_id,
             event_created_at=NOW,
             expect_livemode=False,
@@ -275,7 +275,7 @@ def test_a_terminal_subscription_is_replaced_by_its_successor(client, engine, st
     with engine.begin() as connection:
         service.synchronize_subscription(
             connection,
-            subscription_state(subscription_id="sub_second", plan="scale", status="active"),
+            subscription_state(subscription_id="sub_second", plan="pro", status="active"),
             account_id=account_id,
             event_created_at=NOW,
             expect_livemode=False,
@@ -285,7 +285,7 @@ def test_a_terminal_subscription_is_replaced_by_its_successor(client, engine, st
     stored = rows(engine)
     assert len(stored) == 1
     assert stored[0].stripe_subscription_id == "sub_second"
-    assert client.get("/billing/status").json()["plan_code"] == "scale"
+    assert client.get("/billing/status").json()["plan_code"] == "pro"
 
 
 def test_the_webhook_records_a_conflict_without_touching_the_current_state(
@@ -308,7 +308,7 @@ def test_the_webhook_records_a_conflict_without_touching_the_current_state(
             subscription_id="sub_second",
             customer_id=CUSTOMER_ID,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
         )
     )
 
@@ -376,12 +376,12 @@ def test_a_second_checkout_after_synchronization_is_blocked(client, engine, stri
     assert checkout(client).status_code == 200
     pay(engine, client, plan="pro", status="active")
 
-    assert checkout(client, plan="scale").status_code == 409
+    assert checkout(client, plan="pro").status_code == 409
     assert len({call["price_id"] for call in stripe.checkout_calls}) == 1
 
 
 def test_the_customer_is_created_once_even_across_repeated_attempts(client, engine, stripe):
-    for plan in ("pro", "scale", "essential"):
+    for plan in ("pro", "pro", "essential"):
         checkout(client, plan=plan)
     with engine.connect() as connection:
         customers = connection.execute(sa.select(billing_customer)).all()

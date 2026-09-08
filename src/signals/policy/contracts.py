@@ -50,7 +50,7 @@ class AutonomyMode(StrEnum):
     SHADOW = "SHADOW"
     ASSISTED = "ASSISTED"
     AUTONOMOUS_CAPPED = "AUTONOMOUS_CAPPED"
-    ADAPTIVE_SCALE = "ADAPTIVE_SCALE"
+    ADAPTIVE_VOLUME = "ADAPTIVE_VOLUME"
 
 
 class ApprovalPurpose(StrEnum):
@@ -309,7 +309,7 @@ class PolicyControlSnapshot(Contract):
             if self.shadow_target_mode not in {
                 AutonomyMode.ASSISTED,
                 AutonomyMode.AUTONOMOUS_CAPPED,
-                AutonomyMode.ADAPTIVE_SCALE,
+                AutonomyMode.ADAPTIVE_VOLUME,
             }:
                 raise ValueError("SHADOW requires a non-SHADOW target mode")
         elif self.shadow_target_mode is not None:
@@ -343,7 +343,7 @@ class PolicySnapshot(Contract):
             if self.shadow_target_mode not in {
                 AutonomyMode.ASSISTED,
                 AutonomyMode.AUTONOMOUS_CAPPED,
-                AutonomyMode.ADAPTIVE_SCALE,
+                AutonomyMode.ADAPTIVE_VOLUME,
             }:
                 raise ValueError("SHADOW requires a non-SHADOW target mode")
         elif self.shadow_target_mode is not None:

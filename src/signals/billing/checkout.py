@@ -4,7 +4,7 @@ Le client choisit un plan et une devise. Kivou choisit le prix (§32)
 ───────────────────────────────────────────────────────────────────
 Accepter un `price_id` du navigateur reviendrait à laisser l'acheteur fixer
 le montant : il suffirait d'envoyer l'identifiant d'un prix à 1 franc pour
-obtenir Scale. Le schéma d'entrée n'a donc aucun champ de prix, et le
+    obtenir Pro. Le schéma d'entrée n'a donc aucun champ de prix, et le
 serveur résout le prix depuis une **clé de recherche** approuvée.
 
 Les URL de retour viennent de la configuration, pas de la requête

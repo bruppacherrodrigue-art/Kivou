@@ -136,7 +136,7 @@ def _idempotency_key(
       double-clic, un rechargement ou une reprise après plantage facturerait
       deux prorata ;
     - **différente** pour deux changements volontairement distincts — sinon
-      Scale→Pro, puis Scale→Essential, puis Scale→Pro à nouveau réutiliserait
+      Pro→Essential, puis Pro→Essential à nouveau réutiliserait
       la clé de la première opération. Stripe rendrait sa réponse en cache
       pendant 24 h, et le client resterait sur une formule dont il ne veut
       plus, **sans aucune erreur pour le signaler**.

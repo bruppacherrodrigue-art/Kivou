@@ -1144,7 +1144,6 @@ export type VisualScenario =
   | 'connected-pro'
   | 'connected-essential-veteran'
   | 'connected-discovery'
-  | 'connected-onboarding'
 
 type ConnectedVisualScenario = Extract<
   VisualScenario,
@@ -1163,7 +1162,6 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'public-legal', source: '/informations-legales', local: '/informations-legales', scenario: 'public-pricing' },
   { golden: 'dashboard-login', source: '/login', local: '/login', scenario: 'auth' },
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
-  { golden: 'dashboard-onboarding', source: '/onboarding', local: '/onboarding', scenario: 'connected-onboarding' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-essential-veteran' },
   { golden: 'dashboard-overview-discovery', source: '/', local: '/app/dashboard', scenario: 'connected-discovery' },
   // `source` est ici périmé : les goldens Signaux sont capturés depuis

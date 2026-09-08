@@ -71,7 +71,7 @@ def _pay(engine, client: TestClient) -> None:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id=f"sub_{account_id}",
             now=NOW,
         )

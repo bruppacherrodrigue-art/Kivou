@@ -37,7 +37,7 @@ export function RequireAuth() {
  *  particulier. Un compte sans profil exploitable va à l'onboarding : le feed
  *  lui rendrait un état vide qu'il ne saurait pas résoudre. */
 export function homeFor(me: Me): string {
-  return me.onboarding_status === 'ready_for_signals' ? '/app/dashboard' : '/onboarding'
+  return me.onboarding_status === 'ready_for_signals' ? '/app/dashboard' : '/app/confirm-profile'
 }
 
 /** L'inverse : une page publique d'authentification qu'un utilisateur déjà
@@ -63,7 +63,7 @@ export function RedirectIfAuthenticated() {
     }
     const home =
       state.me.onboarding_status !== 'ready_for_signals' && enteredFromPlanChoice
-        ? `/onboarding${planSearch(selectedPlan)}`
+        ? `/app/confirm-profile${planSearch(selectedPlan)}`
         : homeFor(state.me)
     const destination =
       state.me.onboarding_status === 'ready_for_signals' ? (requested ?? home) : home

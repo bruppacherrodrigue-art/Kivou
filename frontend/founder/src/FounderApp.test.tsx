@@ -139,7 +139,7 @@ const OVERVIEW: FounderOverview = {
       },
       h_e_capped: NOT_READY_GATE,
       h_f_closed_loop: { status: 'READY', reason_codes: [], evidence_refs: [] },
-      h_g_scale: NOT_READY_GATE,
+      h_g_precision: NOT_READY_GATE,
       highest_safe_mode: 'SHADOW',
       blockers: ['RUNTIME_OBSERVATION_UNAVAILABLE'],
       evidence_refs: [],

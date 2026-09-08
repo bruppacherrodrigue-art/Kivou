@@ -97,13 +97,13 @@ def _publication_date(value: dt.date | dt.datetime | None) -> dt.date | None:
 def _legacy_budget_usage_candidates(
     cost_used: Decimal, volume_used: int
 ) -> tuple[BudgetUsage, ...]:
-    """Recreate scale-sensitive hashes written before numeric canonicalization."""
+    """Recreate precision-sensitive hashes written before numeric canonicalization."""
     candidates: list[BudgetUsage] = []
     seen: set[str] = set()
-    # Policy money is durable as Numeric(18, 6); all representable legacy scales
+    # Policy money is durable as Numeric(18, 6); all representable legacy decimal precisions
     # are tried without changing the reconstructed numeric budget semantics.
-    for scale in range(7):
-        candidate_cost = cost_used.quantize(Decimal(1).scaleb(-scale))
+    for decimal_places in range(7):
+        candidate_cost = cost_used.quantize(Decimal(1).scaleb(-decimal_places))
         if candidate_cost != cost_used or str(candidate_cost) in seen:
             continue
         seen.add(str(candidate_cost))

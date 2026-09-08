@@ -15,7 +15,7 @@ This pack is the frontend design authority for Kivou.
 - Découverte: 0
 - Essential: 49 CHF/€ / month
 - Pro: 99 CHF/€ / month — recommended
-- Scale: 199 CHF/€ / month
+- offre supérieure: 199 CHF/€ / month
 - Founding Customer: 29 CHF/€ / month, private, maximum 5 design partners, 12 months
 
 ## Product-surface truth

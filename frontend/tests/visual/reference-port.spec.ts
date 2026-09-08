@@ -100,7 +100,6 @@ const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string
   'public-legal': 'Informations légales et contractuelles',
   'dashboard-login': 'Retrouver vos signaux',
   'dashboard-signup': 'Commencer avec un profil cible clair',
-  'dashboard-onboarding': 'Confirmez votre profil cible',
   'dashboard-overview': '8 nouveaux marchés depuis mardi',
   'dashboard-overview-discovery': '8 nouveaux marchés depuis mardi',
   'dashboard-signals': 'Signaux',
@@ -205,7 +204,7 @@ async function waitForScenario(
   await page.waitForLoadState('networkidle')
 
   if (golden === 'public-pricing') {
-    await expect(page.locator('.pricing-grid .price-card')).toHaveCount(4)
+    await expect(page.locator('.pricing-grid .price-card')).toHaveCount(3)
   }
   if (golden.startsWith('dashboard-overview')) {
     await expect(page.locator('[data-page="today"] article')).toHaveCount(3)
@@ -221,12 +220,6 @@ async function waitForScenario(
       )
       await expect(page.getByRole('link', { name: 'Signaux', exact: true })).toBeVisible()
     }
-  }
-  if (golden === 'dashboard-onboarding') {
-    await expect(page.getByLabel('Zone')).toHaveValues(['CH-VD'])
-    await expect(page.getByLabel('Secteur')).toHaveValue('45')
-    await expect(page.getByLabel('Ce que vous vendez')).not.toHaveValue('')
-    await expect(page.getByRole('button', { name: 'Recevoir mes signaux' })).toBeVisible()
   }
   if (golden === 'dashboard-signals') {
     // Nouvelle page : un tableau dense + une ligne de filtres + un tiroir

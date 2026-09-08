@@ -37,7 +37,7 @@ const BASE = {
   'GET /signals': { body: feedPage([]) },
 }
 
-async function selectPlan(plan: 'discovery' | 'essential' | 'pro' | 'scale') {
+async function selectPlan(plan: 'discovery' | 'essential' | 'pro') {
   const user = userEvent.setup()
   await user.selectOptions(await screen.findByLabelText('Offre'), plan)
   return user
@@ -63,11 +63,10 @@ describe('grille tarifaire', () => {
     const optionOf = (plan: string) =>
       within(selector).getByRole('option', { name: new RegExp(`^${plan}\\b`) }).textContent ?? ''
 
-    // Les montants viennent du catalogue : 0 / 49 / 99 / 199, en CHF par défaut.
+    // Les montants viennent du catalogue : 0 / 49 / 99, en CHF par défaut.
     expect(optionOf('Découverte')).toContain('Gratuit')
     expect(optionOf('Essentiel')).toMatch(/49/)
     expect(optionOf('Pro')).toMatch(/(^|\D)99/)
-    expect(optionOf('Scale')).toMatch(/199/)
 
     // Les anciens prix des maquettes ne doivent apparaître nulle part.
     const page = document.body.textContent ?? ''

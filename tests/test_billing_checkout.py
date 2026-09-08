@@ -4,7 +4,7 @@ Le montant n'est pas négociable côté navigateur (§32)
 ────────────────────────────────────────────────────
 Accepter un `price_id` du client reviendrait à laisser l'acheteur fixer son
 prix : il suffirait d'envoyer l'identifiant d'un prix à un franc pour obtenir
-Scale. Le client choisit un plan et une devise ; le serveur résout le prix.
+Pro. Le client choisit un plan et une devise ; le serveur résout le prix.
 
 La redirection de succès n'est pas une autorisation (§14)
 ────────────────────────────────────────────────────────
@@ -98,7 +98,6 @@ def test_the_plan_catalogue_is_public_and_carries_no_stripe_identifier(client: T
         "discovery",
         "essential",
         "pro",
-        "scale",
     ]
     assert body["billing_interval"] == "month"
     for forbidden in ("price_", "prod_", "coupon_", "whsec", "sk_test"):
@@ -136,7 +135,7 @@ def test_only_a_purchasable_plan_and_a_billable_currency_are_accepted(client, pa
     assert client.post("/billing/checkout", json=payload).status_code == 422
 
 
-@pytest.mark.parametrize("plan", ["essential", "pro", "scale"])
+@pytest.mark.parametrize("plan", ["essential", "pro"])
 @pytest.mark.parametrize("currency", ["chf", "eur"])
 def test_the_server_resolves_the_price_from_its_own_lookup_key(
     client: TestClient, stripe: FakeStripe, plan: str, currency: str
@@ -173,8 +172,8 @@ def test_an_unauthenticated_caller_cannot_open_a_checkout(engine, stripe: FakeSt
 def test_one_stripe_customer_is_created_per_account_and_only_once(
     client: TestClient, stripe: FakeStripe, engine
 ):
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
-    client.post("/billing/checkout", json={"plan": "scale", "currency": "eur"})
+    client.post("/billing/checkout", json={"plan": "essential", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     with engine.connect() as connection:
         rows = connection.execute(sa.select(billing_customer)).all()
@@ -260,7 +259,7 @@ def test_an_account_that_already_pays_cannot_open_a_second_checkout(
     with engine.begin() as connection:
         subscribe(connection, account_id=account_id, plan="pro", now=NOW)
 
-    response = client.post("/billing/checkout", json={"plan": "scale", "currency": "chf"})
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "already_subscribed"
     assert stripe.checkout_calls == []
@@ -385,5 +384,5 @@ def test_the_founding_discount_never_applies_to_another_plan(engine, stripe: Fak
     account_id = client.get("/me").json()["account_id"]
     app.state.founding_accounts = frozenset({account_id})
 
-    client.post("/billing/checkout", json={"plan": "scale", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "essential", "currency": "chf"})
     assert stripe.checkout_calls[-1]["coupon_id"] is None

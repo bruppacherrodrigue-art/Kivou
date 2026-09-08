@@ -21,7 +21,7 @@ L'historique passe par une pagination serveur à curseur fermé et un tri
 déterministe : date d'attribution réelle, sinon notification, sinon publication,
 puis clé stable du signal. Les droits existants restent l'autorité serveur :
 Discovery est limité aux attributions accordées, Essential à 30 jours, Pro à
-365 jours et Scale à tout l'historique disponible. Aucun plan, prix ou checkout
+365 jours pour l'offre supérieure à tout l'historique disponible. Aucun plan, prix ou checkout
 n'a été modifié.
 
 Le détail et les cartes utilisent exclusivement `factual_display` et

@@ -102,7 +102,7 @@ def client(app, engine) -> TestClient:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_dashboard",
             now=NOW,
         )
@@ -214,7 +214,7 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert first["profile"]["name"].startswith("Suivi ")
     assert first["profile"]["sector_label"].strip(" —")
     assert first["profile"]["zone_labels"] == ["Suisse"]
-    assert first["plan"]["name"] == "Scale"
+    assert first["plan"]["name"] == "Pro"
     assert first["plan"]["opened"] == 0
     assert first["plan"]["quota"] is None
     assert first["plan"]["period_end"] is None
@@ -328,11 +328,10 @@ def test_week_counts_relevant_contacted_and_replied_within_the_window(client, ic
 
     payload = _dashboard(client)
 
-    # Les quatre avis (`33885-03` × 3 ICP, `29997-02`, `33112-02`, `34794-02`)
-    # sont tous publiés entre le 2026-08-13 et le 2026-08-15 — dans la fenêtre
-    # `[2026-08-13, 2026-08-20]` — donc les six signaux comptent dans `new`.
+    # `29997-02` reste dans les fixtures pour tester le statut de contact, mais
+    # son identité incomplète l'exclut de la matérialisation visible.
     assert payload["week"] == {
-        "new": len(new_keys) + 3,
+        "new": len(new_keys) + 2,
         "saved": 2,
         "contacted": 1,
         "replied": 1,
@@ -434,20 +433,30 @@ def test_dashboard_counts_and_ranks_beyond_a_single_page(tmp_path):
     engine = make_engine(tmp_path)
     app = make_app(engine, lambda: HELPERS_NOW)
     client = signed_up(app, email="beyond-one-page@kivou.eu")
-    pay(engine, client, plan="scale", now=HELPERS_NOW)
+    pay(engine, client, plan="pro", now=HELPERS_NOW)
 
     keys: list[str] = []
     for index in range(5):
-        keys.extend(seed(engine, icp_of(client, label=f"Suivi {index}"), count=12))
+        target_icp_id = icp_of(client, label=f"Suivi {index}")
+        # Pro n'alimente que les trois ICP les plus anciens. La création de
+        # cinq profils dans la même seconde rendait cet ordre dépendant du
+        # moteur SQL, ce qui pouvait sortir `keys[0]` du périmètre testé.
+        with engine.begin() as connection:
+            connection.execute(
+                sa.update(target_icp)
+                .where(target_icp.c.target_icp_id == target_icp_id)
+                .values(created_at=HELPERS_NOW - dt.timedelta(days=5 - index))
+            )
+        keys.extend(seed(engine, target_icp_id, count=12))
     assert len(keys) == 60
 
-    #: La source 11 est la plus ancienne : ce signal est le 56e au tri du feed.
-    last_ranked = keys[11]
+    #: Le premier signal reste visible sous la limite de profils actifs de Pro.
+    last_ranked = keys[0]
     _set_band_and_score(engine, last_ranked, band="strong", score=90)
 
     payload = _dashboard(client)
 
-    assert payload["new_since_last_visit"] == 60
+    assert payload["new_since_last_visit"] == 36
     assert payload["strong_matches"] == 1
     assert payload["top3"][0]["signal_id"] == last_ranked
     assert payload["scan_truncated"] is False
@@ -541,7 +550,7 @@ def test_to_follow_up_keeps_the_ten_oldest_and_announces_the_rest(tmp_path):
     clock = Clock(HELPERS_NOW)
     app = make_app(engine, clock)
     client = signed_up(app, email="follow-up-cap@kivou.eu")
-    pay(engine, client, plan="scale", now=HELPERS_NOW)
+    pay(engine, client, plan="pro", now=HELPERS_NOW)
     seed(engine, icp_of(client), count=12)
     with engine.begin() as connection:
         run_winner_enrichment_batch(

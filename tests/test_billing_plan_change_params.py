@@ -86,7 +86,7 @@ SCHEDULE_ONE_PHASE = {
             "start_date": PERIOD_START,
             "end_date": PERIOD_END,
             "items": [
-                {"price": {"id": "price_scale_chf", "lookup_key": "kivou_scale_monthly_chf"}}
+                {"price": {"id": "price_pro_chf", "lookup_key": "kivou_pro_monthly_chf"}}
             ],
         }
     ],
@@ -164,7 +164,7 @@ def test_an_upgrade_refuses_itself_when_the_proration_cannot_be_charged():
     gateway, subscriptions, _ = gateway_recording()
 
     gateway.change_subscription_price(
-        subscription_id="sub_1", price_id="price_scale_chf", idempotency_key="k1"
+        subscription_id="sub_1", price_id="price_pro_chf", idempotency_key="k1"
     )
 
     params = subscriptions.calls[-1]["params"]
@@ -175,7 +175,7 @@ def test_an_upgrade_invoices_the_proration_immediately():
     gateway, subscriptions, _ = gateway_recording()
 
     gateway.change_subscription_price(
-        subscription_id="sub_1", price_id="price_scale_chf", idempotency_key="k1"
+        subscription_id="sub_1", price_id="price_pro_chf", idempotency_key="k1"
     )
 
     params = subscriptions.calls[-1]["params"]
@@ -187,11 +187,11 @@ def test_an_upgrade_replaces_the_existing_line_rather_than_adding_one():
     gateway, subscriptions, _ = gateway_recording()
 
     gateway.change_subscription_price(
-        subscription_id="sub_1", price_id="price_scale_chf", idempotency_key="k1"
+        subscription_id="sub_1", price_id="price_pro_chf", idempotency_key="k1"
     )
 
     params = subscriptions.calls[-1]["params"]
-    assert params["items"] == [{"id": "si_1", "price": "price_scale_chf"}]
+    assert params["items"] == [{"id": "si_1", "price": "price_pro_chf"}]
 
 
 def test_an_upgrade_carries_the_idempotency_key():
@@ -199,7 +199,7 @@ def test_an_upgrade_carries_the_idempotency_key():
     gateway, subscriptions, _ = gateway_recording()
 
     gateway.change_subscription_price(
-        subscription_id="sub_1", price_id="price_scale_chf", idempotency_key="k-abc"
+        subscription_id="sub_1", price_id="price_pro_chf", idempotency_key="k-abc"
     )
 
     assert subscriptions.calls[-1]["options"] == {"idempotency_key": "k-abc"}
@@ -214,7 +214,7 @@ def test_a_declined_card_becomes_a_payment_failure_not_a_crash():
 
     with pytest.raises(PlanChangePaymentFailed):
         gateway.change_subscription_price(
-            subscription_id="sub_1", price_id="price_scale_chf", idempotency_key="k1"
+            subscription_id="sub_1", price_id="price_pro_chf", idempotency_key="k1"
         )
 
 
@@ -245,7 +245,7 @@ def test_a_downgrade_keeps_the_paid_period_then_switches():
     assert len(phases) == 2
     assert phases[0]["start_date"] == PERIOD_START
     assert phases[0]["end_date"] == PERIOD_END
-    assert phases[0]["items"][0]["price"] == "price_scale_chf", "la formule PAYÉE reste"
+    assert phases[0]["items"][0]["price"] == "price_pro_chf", "la formule PAYÉE reste"
     assert phases[1]["items"] == [{"price": "price_essential_chf", "quantity": 1}]
     # `iterations` n'existe plus dans l'API : Stripe rejette la requête. Une
     # phase finale sans durée ne se termine jamais, donc `release` ne se

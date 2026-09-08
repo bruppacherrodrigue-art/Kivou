@@ -434,7 +434,7 @@ def test_a_paid_account_still_never_sees_a_foreign_signal(app, engine):
     alice, bob = signed_up(app, "alice@negoce-romand.ch"), signed_up(app, "bob@materiaux-leman.ch")
     alice_icp = icp_of(alice)
     icp_of(bob)
-    pay(engine, bob, plan="scale")
+    pay(engine, bob, plan="pro")
     with engine.begin() as connection:
         signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=alice_icp)
 
@@ -444,7 +444,7 @@ def test_a_paid_account_still_never_sees_a_foreign_signal(app, engine):
 
 def test_a_paid_account_still_never_sees_an_unbound_signal(alice, engine):
     icp = icp_of(alice)
-    pay(engine, alice, plan="scale")
+    pay(engine, alice, plan="pro")
     with engine.begin() as connection:
         mine = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp)
         unbound = materialize_boamp(connection, "26-80978", target_icp_id=RESEARCH_ICP_ID)
@@ -459,7 +459,7 @@ def test_paying_unlocks_everything_within_the_plan_scope(alice, engine):
     seed(engine, icp, count=7)
     assert len([i for i in feed(alice, limit=50)["items"] if not i["locked"]]) == 3
 
-    pay(engine, alice, plan="scale")
+    pay(engine, alice, plan="pro")
     items = feed(alice, limit=50)["items"]
     assert all(item["locked"] is False for item in items)
     assert len(items) == 7
@@ -508,21 +508,10 @@ def test_pro_unlocks_a_year_of_history(alice, engine):
     assert items[old]["locked"] is False
 
 
-def test_scale_unlocks_all_the_history_that_exists(alice, engine, clock: Clock):
-    icp = icp_of(alice)
-    fresh, old = old_and_new(engine, icp)
-    pay(engine, alice, plan="scale")
-    clock.move_to(dt.date(2027, 6, 1))
-
-    items = {i["signal_id"]: i for i in feed(alice, freshness="all", limit=50)["items"]}
-    assert all(not item["locked"] for item in items.values())
-    assert {fresh, old} <= set(items)
-
-
 def test_history_view_walks_every_owned_signal_with_the_server_cursor(alice, engine):
     icp = icp_of(alice)
     expected = set(seed(engine, icp, count=7))
-    pay(engine, alice, plan="scale")
+    pay(engine, alice, plan="pro")
 
     seen: list[str] = []
     cursor: str | None = None
@@ -548,7 +537,6 @@ def test_history_view_walks_every_owned_signal_with_the_server_cursor(alice, eng
         (None, "grants_only", 0),
         ("essential", "window", 30),
         ("pro", "window", 365),
-        ("scale", "all_available", None),
     ],
 )
 def test_history_response_explains_the_existing_plan_limit(
@@ -607,7 +595,7 @@ def test_a_history_window_never_authorises_recent_wording_on_an_old_signal(alice
     """§25 — payer plus n'autorise pas à mentir sur la date."""
     icp = icp_of(alice)
     _, old = old_and_new(engine, icp)
-    pay(engine, alice, plan="scale")
+    pay(engine, alice, plan="pro")
 
     item = {i["signal_id"]: i for i in feed(alice, freshness="all", limit=50)["items"]}[old]
     assert item["event"]["status"] == "stale_award"

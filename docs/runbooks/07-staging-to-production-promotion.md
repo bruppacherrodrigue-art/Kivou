@@ -12,7 +12,7 @@ SPEC-031 readiness is evidence, not promotion authority.
 
 ## Promotion
 
-Promotion requires an explicit operator/deployment approval and a new Policy control revision. SPEC-031 never auto-upgrades autonomy. Start at the approved lower mode; do not enable ADAPTIVE_SCALE merely because readiness says it could be safe. Global volume, country/mailbox/campaign caps, budgets, and allowlists cannot be broadened by Hermes.
+Promotion requires an explicit operator/deployment approval and a new Policy control revision. SPEC-031 never auto-upgrades autonomy. Start at the approved lower mode; do not enable ADAPTIVE_VOLUME merely because readiness says it could be safe. Global volume, country/mailbox/campaign caps, budgets, and allowlists cannot be broadened by Hermes.
 
 ## Verification
 

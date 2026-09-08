@@ -578,7 +578,7 @@ export function SignalsFeed() {
       {feed.data?.provisional_profile ? (
         <aside className={styles.provisionalBanner} role="note">
           <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
-          <Link to="/onboarding">Confirmer mon profil</Link>
+          <Link to="/app/confirm-profile">Confirmer mon profil</Link>
         </aside>
       ) : null}
 

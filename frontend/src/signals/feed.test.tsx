@@ -130,7 +130,7 @@ describe('écran Signaux — tableau dense', () => {
     })
 
     expect(await screen.findByText('Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Confirmer mon profil' })).toHaveAttribute('href', '/onboarding')
+    expect(screen.getByRole('link', { name: 'Confirmer mon profil' })).toHaveAttribute('href', '/app/confirm-profile')
   })
 
   it('rend un tableau et ses six colonnes, une ligne par signal', async () => {

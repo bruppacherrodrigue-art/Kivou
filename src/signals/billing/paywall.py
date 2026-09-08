@@ -164,7 +164,7 @@ def locked_detail(
     §27 — `upgrade_to` arrive CALCULÉ par l'autorité d'accès
     ────────────────────────────────────────────────────────
     Ce module met en forme ; il ne décide pas de l'accès. La liste était
-    autrefois écrite en dur (`essential / pro / scale`), ce qui promettait à un
+    autrefois écrite en dur (`essential / pro`), ce qui promettait à un
     client qu'un plan Essential ouvrirait un signal de 400 jours — il ne
     l'ouvre pas. La calculer ici demanderait d'y importer les droits et la
     fenêtre d'historique, c'est-à-dire de dupliquer la règle d'accès dans la

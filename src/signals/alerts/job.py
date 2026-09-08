@@ -38,7 +38,7 @@ import sqlalchemy as sa
 
 from signals.accounts.schema import account
 from signals.accounts.service import normalize_email
-from signals.alerts import content, delivery, lease, policy
+from signals.alerts import delivery, lease, policy, renderer
 from signals.alerts.gateway import (
     AlertDeliveryError,
     AlertDeliveryGateway,
@@ -675,7 +675,7 @@ def _run_for_account(
         lang = _language(locale)
         items = [by_key[key] for key in batch.signal_keys]
         lines = [
-            content.line_from_card(
+            renderer.line_from_card(
                 feed_view.feed_item(item, lang=lang),
                 url=signal_url(public_app_url, item.signal.signal_key),
                 lang=lang,
@@ -703,12 +703,12 @@ def _run_for_account(
             pricing_link = f"{public_app_url.rstrip('/')}/pricing"
         message = AlertMessage(
             to_email=preference.notification_email,
-            subject=content.subject(len(lines), lang=lang),
-            text_body=content.render_text(
+            subject=renderer.subject(len(lines), lang=lang),
+            text_body=renderer.render_text(
                 lines, lang=lang, preferences_link=preferences_link,
                 remaining_count=remaining_count, pricing_link=pricing_link,
             ),
-            html_body=content.render_html(
+            html_body=renderer.render_html(
                 lines, lang=lang, preferences_link=preferences_link,
                 remaining_count=remaining_count, pricing_link=pricing_link,
             ),

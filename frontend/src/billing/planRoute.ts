@@ -1,6 +1,6 @@
 import type { PlanCode } from '../api/types'
 
-const ROUTABLE_PLANS: readonly PlanCode[] = ['discovery', 'essential', 'pro', 'scale']
+const ROUTABLE_PLANS: readonly PlanCode[] = ['discovery', 'essential', 'pro']
 
 export function planFromSearch(search: string): PlanCode {
   const candidate = new URLSearchParams(search).get('plan')

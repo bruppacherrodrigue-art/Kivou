@@ -19,7 +19,7 @@ from signals.needs.features import (
     MATERIALITY_FLOOR,
     construction_profile,
     extract_features,
-    scale_band,
+    magnitude_band,
 )
 from signals.needs.rules import RULE_LIBRARY, RULE_LIBRARY_VERSION
 from signals.understanding.model import (
@@ -89,17 +89,17 @@ def _categories(cu: ContractUnderstanding) -> set[str]:
 
 class TestScalePolicy:
     def test_the_bands_are_deterministic_on_comparable_currencies(self) -> None:
-        assert scale_band("26.00 EUR") == "not_material"
-        assert scale_band("49999.99 CHF") == "not_material"
-        assert scale_band("50000.00 EUR") == "modest"
-        assert scale_band("999999.00 CHF") == "modest"
-        assert scale_band("1000000.00 EUR") == "large"
-        assert scale_band("10000000.00 CHF") == "very_large"
+        assert magnitude_band("26.00 EUR") == "not_material"
+        assert magnitude_band("49999.99 CHF") == "not_material"
+        assert magnitude_band("50000.00 EUR") == "modest"
+        assert magnitude_band("999999.00 CHF") == "modest"
+        assert magnitude_band("1000000.00 EUR") == "large"
+        assert magnitude_band("10000000.00 CHF") == "very_large"
 
     def test_an_uncomparable_currency_is_never_scaled(self) -> None:
-        assert scale_band("3972874.14 PLN") == "unknown"
-        assert scale_band("538 RON") == "unknown"
-        assert scale_band(None) == "unknown"
+        assert magnitude_band("3972874.14 PLN") == "unknown"
+        assert magnitude_band("538 RON") == "unknown"
+        assert magnitude_band(None) == "unknown"
 
     def test_the_materiality_floor_is_explicit(self) -> None:
         assert MATERIALITY_FLOOR == 50_000
@@ -109,7 +109,7 @@ class TestScalePolicy:
         cu = _cu(amount="26.00 EUR", characteristics=("several_lots",))
         result = NeedGraphEngine().derive(cu)
         assert result.needs == ()
-        assert any(s.reason == "scale_not_material" for s in result.suppressed_candidates)
+        assert any(s.reason == "magnitude_not_material" for s in result.suppressed_candidates)
 
 
 # ─── §8 — rôles de faits ────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ class TestFeatureRoles:
     def test_features_expose_the_two_roles_separately(self) -> None:
         features = extract_features(_cu(characteristics=("several_lots",)))
         assert features.mechanism("construction_machinery")
-        assert features.pressure("large_scale")
+        assert features.pressure("large_magnitude")
         assert not features.pressure("defined_period")
 
 
@@ -143,9 +143,9 @@ class TestFactsThatAreNeverPressure:
         cu = _cu(amount=None, characteristics=("several_lots",))
         assert _categories(cu) == set()
 
-    def test_several_lots_with_known_scale_becomes_a_pressure_fact(self) -> None:
+    def test_several_lots_with_known_magnitude_becomes_a_pressure_fact(self) -> None:
         cu = _cu(amount="600000.00 CHF", characteristics=("several_lots",))
-        assert extract_features(cu).pressure("parallel_lots_with_scale")
+        assert extract_features(cu).pressure("parallel_lots_with_magnitude")
 
 
 # ─── §13-§14 — profils de ressources CPV ────────────────────────────────────────
@@ -215,7 +215,7 @@ class TestSocialHealthPressure:
         cu = _cu(contract_type="social_health_services", cpv="85300000", amount="2500000.00 EUR")
         assert "workforce_capacity" in _categories(cu)
 
-    def test_a_recurring_social_health_service_with_scale_supports_workforce(self) -> None:
+    def test_a_recurring_social_health_service_with_magnitude_supports_workforce(self) -> None:
         cu = _cu(
             contract_type="social_health_services",
             cpv="85300000",

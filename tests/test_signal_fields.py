@@ -74,14 +74,14 @@ def app_for(engine, locale: str = "fr") -> TestClient:
 
 
 def subscribe_to_scale(engine, client: TestClient) -> None:
-    """Abonne le compte à Scale : ces tests portent sur le contenu d'un signal
+    """Abonne le compte à Pro : ces tests portent sur le contenu d'un signal
     débloqué, pas sur le mur payant (qui a son propre test)."""
     account_id = client.get("/me").json()["account_id"]
     with engine.begin() as connection:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id=f"sub_test_{account_id[-8:]}",
             now=Clock()(),
         )

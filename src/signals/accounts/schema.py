@@ -106,6 +106,7 @@ account_landing_signal = sa.Table(
     sa.Column("profile_confirmed_at", sa.DateTime(timezone=True)),
     sa.Column("dashboard_ready_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("qa", sa.Boolean(), nullable=False, server_default=sa.false()),
 )
 
 

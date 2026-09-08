@@ -57,6 +57,7 @@ packages = ["src/signals"]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+exclude = ["archive"]
 
 [tool.ruff.lint]
 # Domaine monétaire : `Decimal("1240000")` est la forme enseignée par le modèle

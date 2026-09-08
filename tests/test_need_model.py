@@ -51,7 +51,7 @@ def _need(**overrides) -> ResourceNeed:
         "evidence_refs": (EVIDENCE,),
         "supporting_facts": ("cpv", "amount"),
         "mechanism_facts": ("construction_machinery",),
-        "pressure_facts": ("large_scale",),
+        "pressure_facts": ("large_magnitude",),
         "rule_ids": ("construction-large-equipment-v1",),
         "source_mode": "metadata_fallback",
         "engine_version": ENGINE_VERSION,

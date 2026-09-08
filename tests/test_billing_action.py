@@ -263,7 +263,7 @@ def test_the_paying_statuses_are_not_widened(alice):
 def test_no_action_grants_any_entitlement(alice, engine, gateway, stripe_status: str):
     """Quelle que soit l'action proposée, les droits restent ceux de Discovery."""
     with_customer(engine, gateway, alice)
-    pay(engine, alice, plan="scale", status=stripe_status)
+    pay(engine, alice, plan="pro", status=stripe_status)
     body = alice.get("/billing/status").json()
     assert body["plan_code"] == "discovery"
     assert body["entitlements"]["max_active_icps"] == 1
@@ -302,7 +302,7 @@ def test_a_conflicting_second_subscription_never_offers_a_second_payment(
         subscribe(
             connection,
             account_id=account_of(alice),
-            plan="scale",
+            plan="pro",
             status="active",
             subscription_id="sub_test_9999",
             now=NOW,

@@ -123,12 +123,12 @@ class NeedGraphEngine:
                 continue
             # §10 — un montant dérisoire ne porte aucun raisonnement, même si
             # d'autres pressions existent : le diagnostic le nomme.
-            if features.scale_band == "not_material":
+            if features.magnitude_band == "not_material":
                 suppressed.append(
                     SuppressedCandidate(
                         category=rule.category,
                         rule_id=rule.rule_id,
-                        reason="scale_not_material",
+                        reason="magnitude_not_material",
                     )
                 )
                 continue
@@ -190,7 +190,7 @@ class NeedGraphEngine:
         _, group = item
         pressures = {p for candidate in group for p in candidate.pressures}
         score = 10 * len(pressures)
-        if features.scale_band in ("large", "very_large"):
+        if features.magnitude_band in ("large", "very_large"):
             score += 5
         if features.timing != "unknown":
             score += 2

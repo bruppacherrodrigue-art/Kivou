@@ -7,7 +7,6 @@ from zoneinfo import ZoneInfo
 import sqlalchemy as sa
 from test_campaign_store import _additional_opportunity, _factory_input, _reservation
 from test_conversion_attribution import NOW, create_account, prepared
-from test_learning_metrics import _conversion_event, _provider_event
 
 from signals.campaigns.store import CampaignStore
 from signals.cockpit.contracts import CockpitWeek
@@ -24,6 +23,57 @@ from signals.persistence.schema import (
     acquisition_provider_event,
     acquisition_response_evaluation,
 )
+
+
+def _provider_event(
+    *, ref: str, campaign: dict, member: dict, event_type: str,
+    occurred_at: dt.datetime, step: int | None,
+) -> dict:
+    return {
+        "provider_event_ref": ref,
+        "canonical_event_fingerprint": ref,
+        "fingerprint_version": "provider-event-fingerprint-v2",
+        "fingerprint_key_version": "synthetic-v1",
+        "provider_event_type": event_type,
+        "provider_workspace_ref": campaign["provider_workspace_ref"],
+        "provider_campaign_id": "campaign-synthetic",
+        "provider_lead_id": member["provider_lead_id"],
+        "campaign_ref": campaign["campaign_ref"],
+        "member_ref": member["member_ref"],
+        "acquisition_opportunity_id": member["acquisition_opportunity_id"],
+        "contact_ref": member["contact_ref"],
+        "step": step,
+        "occurred_at": occurred_at,
+        "received_at": occurred_at,
+        "mailbox_ref": member["mailbox_ref"],
+        "transport_status": "sent",
+        "resolution_state": "PROCESSED",
+    }
+
+
+def _conversion_event(
+    *, ref: str, milestone: str, journey: dict,
+    occurred_at: dt.datetime, mrr: int | None = None,
+) -> dict:
+    return {
+        "conversion_event_ref": ref,
+        "journey_ref": journey["journey_ref"],
+        "milestone": milestone,
+        "event_version": "conversion-event-v1",
+        "event_fingerprint": ref,
+        "trigger_ref_type": "SYNTHETIC",
+        "trigger_ref": ref,
+        "account_id": journey["account_id"],
+        "campaign_ref": journey["campaign_ref"],
+        "member_ref": journey["member_ref"],
+        "acquisition_opportunity_id": journey["acquisition_opportunity_id"],
+        "mrr_known": mrr is not None if milestone == "MRR_CHANGED" else None,
+        "mrr_minor_units": mrr,
+        "currency": "chf" if mrr is not None else None,
+        "occurred_at": occurred_at,
+        "observed_at": occurred_at,
+        "recorded_at": occurred_at,
+    }
 
 
 def _week(start: dt.datetime) -> CockpitWeek:

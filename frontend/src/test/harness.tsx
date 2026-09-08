@@ -491,7 +491,7 @@ export const UNLOCKED_DETAIL: UnlockedDetail = {
 
 export const LOCKED_DETAIL: LockedDetail = {
   ...LOCKED_ITEM,
-  access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: ['essential', 'pro', 'scale'] },
+  access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: ['essential', 'pro'] },
   read_at: '2026-08-18',
   language: 'fr',
 }
@@ -574,18 +574,6 @@ export const CATALOGUE: PlanCatalogue = {
       recommended: true,
       monthly_price: { chf: { amount_minor_units: 9900, currency: 'chf' }, eur: { amount_minor_units: 9900, currency: 'eur' } },
       entitlements: entitlements({ icps: 3, cadence: 'daily', history: 365, territory: 'multiple' }),
-    },
-    {
-      plan_code: 'scale',
-      purchasable: true,
-      recommended: false,
-      monthly_price: { chf: { amount_minor_units: 19900, currency: 'chf' }, eur: { amount_minor_units: 19900, currency: 'eur' } },
-      entitlements: entitlements({
-        icps: 10,
-        cadence: 'priority',
-        history: null,
-        territory: 'expanded',
-      }),
     },
   ],
 }

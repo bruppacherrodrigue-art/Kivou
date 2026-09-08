@@ -26,7 +26,7 @@ from signals.understanding.model import Claim, ContractUnderstanding
 
 # ─── Échelle (§9-§10) ───────────────────────────────────────────────────────────
 
-ScaleBand = Literal["not_material", "modest", "large", "very_large", "unknown"]
+MagnitudeBand = Literal["not_material", "modest", "large", "very_large", "unknown"]
 
 COMPARABLE_CURRENCIES = frozenset({"EUR", "CHF"})
 """Les seules devises que la politique compare sans conversion. Toute autre
@@ -41,7 +41,7 @@ LARGE_FLOOR = 1_000_000
 VERY_LARGE_FLOOR = 10_000_000
 
 
-def scale_band(amount_claim_value: str | None) -> ScaleBand:
+def magnitude_band(amount_claim_value: str | None) -> MagnitudeBand:
     """« 4500000.00 CHF » → large ; « 538 RON » → unknown ; « 26.00 EUR » → not_material."""
     if not amount_claim_value:
         return "unknown"
@@ -142,7 +142,7 @@ class NeedFeatures:
 
     contract_type: str
     construction_profile: ConstructionProfile
-    scale_band: ScaleBand
+    magnitude_band: MagnitudeBand
     several_lots: bool
     long_duration: bool
     defined_period: bool
@@ -173,14 +173,14 @@ class NeedFeatures:
 
     # ── rôle B : pression ───────────────────────────────────────────────────
     def pressure(self, name: str) -> bool:
-        known_scale = self.scale_band in ("modest", "large", "very_large")
-        large = self.scale_band in ("large", "very_large")
+        known_magnitude = self.magnitude_band in ("modest", "large", "very_large")
+        large = self.magnitude_band in ("large", "very_large")
         return {
-            "large_scale": large,
-            "known_nontrivial_scale": known_scale,
+            "large_magnitude": large,
+            "known_nontrivial_magnitude": known_magnitude,
             "long_recurring_duration": self.recurring_service,
-            "recurring_with_scale": self.recurring_service and known_scale,
-            "parallel_lots_with_scale": self.several_lots and known_scale,
+            "recurring_with_magnitude": self.recurring_service and known_magnitude,
+            "parallel_lots_with_magnitude": self.several_lots and known_magnitude,
             "distinct_specialties": self.consortium,
             "near_term_start": self.timing in ("immediate", "near_term"),
             # Explicitement JAMAIS des pressions (§11-§12) — nommés pour que les
@@ -199,11 +199,11 @@ class NeedFeatures:
 
 
 PRESSURE_FACTS: dict[str, str] = {
-    "large_scale": "amount",
-    "known_nontrivial_scale": "amount",
+    "large_magnitude": "amount",
+    "known_nontrivial_magnitude": "amount",
     "long_recurring_duration": "long_duration",
-    "recurring_with_scale": "amount",
-    "parallel_lots_with_scale": "lot",
+    "recurring_with_magnitude": "amount",
+    "parallel_lots_with_magnitude": "lot",
     "distinct_specialties": "consortium_award",
     # La date de début vit dans `ContractTiming`, qui n'est pas porté par un
     # `Claim` : le fait est nommé, mais il n'apporte aucune preuve — celle du
@@ -265,7 +265,7 @@ def extract_features(cu: ContractUnderstanding) -> NeedFeatures:
     return NeedFeatures(
         contract_type=contract_type,
         construction_profile=construction_profile(cpv_claim.value if cpv_claim else None),
-        scale_band=scale_band(amount_claim.value if amount_claim else None),
+        magnitude_band=magnitude_band(amount_claim.value if amount_claim else None),
         several_lots="several_lots" in characteristics,
         long_duration="long_duration" in characteristics,
         defined_period="defined_contract_period" in characteristics,

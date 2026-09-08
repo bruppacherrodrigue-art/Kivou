@@ -20,7 +20,7 @@ import datetime as dt
 
 from signals.domain import EventRef, Evidence
 from signals.needs import ENGINE_VERSION, NeedGraphEngine
-from signals.needs.features import extract_features, scale_band
+from signals.needs.features import extract_features, magnitude_band
 from signals.understanding.model import (
     Claim,
     ContractGeography,
@@ -82,18 +82,18 @@ class TestEconomicScale:
     """Bandes d'échelle — SPEC-007R1 §9 affine la binarité de V0 en cinq bandes."""
 
     def test_a_large_eur_amount_is_large(self) -> None:
-        assert scale_band("4500000.00 EUR") == "large"
-        assert scale_band("1500000 CHF") == "large"
+        assert magnitude_band("4500000.00 EUR") == "large"
+        assert magnitude_band("1500000 CHF") == "large"
 
     def test_a_modest_amount_stays_modest(self) -> None:
-        assert scale_band("192396.26 EUR") == "modest"
+        assert magnitude_band("192396.26 EUR") == "modest"
 
     def test_an_uncovered_currency_is_never_scaled(self) -> None:
         """Aucune conversion inventée : 3 972 874 PLN n'est ni large ni modest."""
-        assert scale_band("3972874.14 PLN") == "unknown"
+        assert magnitude_band("3972874.14 PLN") == "unknown"
 
     def test_a_missing_amount_is_unknown(self) -> None:
-        assert scale_band(None) == "unknown"
+        assert magnitude_band(None) == "unknown"
 
 
 class TestFeatureExtraction:
@@ -101,7 +101,7 @@ class TestFeatureExtraction:
         cu = _cu(characteristics=("several_lots", "long_duration"), duration=(48, "month"))
         features = extract_features(cu)
         assert features.contract_type == "construction"
-        assert features.scale_band == "large"
+        assert features.magnitude_band == "large"
         assert features.several_lots and features.long_duration
         assert features.duration_months == 48
 

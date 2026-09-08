@@ -27,8 +27,8 @@ import { useResource } from '../presentation/dashboard/resources'
 import { Button } from '../presentation/dashboard/ui/button'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
-const PURCHASABLE_PLANS: readonly PurchasablePlan[] = ['essential', 'pro', 'scale']
-const DISPLAYABLE_PLANS: readonly PlanCode[] = ['discovery', 'essential', 'pro', 'scale']
+const PURCHASABLE_PLANS: readonly PurchasablePlan[] = ['essential', 'pro']
+const DISPLAYABLE_PLANS: readonly PlanCode[] = ['discovery', 'essential', 'pro']
 
 function isPurchasablePlan(value: string): value is PurchasablePlan {
   return PURCHASABLE_PLANS.includes(value as PurchasablePlan)

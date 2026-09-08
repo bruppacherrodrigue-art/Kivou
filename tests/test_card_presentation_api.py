@@ -54,7 +54,7 @@ def alice(app) -> TestClient:
 
 def _seed_paid(engine, client: TestClient, *, count: int) -> list[str]:
     target_icp_id = icp_of(client)
-    pay(engine, client, plan="scale")
+    pay(engine, client, plan="pro")
     return seed(engine, target_icp_id, count=count)
 
 

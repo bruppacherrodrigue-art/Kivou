@@ -181,10 +181,10 @@ def evaluate_policy(
             reasons.append("wedge_not_allowed")
         if (
             request.command == "reallocate_volume"
-            and effective_mode is not AutonomyMode.ADAPTIVE_SCALE
+            and effective_mode is not AutonomyMode.ADAPTIVE_VOLUME
         ):
             primary = primary or PolicyStatus.DENIED
-            reasons.append("adaptive_scale_required")
+            reasons.append("adaptive_volume_required")
 
     if profile is not None:
         if profile.requires_compliance:

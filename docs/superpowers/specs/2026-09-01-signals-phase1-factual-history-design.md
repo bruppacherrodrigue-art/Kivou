@@ -30,7 +30,7 @@ plus pour son titre, son résumé ou son état de complétude.
    fraîcheur. Cet ordre ne garantit pas un parcours complet et stable de
    l'historique par date d'attribution.
 4. Les droits d'historique existent déjà côté serveur (Discovery : signaux
-   accordés; Essential : 30 jours; Pro : 365 jours; Scale : tout l'historique
+   accordés; Essential : 30 jours; Pro : 365 jours; offre supérieure : tout l'historique
    persisté). La réponse du feed ne les explique toutefois pas explicitement à
    l'interface.
 5. Le nom, les identifiants, le pays, l'adresse et parfois le site officiel du

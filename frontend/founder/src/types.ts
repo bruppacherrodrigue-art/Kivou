@@ -1,6 +1,6 @@
 export type HealthStatus = 'READY' | 'DEGRADED' | 'NOT_READY'
 export type GateStatus = 'READY' | 'NOT_READY' | 'INSUFFICIENT_EVIDENCE'
-export type AutonomyMode = 'SHADOW' | 'ASSISTED' | 'AUTONOMOUS_CAPPED' | 'ADAPTIVE_SCALE'
+export type AutonomyMode = 'SHADOW' | 'ASSISTED' | 'AUTONOMOUS_CAPPED' | 'ADAPTIVE_VOLUME'
 
 export interface FounderSession {
   version: 'founder-session-v1'
@@ -129,7 +129,7 @@ export interface AutonomousReadiness {
   h_d_shadow: GateEvidence
   h_e_capped: GateEvidence
   h_f_closed_loop: GateEvidence
-  h_g_scale: GateEvidence
+  h_g_precision: GateEvidence
   highest_safe_mode: AutonomyMode
   blockers: string[]
   evidence_refs: string[]

@@ -116,8 +116,8 @@ describe('vérité du packaging', () => {
     // Alertes : UI Notifications, préférence, job et cadence appliquée.
     expect(page).toContain('Alertes e-mail quotidiennes')
 
-    await user.selectOptions(selector, 'scale')
-    expect(document.body.textContent).toContain('Couverture territoriale étendue')
+    await user.selectOptions(selector, 'pro')
+    expect(document.body.textContent).toContain('Plusieurs territoires par profil')
   })
 
   it('ne change pas les prix, qui viennent toujours du serveur', async () => {
@@ -126,7 +126,6 @@ describe('vérité du packaging', () => {
     const page = document.body.textContent ?? ''
     expect(page).toContain('49')
     expect(page).toContain('99')
-    expect(page).toContain('199')
     expect(page).toContain('Gratuit')
   })
 

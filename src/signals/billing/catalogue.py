@@ -27,13 +27,13 @@ from typing import Literal
 
 CATALOGUE_VERSION = "kivou-plans-v0.1"
 
-PlanCode = Literal["discovery", "essential", "pro", "scale"]
-PLAN_CODES: tuple[str, ...] = ("discovery", "essential", "pro", "scale")
+PlanCode = Literal["discovery", "essential", "pro"]
+PLAN_CODES: tuple[str, ...] = ("discovery", "essential", "pro")
 
 #: Les seuls plans qu'un client peut acheter. `discovery` est un droit interne :
 #: créer un abonnement Stripe à 0 ferait exister une facture pour rien, et un
 #: objet de plus à réconcilier.
-PURCHASABLE_PLANS: tuple[str, ...] = ("essential", "pro", "scale")
+PURCHASABLE_PLANS: tuple[str, ...] = ("essential", "pro")
 
 Currency = Literal["chf", "eur"]
 CURRENCIES: tuple[str, ...] = ("chf", "eur")
@@ -46,9 +46,6 @@ OFFER_CODES: tuple[str, ...] = ("founding",)
 TerritoryMode = Literal["single", "multiple", "expanded"]
 FilterLevel = Literal["minimum", "basic", "advanced"]
 ExportLevel = Literal["none", "manual", "scheduled"]
-#: SPEC-014 §15 — `priority` remplace `realtime` : Scale est éligible à chaque
-#: exécution du job d'alerte, ce qui est vrai. « Temps réel » promettrait une
-#: architecture qui n'existe pas, et une latence qu'aucun cron ne tient.
 AlertCadence = Literal["none", "weekly", "daily", "priority"]
 
 #: §7 — au-delà, l'offre fondateur n'est plus une offre fondateur.
@@ -77,7 +74,7 @@ class PlanEntitlements:
     history_days: int | None
     territory_mode: str
     #: Nombre maximal de territoires d'un ICP actif ; `None` = non plafonné.
-    #: §24 — aucun plafond n'est inventé pour Pro ou Scale juste pour
+    #: §24 — aucun plafond n'est inventé pour Pro juste pour
     #: différencier : Kivou n'a pas de couverture à vendre au-delà de ses
     #: sources réelles.
     max_territories_per_icp: int | None
@@ -148,22 +145,8 @@ PRO = PlanEntitlements(
     recommended=True,
 )
 
-SCALE = PlanEntitlements(
-    plan_code="scale",
-    max_active_icps=10,
-    history_days=UNLIMITED_HISTORY,
-    territory_mode="expanded",
-    max_territories_per_icp=None,
-    feed_access=True,
-    detail_access=True,
-    evidence_access=True,
-    filter_level="advanced",
-    export_level="scheduled",
-    alert_cadence="priority",
-)
-
 PLANS: dict[str, PlanEntitlements] = {
-    plan.plan_code: plan for plan in (DISCOVERY, ESSENTIAL, PRO, SCALE)
+    plan.plan_code: plan for plan in (DISCOVERY, ESSENTIAL, PRO)
 }
 
 #: Prix mensuels, en unités mineures, par plan et par devise. Explicites dans
@@ -171,7 +154,6 @@ PLANS: dict[str, PlanEntitlements] = {
 MONTHLY_MINOR_UNITS: dict[str, dict[str, int]] = {
     "essential": {"chf": 4900, "eur": 4900},
     "pro": {"chf": 9900, "eur": 9900},
-    "scale": {"chf": 19900, "eur": 19900},
 }
 
 #: §4, §6 — la référence stable côté application. Un `price_...` change quand la
@@ -187,7 +169,7 @@ LOOKUP_KEYS: dict[str, dict[str, str]] = {
 #: descendre attend la fin de la période déjà payée. Comparer `history_days`
 #: aurait marché aujourd'hui et cassé le jour où deux plans partageraient une
 #: fenêtre en se distinguant autrement.
-PLAN_ORDER: tuple[str, ...] = ("essential", "pro", "scale")
+PLAN_ORDER: tuple[str, ...] = ("essential", "pro")
 
 
 def plan_rank(plan_code: str) -> int:
@@ -200,7 +182,6 @@ def plan_rank(plan_code: str) -> int:
 PRODUCT_NAMES: dict[str, str] = {
     "essential": "Kivou Essential",
     "pro": "Kivou Pro",
-    "scale": "Kivou Scale",
 }
 
 FOUNDING_COUPON_LOOKUP = "kivou_founding_12m"
@@ -261,7 +242,7 @@ def plan_for_lookup_key(lookup_key: str | None) -> tuple[str, str] | None:
 def public_catalogue() -> tuple[dict[str, object], ...]:
     """Le catalogue tel qu'un client le voit — sans un seul identifiant Stripe."""
     entries = []
-    for plan in (DISCOVERY, ESSENTIAL, PRO, SCALE):
+    for plan in (DISCOVERY, ESSENTIAL, PRO):
         prices = MONTHLY_MINOR_UNITS.get(plan.plan_code, {})
         entries.append(
             {

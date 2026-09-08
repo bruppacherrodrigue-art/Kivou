@@ -77,7 +77,7 @@ est appliquée ; l'installation le confirmera explicitement.
 ### Hors phase 1
 
 Le chemin d'envoi et le levier d'activation ASSISTED — c'est la phase 2.
-`AUTONOMOUS_CAPPED` et `ADAPTIVE_SCALE`. Les pages légales de l'issue #30. La
+`AUTONOMOUS_CAPPED` et `ADAPTIVE_VOLUME`. Les pages légales de l'issue #30. La
 panne d'ingestion TED. Toute modification du feed client ou du moteur de signaux.
 
 ## Décisions de conception

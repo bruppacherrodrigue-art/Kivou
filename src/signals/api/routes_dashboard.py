@@ -30,7 +30,6 @@ _PLAN_NAMES = {
     "discovery": "Découverte",
     "essential": "Essential",
     "pro": "Pro",
-    "scale": "Scale",
 }
 
 

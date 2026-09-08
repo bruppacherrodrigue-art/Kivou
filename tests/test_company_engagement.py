@@ -85,7 +85,7 @@ def client(engine, clock: Clock) -> TestClient:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_company_engagement",
             now=NOW,
         )
@@ -256,7 +256,7 @@ def _second_account_company(client: TestClient, engine) -> str:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_other_engagement",
             now=NOW,
         )
