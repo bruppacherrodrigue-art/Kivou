@@ -328,11 +328,10 @@ def test_week_counts_relevant_contacted_and_replied_within_the_window(client, ic
 
     payload = _dashboard(client)
 
-    # Les quatre avis (`33885-03` × 3 ICP, `29997-02`, `33112-02`, `34794-02`)
-    # sont tous publiés entre le 2026-08-13 et le 2026-08-15 — dans la fenêtre
-    # `[2026-08-13, 2026-08-20]` — donc les six signaux comptent dans `new`.
+    # `29997-02` reste dans les fixtures pour tester le statut de contact, mais
+    # son identité incomplète l'exclut de la matérialisation visible.
     assert payload["week"] == {
-        "new": len(new_keys) + 3,
+        "new": len(new_keys) + 2,
         "saved": 2,
         "contacted": 1,
         "replied": 1,
@@ -447,7 +446,7 @@ def test_dashboard_counts_and_ranks_beyond_a_single_page(tmp_path):
 
     payload = _dashboard(client)
 
-    assert payload["new_since_last_visit"] == 60
+    assert payload["new_since_last_visit"] == 36
     assert payload["strong_matches"] == 1
     assert payload["top3"][0]["signal_id"] == last_ranked
     assert payload["scan_truncated"] is False

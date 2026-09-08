@@ -92,7 +92,6 @@ def test_multi_item_get_uses_one_enrichment_read_and_cannot_open_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     signal_keys = {_seed(engine, client, fixture) for fixture in (
-        "29997-02",
         "33112-02",
         "33885-03",
         "34794-02",

@@ -32,6 +32,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
 LATEST = "0042_account_deletion"
+CURRENT_HEAD = "0044_email_verification"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
@@ -124,7 +125,7 @@ def test_0025_is_additive_and_precedes_the_runtime_head(tmp_path) -> None:
     command.upgrade(config, HEAD)
 
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [LATEST]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS

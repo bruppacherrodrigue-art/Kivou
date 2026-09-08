@@ -15,7 +15,7 @@ PRODUCTION = SYSTEMD / "production"
 PRODUCTION_RUNBOOK = REPOSITORY / "ops/production/README.md"
 PRODUCTION_RELEASE_PLAN = (
     REPOSITORY
-    / "docs/superpowers/plans/2026-08-30-production-saas-signal-engine-release.md"
+    / "archive/docs/superpowers/plans/2026-08-30-production-saas-signal-engine-release.md"
 )
 NGINX = REPOSITORY / "ops/nginx"
 PRODUCTION_NGINX = NGINX / "kivou-production.conf"

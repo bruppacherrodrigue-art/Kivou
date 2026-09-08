@@ -98,7 +98,6 @@ def test_the_plan_catalogue_is_public_and_carries_no_stripe_identifier(client: T
         "discovery",
         "essential",
         "pro",
-        "pro",
     ]
     assert body["billing_interval"] == "month"
     for forbidden in ("price_", "prod_", "coupon_", "whsec", "sk_test"):

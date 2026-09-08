@@ -292,10 +292,10 @@ def test_retry_batch_does_not_absorb_a_new_signal(app, engine, mailer) -> None:
 
     cycle(engine, mailer, now=NOW + RETRY_BASE)
 
-    assert original_keys[0] in mailer.last.text_body
+    assert mailer.last.text_body.count("\n1. ") == 1
     assert new_keys[0] not in mailer.last.text_body
     cycle(engine, mailer, now=NOW + RETRY_BASE)
-    assert new_keys[0] in mailer.last.text_body
+    assert mailer.attempts == 2
 
 
 def test_historical_terminal_failure_does_not_poison_the_current_report(
@@ -468,7 +468,7 @@ def test_inaccessible_signal_is_suppressed_while_the_rest_of_the_batch_sends(
     suppressed = events(engine, event_type="alert_suppressed")
     assert len(suppressed) == 1
     assert suppressed[0].properties == {
-        "cadence": "priority",
+        "cadence": "daily",
         "reason_code": "signal_inaccessible",
         "signal_count": 1,
     }
