@@ -165,7 +165,7 @@ describe('écran Signaux — tableau dense', () => {
     expect(grid.textContent).not.toContain('FR-06')
   })
 
-  it('rend un signal verrouillé en ligne neutre et renvoie vers la facturation', async () => {
+  it('ouvre uniquement le mini-panel du signal verrouille, sans detail ni facturation', async () => {
     mockApi(feedWith([LOCKED_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
@@ -178,7 +178,30 @@ describe('écran Signaux — tableau dense', () => {
     expect(row.textContent).toContain('Haute-Garonne')
 
     await userEvent.click(within(row).getByRole('button'))
-    await waitFor(() => expect(callsTo('/billing/plans', 'GET').length).toBeGreaterThan(0))
+    const preview = await screen.findByRole('complementary', { name: 'Aperçu réservé' })
+    expect(within(preview).getByText(LOCKED_ITEM.headline)).toBeInTheDocument()
+    expect(within(preview).getByRole('link', { name: 'Voir les offres' })).toHaveAttribute('href', '/tarifs')
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-page="signals"] aside')).toHaveLength(1)
+    await userEvent.click(within(preview).getByRole('button'))
+    expect(screen.queryByRole('complementary', { name: 'Aperçu réservé' })).not.toBeInTheDocument()
+  })
+
+  it('un lien profond verrouille conserve le mini-panel sans redirection de paiement', async () => {
+    mockApi({
+      ...feedWith([]),
+      [`GET /signals/${LOCKED_ITEM.signal_id}`]: { body: {
+        ...LOCKED_ITEM,
+        access: { granted: false, reason: 'paid_plan', upgrade_to: ['essential', 'pro'] },
+        read_at: NOW.toISOString(), language: 'fr',
+      } },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: `/app/signals/${LOCKED_ITEM.signal_id}` })
+    const preview = await screen.findByRole('complementary', { name: 'Aperçu réservé' })
+    expect(within(preview).getByRole('link', { name: 'Voir les offres' })).toHaveAttribute('href', '/tarifs')
+    expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-page="signals"] aside')).toHaveLength(1)
   })
 
   it('masque pagination et volume non borné sous le plafond Découverte', async () => {

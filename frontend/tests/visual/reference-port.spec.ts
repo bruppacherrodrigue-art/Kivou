@@ -274,7 +274,7 @@ async function waitForScenario(
     }
     const rows = mobile
       ? page.locator('article[data-signal-key]')
-      : table.locator('tbody tr')
+      : table.locator('tbody tr[data-signal-key]')
     await expect(rows).toHaveCount(3)
     await expect(rows.filter({ hasText: 'H. Hüther GmbH' })).toHaveCount(1)
     await expect(rows.filter({ hasText: 'TM Ausbau GmbH' })).toHaveCount(1)

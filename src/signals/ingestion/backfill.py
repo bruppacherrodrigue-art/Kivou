@@ -275,7 +275,7 @@ def rematerialize_target_in_transaction(
     )
 
 
-def materialize_landing_opportunity_in_transaction(
+def _prepare_landing_opportunity(
     connection: sa.Connection,
     *,
     target_icp_id: str,
@@ -296,7 +296,11 @@ def materialize_landing_opportunity_in_transaction(
     if state is None or state[0] is None:
         return None
     profile, matching_revision = state
-    representatives = _representatives(connection, (opportunity_key,))
+    from signals.billing.discovery import opportunity_facts
+
+    representatives = opportunity_facts(
+        connection, (opportunity_key,), as_of=as_of
+    ).get(opportunity_key, {}).get("eligible", ())
     if not representatives:
         return None
     event, award = representatives[0]
@@ -334,22 +338,33 @@ def materialize_landing_opportunity_in_transaction(
         else None,
         as_of=as_of,
     )
-    result = materialize_signal(
-        connection,
-        event=event,
-        award=award,
-        understanding=understanding,
-        needs=needs,
-        match=match,
-        recency=recency,
-        as_of=as_of,
-        materialized_at=materialized_at,
-        target_icp_revision=matching_revision,
+    return {
+        "event": event,
+        "award": award,
+        "understanding": understanding,
+        "needs": needs,
+        "match": match,
+        "recency": recency,
+        "as_of": as_of,
+        "materialized_at": materialized_at,
+        "target_icp_revision": matching_revision,
+    }
+
+
+def materialize_landing_opportunity_in_transaction(
+    connection: sa.Connection, *, target_icp_id: str, opportunity_key: str,
+    as_of: dt.date, materialized_at: dt.datetime, require_match: bool = False,
+) -> str | None:
+    prepared = _prepare_landing_opportunity(
+        connection, target_icp_id=target_icp_id, opportunity_key=opportunity_key,
+        as_of=as_of, materialized_at=materialized_at, require_match=require_match,
     )
-    return result.signal_key
+    if prepared is None:
+        return None
+    return materialize_signal(connection, **prepared).signal_key
 
 
-def materialize_landing_feed_in_transaction(
+def landing_cohort_plan(
     connection: sa.Connection, *, target_icp_id: str, opportunity_key: str,
     as_of: dt.date, materialized_at: dt.datetime,
 ) -> str | None:
@@ -358,12 +373,14 @@ def materialize_landing_feed_in_transaction(
     Preselect by date, country, subdivision and CPV before the bounded scan.
     Never invoke a provider or rematerialize the whole customer catalogue.
     """
-    key = materialize_landing_opportunity_in_transaction(
+    from signals.billing.discovery import opportunity_facts
+
+    bait = _prepare_landing_opportunity(
         connection, target_icp_id=target_icp_id, opportunity_key=opportunity_key,
         as_of=as_of, materialized_at=materialized_at,
     )
-    if key is None:
-        return None
+    if bait is None:
+        return {"prepared": [], "grant_opportunities": [], "candidates": [], "scan_truncated": False}
     profile, _revision = _target_state(connection, target_icp_id)
     effective = sa.func.coalesce(
         contract_award.c.award_date, contract_award.c.contract_notification_date,
@@ -391,6 +408,10 @@ def materialize_landing_feed_in_transaction(
     statement = sa.select(
         opportunity_representation.c.opportunity_key,
         sa.func.max(effective).label("effective_date"),
+        source_event.c.source_system,
+        source_event.c.source_country,
+        sa.func.coalesce(sa.func.nullif(source_event.c.source_procedure_id, ""),
+                         source_event.c.source_notice_id).label("procedure_ref"),
     ).select_from(opportunity_representation.join(
         contract_award, opportunity_representation.c.award_key == contract_award.c.award_key,
     ).join(source_event, contract_award.c.event_key == source_event.c.event_key)).where(
@@ -404,17 +425,73 @@ def materialize_landing_feed_in_transaction(
             contract_award.c.cpv_main.startswith(prefix)
             for prefix in profile.included_cpv_prefixes
         )))
-    candidates = connection.execute(statement.group_by(
-        opportunity_representation.c.opportunity_key,
-    ).order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key).limit(40))
-    keys = tuple(candidates.scalars())
-    materialized = 1
+    grouped = statement.group_by(
+        opportunity_representation.c.opportunity_key, source_event.c.source_system,
+        source_event.c.source_country, "procedure_ref",
+    ).subquery()
+    interleaved = sa.select(grouped, sa.func.row_number().over(
+        partition_by=(grouped.c.source_system, grouped.c.source_country, grouped.c.procedure_ref),
+        order_by=(grouped.c.effective_date.desc(), grouped.c.opportunity_key),
+    ).label("procedure_position")).subquery()
+    rows = connection.execute(sa.select(interleaved.c.opportunity_key).order_by(
+        interleaved.c.procedure_position, interleaved.c.effective_date.desc(),
+        interleaved.c.opportunity_key,
+    ).limit(41)).scalars().all()
+    keys = tuple(dict.fromkeys(rows[:40]))
+    facts = opportunity_facts(connection, (opportunity_key, *keys), as_of=as_of)
+    qualified, audit = [], []
     for neighbour in keys:
-        if materialized == 5:
-            break
-        result = materialize_landing_opportunity_in_transaction(
+        fact = facts.get(neighbour, {})
+        codes = sorted(fact.get("refusal_codes", {"PROCEDURE_REFERENCE_UNRESOLVED"}))
+        result = None if codes else _prepare_landing_opportunity(
             connection, target_icp_id=target_icp_id, opportunity_key=neighbour,
             as_of=as_of, materialized_at=materialized_at, require_match=True,
         )
-        materialized += result is not None
-    return key
+        if result is None and not codes:
+            codes = ["PROFILE_MATCH_INELIGIBLE"]
+        audit.append({"opportunity_key": neighbour,
+                      "procedure_references": sorted(fact.get("aliases", ())),
+                      "refusal_codes": codes})
+        if result is not None:
+            qualified.append((neighbour, result))
+    from signals.dashboard.service import _band_rank
+
+    def rank(item):
+        key, prepared = item
+        award, event, match = prepared["award"], prepared["event"], prepared["match"]
+        date = award.award_date or award.contract_notification_date or _publication_date(event)
+        return (-_band_rank(match.band), -match.normalized_score,
+                -(date.toordinal() if date else -1), key)
+
+    qualified.sort(key=rank)
+    used = set(facts[opportunity_key]["aliases"])
+    selected = [(opportunity_key, bait)]
+    for neighbour, prepared in qualified:
+        aliases = facts[neighbour]["aliases"]
+        if not used.intersection(aliases) and len(selected) < 3:
+            selected.append((neighbour, prepared))
+            used.update(aliases)
+    selected_keys = {key for key, _prepared in selected}
+    for entry in audit:
+        if not entry["refusal_codes"] and entry["opportunity_key"] not in selected_keys:
+            aliases = facts[entry["opportunity_key"]]["aliases"]
+            entry["refusal_codes"] = ["SAME_PROCEDURE" if used.intersection(aliases)
+                                      else "DISCOVERY_QUOTA_REACHED"]
+    previews = [item for item in qualified if item[0] not in selected_keys][:5 - len(selected)]
+    return {"prepared": selected + previews, "grant_opportunities": sorted(selected_keys),
+            "candidates": audit, "scan_truncated": len(rows) > 40}
+
+
+def materialize_landing_feed_in_transaction(
+    connection: sa.Connection, *, target_icp_id: str, opportunity_key: str,
+    as_of: dt.date, materialized_at: dt.datetime,
+) -> str | None:
+    plan = landing_cohort_plan(connection, target_icp_id=target_icp_id,
+                              opportunity_key=opportunity_key, as_of=as_of,
+                              materialized_at=materialized_at)
+    bait_key = None
+    for candidate, prepared in plan["prepared"]:
+        result = materialize_signal(connection, **prepared)
+        if candidate == opportunity_key:
+            bait_key = result.signal_key
+    return bait_key

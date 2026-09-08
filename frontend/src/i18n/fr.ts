@@ -1142,6 +1142,10 @@ export const fr = {
   },
 
   locked: {
+    previewTitle: 'Aperçu réservé',
+    offers: 'Voir les offres',
+    offersScope: 'Offres Essentiel et Pro : vérifiez les droits et la fenêtre d’historique avant de choisir.',
+    otherSignals: '{count} autres signaux dans votre zone',
     badge: 'Verrouillé',
     title: 'Étendre l’accès à votre flux',
     teaserHeadingFallback: 'Un signal détecté sur votre périmètre',

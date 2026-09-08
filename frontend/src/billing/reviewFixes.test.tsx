@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
-import { act, screen } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -52,6 +52,14 @@ function renderBilling(status: BillingStatus) {
 async function selectPro(user = userEvent.setup()) {
   await user.selectOptions(await screen.findByLabelText(/Offre|Plan/), 'pro')
   return screen.findByRole('button', { name: /Choisir Pro|Choose Pro/ })
+}
+
+async function openOffers(user = userEvent.setup()) {
+  const panel = await screen.findByRole('complementary', { name: /Aperçu réservé|Locked preview/ })
+  const link = within(panel).getByRole('link', { name: /Voir les offres|View plans/ })
+  expect(link).toHaveAttribute('href', '/tarifs')
+  await user.click(link)
+  await user.click(await screen.findByRole('link', { name: 'Choisir Essentiel' }))
 }
 
 // ─── 1. statut Stripe inconnu ────────────────────────────────────────────────
@@ -176,6 +184,7 @@ describe('promesse du paywall', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
 
+    await openOffers()
     await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
     await screen.findByText('Historique 30 jours')
     const page = document.body.textContent ?? ''
@@ -197,6 +206,7 @@ describe('promesse du paywall', () => {
       locale: 'en',
     })
 
+    await openOffers()
     await screen.findByRole('heading', { level: 1, name: 'Subscription' })
     await screen.findByText('30 days of history')
     const page = document.body.textContent ?? ''
@@ -281,6 +291,7 @@ describe('intention d’achat périmée', () => {
     await user.click(
       await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
     )
+    await openOffers(user)
     await user.click(await selectPro(user))
 
     expect(readCheckoutIntent()).toBe('sig_locked_1')
