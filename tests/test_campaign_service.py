@@ -12,6 +12,7 @@ from test_compliance_service import sender
 from test_policy_persistence import control
 
 from signals.accounts import service as account_service
+from signals.billing.schema import discovery_signal_grant
 from signals.campaigns.contracts import (
     CampaignAuthorizationInput,
     CampaignDeploymentBlocked,
@@ -406,9 +407,9 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     promised_key = landing.headers["location"].rsplit("/", 1)[1]
     assert client.get(f"/signals/{promised_key}").status_code == 200
     profile = client.get("/target-icps").json()[0]
-    # La fixture runtime ne porte qu'un marché. Cinq projections du même marché
-    # exercent la limite « appât + quatre voisins » sans
-    # fabriquer de nouveaux faits publics ni court-circuiter l'API d'atterrissage.
+    # La fixture runtime ne porte qu'un marché. Ses projections historiques
+    # ne constituent pas des procédures distinctes et ne doivent pas ouvrir
+    # de droits supplémentaires après confirmation du profil.
     with engine.begin() as connection:
         promised = connection.execute(
             sa.select(materialized_signal).where(
@@ -440,13 +441,21 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
         headers={"Origin": "https://testserver"},
         json={"label": profile["label"], "customer_input": profile["customer_input"]},
     ).status_code == 200
-    cards = client.get("/dashboard").json()["top3"]
-    assert len(cards) == 3
+    dashboard = client.get("/dashboard").json()
+    cards = dashboard["top3"]
+    assert [card["signal_id"] for card in cards] == [promised_key]
+    assert dashboard["plan"]["opened"] == 1
+    assert dashboard["plan"]["quota"] == 3
     assert award["cpv_main"].startswith(profile["customer_input"]["sector_cpv_prefixes"][0])
     expected_subdivisions = set(profile["customer_input"]["territory_subdivisions"])
     place = award["place_of_performance"] or {}
     assert place.get("subdivision_code") in expected_subdivisions
     with engine.connect() as connection:
+        assert connection.execute(
+            sa.select(discovery_signal_grant.c.signal_key).where(
+                discovery_signal_grant.c.account_id == account_id
+            )
+        ).scalars().all() == [promised_key]
         card_rows = connection.execute(
             sa.select(materialized_signal).where(
                 materialized_signal.c.signal_key.in_([card["signal_id"] for card in cards])
