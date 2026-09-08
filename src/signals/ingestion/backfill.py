@@ -10,6 +10,12 @@ import sqlalchemy as sa
 
 from signals.accounts.icp_input import TargetIcpInput, to_target_icp
 from signals.accounts.schema import target_icp
+from signals.domain.french_departments import (
+    NUTS3_DEPARTMENTS,
+    location_matches_subdivision,
+    subdivision_coverage,
+)
+from signals.domain.prospect import MAX_PROSPECT_AGE_DAYS, prospect_refusal_codes
 from signals.feed.policy import CANDIDATE_SCAN_CAP
 from signals.feed.query import is_customer_display_name
 from signals.ingestion.persisted import canonical_award, canonical_event
@@ -276,6 +282,7 @@ def materialize_landing_opportunity_in_transaction(
     opportunity_key: str,
     as_of: dt.date,
     materialized_at: dt.datetime,
+    require_match: bool = False,
 ) -> str | None:
     """Materialize the decision-engine bait for one account-owned profile.
 
@@ -293,9 +300,26 @@ def materialize_landing_opportunity_in_transaction(
     if not representatives:
         return None
     event, award = representatives[0]
+    if prospect_refusal_codes(award, event, as_of=as_of):
+        return None
+    place = award.place_of_performance
+    if place is None or not any(
+        territory.country == place.country and (
+            not territory.subdivision_code
+            or location_matches_subdivision(place.model_dump(), territory.subdivision_code)
+        ) for territory in profile.territories
+    ):
+        return None
+    if profile.included_cpv_prefixes and (
+        award.cpv_main is None
+        or not award.cpv_main.code.startswith(profile.included_cpv_prefixes)
+    ):
+        return None
     understanding = ContractUnderstandingEngine().understand(award, event)
     needs = NeedGraphEngine().derive(understanding)
     match = MatchingEngine().match(understanding, needs, profile, as_of=as_of)
+    if require_match and match.decision != "show":
+        return None
     # The acquisition decision nominated this exact bait before the account
     # existed. Preserve that decision while retaining the ordinary score,
     # reasons and limitations produced for the provisional profile.
@@ -323,3 +347,74 @@ def materialize_landing_opportunity_in_transaction(
         target_icp_revision=matching_revision,
     )
     return result.signal_key
+
+
+def materialize_landing_feed_in_transaction(
+    connection: sa.Connection, *, target_icp_id: str, opportunity_key: str,
+    as_of: dt.date, materialized_at: dt.datetime,
+) -> str | None:
+    """The promised eligible signal plus at most four matching neighbours.
+
+    Preselect by date, country, subdivision and CPV before the bounded scan.
+    Never invoke a provider or rematerialize the whole customer catalogue.
+    """
+    key = materialize_landing_opportunity_in_transaction(
+        connection, target_icp_id=target_icp_id, opportunity_key=opportunity_key,
+        as_of=as_of, materialized_at=materialized_at,
+    )
+    if key is None:
+        return None
+    profile, _revision = _target_state(connection, target_icp_id)
+    effective = sa.func.coalesce(
+        contract_award.c.award_date, contract_award.c.contract_notification_date,
+        source_event.c.published_on,
+    )
+    regions = []
+    for territory in profile.territories:
+        region = contract_award.c.place_country == territory.country
+        if territory.subdivision_code:
+            coverage = set(subdivision_coverage(territory.subdivision_code))
+            variants = coverage | {territory.subdivision_code}
+            for nuts, department in NUTS3_DEPARTMENTS.items():
+                if f"FR-{department}" in coverage:
+                    variants.update((nuts, nuts[:3], nuts[:4]))
+            place = contract_award.c.place_of_performance
+            subdivisions = [place["subdivision_code"].as_string().in_(sorted(variants))]
+            if territory.country == "FR":
+                subdivisions.extend(
+                    place["postal_code"].as_string().startswith(code.removeprefix("FR-"))
+                    for code in coverage if code.startswith("FR-")
+                    and code not in {"FR-2A", "FR-2B"}
+                )
+            region = sa.and_(region, sa.or_(*subdivisions))
+        regions.append(region)
+    statement = sa.select(
+        opportunity_representation.c.opportunity_key,
+        sa.func.max(effective).label("effective_date"),
+    ).select_from(opportunity_representation.join(
+        contract_award, opportunity_representation.c.award_key == contract_award.c.award_key,
+    ).join(source_event, contract_award.c.event_key == source_event.c.event_key)).where(
+        opportunity_representation.c.opportunity_key != opportunity_key,
+        effective >= as_of - dt.timedelta(days=MAX_PROSPECT_AGE_DAYS),
+        effective <= as_of,
+        sa.or_(*regions),
+    )
+    if profile.included_cpv_prefixes:
+        statement = statement.where(sa.or_(*(
+            contract_award.c.cpv_main.startswith(prefix)
+            for prefix in profile.included_cpv_prefixes
+        )))
+    candidates = connection.execute(statement.group_by(
+        opportunity_representation.c.opportunity_key,
+    ).order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key).limit(40))
+    keys = tuple(candidates.scalars())
+    materialized = 1
+    for neighbour in keys:
+        if materialized == 5:
+            break
+        result = materialize_landing_opportunity_in_transaction(
+            connection, target_icp_id=target_icp_id, opportunity_key=neighbour,
+            as_of=as_of, materialized_at=materialized_at, require_match=True,
+        )
+        materialized += result is not None
+    return key

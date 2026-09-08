@@ -36,6 +36,7 @@ from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
 from signals.api.routes_companies import router as companies_router
 from signals.api.routes_dashboard import router as dashboard_router
+from signals.api.routes_email import router as email_router
 from signals.api.routes_feedback import router as feedback_router
 from signals.api.routes_icp import router as icp_router
 from signals.api.routes_notes import router as notes_router
@@ -81,6 +82,7 @@ def create_app(
     *,
     now_override: Callable[[], dt.datetime] | None = None,
     password_reset_delivery: object | None = None,
+    email_verification_gateway: object | None = None,
     stripe_gateway: object | None = None,
     instantly_webhook_service: object | None = None,
     conversion_attribution_service: object | None = None,
@@ -103,6 +105,7 @@ def create_app(
     # Aucun fournisseur n'est intégré : par défaut, le jeton n'est remis à
     # personne, ce qui vaut mieux qu'un envoi silencieusement raté.
     app.state.password_reset_delivery = password_reset_delivery or _NullDelivery()
+    app.state.email_verification_gateway = email_verification_gateway
     # SPEC-013 — la passerelle Stripe est injectée. Absente, les points d'entrée
     # de facturation répondent 503 : mieux vaut un service annoncé indisponible
     # qu'une application qui démarre en croyant pouvoir encaisser.
@@ -141,6 +144,7 @@ def create_app(
     app.state.founding_accounts = frozenset(founding_accounts)
 
     app.include_router(auth_router)
+    app.include_router(email_router)
     app.include_router(account_data_router)
     app.include_router(attribution_router)
     app.include_router(icp_router)

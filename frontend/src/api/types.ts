@@ -125,6 +125,27 @@ export const MINIMUM_PASSWORD_LENGTH = 12
 
 // ─── Compte et session ───────────────────────────────────────────────────────
 
+export interface EmailIdentity {
+  email: string
+  verified: boolean
+  pending_email: string | null
+}
+
+export interface AttributionPreview {
+  recipient_email: string
+  signal: {
+    object: string | null
+    holder: string | null
+    buyer: string | null
+    amount: string | number | null
+    currency: string | null
+    location: string | null
+    date: string | null
+    date_label: string | null
+    for_you_sentence: string | null
+  }
+}
+
 export interface Me {
   user_id: string
   email: string
@@ -133,6 +154,7 @@ export interface Me {
   company_name?: string | null
   locale: string
   onboarding_status: OnboardingStatus
+  provisional_profile?: boolean
   capabilities: {
     commercial_cockpit: boolean
   }

@@ -29,6 +29,7 @@ RUNTIME_DIRECTIVES = (
     "Group=kivou",
     "WorkingDirectory=/srv/kivou/app",
     "EnvironmentFile=/etc/kivou/staging.env",
+    "EnvironmentFile=/etc/kivou/api-attribution.env",
     EXEC_START,
     "Restart=on-failure",
     "RestartSec=5s",

@@ -81,6 +81,8 @@ class DecisionPolicyConfig(DecisionEngineContract):
 
 
 class PublicDecisionContext(DecisionEngineContract):
+    prospect_policy_version: str | None = None
+    prospect_refusal_codes: tuple[ShortCode, ...] = ()
     opportunity_key: StableRef
     representative_award_key: StableRef
     source_event_key: StableRef
@@ -101,6 +103,8 @@ class PublicDecisionContext(DecisionEngineContract):
 
 
 class AcquisitionDecisionInput(DecisionEngineContract):
+    prospect_policy_version: str | None = None
+    prospect_refusal_codes: tuple[ShortCode, ...] = ()
     input_version: Literal["acquisition-decision-input-v1"] = INPUT_VERSION
     acquisition_opportunity_id: StableRef
     signal_ref: StableRef

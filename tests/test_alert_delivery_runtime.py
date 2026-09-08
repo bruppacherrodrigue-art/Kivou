@@ -8,6 +8,8 @@ import pathlib
 
 import pytest
 import sqlalchemy as sa
+from alert_identity_helpers import verified_signed_up as signed_up
+from alert_identity_helpers import verify_recipient
 from engagement_helpers import (
     NOW,
     PUBLIC_APP_URL,
@@ -21,7 +23,6 @@ from engagement_helpers import (
     make_engine,
     pay,
     seed,
-    signed_up,
 )
 
 from signals.alerts.delivery import logical_batch_key, mark_sent
@@ -58,7 +59,7 @@ def mailer() -> FakeMailer:
 
 
 def subscriber(app, engine, *, count: int = 1, plan: str = "scale"):
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan=plan)
     return client, seed(engine, icp, count=count)
@@ -575,6 +576,7 @@ def test_changed_notification_address_rearms_only_future_signals(
         json={"notification_email": "new-alerts@negoce-romand.ch"},
     )
     assert response.status_code == 200
+    verify_recipient(engine, client, email="new-alerts@negoce-romand.ch")
 
     report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
 
@@ -646,7 +648,7 @@ def test_recipient_refusal_is_strictly_isolated_between_accounts(
     mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
     cycle(engine, mailer, now=NOW)
 
-    bob = signed_up(app, "bob@materiaux-leman.ch")
+    bob = signed_up(app, engine, "bob@materiaux-leman.ch")
     bob_icp = icp_of(bob, "Materiaux")
     pay(engine, bob, plan="scale")
     bob_key = seed(engine, bob_icp, count=1)[0]
@@ -677,6 +679,7 @@ def test_ambiguous_batch_is_never_resent_to_a_changed_address(
         ).status_code
         == 200
     )
+    verify_recipient(engine, client, email="changed@negoce-romand.ch")
     retry = cycle(engine, mailer, now=NOW + RETRY_BASE)
 
     assert not retry.has_current_incident

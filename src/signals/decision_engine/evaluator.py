@@ -17,6 +17,8 @@ def _outcome(
     decision_input: AcquisitionDecisionInput,
     policy_config: DecisionPolicyConfig,
 ) -> tuple[Decision, tuple[str, ...], str | None]:
+    if decision_input.prospect_refusal_codes:
+        return Decision.NO_SEND, decision_input.prospect_refusal_codes, None
     if (
         decision_input.profile_supplier_identity_status
         != decision_input.current_supplier_identity_status

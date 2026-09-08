@@ -42,6 +42,7 @@ from signals.decision_engine.input import (
 )
 from signals.decision_engine.policy import DECISION_POLICY_V1, semantic_fingerprint
 from signals.decision_engine.store import DecisionEvaluationStore, decision_evaluation_id
+from signals.domain.prospect import PROSPECT_POLICY_VERSION, prospect_refusal_codes
 from signals.persistence.schema import policy_evaluation
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
@@ -438,6 +439,10 @@ class DecisionEngineService:
     @staticmethod
     def _build_input(opportunity, supplier, contact, profile, public, as_of_date):
         public_context = build_public_decision_context(
+            prospect_policy_version=PROSPECT_POLICY_VERSION,
+            prospect_refusal_codes=prospect_refusal_codes(
+                public.award, public.event, as_of=as_of_date,
+            ),
             opportunity_key=public.opportunity_key,
             representative_award_key=public.representative_award_key,
             source_event_key=public.event.ref().key(),

@@ -456,7 +456,7 @@ describe('onboarding', () => {
     await user.click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
     await waitFor(() => expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')).toHaveLength(1))
     expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')[0].body).toMatchObject({
-      label: 'Services d’architecture',
+      label: 'Services d’architecture · Vaud',
       customer_input: { territories: ['CH'], territory_subdivisions: ['CH-VD'], sector_cpv_prefixes: ['71'] },
     })
   })
@@ -592,7 +592,7 @@ describe('onboarding', () => {
     await user.type(await screen.findByLabelText('Produits et services proposés'), 'Matériaux')
     await user.click(screen.getByRole('button', { name: 'Continuer' }))
     await user.type(await screen.findByLabelText('Entreprises recherchées'), 'Routes et génie civil')
-    await user.type(screen.getByLabelText('Territoire couvert'), 'France')
+    await user.type(screen.getByLabelText('Territoire couvert'), 'Suisse')
     await user.type(screen.getByLabelText('Mots-clés à surveiller'), 'Matériaux et composants')
     await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
@@ -765,6 +765,7 @@ describe('onboarding', () => {
       release = resolve
     })
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /target-icps': () => response,
       'GET /me': { body: ME },
     })
@@ -809,6 +810,7 @@ describe('onboarding', () => {
     let postCalls = 0
     let meCalls = 0
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /target-icps': () => {
         postCalls += 1
         return postCalls === 1 ? responseA : responseB
@@ -868,6 +870,7 @@ describe('onboarding', () => {
     let postCalls = 0
     let meCalls = 0
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /target-icps': () => {
         postCalls += 1
         return {
@@ -935,6 +938,7 @@ describe('onboarding', () => {
     let postCalls = 0
     let meCalls = 0
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /target-icps': () => {
         postCalls += 1
         return postCalls === 1
@@ -1031,6 +1035,7 @@ describe('onboarding', () => {
       release = resolve
     })
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /target-icps': () => response,
       'GET /me': { body: ME },
     })
@@ -1114,6 +1119,7 @@ describe('succès partiel — profil cible enregistré, session non relue', () =
     const user = userEvent.setup()
     let meCalls = 0
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /target-icps': { status: 201, body: ICP },
       'GET /me': () => {
         meCalls += 1

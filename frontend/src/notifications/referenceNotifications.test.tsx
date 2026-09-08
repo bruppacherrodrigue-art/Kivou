@@ -39,18 +39,20 @@ describe('notifications exactes connectées', () => {
     renderApp(<AppRoutes />, { route: '/app/notifications', session: AUTHENTICATED })
 
     await user.click(await screen.findByRole('switch', { name: /activer les alertes e-mail/i }))
-    await user.type(screen.getByLabelText('Adresse de réception'), 'alerts@example.test')
+    expect(screen.getByLabelText('Adresse de réception')).toHaveAttribute('readonly')
     await user.click(screen.getByRole('button', { name: /enregistrer les notifications/i }))
 
     expect(callsTo('/notification-preferences', 'PATCH')[0].body).toEqual({
       email_enabled: true,
-      notification_email: 'alerts@example.test',
     })
+    expect(screen.getByText(/Une adresse en attente de vérification ne reçoit aucune alerte/)).toBeVisible()
+    expect(callsTo('/auth/email/request')).toHaveLength(0)
+    expect(callsTo('/auth/email/verify')).toHaveLength(0)
     expect(document.querySelector('.settings-form-card')).not.toBeNull()
     expect(callsTo('/signals', 'GET')).toHaveLength(0)
   })
 
-  it('conserve les valeurs éditées après une panne de sauvegarde', async () => {
+  it('conserve le choix de coupure après une panne de sauvegarde', async () => {
     const user = userEvent.setup()
     mockApi({
       ...shell,
@@ -65,12 +67,16 @@ describe('notifications exactes connectées', () => {
     renderApp(<AppRoutes />, { route: '/app/notifications', session: AUTHENTICATED })
 
     const input = await screen.findByLabelText('Adresse de réception')
-    await user.clear(input)
-    await user.type(input, 'new@example.test')
+    await user.click(screen.getByRole('switch', { name: /activer les alertes/i }))
     await user.click(screen.getByRole('button', { name: /enregistrer les notifications/i }))
 
     expect(await screen.findByRole('alert')).toBeVisible()
-    expect(input).toHaveValue('new@example.test')
+    expect(input).toHaveValue('old@example.test')
+    expect(input).toHaveAttribute('readonly')
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: /enregistrer les notifications/i })).toBeEnabled()
+    expect(screen.queryByText('Enregistré')).not.toBeInTheDocument()
+    expect(callsTo('/notification-preferences', 'PATCH')[0].body).toEqual({ email_enabled: false })
   })
 
   it('affiche la cadence serveur dans le contrôle source mais en analyse seule', async () => {
@@ -152,7 +158,7 @@ describe('notifications exactes connectées', () => {
     const toggle = await screen.findByRole('switch', { name: /activer les alertes/i })
     await user.click(toggle)
     const input = screen.getByLabelText('Adresse de réception')
-    await user.type(input, 'alerts@example.test')
+    expect(input).toHaveAttribute('readonly')
     const save = screen.getByRole('button', { name: /enregistrer les notifications/i })
     await user.click(save)
 
@@ -166,11 +172,12 @@ describe('notifications exactes connectées', () => {
     expect(await screen.findByText('Enregistré')).toBeVisible()
   })
 
-  it('associe une erreur au champ si les alertes sont activées sans adresse', async () => {
+  it('permet de couper les alertes sans adresse et affiche le lien de vérification', async () => {
     const user = userEvent.setup()
     mockApi({
       ...shell,
-      'GET /notification-preferences': { body: preference },
+      'GET /notification-preferences': { body: { ...preference, email_enabled: true } },
+      'PATCH /notification-preferences': { body: preference },
     })
     renderApp(<AppRoutes />, { route: '/app/notifications', session: AUTHENTICATED })
 
@@ -178,10 +185,11 @@ describe('notifications exactes connectées', () => {
     await user.click(screen.getByRole('button', { name: /enregistrer les notifications/i }))
 
     const input = screen.getByLabelText('Adresse de réception')
-    expect(await screen.findByText(/adresse de réception est requise/i)).toBeVisible()
-    expect(input).toHaveAttribute('aria-invalid', 'true')
-    expect(input).toHaveAttribute('aria-describedby', 'notification-email-error')
-    expect(callsTo('/notification-preferences', 'PATCH')).toHaveLength(0)
+    expect(input).toHaveValue('')
+    expect(input).toHaveAttribute('readonly')
+    expect(screen.getByRole('link', { name: 'Modifier et vérifier mon adresse email' })).toHaveAttribute('href', '/app/settings/profile')
+    expect(callsTo('/notification-preferences', 'PATCH')[0].body).toEqual({ email_enabled: false })
+    expect(await screen.findByText('Enregistré')).toBeVisible()
   })
 
   it('ignore la réponse de sauvegarde privée du compte précédent', async () => {
@@ -212,9 +220,8 @@ describe('notifications exactes connectées', () => {
       { route: '/app/notifications', session: AUTHENTICATED },
     )
 
-    const input = await screen.findByLabelText('Adresse de réception')
-    await user.clear(input)
-    await user.type(input, 'a-new@example.test')
+    await screen.findByLabelText('Adresse de réception')
+    await user.click(screen.getByRole('switch', { name: /activer les alertes/i }))
     await user.click(screen.getByRole('button', { name: /enregistrer les notifications/i }))
     await user.click(screen.getByRole('button', { name: 'Basculer sur le compte B' }))
 

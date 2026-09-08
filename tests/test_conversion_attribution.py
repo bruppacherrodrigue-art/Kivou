@@ -9,11 +9,14 @@ from test_campaign_store import _factory_input, _prepared, _reservation
 
 from signals.accounts import service as account_service
 from signals.campaigns.store import CampaignStore
+from signals.conversion.recipient_records import bind_recipient
 from signals.conversion.service import ConversionAttributionService
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
 from signals.persistence.schema import (
     acquisition_campaign,
+    acquisition_campaign_member,
+    acquisition_contact,
     acquisition_conversion_event,
     acquisition_conversion_journey,
     acquisition_opportunity,
@@ -43,6 +46,17 @@ def prepared(tmp_path):
             connection, reservation.member_ref
         )
     token = keyring.issue(payload)
+    with engine.begin() as connection:
+        email = connection.scalar(
+            sa.select(acquisition_contact.c.business_email)
+            .join(acquisition_campaign_member,
+                  acquisition_campaign_member.c.contact_ref == acquisition_contact.c.contact_ref)
+            .where(acquisition_campaign_member.c.member_ref == payload.member_ref)
+        )
+        bind_recipient(
+            connection, nonce=token.token_fingerprint, recipient_email=email,
+            expires_at=payload.expires_at, created_at=payload.issued_at,
+        )
     return engine, ConversionAttributionService(engine, keyring), token, opportunity_id
 
 

@@ -1,6 +1,6 @@
 # Livraison — grille tarifaire EUR
 
-Branche `feat/tarifs-eur`, base `efa995c`. La correction utilisateur fixe **Pro à 49 €**, et non 79 €. Essentiel 29 €, Scale 199 €, Découverte gratuit ; mensualités HT et mention « TVA en sus ».
+Branche `feat/tarifs-eur`, base initiale `efa995c`. Recette sur la base staging `d7f1d7a` de la PR #175 : la PR #183 cible `fix/qa-attribution-runtime` pour conserver les migrations et correctifs déjà déployés, avec un diff limité aux tarifs. La correction utilisateur fixe **Pro à 49 €**, et non 79 €. Essentiel 29 €, Scale 199 €, Découverte gratuit ; mensualités HT et mention « TVA en sus ».
 
 ## Fichiers modifiés
 
@@ -77,4 +77,4 @@ Commande de recherche sur les fichiers suivis : `rg -n "CHF|\b49\b|\b99\b|\b199\
 
 ## CI et staging
 
-PR créée en brouillon pendant la CI. Déploiement et recette live à compléter sur le SHA validé ; aucune demande de review avant ces preuves.
+PR créée en brouillon pendant la CI. La fusion de la base staging conserve `locale=fr` et ajoute `currency=eur` dans Checkout. Déploiement et recette live à compléter sur le SHA validé ; aucune demande de review avant ces preuves.

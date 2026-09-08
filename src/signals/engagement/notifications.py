@@ -37,19 +37,25 @@ class NotificationPreference:
     notification_email: str | None
     created_at: dt.datetime
     updated_at: dt.datetime
+    email_verified: bool = False
 
     @property
     def can_receive_email(self) -> bool:
-        return self.email_enabled and bool(self.notification_email)
+        return self.email_enabled and bool(self.notification_email) and self.email_verified
 
 
-def _row(row: sa.Row) -> NotificationPreference:
+def _row(connection: sa.Connection, row: sa.Row) -> NotificationPreference:
+    from signals.accounts.email_verification import is_verified_recipient
+
     return NotificationPreference(
         account_id=row.account_id,
         email_enabled=bool(row.email_enabled),
         notification_email=row.notification_email,
         created_at=aware_datetime(row.created_at),
         updated_at=aware_datetime(row.updated_at),
+        email_verified=bool(row.notification_email) and is_verified_recipient(
+            connection, account_id=row.account_id, email=row.notification_email
+        ),
     )
 
 
@@ -77,7 +83,7 @@ def preference(
         )
     ).first()
     if row is not None:
-        return _row(row)
+        return _row(connection, row)
 
     connection.execute(
         sa.insert(account_notification_preference).values(

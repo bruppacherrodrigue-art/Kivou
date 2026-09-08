@@ -471,6 +471,7 @@ class StripeApiGateway:
         params: dict[str, Any] = {
             "mode": "subscription",
             "currency": currency,
+            "locale": "fr",
             "customer": customer_id,
             "line_items": [{"price": price_id, "quantity": 1}],
             "success_url": success_url,

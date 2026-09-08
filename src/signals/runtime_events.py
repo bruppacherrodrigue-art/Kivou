@@ -17,7 +17,7 @@ LOGGER_NAME = "signals.runtime_events"
 _HANDLER_MARKER = "_kivou_runtime_events"
 _SAFE_REF = re.compile(r"^[A-Za-z0-9_:-]{1,128}$")
 _SMTP_STATUS_CODE = re.compile(r"^smtp_[1-5][0-9]{2}$")
-_SAFE_CHANNELS = frozenset({"alert", "password_reset", "invalid_runtime_value"})
+_SAFE_CHANNELS = frozenset({"alert", "password_reset", "email_verification", "invalid_runtime_value"})
 _SAFE_STATUSES = frozenset(
     {
         "blocked",

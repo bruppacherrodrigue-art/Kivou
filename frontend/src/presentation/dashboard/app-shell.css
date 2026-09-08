@@ -6989,3 +6989,52 @@ button.public-cta {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* PR5 and the retained signup wizard use the connected screens' heading. */
+.auth-screen-heading .auth-card,
+.auth-screen-heading .form-field,
+.auth-screen-heading .onboarding-review > div {
+  min-width: 0;
+}
+
+.auth-screen-heading .onboarding-step-heading h2 {
+  font-family: inherit;
+}
+
+.auth-screen-heading .onboarding-review dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.auth-screen-heading .onboarding-actions {
+  flex-wrap: wrap;
+}
+
+.auth-screen-heading .onboarding-actions button {
+  height: auto;
+  min-height: 40px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+/* Native selects otherwise size themselves from the longest catalogue option,
+ * including unselected options. Keep the confirmation controls inside their
+ * grid track rather than concealing the resulting horizontal overflow. */
+.provisional-confirmation .form-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.provisional-confirmation .lifecycle-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.provisional-confirmation .lifecycle-select[multiple] {
+  min-height: 128px;
+  padding: 6px;
+}
+
+.provisional-confirmation .lifecycle-select[multiple] option {
+  padding: 6px 8px;
+}

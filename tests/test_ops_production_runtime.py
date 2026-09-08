@@ -415,6 +415,8 @@ def test_production_services_are_isolated_from_staging_and_acquisition() -> None
             assert forbidden not in active
 
         environment = "/etc/kivou/production.env"
+        if path.name == "kivou-api.service":
+            environment = ("/etc/kivou/production.env", "/etc/kivou/api-attribution.env")
         if path.name == "kivou-backup.service":
             environment = "/etc/kivou/swiss-backup.env"
         assert_unit_contract(
@@ -435,6 +437,8 @@ def test_production_services_are_isolated_from_staging_and_acquisition() -> None
                 ("Service", "LockPersonality"): "true",
                 ("Service", "RestrictAddressFamilies"): "AF_UNIX AF_INET AF_INET6",
             },
+            repeatable=(frozenset({("Service", "EnvironmentFile")})
+                        if path.name == "kivou-api.service" else frozenset()),
         )
 
 
@@ -505,7 +509,9 @@ def test_production_api_runs_only_behind_the_local_proxy() -> None:
             ("Service", "User"): "kivou",
             ("Service", "Group"): "kivou",
             ("Service", "WorkingDirectory"): "/srv/kivou/app",
-            ("Service", "EnvironmentFile"): "/etc/kivou/production.env",
+            ("Service", "EnvironmentFile"): (
+                "/etc/kivou/production.env", "/etc/kivou/api-attribution.env",
+            ),
             ("Service", "ExecStart"): (
                 "/srv/kivou/app/.venv/bin/uvicorn signals.api.asgi:app "
                 "--host 127.0.0.1 --port 8000 --workers 2 --proxy-headers "
@@ -522,6 +528,7 @@ def test_production_api_runs_only_behind_the_local_proxy() -> None:
             ("Service", "RestrictNamespaces"): "true",
             ("Install", "WantedBy"): "multi-user.target",
         },
+        repeatable=frozenset({("Service", "EnvironmentFile")}),
     )
 
 

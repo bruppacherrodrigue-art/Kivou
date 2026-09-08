@@ -1468,7 +1468,7 @@ export const fr = {
       amount: 'Montant',
       place: 'Lieu',
       awardedOn: 'Attribué le',
-      notifiedOn: 'Notifié le',
+      notifiedOn: 'Attribué le',
       publishedOn: 'Publié le',
       cpv: 'CPV',
       needs: 'Ce que le titulaire va devoir faire',

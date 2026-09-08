@@ -115,6 +115,17 @@ def test_la_collecte_du_numero_de_tva_est_conservee():
     assert params["billing_address_collection"] == "required"
 
 
+def test_checkout_is_french_with_tax_id_collection_and_customer_updates():
+    gateway, sessions = gateway_recording()
+
+    open_session(gateway)
+
+    params = sessions.calls[0]["params"]
+    assert params["locale"] == "fr"
+    assert params["tax_id_collection"] == {"enabled": True}
+    assert params["customer_update"] == {"name": "auto", "address": "auto"}
+
+
 def test_le_client_stripe_reste_celui_que_kivou_a_resolu():
     gateway, sessions = gateway_recording()
 

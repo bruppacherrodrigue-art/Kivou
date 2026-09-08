@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useCurrentUser } from '../auth/SessionProvider'
+import { PROFILE_CONFIRMATION_PATH } from '../auth/profileRoute'
 import { billing, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import type {
@@ -171,6 +173,7 @@ function LockedRow({
 }
 
 export function SignalsFeed() {
+  const me = useCurrentUser()
   const { t } = useI18n()
   const copy = t.signalsTable
   const location = useLocation()
@@ -292,6 +295,7 @@ export function SignalsFeed() {
     }
   }, [feed.data, filters])
 
+  const waitForFeed = !me.provisional_profile && feed.loading
   const selectedKey = signalKey ?? null
   const rowItem = selectedKey
     ? items.find((entry) => entry.signal_id === selectedKey) ?? null
@@ -305,7 +309,7 @@ export function SignalsFeed() {
       setDetail({ key: null, data: null, loading: false, error: null })
       return
     }
-    if (feed.loading) return
+    if (waitForFeed) return
     if (rowItem?.locked) {
       detailGeneration.current += 1
       setDetail({ key: selectedKey, data: null, loading: false, error: null })
@@ -336,7 +340,7 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [detailRetryToken, feed.loading, navigate, rowItem, selectedKey])
+  }, [detailRetryToken, waitForFeed, navigate, rowItem, selectedKey])
 
   const selectedItem: UnlockedFeedItem | null = rowItem && !rowItem.locked
     ? rowItem
@@ -531,7 +535,8 @@ export function SignalsFeed() {
   const selectedSegmentCount = filters.segment !== 'all' && COUNTED_SEGMENTS.includes(filters.segment)
     ? counts?.[filters.segment] ?? null
     : null
-  const loadedCount = selectedSegmentCount ?? discoveryGrantCount ?? items.length
+  const loadedCount = Math.max(selectedSegmentCount ?? discoveryGrantCount ?? items.length,
+    feed.data?.provisional_profile && selectedItem ? 1 : 0)
   const moreBeyondLoaded = planCode !== 'discovery'
     && (Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated))
   const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''
@@ -545,11 +550,15 @@ export function SignalsFeed() {
 
   const sectorLocked = feed.data?.filter_access.sector === false
   const displayedRows = useMemo(() => {
-    if (planCode !== 'discovery') return rows
-    const unlocked = rows.filter((item) => !item.locked)
-    const locked = rows.filter((item) => item.locked)
+    const pinned = feed.data?.provisional_profile && selectedItem
+      && !rows.some((item) => item.signal_id === selectedItem.signal_id)
+      ? [selectedItem, ...rows]
+      : rows
+    if (planCode !== 'discovery') return pinned
+    const unlocked = pinned.filter((item) => !item.locked)
+    const locked = pinned.filter((item) => item.locked)
     return [...unlocked, ...locked.slice(0, 5)]
-  }, [planCode, rows])
+  }, [feed.data?.provisional_profile, planCode, rows, selectedItem])
   const hiddenDiscoveryCount = planCode === 'discovery'
     ? Math.max(0, rows.length - displayedRows.length)
     : 0
@@ -578,7 +587,7 @@ export function SignalsFeed() {
       {feed.data?.provisional_profile ? (
         <aside className={styles.provisionalBanner} role="note">
           <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
-          <Link to="/onboarding">Confirmer mon profil</Link>
+          <Link to={PROFILE_CONFIRMATION_PATH}>Confirmer mon profil</Link>
         </aside>
       ) : null}
 
@@ -736,7 +745,7 @@ export function SignalsFeed() {
                 {t.common.retry}
               </button>
             </div>
-          ) : rows.length === 0 ? (
+          ) : displayedRows.length === 0 ? (
             <p className={styles.note}>{copy.empty}</p>
           ) : null}
 

@@ -86,6 +86,11 @@ def main(argv: list[str] | None = None) -> int:
         "où elle est lue, la logique métier la recevant toujours explicitement",
     )
     parser.add_argument("--dry-run", action="store_true", help="n'envoie rien, décrit seulement")
+    parser.add_argument(
+        "--account-id",
+        default=None,
+        help="limit this cycle to the exact approved account; preserves the job lease and checks",
+    )
     arguments = parser.parse_args(argv)
 
     try:
@@ -125,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             _gateway(config),
             now=now,
             public_app_url=config.public_app_url,
+            account_id=arguments.account_id,
             delivery_lease_ttl=config.alert_lease_ttl,
             job_lease_ttl=config.alert_lease_ttl,
             retry_base=config.alert_retry_base,

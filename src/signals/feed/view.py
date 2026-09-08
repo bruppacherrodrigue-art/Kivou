@@ -276,14 +276,15 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         location = place.get("locality") or place.get("subdivision_label")
     deterministic_for_you = fallback_sentence(
         ForYouInput(
-            title=signal.award.title,
+            title=signal.award.lot_title or signal.award.title,
             amount=(
                 f"{signal.award.amount} {signal.award.currency}"
                 if signal.award.amount is not None and signal.award.currency
                 else None
             ),
             location=location,
-            awarded_on=_iso(signal.award.award_date),
+            awarded_on=_iso(signal.award.award_date or signal.award.contract_notification_date
+                            or signal.event.published_on),
             cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
         )
     )
