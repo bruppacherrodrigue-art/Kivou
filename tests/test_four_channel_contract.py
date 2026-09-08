@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from signals.alerts.content import line_from_card, render_html, render_text
+from signals.alerts.renderer import line_from_card, render_html, render_text
 
 
 def test_four_channels_reuse_the_same_signal_facts_and_persisted_sentence():

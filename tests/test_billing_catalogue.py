@@ -18,12 +18,12 @@ from billing_helpers import default_prices
 
 from signals.billing import catalogue
 
-# ─── §5 — les quatre plans, et un seul gratuit ────────────────────────────────
+# ─── §5 — les trois plans, et un seul gratuit ────────────────────────────────
 
 
-def test_the_catalogue_holds_exactly_the_four_declared_plans():
-    assert set(catalogue.PLANS) == {"discovery", "essential", "pro", "scale"}
-    assert catalogue.PURCHASABLE_PLANS == ("essential", "pro", "scale")
+def test_the_catalogue_holds_exactly_the_three_declared_plans():
+    assert set(catalogue.PLANS) == {"discovery", "essential", "pro"}
+    assert catalogue.PURCHASABLE_PLANS == ("essential", "pro")
 
 
 def test_discovery_is_never_a_stripe_subscription():
@@ -39,7 +39,6 @@ def test_discovery_is_never_a_stripe_subscription():
         ("discovery", 1, 0, "single"),
         ("essential", 1, 30, "single"),
         ("pro", 3, 365, "multiple"),
-        ("scale", 10, None, "expanded"),
     ],
 )
 def test_each_plan_carries_the_commercial_limits_of_the_pricing_document(
@@ -56,18 +55,17 @@ def test_only_pro_is_recommended():
     assert [plan.plan_code for plan in recommended] == ["pro"]
 
 
-def test_scale_history_is_what_is_persisted_not_an_infinite_promise():
-    """« Tout l'historique disponible » ne veut pas dire « tout l'historique »."""
-    assert catalogue.SCALE.has_unlimited_history
-    safe = catalogue.customer_safe_entitlements(catalogue.SCALE)
-    assert safe["history_scope"] == "all_available"
+def test_pro_history_is_a_bounded_window():
+    assert not catalogue.PRO.has_unlimited_history
+    safe = catalogue.customer_safe_entitlements(catalogue.PRO)
+    assert safe["history_scope"] == "window"
 
 
-# ─── §6 — 49 / 99 / 199, dans les deux devises, sans conversion ───────────────
+# ─── §6 — 49 / 99, dans les deux devises, sans conversion ────────────────────
 
 
 @pytest.mark.parametrize("currency", ["chf", "eur"])
-@pytest.mark.parametrize(("plan", "amount"), [("essential", 4900), ("pro", 9900), ("scale", 19900)])
+@pytest.mark.parametrize(("plan", "amount"), [("essential", 4900), ("pro", 9900)])
 def test_the_price_is_the_same_number_in_both_currencies(plan: str, currency: str, amount: int):
     """§6 — une décision commerciale, pas un taux de change."""
     assert catalogue.amount_for(plan, currency) == amount
@@ -79,8 +77,6 @@ def test_every_purchasable_plan_has_a_lookup_key_in_each_currency():
         "kivou_essential_monthly_eur",
         "kivou_pro_monthly_chf",
         "kivou_pro_monthly_eur",
-        "kivou_scale_monthly_chf",
-        "kivou_scale_monthly_eur",
     }
     produced = {
         catalogue.lookup_key_for(plan, currency)
@@ -174,7 +170,7 @@ def test_the_public_catalogue_describes_future_capabilities_without_promising_th
     """§27 — export et alertes n'ont aucun endpoint ; ce sont des libellés."""
     entries = {entry["plan_code"]: entry for entry in catalogue.public_catalogue()}
     assert entries["discovery"]["entitlements"]["export_level"] == "none"
-    assert entries["scale"]["entitlements"]["export_level"] == "scheduled"
+    assert entries["pro"]["entitlements"]["export_level"] == "manual"
     assert entries["essential"]["entitlements"]["alert_cadence"] == "weekly"
 
 

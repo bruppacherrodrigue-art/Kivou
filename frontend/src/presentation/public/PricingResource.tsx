@@ -17,7 +17,7 @@ export type PricingState =
 
 export type PricingResourceState = PricingState & { retry: () => void }
 
-export const PUBLIC_PLAN_CODES = ['discovery', 'essential', 'pro', 'scale'] as const
+export const PUBLIC_PLAN_CODES = ['discovery', 'essential', 'pro'] as const
 
 export function usePricingResource(): PricingResourceState {
   const [state, setState] = useState<PricingState>({
@@ -129,21 +129,18 @@ export const PUBLIC_PLAN_NAMES: Record<PlanCode, string> = {
   discovery: 'Découverte',
   essential: 'Essentiel',
   pro: 'Pro',
-  scale: 'Scale',
 }
 
 export const PUBLIC_PLAN_WHO: Record<PlanCode, string> = {
   discovery: 'Pour juger Kivou sur votre propre marché.',
   essential: 'Pour suivre un marché précis sans veille manuelle.',
   pro: 'Pour couvrir plusieurs segments et agir plus tôt.',
-  scale: 'Pour prospecter sur une couverture européenne.',
 }
 
 export const PUBLIC_PLAN_CTA: Record<PlanCode, string> = {
   discovery: 'Commencer gratuitement',
   essential: 'Choisir Essentiel',
   pro: 'Choisir Pro',
-  scale: 'Choisir Scale',
 }
 
 export function alertCadenceLabel(cadence: AlertCadence): string {

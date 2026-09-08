@@ -165,7 +165,7 @@ describe('date de période', () => {
 // ─── 3. vérité du paywall ────────────────────────────────────────────────────
 
 describe('promesse du paywall', () => {
-  /* Essential ouvre 30 jours, Pro 365, Scale tout l'historique. Un signal
+  /* Essential ouvre 30 jours, Pro 365, Pro tout l'historique. Un signal
    * ancien peut donc rester verrouillé après l'achat d'un plan payant. Promettre
    * « l'ensemble de votre flux » vend un accès que les droits ne donnent pas. */
   it('ne promet pas l’ensemble du flux — FR', async () => {

@@ -102,7 +102,7 @@ def client(app, engine) -> TestClient:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_dashboard",
             now=NOW,
         )
@@ -214,7 +214,7 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert first["profile"]["name"].startswith("Suivi ")
     assert first["profile"]["sector_label"].strip(" —")
     assert first["profile"]["zone_labels"] == ["Suisse"]
-    assert first["plan"]["name"] == "Scale"
+    assert first["plan"]["name"] == "Pro"
     assert first["plan"]["opened"] == 0
     assert first["plan"]["quota"] is None
     assert first["plan"]["period_end"] is None
@@ -434,7 +434,7 @@ def test_dashboard_counts_and_ranks_beyond_a_single_page(tmp_path):
     engine = make_engine(tmp_path)
     app = make_app(engine, lambda: HELPERS_NOW)
     client = signed_up(app, email="beyond-one-page@kivou.eu")
-    pay(engine, client, plan="scale", now=HELPERS_NOW)
+    pay(engine, client, plan="pro", now=HELPERS_NOW)
 
     keys: list[str] = []
     for index in range(5):
@@ -541,7 +541,7 @@ def test_to_follow_up_keeps_the_ten_oldest_and_announces_the_rest(tmp_path):
     clock = Clock(HELPERS_NOW)
     app = make_app(engine, clock)
     client = signed_up(app, email="follow-up-cap@kivou.eu")
-    pay(engine, client, plan="scale", now=HELPERS_NOW)
+    pay(engine, client, plan="pro", now=HELPERS_NOW)
     seed(engine, icp_of(client), count=12)
     with engine.begin() as connection:
         run_winner_enrichment_batch(

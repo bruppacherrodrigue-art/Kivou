@@ -48,7 +48,7 @@ Ordre de priorité des décisions :
 
 1. Les corrections et décisions les plus récentes portant explicitement sur le sujet concerné.
 2. **Kivou Architecture opérationnelle simple v2.5** pour le MVP opérationnel ; elle reporte la vision agentique v2.4.
-3. **Kivou Pricing & Packaging v0.1** pour le pricing et les entitlements : Découverte 0, Essential 49, Pro 99, Scale 199 CHF/€ par mois ; Founding Customer privé à 29 pour cinq design partners maximum.
+3. **Kivou Pricing & Packaging v0.1** pour le pricing et les entitlements : Découverte 0, Essential 49, Pro 99, offre supérieure 199 CHF/€ par mois ; Founding Customer privé à 29 pour cinq design partners maximum.
 4. **Kivou Correction stratégique Acquisition Stack v2.3** pour le nom Kivou, le domaine `kivou.eu` et la séparation de la stack outbound.
 5. **Correction stratégique Document Intelligence v2.2** pour la preuve documentaire, les exigences d’exécution, les besoins plausibles, le timing et l’externalisabilité.
 6. **Correction SaaS avant outbound v2.1** pour le SaaS transactionnel, le paywall, le checkout et le funnel de conversion.
@@ -497,7 +497,7 @@ Plans actuels :
 - Découverte — 0 ;
 - Essential — 49 ;
 - Pro — 99, recommandé ;
-- Scale — 199.
+- offre supérieure — 199.
 
 Le Founding Customer à 29 est privé et ne figure pas dans la grille publique.
 
@@ -663,7 +663,7 @@ Mobile :
 - filtres avancés ;
 - export limité.
 
-### Scale — 199 CHF/€ / mois
+### offre supérieure — 199 CHF/€ / mois
 
 - 10 ICP ;
 - Suisse + couverture UE étendue ;

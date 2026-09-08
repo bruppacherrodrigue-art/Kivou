@@ -92,13 +92,13 @@ describe('préférences de notification', () => {
     expect(screen.queryByRole('radio', { name: 'Hebdomadaire' })).not.toBeInTheDocument()
   })
 
-  it('dit « prioritaire » pour Scale, jamais « temps réel » ni « instantané »', async () => {
-    const scaleStatus = {
+  it('dit « prioritaire » pour Pro, jamais « temps réel » ni « instantané »', async () => {
+    const proStatus = {
       ...PRO_STATUS,
-      plan_code: 'scale' as const,
+      plan_code: 'pro' as const,
       entitlements: { ...PRO_STATUS.entitlements, alert_cadence: 'priority' as const },
     }
-    mockApi(routes(scaleStatus))
+    mockApi(routes(proStatus))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/notifications' })
 
     expect(await screen.findByText('Prioritaire')).toBeInTheDocument()

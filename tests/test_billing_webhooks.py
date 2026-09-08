@@ -355,7 +355,7 @@ def test_subscription_updated_arriving_before_checkout_completed_still_ends_corr
 def test_invoice_paid_arriving_before_the_subscription_event_still_ends_correct(
     webhook, stripe, account_id, engine
 ):
-    put(stripe, account_id, plan="scale", currency="eur", status="active")
+    put(stripe, account_id, plan="pro", currency="eur", status="active")
     deliver(
         webhook,
         event_id="evt_i",
@@ -371,7 +371,7 @@ def test_invoice_paid_arriving_before_the_subscription_event_still_ends_correct(
         created=NOW,
     )
     rows = stored(engine)
-    assert rows[0].plan_code == "scale"
+    assert rows[0].plan_code == "pro"
     assert rows[0].currency == "eur"
 
 

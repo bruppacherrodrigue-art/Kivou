@@ -38,7 +38,7 @@ from signals.matching.model import (
     SignalScoreComponent,
 )
 from signals.needs import NeedGraphResult
-from signals.needs.features import scale_band
+from signals.needs.features import magnitude_band
 from signals.understanding.model import ContractUnderstanding
 
 NEED_FIT_MAX = 45
@@ -427,7 +427,7 @@ class MatchingEngine:
                 "missing",
             )
 
-        band = scale_band(amount_claim.value)
+        band = magnitude_band(amount_claim.value)
         if band == "not_material":
             # §16 — déjà neutralisé par SPEC-007 : aucun point économique.
             return (
@@ -520,7 +520,7 @@ class MatchingEngine:
     @staticmethod
     def _economic_component(cu: ContractUnderstanding, value_status: str) -> SignalScoreComponent:
         amount_claim = cu.facts.get("amount")
-        band = scale_band(amount_claim.value if amount_claim else None)
+        band = magnitude_band(amount_claim.value if amount_claim else None)
         points = {"very_large": 20, "large": 18, "modest": 12}.get(band, 0)
         if value_status in ("missing", "currency_unsupported", "not_material"):
             points = 0

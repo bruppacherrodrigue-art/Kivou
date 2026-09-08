@@ -327,7 +327,7 @@ class ReadinessEvidence(_FrozenModel):
     h_d_shadow: GateEvidence
     h_e_capped: GateEvidence
     h_f_closed_loop: GateEvidence
-    h_g_scale: GateEvidence
+    h_g_precision: GateEvidence
     _evaluated = field_validator("evaluated_at")(_aware)
 
     @classmethod
@@ -364,7 +364,7 @@ class ReadinessEvidence(_FrozenModel):
                 reason_codes=("CLOSED_LOOP_IDENTITIES_PRESENT",),
                 evidence_refs=("weekly-commercial-cockpit-v1",),
             ),
-            h_g_scale=GateEvidence(
+            h_g_precision=GateEvidence(
                 status=GateStatus.NOT_READY,
                 reason_codes=("ALLOCATION_ENVELOPE_UNCONFIGURED",),
                 evidence_refs=("wedge-economic-value-v1",),
@@ -381,7 +381,7 @@ class AutonomousReadiness(_FrozenModel):
     h_d_shadow: GateEvidence
     h_e_capped: GateEvidence
     h_f_closed_loop: GateEvidence
-    h_g_scale: GateEvidence
+    h_g_precision: GateEvidence
     highest_safe_mode: AutonomyMode
     blockers: tuple[SafeCode, ...]
     evidence_refs: tuple[SafeRef, ...]

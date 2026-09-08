@@ -62,10 +62,10 @@ PROFILE_OVERLAP: dict[str, frozenset[NeedCategory]] = {
 n'a pas « besoin » de location de matériel."""
 
 ALL_PRESSURES = (
-    "large_scale",
-    "known_nontrivial_scale",
+    "large_magnitude",
+    "known_nontrivial_magnitude",
     "long_recurring_duration",
-    "parallel_lots_with_scale",
+    "parallel_lots_with_magnitude",
     "distinct_specialties",
     "near_term_start",
 )
@@ -96,7 +96,7 @@ RULE_LIBRARY: tuple[NeedRule, ...] = (
         mechanism_predicates=("social_health_service",),
         # §15 — ni `several_lots` ni `defined_period` : il faut une échelle réelle
         # ou un service récurrent doté d'une échelle connue.
-        pressure_predicates=("large_scale", "recurring_with_scale"),
+        pressure_predicates=("large_magnitude", "recurring_with_magnitude"),
         statement_template=(
             "Une capacité de personnel qualifié pourrait être mobilisée pour "
             "assurer la prestation sur la durée."

@@ -53,3 +53,13 @@ tests/fixtures/france/spec009e_decp2022_raw.json
 # chaque fichier copié depuis Windows, ne portent aucun contenu, et n'ont rien à
 # faire dans l'historique.
 *:Zone.Identifier
+
+# ── Outillage d'agent installé localement ────────────────────────────────────
+# `npx skills add` dépose ses skills DANS le dépôt. Ce sont des fichiers tiers
+# qui s'exécutent avec les pleines permissions de l'agent : ils appartiennent à
+# la machine du développeur, pas à l'historique du projet. Les versionner ferait
+# entrer du code exécutable non revu par la porte de derrière.
+.agents/
+.claude/
+skills-lock.json
+.playwright-cli/

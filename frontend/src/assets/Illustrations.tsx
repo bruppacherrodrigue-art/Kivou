@@ -183,7 +183,7 @@ export function PaymentConfirmedIllustration({ className }: IllustrationProps) {
         strokeWidth="1.6"
         strokeLinecap="round"
         fill="none"
-        transform="translate(160 108) scale(0.42) translate(-50 -50)"
+        transform="translate(160 108) matrix(0.42 0 0 0.42 0 0) translate(-50 -50)"
       >
         <line x1="62" y1="50" x2="81" y2="50" />
         <line x1="58.49" y1="58.49" x2="71.92" y2="71.92" />

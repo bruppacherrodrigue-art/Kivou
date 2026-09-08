@@ -15,7 +15,7 @@ SAFETY_CONTROLLER_REF = "kivou-safety-controller"
 MAX_CONTROL_APPEND_ATTEMPTS = 3
 
 _NEXT_SAFER = {
-    AutonomyMode.ADAPTIVE_SCALE: AutonomyMode.AUTONOMOUS_CAPPED,
+    AutonomyMode.ADAPTIVE_VOLUME: AutonomyMode.AUTONOMOUS_CAPPED,
     AutonomyMode.AUTONOMOUS_CAPPED: AutonomyMode.ASSISTED,
     AutonomyMode.ASSISTED: AutonomyMode.SHADOW,
     AutonomyMode.SHADOW: AutonomyMode.SHADOW,

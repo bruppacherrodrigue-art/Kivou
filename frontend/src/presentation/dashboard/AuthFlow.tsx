@@ -167,7 +167,7 @@ export function AuthFlow({ mode }: { mode: AuthMode }) {
           ? home
           : me.onboarding_status === 'ready_for_signals'
             ? `/app/billing${planSearch(selectedPlan)}`
-            : `/onboarding${planSearch(selectedPlan)}`
+            : `/app/confirm-profile${planSearch(selectedPlan)}`
         const destination =
           me.onboarding_status === 'ready_for_signals'
             ? (locationState.from ?? selectedHome)
@@ -182,7 +182,7 @@ export function AuthFlow({ mode }: { mode: AuthMode }) {
         })
         if (!requestIsCurrent(generation)) return
         adopt(me)
-        navigate(`/onboarding${planSearch(selectedPlan)}`, { replace: true })
+        navigate(`/app/confirm-profile${planSearch(selectedPlan)}`, { replace: true })
       } else if (mode === 'forgot') {
         await auth.requestPasswordReset(email)
         if (!requestIsCurrent(generation)) return

@@ -31,7 +31,7 @@ from signals.policy.store import PolicyStore
         (AutonomyMode.ASSISTED, "schedule_campaign", PolicyStatus.APPROVAL_REQUIRED),
         (AutonomyMode.AUTONOMOUS_CAPPED, "schedule_campaign", PolicyStatus.APPROVED),
         (AutonomyMode.AUTONOMOUS_CAPPED, "reallocate_volume", PolicyStatus.DENIED),
-        (AutonomyMode.ADAPTIVE_SCALE, "reallocate_volume", PolicyStatus.APPROVED),
+        (AutonomyMode.ADAPTIVE_VOLUME, "reallocate_volume", PolicyStatus.APPROVED),
     ],
 )
 def test_autonomy_matrix(mode: AutonomyMode, command: str, expected: PolicyStatus) -> None:

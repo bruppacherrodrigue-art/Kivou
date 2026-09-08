@@ -25,7 +25,7 @@ from signals.billing import gateway as gateway_errors
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-PlanChoice = Literal["essential", "pro", "scale"]
+PlanChoice = Literal["essential", "pro"]
 CurrencyChoice = Literal["chf", "eur"]
 
 

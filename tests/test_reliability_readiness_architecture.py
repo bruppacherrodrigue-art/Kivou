@@ -22,12 +22,12 @@ from signals.supervisor.registry import ALLOWED_COMMANDS
 NOW = dt.datetime(2026, 8, 23, 12, tzinfo=dt.UTC)
 
 
-def test_h_c_every_hermes_command_has_one_policy_profile_and_no_scale_alias() -> None:
+def test_h_c_every_hermes_command_has_one_policy_profile_and_no_volume_alias() -> None:
     assert set(ALLOWED_COMMANDS) == set(COMMAND_POLICIES)
     assert "reallocate_volume" in ALLOWED_COMMANDS
     assert not {
         "optimize_wedge",
-        "scale_campaign",
+        "resize_campaign",
         "increase_volume",
         "apply_learning",
     }.intersection(ALLOWED_COMMANDS)

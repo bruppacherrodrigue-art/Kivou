@@ -86,7 +86,7 @@ def client(app, engine) -> TestClient:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_companies_list",
             now=NOW,
         )
@@ -162,7 +162,7 @@ def test_three_distinct_winners_are_listed_sorted_by_last_award_desc(client, icp
     assert payload["page"]["scan_truncated"] is False
     assert payload["page"]["has_more"] is False
     assert payload["read_at"] == NOW.date().isoformat()
-    assert payload["plan_code"] == "scale"
+    assert payload["plan_code"] == "pro"
 
 
 def test_same_winner_under_two_icps_aggregates_into_one_row(client, icp, engine):

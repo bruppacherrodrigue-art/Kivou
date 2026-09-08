@@ -102,7 +102,7 @@ def test_recent_view_now_accepts_the_previously_history_only_filters(alice, engi
     désormais applicables en vue Récentes : ils ne renvoient plus 422. Seul
     `recency_status` reste un concept propre à l'historique."""
     icp = icp_of(alice)
-    pay(engine, alice, plan="scale")  # niveau « advanced » : couvre tous les filtres
+    pay(engine, alice, plan="pro")  # niveau « advanced » : couvre tous les filtres
     pool = _SourcePool()
     _seed(engine, icp, pool)
 

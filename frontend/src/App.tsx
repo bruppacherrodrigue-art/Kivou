@@ -14,7 +14,7 @@ import { PublicPricing } from './pages/PublicPricing'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
-import { Onboarding } from './pages/Onboarding'
+import { ConfirmProfile } from './pages/ConfirmProfile'
 import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
 import { CompaniesPage } from './companies/CompaniesPage'
@@ -95,10 +95,10 @@ export function AppRoutes() {
       <Route element={<RouteLocaleBoundary connected />}>
         <Route element={<DashboardSurface />}>
           <Route element={<RequireAuth />}>
-            <Route path="onboarding" element={<Onboarding />} />
             <Route path="checkout" element={<Checkout />} />
 
             <Route path="app" element={<AppShell />}>
+              <Route path="confirm-profile" element={<ConfirmProfile />} />
               <Route index element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="signals" element={<SignalsFeed />} />

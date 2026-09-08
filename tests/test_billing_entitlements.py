@@ -132,7 +132,7 @@ def test_an_account_without_any_subscription_is_discovery(alice):
     assert body["entitlements"]["max_active_icps"] == 1
 
 
-@pytest.mark.parametrize("plan", ["essential", "pro", "scale"])
+@pytest.mark.parametrize("plan", ["essential", "pro"])
 def test_an_active_subscription_unlocks_its_plan(alice, engine, plan: str):
     pay(engine, alice, plan=plan, status="active")
     body = status(alice)
@@ -146,7 +146,7 @@ def test_an_active_subscription_unlocks_its_plan(alice, engine, plan: str):
     ["past_due", "unpaid", "incomplete", "incomplete_expired", "canceled", "paused", "trialing"],
 )
 def test_every_non_active_status_falls_back_to_discovery(alice, engine, stripe_status: str):
-    pay(engine, alice, plan="scale", status=stripe_status)
+    pay(engine, alice, plan="pro", status=stripe_status)
     body = status(alice)
     assert body["plan_code"] == "discovery"
     assert body["subscription_status"] == stripe_status
@@ -208,8 +208,8 @@ def test_the_status_needs_a_session(app):
 
 def test_one_account_never_reads_the_billing_of_another(app, engine):
     alice, bob = signed_up(app, "alice@negoce-romand.ch"), signed_up(app, "bob@materiaux-leman.ch")
-    pay(engine, alice, plan="scale", subscription_id="sub_alice")
-    assert status(alice)["plan_code"] == "scale"
+    pay(engine, alice, plan="pro", subscription_id="sub_alice")
+    assert status(alice)["plan_code"] == "pro"
     assert status(bob)["plan_code"] == "discovery"
 
 
@@ -217,7 +217,7 @@ def test_one_account_never_reads_the_billing_of_another(app, engine):
 
 
 @pytest.mark.parametrize(
-    ("plan", "limit"), [("discovery", 1), ("essential", 1), ("pro", 3), ("scale", 10)]
+    ("plan", "limit"), [("discovery", 1), ("essential", 1), ("pro", 3)]
 )
 def test_each_plan_declares_its_active_icp_limit(alice, engine, plan: str, limit: int):
     if plan != "discovery":
@@ -279,7 +279,7 @@ def test_an_upgrade_restores_every_profile_to_the_feed(alice, engine, clock: Clo
         add_icp(alice, label, clock)
     assert len(status(alice)["target_icps_over_limit"]) == 2
 
-    pay(engine, alice, plan="scale")
+    pay(engine, alice, plan="pro")
     assert status(alice)["target_icps_over_limit"] == []
 
 

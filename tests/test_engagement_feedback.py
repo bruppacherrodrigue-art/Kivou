@@ -296,7 +296,7 @@ def test_one_account_cannot_judge_the_signal_of_another(app, engine):
     alice, bob = signed_up(app, "alice@negoce-romand.ch"), signed_up(app, "bob@materiaux-leman.ch")
     key = paid_signal(engine, alice)
     icp_of(bob)
-    pay(engine, bob, plan="scale")
+    pay(engine, bob, plan="pro")
 
     assert put(bob, key, relevance="relevant").status_code == 404
     assert bob.get(f"/signals/{key}/feedback").status_code == 404
@@ -306,7 +306,7 @@ def test_one_account_cannot_mark_another_accounts_signal_contacted(app, engine):
     alice, bob = signed_up(app, "alice@negoce-romand.ch"), signed_up(app, "bob@materiaux-leman.ch")
     key = paid_signal(engine, alice)
     icp_of(bob)
-    pay(engine, bob, plan="scale")
+    pay(engine, bob, plan="pro")
 
     assert bob.post(f"/signals/{key}/contacted").status_code == 404
     with engine.connect() as connection:
@@ -318,7 +318,7 @@ def test_one_account_cannot_mark_another_accounts_signal_contacted(app, engine):
 
 def test_an_unbound_signal_can_never_receive_feedback(alice, engine):
     icp_of(alice)
-    pay(engine, alice, plan="scale")
+    pay(engine, alice, plan="pro")
     with engine.begin() as connection:
         unbound = materialize_boamp(connection, "26-80978", target_icp_id=RESEARCH_ICP_ID)
 

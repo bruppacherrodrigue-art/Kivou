@@ -115,7 +115,7 @@ Request `view=history`, `cursor`, `date_from`, `date_to`, `country`,
 `subdivision_code`, `status` and `cpv_prefix`. Assert `date_from <= date_to`,
 filter-level 403 responses, tenant isolation, exact cursor continuation,
 locked-only protected data and access metadata matching existing
-Discovery/Essential/Pro/Scale rights.
+Discovery/Essential/Pro rights.
 
 - [x] **Step 2: Run the API tests and retain RED evidence**
 

@@ -203,10 +203,10 @@ def test_all_explicit_synthetic_gates_can_report_adaptive_without_changing_polic
         h_d_shadow=ready,
         h_e_capped=ready,
         h_f_closed_loop=ready,
-        h_g_scale=ready,
+        h_g_precision=ready,
     )
     result = evaluate_readiness(evidence)
-    assert result.highest_safe_mode is AutonomyMode.ADAPTIVE_SCALE
+    assert result.highest_safe_mode is AutonomyMode.ADAPTIVE_VOLUME
     assert result.blockers == ()
 
 

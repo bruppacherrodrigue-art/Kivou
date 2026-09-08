@@ -233,7 +233,7 @@ class TestCaseL_TwoRulesSameCategory:
             rule_id="workforce-construction-twin-v1",
             category="workforce_capacity",
             mechanism_predicates=("construction_site",),
-            pressure_predicates=("parallel_lots_with_scale",),
+            pressure_predicates=("parallel_lots_with_magnitude",),
             statement_template=first.statement_template,
             reasoning_template=first.reasoning_template,
             externalisability="mixed",

@@ -84,7 +84,7 @@ describe('facturation exacte sous autorité backend', () => {
   it.each([
     ['essential', 'Essentiel'],
     ['pro', 'Pro'],
-    ['scale', 'Scale'],
+    ['pro', 'Pro'],
   ] as const)(
     'honore le choix public %s dans le sélecteur et le payload checkout',
     async (planCode, planName) => {
@@ -122,7 +122,6 @@ describe('facturation exacte sous autorité backend', () => {
     const plan = within(panel).getByLabelText('Offre')
     expect(within(plan).getByRole('option', { name: /Essentiel · 49/ })).toBeVisible()
     expect(within(plan).getByRole('option', { name: /Pro · 99/ })).toBeVisible()
-    expect(within(plan).getByRole('option', { name: /Scale · 199/ })).toBeVisible()
     expect(document.body).not.toHaveTextContent(/29[.,]00|59[.,]00|129[.,]00/)
   })
 

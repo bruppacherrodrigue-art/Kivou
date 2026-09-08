@@ -352,7 +352,7 @@ Expected: 7 PASS.
 
 - [ ] **Step 5: Tests API acheteur / lieu / complétude (échouent)**
 
-Ajouter à la fin de `tests/test_feed_factual_display.py` (les fixtures `client`, `icp`, `engine`, et les imports `materialize`, `simap_award`, `pin_session_cookie` y existent déjà ; `subscribe` place le compte sur le plan `scale`) :
+Ajouter à la fin de `tests/test_feed_factual_display.py` (les fixtures `client`, `icp`, `engine`, et les imports `materialize`, `simap_award`, `pin_session_cookie` y existent déjà ; `subscribe` place le compte sur le plan `pro`) :
 
 ```python
 # ─── Un identifiant n'est pas un nom, un pays n'est pas un lieu ───────────────

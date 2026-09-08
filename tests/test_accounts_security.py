@@ -516,7 +516,7 @@ def test_a_referer_from_the_allowed_origin_is_accepted(client: TestClient):
     response = client.post(
         "/target-icps",
         json={"label": "Depuis referer"},
-        headers={"Referer": f"{ORIGIN}/onboarding"},
+        headers={"Referer": f"{ORIGIN}/app/confirm-profile"},
     )
     assert response.status_code == 201
 

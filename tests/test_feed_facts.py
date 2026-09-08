@@ -98,7 +98,7 @@ def app_for(engine, locale: str = "fr") -> TestClient:
 
 
 def subscribe_to_scale(engine, client: TestClient) -> None:
-    """Abonne le compte à Scale — historique complet, filtres avancés.
+    """Abonne le compte à Pro — historique complet, filtres avancés.
 
     SPEC-013 : ces tests portent sur le CONTENU d'un signal débloqué — faits,
     inférences, preuve, langue. Depuis l'arrivée de la facturation, un compte
@@ -112,7 +112,7 @@ def subscribe_to_scale(engine, client: TestClient) -> None:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id=f"sub_test_{account_id[-8:]}",
             now=Clock()(),
         )

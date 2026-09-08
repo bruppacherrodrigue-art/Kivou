@@ -57,7 +57,7 @@ def mailer() -> FakeMailer:
     return FakeMailer()
 
 
-def subscriber(app, engine, *, count: int = 1, plan: str = "scale"):
+def subscriber(app, engine, *, count: int = 1, plan: str = "pro"):
     client = signed_up(app)
     icp = icp_of(client)
     pay(engine, client, plan=plan)
@@ -428,7 +428,7 @@ def test_retry_is_suppressed_when_paid_plan_falls_back_to_discovery(app, engine,
     mailer.fail_with = failure("smtp_451", retryable=True)
     cycle(engine, mailer, now=NOW)
     attempts = deliveries(engine)[0].attempt_count
-    pay(engine, client, plan="scale", status="canceled")
+    pay(engine, client, plan="pro", status="canceled")
 
     report = cycle(engine, mailer, now=NOW + RETRY_BASE)
 
@@ -624,7 +624,7 @@ def test_changed_preference_version_rearms_future_signals(
 def test_changed_eligibility_plan_and_cadence_rearm_future_signals(
     app, engine, mailer
 ) -> None:
-    client, _ = subscriber(app, engine, count=11, plan="scale")
+    client, _ = subscriber(app, engine, count=11, plan="pro")
     mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
     cycle(engine, mailer, now=NOW)
     refused_fingerprint = deliveries(engine)[0].recipient_context_fingerprint
@@ -648,7 +648,7 @@ def test_recipient_refusal_is_strictly_isolated_between_accounts(
 
     bob = signed_up(app, "bob@materiaux-leman.ch")
     bob_icp = icp_of(bob, "Materiaux")
-    pay(engine, bob, plan="scale")
+    pay(engine, bob, plan="pro")
     bob_key = seed(engine, bob_icp, count=1)[0]
 
     report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))

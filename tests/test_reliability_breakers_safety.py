@@ -191,7 +191,7 @@ def test_critical_transport_preserves_evidence_and_opens_global_hard_stop(tmp_pa
 @pytest.mark.parametrize(
     ("start", "expected"),
     [
-        (AutonomyMode.ADAPTIVE_SCALE, AutonomyMode.AUTONOMOUS_CAPPED),
+        (AutonomyMode.ADAPTIVE_VOLUME, AutonomyMode.AUTONOMOUS_CAPPED),
         (AutonomyMode.AUTONOMOUS_CAPPED, AutonomyMode.ASSISTED),
         (AutonomyMode.ASSISTED, AutonomyMode.SHADOW),
         (AutonomyMode.SHADOW, AutonomyMode.SHADOW),
@@ -226,7 +226,7 @@ def test_critical_downgrade_sets_shadow_kill_switch_read_only_and_keeps_history(
     PolicyStore(engine).append_control(
         control(
             1,
-            autonomy_mode=AutonomyMode.ADAPTIVE_SCALE,
+            autonomy_mode=AutonomyMode.ADAPTIVE_VOLUME,
             allowed_commands=(
                 "schedule_campaign",
                 "reallocate_volume",
@@ -246,7 +246,7 @@ def test_critical_downgrade_sets_shadow_kill_switch_read_only_and_keeps_history(
     assert result.read_only is True
     assert result.control_revision == 2
     first = PolicyStore(engine).get_control("snapshot-1")
-    assert first.autonomy_mode is AutonomyMode.ADAPTIVE_SCALE
+    assert first.autonomy_mode is AutonomyMode.ADAPTIVE_VOLUME
     assert safety.critical_stop(
         at=NOW + dt.timedelta(minutes=1), reason_codes=("POST_STOP_SEND",)
     ).policy_snapshot_id == result.policy_snapshot_id

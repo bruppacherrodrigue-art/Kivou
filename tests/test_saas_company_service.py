@@ -89,7 +89,7 @@ def _paid_account(connection, *, email: str):
     subscribe(
         connection,
         account_id=account_id,
-        plan="scale",
+        plan="pro",
         subscription_id=f"sub_{account_id}",
         now=RETRIEVED_AT,
     )
@@ -539,7 +539,7 @@ def test_locked_only_invalidated_and_old_revision_signals_do_not_authorize(engin
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id=f"sub_{account_id}",
             now=RETRIEVED_AT,
         )

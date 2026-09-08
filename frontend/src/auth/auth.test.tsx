@@ -286,7 +286,7 @@ describe('connexion', () => {
     expect(alert.textContent).not.toMatch(/inexistant|inconnu|introuvable/i)
   })
 
-  it('conduit un compte incomplet vers l’onboarding plutôt que vers le feed', async () => {
+  it('conduit un compte incomplet vers la confirmation plutôt que vers le feed', async () => {
     const user = userEvent.setup()
     mockApi({
       'POST /auth/login': { body: { ...ME, onboarding_status: 'account_created' } },
@@ -299,7 +299,7 @@ describe('connexion', () => {
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Définir ce que Kivou doit surveiller' }),
+      await screen.findByRole('heading', { name: 'Confirmez votre profil cible' }),
     ).toBeInTheDocument()
   })
 })

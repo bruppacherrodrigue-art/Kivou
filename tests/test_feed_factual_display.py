@@ -57,7 +57,7 @@ def client(engine) -> TestClient:
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_factual_display",
             now=NOW,
         )

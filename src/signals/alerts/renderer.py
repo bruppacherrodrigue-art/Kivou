@@ -53,7 +53,7 @@ FOOTER: dict[str, str] = {
     ),
 }
 
-NEEDS_LABEL: dict[str, str] = {"fr": "Besoins plausibles", "en": "Plausible needs"}
+NEEDS_LABEL: dict[str, str] = {"fr": "À prévoir", "en": "To plan for"}
 BUYER_LABEL: dict[str, str] = {"fr": "Acheteur", "en": "Buyer"}
 FOR_YOU_LABEL: dict[str, str] = {"fr": "Pour vous", "en": "For you"}
 

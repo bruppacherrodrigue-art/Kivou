@@ -8,7 +8,7 @@ finirait par contredire la première.
 
 « Prioritaire » n'est pas « temps réel » (§15)
 ─────────────────────────────────────────────
-Scale est éligible **à chaque exécution du job**. C'est tout, et c'est déjà
+Le plan Pro est éligible **à chaque exécution du job**. C'est tout, et c'est déjà
 utile. L'appeler « instantané » promettrait une architecture temps réel qui
 n'existe pas — et une promesse de latence qu'aucun cron ne peut tenir.
 """

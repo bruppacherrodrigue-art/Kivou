@@ -49,7 +49,7 @@ def client(engine):
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id="sub_winner_api",
             now=NOW,
         )
@@ -155,7 +155,7 @@ def test_explicit_worker_makes_the_sourced_company_available(engine, client) -> 
 
 
 def test_locked_teaser_exposes_neither_company_nor_enrichment(engine, client) -> None:
-    # A fresh Discovery account is needed because the fixture above is Scale.
+    # A fresh Discovery account is needed because the fixture above is Pro.
     app = create_app(
         engine,
         ApiConfig(cookie_secure=False, allowed_origin=ORIGIN, session_ttl=dt.timedelta(days=365)),

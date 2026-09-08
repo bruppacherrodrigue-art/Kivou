@@ -17,7 +17,7 @@ def test_learning_adds_no_state_or_event_and_keeps_one_allocation_command() -> N
     assert "reallocate_volume" in ALLOWED_COMMANDS
     assert not {
         "optimize_wedge",
-        "scale_campaign",
+        "resize_campaign",
         "increase_volume",
         "apply_learning",
     }.intersection(ALLOWED_COMMANDS)

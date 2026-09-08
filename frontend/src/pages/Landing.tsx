@@ -125,7 +125,7 @@ export function Landing() {
               <div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary" ariaDescribedBy={discoveryStatusId}>Commencer gratuitement</PublicPlanLink><ReferenceLink className="btn secondary" href="/tarifs">Comparer les offres</ReferenceLink></div>
             </div>
             <div className="glass offer-matrix" aria-label="Aperçu des offres Kivou">
-              {(['discovery', 'essential', 'pro', 'scale'] as const).map((code) => {
+              {(['discovery', 'essential', 'pro'] as const).map((code) => {
                 const plan = plansByCode.get(code)
                 const price = plan ? publicPrice(plan, pricing.currency) : null
                 const unavailable = landingOfferUnavailable(pricing)

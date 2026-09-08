@@ -42,6 +42,7 @@ from feed_helpers import RESEARCH_ICP_ID, SIMAP_RICH, materialize, materialize_s
 
 from signals.alerts import job as alert_job
 from signals.alerts import policy, run_alert_cycle
+from signals.alerts import renderer
 from signals.alerts.gateway import UncertainDelivery, message_id
 from signals.engagement.schema import signal_alert_delivery
 from signals.persistence.schema import for_you_sentence
@@ -70,6 +71,36 @@ def mailer() -> FakeMailer:
 
 def cycle(engine, mailer, *, now: dt.datetime = NOW, url: str | None = PUBLIC_APP_URL):
     return run_alert_cycle(engine, mailer, now=now, public_app_url=url)
+
+
+def test_real_alert_job_output_reuses_the_same_card_facts(
+    app, engine, mailer, monkeypatch: pytest.MonkeyPatch,
+):
+    cards = []
+    original = alert_job.feed_view.feed_item
+
+    def capture(item, *, lang, presentation=None):
+        card = original(item, lang=lang, presentation=presentation)
+        cards.append(card)
+        return card
+
+    monkeypatch.setattr(alert_job.feed_view, "feed_item", capture)
+    subscriber(app, engine, plan="pro", count=1)
+    report = cycle(engine, mailer)
+
+    assert report.sent
+    assert len(cards) == 1
+    line = renderer.line_from_card(cards[0], url=f"{PUBLIC_APP_URL}/signals/{line_key(cards[0])}", lang="fr")
+    for value in (line.company, line.contract_title, line.amount, line.location, line.awarded_on, line.for_you_sentence):
+        if value:
+            assert value in mailer.last.text_body
+            assert value in mailer.last.html_body
+    assert "Besoins plausibles" not in mailer.last.text_body
+    assert "Besoins plausibles" not in mailer.last.html_body
+
+
+def line_key(card):
+    return card["signal_id"]
 
 
 def deliveries(engine) -> list[sa.Row]:
@@ -295,22 +326,9 @@ def test_a_founding_account_follows_the_pro_cadence(app, engine, mailer):
     assert cycle(engine, mailer, now=NOW + dt.timedelta(days=1)).signals_sent == 1
 
 
-def test_scale_is_eligible_on_every_cycle(app, engine, mailer):
-    client, _ = subscriber(app, engine, plan="scale", count=1)
-    icp = client.get("/target-icps").json()[0]["target_icp_id"]
-
-    assert cycle(engine, mailer).signals_sent == 1
-    seed(engine, icp, count=1, offset=1)
-    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=10)).signals_sent == 1
-
-
 def test_priority_is_never_called_realtime():
     """§15 — l'appeler « temps réel » promettrait ce qu'aucun cron ne tient."""
-    from signals.billing.catalogue import SCALE
-
-    assert SCALE.alert_cadence == "priority"
     assert "realtime" not in policy.MINIMUM_INTERVAL
-    assert policy.MINIMUM_INTERVAL["priority"] == dt.timedelta(0)
 
 
 def test_an_unknown_cadence_sends_nothing():
@@ -403,14 +421,14 @@ def test_notification_preferences_need_a_session_and_csrf(app, engine):
 
 
 def test_an_already_alerted_signal_is_never_sent_again(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=2)
+    subscriber(app, engine, plan="pro", count=2)
     assert cycle(engine, mailer).signals_sent == 2
     assert cycle(engine, mailer, now=NOW + dt.timedelta(hours=1)).signals_sent == 0
     assert len(mailer.sent) == 1
 
 
 def test_the_job_is_safe_to_rerun(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=3)
+    subscriber(app, engine, plan="pro", count=3)
     for _ in range(5):
         cycle(engine, mailer)
     assert len(mailer.sent) == 1
@@ -424,7 +442,7 @@ def test_a_stale_signal_is_never_alerted(app, engine, mailer):
     """Seules les NOUVEAUTÉS partent : un marché de mai n'en est pas une."""
     client = signed_up(app)
     icp = icp_of(client)
-    pay(engine, client, plan="scale")
+    pay(engine, client, plan="pro")
     with engine.begin() as connection:
         materialize_simap(connection, SIMAP_RICH, target_icp_id=icp)
 
@@ -436,7 +454,7 @@ def test_a_foreign_account_signal_is_never_alerted(app, engine, mailer):
     _, alice_keys = subscriber(app, engine, plan="pro", count=1)
     bob = signed_up(app, "bob@materiaux-leman.ch")
     icp_of(bob)
-    pay(engine, bob, plan="scale")
+    pay(engine, bob, plan="pro")
 
     cycle(engine, mailer)
     bob_account = account_of(bob)
@@ -453,7 +471,7 @@ def test_a_foreign_account_signal_is_never_alerted(app, engine, mailer):
 def test_an_unbound_signal_is_never_alerted(app, engine, mailer):
     client = signed_up(app)
     icp = icp_of(client)
-    pay(engine, client, plan="scale")
+    pay(engine, client, plan="pro")
     keys = seed(engine, icp, count=1)
     with engine.begin() as connection:
         event, awards = simap_award("41098-01")
@@ -474,7 +492,7 @@ def test_a_winner_known_only_by_its_identifier_is_never_alerted(app, engine, mai
     """Un e-mail annonçant « 44284979000013 » n'aiderait personne."""
     client = signed_up(app)
     icp = icp_of(client)
-    pay(engine, client, plan="scale")
+    pay(engine, client, plan="pro")
     with engine.begin() as connection:
         event, awards = simap_award("29997-02")
         award = awards[0].model_copy(update={"award_date": dt.date(2026, 8, 13)})
@@ -543,7 +561,7 @@ def test_a_paid_account_only_receives_what_its_plan_unlocks(app, engine, mailer)
 
 
 def test_an_email_carries_at_most_ten_signals(app, engine, mailer):
-    client, _ = subscriber(app, engine, plan="scale", count=6)
+    client, _ = subscriber(app, engine, plan="pro", count=6)
     icp = client.get("/target-icps").json()[0]["target_icp_id"]
     seed(engine, icp, count=6, offset=6)
 
@@ -553,12 +571,12 @@ def test_an_email_carries_at_most_ten_signals(app, engine, mailer):
 
 
 def test_the_remaining_signals_stay_available_for_the_next_cycle(app, engine, mailer):
-    client, _ = subscriber(app, engine, plan="scale", count=6)
+    client, _ = subscriber(app, engine, plan="pro", count=6)
     icp = client.get("/target-icps").json()[0]["target_icp_id"]
     seed(engine, icp, count=6, offset=6)
 
     assert cycle(engine, mailer).signals_sent == 10
-    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=5)).signals_sent == 2
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(days=1)).signals_sent == 2
     assert len(mailer.sent) == 2
     assert len({row.signal_key for row in deliveries(engine)}) == 12
 
@@ -567,7 +585,7 @@ def test_the_remaining_signals_stay_available_for_the_next_cycle(app, engine, ma
 
 
 def test_a_known_delivery_failure_stays_retryable(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=2)
+    subscriber(app, engine, plan="pro", count=2)
     mailer.fail_with = failure("smtp_451")
 
     report = cycle(engine, mailer)
@@ -586,7 +604,7 @@ def test_a_known_delivery_failure_stays_retryable(app, engine, mailer):
 
 def test_an_uncertain_delivery_is_never_blindly_resent(app, engine, mailer):
     """§27 — recevoir deux fois la même alerte coûte plus cher que la recevoir tard."""
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     mailer.fail_with = UncertainDelivery()
 
     report = cycle(engine, mailer)
@@ -614,7 +632,7 @@ def test_a_failure_never_consumes_the_accounts_turn(app, engine, mailer):
 
 
 def test_no_exception_trace_or_credential_reaches_the_database(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     mailer.fail_with = failure("smtp_535")
     cycle(engine, mailer)
 
@@ -633,7 +651,7 @@ def test_no_exception_trace_or_credential_reaches_the_database(app, engine, mail
 
 
 def test_the_message_id_is_deterministic_and_leaks_nothing(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=2)
+    subscriber(app, engine, plan="pro", count=2)
     cycle(engine, mailer)
 
     identifier = mailer.last.message_id
@@ -657,8 +675,8 @@ def test_the_same_batch_always_produces_the_same_message_id():
 def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
     english = signed_up(app, "bob@materiaux-leman.ch", locale="en")
     icp = icp_of(english)
-    pay(engine, english, plan="scale")
-    # L'avis riche : celui qui porte des besoins plausibles à traduire.
+    pay(engine, english, plan="pro")
+    # L'avis riche : celui qui porte des besoins à traduire.
     seed_rich(engine, icp)
 
     cycle(engine, mailer)
@@ -666,11 +684,11 @@ def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
     assert message.language == "en"
     assert "new signal" in message.subject
     assert "Hello," in message.text_body
-    assert "Plausible needs" in message.text_body
+    assert "To plan for" in message.text_body
 
 
 def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     cycle(engine, mailer)
 
     body = mailer.last.text_body
@@ -680,7 +698,7 @@ def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer
 
 
 def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     sentence = "Votre offre accompagne les besoins vérifiés de ce titulaire."
     with engine.begin() as connection:
         connection.execute(
@@ -697,7 +715,7 @@ def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mail
 def test_the_digest_without_cached_sentence_uses_customer_copy_not_engine_vocabulary(
     app, engine, mailer
 ):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     with engine.begin() as connection:
         connection.execute(sa.delete(for_you_sentence))
 
@@ -710,7 +728,7 @@ def test_the_digest_without_cached_sentence_uses_customer_copy_not_engine_vocabu
 
 
 def test_the_digest_excludes_a_signal_rejected_by_the_model(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     with engine.begin() as connection:
         connection.execute(sa.update(for_you_sentence).values(model_fit="none"))
 
@@ -723,7 +741,7 @@ def test_an_old_signal_never_gets_new_opportunity_wording_in_an_email(app, engin
     """§21 — la formulation vient de la politique de fraîcheur, jamais de l'e-mail."""
     client = signed_up(app)
     icp = icp_of(client)
-    pay(engine, client, plan="scale")
+    pay(engine, client, plan="pro")
     with engine.begin() as connection:
         materialize_simap(connection, SIMAP_RICH, target_icp_id=icp)
 
@@ -732,7 +750,7 @@ def test_an_old_signal_never_gets_new_opportunity_wording_in_an_email(app, engin
 
 
 def test_the_email_contains_a_deep_link_to_each_signal(app, engine, mailer):
-    _, keys = subscriber(app, engine, plan="scale", count=2)
+    _, keys = subscriber(app, engine, plan="pro", count=2)
     cycle(engine, mailer)
 
     body = mailer.last.text_body
@@ -750,7 +768,7 @@ def test_the_deep_link_resolves_to_the_browser_signal_route(app, engine, mailer)
     Aucune sémantique d'alerte n'est modifiée ici : seule la FORME de la base
     est vérifiée.
     """
-    _, keys = subscriber(app, engine, plan="scale", count=1)
+    _, keys = subscriber(app, engine, plan="pro", count=1)
     cycle(engine, mailer)
 
     link = f"{PUBLIC_APP_URL}/app/signals/{keys[0]}"
@@ -771,7 +789,7 @@ def test_the_email_shows_where_to_stop_receiving_alerts(app, engine, mailer):
     destinations différentes feraient suivre au destinataire un lien qui ne le
     désabonne pas.
     """
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     cycle(engine, mailer)
 
     attendu = f"{PUBLIC_APP_URL}/app/notifications"
@@ -781,7 +799,7 @@ def test_the_email_shows_where_to_stop_receiving_alerts(app, engine, mailer):
 
 
 def test_the_weekly_email_has_matching_html_and_text_cards(app, engine, mailer):
-    _, keys = subscriber(app, engine, plan="scale", count=3)
+    _, keys = subscriber(app, engine, plan="pro", count=3)
 
     cycle(engine, mailer)
 
@@ -798,7 +816,7 @@ def test_the_weekly_email_has_matching_html_and_text_cards(app, engine, mailer):
 
 
 def test_the_email_never_dumps_evidence(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=2)
+    subscriber(app, engine, plan="pro", count=2)
     cycle(engine, mailer)
 
     body = mailer.last.text_body
@@ -808,7 +826,7 @@ def test_the_email_never_dumps_evidence(app, engine, mailer):
 
 
 def test_the_email_never_carries_internal_engine_vocabulary(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=2)
+    subscriber(app, engine, plan="pro", count=2)
     cycle(engine, mailer)
 
     body = mailer.last.text_body.lower()
@@ -826,7 +844,7 @@ def test_the_email_never_carries_internal_engine_vocabulary(app, engine, mailer)
 
 
 def test_the_email_never_claims_a_win_it_cannot_support(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=3)
+    subscriber(app, engine, plan="pro", count=3)
     cycle(engine, mailer)
 
     body = mailer.last.text_body
@@ -837,7 +855,7 @@ def test_the_email_never_claims_a_win_it_cannot_support(app, engine, mailer):
 
 def test_no_tracking_pixel_or_third_party_tracker_is_added(app, engine, mailer):
     """§24 — on veut savoir qu'un e-mail est parti, pas espionner qui l'ouvre."""
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     cycle(engine, mailer)
 
     body = mailer.last.text_body.lower()
@@ -849,7 +867,7 @@ def test_no_tracking_pixel_or_third_party_tracker_is_added(app, engine, mailer):
 
 
 def test_the_cycle_records_queue_and_send_events(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=2)
+    subscriber(app, engine, plan="pro", count=2)
     cycle(engine, mailer)
 
     queued = events(engine, event_type="alert_queued")
@@ -857,11 +875,11 @@ def test_the_cycle_records_queue_and_send_events(app, engine, mailer):
     assert len(queued) == 2
     assert len(sent) == 1, "un envoi, pas un par signal"
     assert sent[0].properties["signal_count"] == 2
-    assert sent[0].properties["cadence"] == "priority"
+    assert sent[0].properties["cadence"] == "daily"
 
 
 def test_a_failure_records_an_alert_failed_event(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     mailer.fail_with = failure("smtp_451")
     cycle(engine, mailer)
 
@@ -872,7 +890,7 @@ def test_a_failure_records_an_alert_failed_event(app, engine, mailer):
 
 
 def test_a_requeued_signal_is_not_counted_twice_as_queued(app, engine, mailer):
-    subscriber(app, engine, plan="scale", count=1)
+    subscriber(app, engine, plan="pro", count=1)
     mailer.fail_with = failure()
     cycle(engine, mailer)
     cycle(engine, mailer, now=NOW + dt.timedelta(minutes=5))
@@ -909,10 +927,10 @@ def test_the_job_reads_no_hidden_clock():
     """§26 — `now` est explicite, sinon une cadence cesserait d'être testable."""
     import inspect
 
-    from signals.alerts import content, job
+    from signals.alerts import job, renderer
     from signals.alerts import policy as alert_policy
 
-    for module in (job, alert_policy, content):
+    for module in (job, alert_policy, renderer):
         source = inspect.getsource(module)
         for forbidden in ("date.today()", "datetime.now(", "utcnow("):
             assert forbidden not in source, f"{module.__name__} : {forbidden}"

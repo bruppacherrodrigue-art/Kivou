@@ -34,7 +34,7 @@ export function PublicPricing() {
     <>
       <PublicPageMeta
         title="Tarifs | Kivou"
-        description="Les quatre offres mensuelles Kivou, de Découverte à Scale."
+        description="Les trois offres mensuelles Kivou, de Découverte à Pro."
         canonicalPath="/tarifs"
       />
       <main id="main" className="pricing-page" tabIndex={-1}>
@@ -79,6 +79,7 @@ export function PublicPricing() {
               </table>
             </div>
             <p className="pricing-terms">Prix mensuels, TVA en sus. Les conditions d’abonnement figurent dans les <ReferenceLink href="/informations-legales#cgu">Conditions générales</ReferenceLink>.</p>
+            <p className="pricing-contact"><ReferenceLink href="/contact">Besoin de plus de profils ou de zones ? Écrivez-nous</ReferenceLink></p>
           </div>
         </section>
 

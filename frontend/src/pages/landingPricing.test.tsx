@@ -59,12 +59,12 @@ describe('tarifs publics exacts et autoritaires', () => {
     )
   })
 
-  it('rend les quatre cartes et montants exclusivement depuis le catalogue API', async () => {
+  it('rend les trois cartes et montants exclusivement depuis le catalogue API', async () => {
     mockApi({ 'GET /billing/plans': { body: catalogueWithEssentialPrice(1234) } })
     const { container } = renderApp(<AppRoutes />, { route: '/tarifs' })
     await screen.findAllByText(/12[,.]34/)
     const grid = container.querySelector('.pricing-grid')!
-    expect(grid.querySelectorAll('.price-card')).toHaveLength(4)
+    expect(grid.querySelectorAll('.price-card')).toHaveLength(3)
     const essential = screen.getByRole('heading', { level: 2, name: 'Essentiel' }).closest('article')!
     expect(essential.textContent).toMatch(/12[,.]34/)
     expect(within(essential).getByRole('link', { name: 'Choisir Essentiel' })).toHaveAttribute('href', '/signup?plan=essential')
@@ -78,8 +78,8 @@ describe('tarifs publics exacts et autoritaires', () => {
       './PublicPricing.tsx',
     ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
     for (const source of sources) {
-      expect(source).not.toMatch(/(?:CHF|EUR|€)\s*(?:49|99|199)\b/)
-      expect(source).not.toMatch(/amount_minor_units\s*:\s*(?:4900|9900|19900)\b/)
+      expect(source).not.toMatch(/(?:CHF|EUR|€)\s*(?:49|99)\b/)
+      expect(source).not.toMatch(/amount_minor_units\s*:\s*(?:4900|9900)\b/)
     }
   })
 
@@ -102,7 +102,7 @@ describe('tarifs publics exacts et autoritaires', () => {
     }
   })
 
-  it('conserve quatre cartes de cinq lignes pendant le chargement', () => {
+  it('conserve trois cartes de cinq lignes pendant le chargement', () => {
     let release!: () => void
     const pendingCatalogue = new Promise<{ body: PlanCatalogue }>((resolve) => {
       release = () => resolve({ body: CATALOGUE })
@@ -114,9 +114,9 @@ describe('tarifs publics exacts et autoritaires', () => {
     expect(grid).toHaveAttribute('aria-busy', 'true')
     expect(screen.getByRole('status')).toHaveClass('hero-facts')
     expect(screen.getByRole('status')).toHaveTextContent('Chargement des offres')
-    expect(grid.children).toHaveLength(4)
+    expect(grid.children).toHaveLength(3)
     const cards = Array.from(grid.querySelectorAll('.price-card'))
-    expect(cards).toHaveLength(4)
+    expect(cards).toHaveLength(3)
     for (const card of cards) {
       expect(card.querySelector('.plan-intro')).toHaveTextContent('Informations')
       expect(Array.from(card.querySelectorAll('ul > li'), (item) => item.textContent)).toEqual([
@@ -138,9 +138,9 @@ describe('tarifs publics exacts et autoritaires', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveClass('hero-facts')
     expect(alert).toHaveTextContent('Les tarifs sont momentanément indisponibles')
-    expect(container.querySelector('.pricing-grid')?.children).toHaveLength(4)
+    expect(container.querySelector('.pricing-grid')?.children).toHaveLength(3)
     const cards = Array.from(container.querySelectorAll('.pricing-grid .price-card'))
-    expect(cards).toHaveLength(4)
+    expect(cards).toHaveLength(3)
     for (const card of cards) {
       expect(card).toHaveTextContent('Catalogue indisponible')
       expect(card.querySelector('.plan-intro')).toHaveTextContent('Informations')
@@ -152,7 +152,7 @@ describe('tarifs publics exacts et autoritaires', () => {
         'Historique indisponible',
       ])
     }
-    expect(document.body.textContent).not.toMatch(/CHF\s?49|CHF\s?99|CHF\s?199/)
+    expect(document.body.textContent).not.toMatch(/CHF\s?49|CHF\s?99/)
     expect(screen.queryByRole('link', { name: 'Choisir Essentiel' })).not.toBeInTheDocument()
   })
 
@@ -185,13 +185,6 @@ describe('tarifs publics exacts et autoritaires', () => {
       'Alertes quotidiennes',
       '365 jours d’historique',
       'Contexte, calendrier et source',
-    ])
-    expect(features('Scale')).toEqual([
-      'Tout Pro',
-      '10 profils cibles',
-      'Couverture territoriale étendue',
-      'Alertes prioritaires après détection',
-      'Tout l’historique conservé',
     ])
     expect(screen.getByRole('heading', { name: 'Essentiel' }).closest('article')).not.toHaveTextContent('1 utilisateur')
     expect(container).not.toHaveTextContent(/Priorisation par pertinence et calendrier|Filtrage (?:essentiel|minimum)/)
@@ -227,17 +220,18 @@ describe('tarifs publics exacts et autoritaires', () => {
       ...CATALOGUE,
       plans: CATALOGUE.plans
         .filter((plan) => plan.plan_code !== 'essential' && plan.plan_code !== 'pro')
-        .map((plan) => plan.plan_code === 'scale'
+        .map((plan) => plan.plan_code === 'pro'
           ? { ...plan, entitlements: { ...plan.entitlements, filter_level: 'advanced' as const } }
           : plan),
     }
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs' })
 
-    await screen.findByRole('link', { name: 'Choisir Scale' })
-    const scale = screen.getByRole('heading', { name: 'Scale' }).closest('article')!
-    expect(scale).not.toHaveTextContent('Tout Pro')
-    expect(scale).toHaveTextContent('flux inclus · contexte inclus · source incluse')
+    await screen.findByRole('heading', { name: 'Pro' })
+    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
+    expect(pro).not.toHaveTextContent('Tout Pro')
+    expect(pro).toHaveTextContent('Offre absente du catalogue')
+    expect(pro).not.toHaveTextContent('flux inclus · contexte inclus · source incluse')
   })
 
   it('contacte Kivou pour un plan non achetable même sans prix et bloque seulement le checkout sans prix', async () => {
@@ -253,7 +247,7 @@ describe('tarifs publics exacts et autoritaires', () => {
     }
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs' })
-    await screen.findByRole('link', { name: 'Choisir Scale' })
+    await screen.findByRole('heading', { name: 'Pro' })
 
     const essential = screen.getByRole('heading', { name: 'Essentiel' }).closest('article')!
     expect(within(essential).getByRole('link', { name: 'Choisir Essentiel' })).toHaveAttribute('href', '/contact')
@@ -265,23 +259,23 @@ describe('tarifs publics exacts et autoritaires', () => {
   it('conserve cinq lignes et distingue une offre absente du catalogue', async () => {
     const catalogue = {
       ...CATALOGUE,
-      plans: CATALOGUE.plans.filter((plan) => plan.plan_code !== 'scale'),
+      plans: CATALOGUE.plans.filter((plan) => plan.plan_code !== 'pro'),
     }
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs' })
     await screen.findByRole('link', { name: 'Choisir Essentiel' })
 
-    const scale = screen.getByRole('heading', { name: 'Scale' }).closest('article')!
-    expect(scale).toHaveTextContent('Offre absente du catalogue')
-    expect(scale.querySelector('.plan-intro')).toHaveTextContent('Informations')
-    expect(Array.from(scale.querySelectorAll('ul > li'), (item) => item.textContent)).toEqual([
+    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
+    expect(pro).toHaveTextContent('Offre absente du catalogue')
+    expect(pro.querySelector('.plan-intro')).toHaveTextContent('Informations')
+    expect(Array.from(pro.querySelectorAll('ul > li'), (item) => item.textContent)).toEqual([
       'Contenu absent',
       'Couverture absente',
       'Accès absents',
       'Alertes absentes',
       'Historique absent',
     ])
-    expect(within(scale).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(pro).queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('préserve les actions de facturation serveur dans le dashboard', async () => {
@@ -292,7 +286,7 @@ describe('tarifs publics exacts et autoritaires', () => {
     const selector = screen.getByLabelText('Offre')
     await user.selectOptions(selector, 'pro')
     expect(screen.getByRole('button', { name: 'Choisir Pro' })).toBeInTheDocument()
-    await user.selectOptions(selector, 'scale')
-    expect(screen.getByRole('button', { name: 'Choisir Scale' })).toBeInTheDocument()
+    await user.selectOptions(selector, 'pro')
+    expect(screen.getByRole('button', { name: 'Choisir Pro' })).toBeInTheDocument()
   })
 })

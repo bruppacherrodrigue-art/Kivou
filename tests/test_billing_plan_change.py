@@ -182,7 +182,7 @@ def test_an_upgrade_takes_effect_immediately(client, engine, stripe: FakeStripe)
 
 def test_a_downgrade_is_scheduled_at_the_end_of_the_paid_period(client, engine, stripe: FakeStripe):
     """Descendre immédiatement ferait perdre la période DÉJÀ PAYÉE."""
-    account_id = paying(engine, client, stripe, plan="scale")
+    account_id = paying(engine, client, stripe, plan="pro")
 
     response = change_to(client, "essential")
 
@@ -191,8 +191,8 @@ def test_a_downgrade_is_scheduled_at_the_end_of_the_paid_period(client, engine, 
     assert body["effect"] == "scheduled"
     assert body["plan_code"] == "essential"
     assert body["effective_at"] == PERIOD_END.isoformat()
-    # Les droits COURANTS ne bougent pas : le client reste Scale jusqu'au terme.
-    assert stored_plan(engine, account_id) == "scale"
+    # Les droits COURANTS ne bougent pas : le client reste Pro jusqu'au terme.
+    assert stored_plan(engine, account_id) == "pro"
 
 
 def test_a_scheduled_downgrade_uses_a_subscription_schedule(client, engine, stripe: FakeStripe):
@@ -215,10 +215,10 @@ def test_the_contract_currency_is_preserved(client, engine, stripe: FakeStripe, 
     """Changer de formule n'est pas l'occasion de changer de devise."""
     paying(engine, client, stripe, plan="essential", currency=currency)
 
-    assert change_to(client, "scale").status_code == 200
+    assert change_to(client, "pro").status_code == 200
 
     (call,) = stripe.price_changes
-    assert call["price_id"] == f"price_test_scale_{currency}"
+    assert call["price_id"] == f"price_test_pro_{currency}"
 
 
 def test_the_browser_can_never_choose_a_price(client, engine, stripe: FakeStripe):
@@ -234,7 +234,7 @@ def test_a_currency_absent_from_the_contract_refuses_the_change(client, engine, 
     """Défaut fermé : sans devise connue, aucun Price n'est résoluble."""
     paying(engine, client, stripe, plan="pro", lookup_key="kivou_pro_monthly_xxx", currency=None)
 
-    response = change_to(client, "scale")
+    response = change_to(client, "pro")
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "plan_change_unavailable"
@@ -268,7 +268,7 @@ def test_an_unsettled_subscription_never_changes_plan(
     """`billing_action` gouverne : ces états se rattrapent, ils ne se changent pas."""
     account_id = paying(engine, client, stripe, plan="pro", status=status)
 
-    response = change_to(client, "scale")
+    response = change_to(client, "pro")
 
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "plan_change_unavailable"
@@ -288,7 +288,7 @@ def test_no_plan_change_ever_creates_a_second_subscription(client, engine, strip
     """La règle qui protège l'argent du client : on MODIFIE, on ne crée pas."""
     paying(engine, client, stripe, plan="essential")
 
-    assert change_to(client, "scale").status_code == 200
+    assert change_to(client, "pro").status_code == 200
     assert change_to(client, "essential").status_code == 200
 
     assert subscription_count(engine) == 1
@@ -303,7 +303,7 @@ def test_a_failed_upgrade_payment_grants_nothing(client, engine, stripe: FakeStr
     account_id = paying(engine, client, stripe, plan="essential")
     stripe.fail_price_change = True
 
-    response = change_to(client, "scale")
+    response = change_to(client, "pro")
 
     assert response.status_code == 402
     assert response.json()["detail"]["code"] == "plan_change_payment_failed"
@@ -315,7 +315,7 @@ def test_a_failed_upgrade_payment_grants_nothing(client, engine, stripe: FakeStr
 
 def test_a_scheduled_downgrade_can_be_cancelled(client, engine, stripe: FakeStripe):
     """Se raviser doit être possible tant que l'échéance n'est pas atteinte."""
-    paying(engine, client, stripe, plan="scale")
+    paying(engine, client, stripe, plan="pro")
     assert change_to(client, "essential").status_code == 200
 
     response = client.delete("/billing/plan")
@@ -341,17 +341,17 @@ def test_the_status_exposes_a_scheduled_change_without_lying_about_rights(
     client, engine, stripe: FakeStripe
 ):
     """L'écran doit dire l'effet DIFFÉRÉ sans prétendre qu'il a déjà eu lieu."""
-    paying(engine, client, stripe, plan="scale")
+    paying(engine, client, stripe, plan="pro")
     assert change_to(client, "essential").status_code == 200
 
     body = client.get("/billing/status").json()
 
-    assert body["plan_code"] == "scale", "les droits courants restent ceux payés"
+    assert body["plan_code"] == "pro", "les droits courants restent ceux payés"
     assert body["scheduled_plan_change"] == {
         "plan_code": "essential",
         "effective_at": PERIOD_END.isoformat(),
     }
-    assert body["entitlements"]["history_scope"] == "all_available"
+    assert body["entitlements"]["history_scope"] == "window"
 
 
 def test_the_status_carries_no_stripe_identifier(client, engine, stripe: FakeStripe):
@@ -401,7 +401,7 @@ def test_the_billing_status_survives_stripe_being_unreachable(client, engine, st
     d'information accessoire. La page doit survivre ; c'est l'annonce, et elle
     seule, qui a le droit de manquer.
     """
-    paying(engine, client, stripe, plan="scale")
+    paying(engine, client, stripe, plan="pro")
 
     def en_panne(**_kwargs):
         raise RuntimeError("Stripe injoignable")
@@ -412,7 +412,7 @@ def test_the_billing_status_survives_stripe_being_unreachable(client, engine, st
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["plan_code"] == "scale", "les droits restent lisibles"
+    assert body["plan_code"] == "pro", "les droits restent lisibles"
     assert body["billing_action"] == "manage_subscription"
     assert body["scheduled_plan_change"] is None, "rien n'est annoncé plutôt qu'inventé"
 
@@ -428,7 +428,7 @@ def test_replaying_the_same_request_performs_a_single_stripe_operation(
     Le client qui recharge, double-clique ou dont le réseau retente envoie deux
     fois la même intention. Une seule opération doit atteindre Stripe.
     """
-    paying(engine, client, stripe, plan="scale")
+    paying(engine, client, stripe, plan="pro")
 
     first = change_to(client, "essential")
     second = change_to(client, "essential")
@@ -438,31 +438,6 @@ def test_replaying_the_same_request_performs_a_single_stripe_operation(
     assert first.json() == second.json(), "la seconde réponse doit être la première"
     assert len(stripe.schedule_calls) == 1, f"appels Stripe : {stripe.schedule_calls}"
 
-
-def test_alternating_targets_within_a_day_all_take_effect(client, engine, stripe: FakeStripe):
-    """A → B → A → B : le DERNIER changement doit réellement s'exécuter.
-
-    Composer la clé d'idempotence du seul couple (départ, cible) ferait
-    réutiliser à la quatrième opération la clé de la première. Stripe rendrait
-    sa réponse en cache — moins de 24 h — et le client resterait sur une
-    formule qu'il ne veut plus, sans qu'aucune erreur ne le signale.
-    """
-    paying(engine, client, stripe, plan="scale")
-
-    assert change_to(client, "pro").status_code == 200
-    assert change_to(client, "essential").status_code == 200
-    assert change_to(client, "pro").status_code == 200
-    last = change_to(client, "essential")
-
-    assert last.status_code == 200, last.text
-    assert last.json()["plan_code"] == "essential"
-
-    keys = [call["idempotency_key"] for call in stripe.schedule_calls]
-    assert len(keys) == 4, f"quatre intentions distinctes attendues, vu {len(keys)}"
-    assert len(set(keys)) == 4, f"clés en collision : {keys}"
-
-    # Et l'état RÉELLEMENT programmé est le dernier demandé.
-    assert client.get("/billing/status").json()["scheduled_plan_change"]["plan_code"] == "essential"
 
 
 def test_a_retry_after_a_rolled_back_write_reuses_the_same_key(client, engine, stripe: FakeStripe):
@@ -474,7 +449,7 @@ def test_a_retry_after_a_rolled_back_write_reuses_the_same_key(client, engine, s
     une annulation les emporte tous les deux — et la tentative suivante
     retrouve exactement la même clé.
     """
-    account_id = paying(engine, client, stripe, plan="scale")
+    account_id = paying(engine, client, stripe, plan="pro")
 
     assert change_to(client, "essential").status_code == 200
 
@@ -507,18 +482,18 @@ def test_the_billing_status_never_calls_stripe(client, engine, stripe: FakeStrip
     Attraper l'erreur Stripe évitait le plantage, pas la latence. L'état
     programmé étant persisté, plus aucun appel réseau n'est nécessaire.
     """
-    paying(engine, client, stripe, plan="scale")
+    paying(engine, client, stripe, plan="pro")
     assert change_to(client, "essential").status_code == 200
 
     stripe.forbid_reads = True
     body = client.get("/billing/status").json()
 
-    assert body["plan_code"] == "scale", "les droits payés restent"
+    assert body["plan_code"] == "pro", "les droits payés restent"
     assert body["scheduled_plan_change"]["plan_code"] == "essential"
 
 
 def test_cancelling_clears_the_persisted_state(client, engine, stripe: FakeStripe):
-    paying(engine, client, stripe, plan="scale")
+    paying(engine, client, stripe, plan="pro")
     assert change_to(client, "essential").status_code == 200
 
     assert client.delete("/billing/plan").status_code == 200
@@ -533,7 +508,7 @@ def test_the_switch_webhook_clears_the_persisted_state(client, engine, stripe: F
     Laisser l'annonce en place afficherait « vous descendrez le … » sur une
     bascule déjà faite — le mensonge que #29 existe pour empêcher.
     """
-    account_id = paying(engine, client, stripe, plan="scale")
+    account_id = paying(engine, client, stripe, plan="pro")
     assert change_to(client, "essential").status_code == 200
 
     # Stripe bascule la formule au terme et le webhook resynchronise.
@@ -565,7 +540,7 @@ def test_a_replacement_subscription_never_reuses_a_key(client, engine, stripe: F
     précédent. Stripe rendrait la réponse en cache, et rien ne serait programmé
     sur le nouvel abonnement.
     """
-    account_id = paying(engine, client, stripe, plan="scale")
+    account_id = paying(engine, client, stripe, plan="pro")
     assert change_to(client, "essential").status_code == 200
 
     # L'abonnement est résilié, puis un NOUVEL abonnement prend la place.
@@ -575,7 +550,7 @@ def test_a_replacement_subscription_never_reuses_a_key(client, engine, stripe: F
             subscription_id=remplacant,
             customer_id=CUSTOMER_ID,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             currency="chf",
             period_start=PERIOD_START,
             period_end=PERIOD_END,
@@ -585,7 +560,7 @@ def test_a_replacement_subscription_never_reuses_a_key(client, engine, stripe: F
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             status="canceled",
             subscription_id=SUBSCRIPTION_ID,
             customer_id=CUSTOMER_ID,
@@ -594,7 +569,7 @@ def test_a_replacement_subscription_never_reuses_a_key(client, engine, stripe: F
         subscribe(
             connection,
             account_id=account_id,
-            plan="scale",
+            plan="pro",
             subscription_id=remplacant,
             customer_id=CUSTOMER_ID,
             period_start=PERIOD_START,

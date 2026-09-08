@@ -107,7 +107,7 @@ Ne jamais inventer une identité juridique, un numéro IDE/TVA, un registre, une
 - rendre `upgrade_to` cohérent avec la vraie fenêtre d’historique de chaque plan ;
 - conserver la décision côté serveur ;
 - ne recommander qu’un plan qui ouvrirait réellement le signal ;
-- fournir un changement Essential / Pro / Scale sans second abonnement ;
+- fournir un changement Essential / Pro / offre supérieure sans second abonnement ;
 - définir devise, prorata, upgrade, downgrade et résiliation programmée ;
 - isoler une configuration Stripe Portal Kivou ;
 - exclure tout produit/prix extérieur au catalogue Kivou ;

@@ -14,7 +14,7 @@ def evaluate_readiness(evidence: ReadinessEvidence) -> AutonomousReadiness:
         evidence.h_d_shadow,
         evidence.h_e_capped,
         evidence.h_f_closed_loop,
-        evidence.h_g_scale,
+        evidence.h_g_precision,
     )
     blockers = tuple(
         sorted(
@@ -28,7 +28,7 @@ def evaluate_readiness(evidence: ReadinessEvidence) -> AutonomousReadiness:
     )
     refs = tuple(sorted({ref for gate in gates for ref in gate.evidence_refs}))
     if all(gate.status is GateStatus.READY for gate in gates):
-        mode = AutonomyMode.ADAPTIVE_SCALE
+        mode = AutonomyMode.ADAPTIVE_VOLUME
     elif all(
         gate.status is GateStatus.READY
         for gate in (evidence.h_a_runtime, evidence.h_b_state, evidence.h_c_policy, evidence.h_e_capped)
@@ -49,7 +49,7 @@ def evaluate_readiness(evidence: ReadinessEvidence) -> AutonomousReadiness:
         h_d_shadow=evidence.h_d_shadow,
         h_e_capped=evidence.h_e_capped,
         h_f_closed_loop=evidence.h_f_closed_loop,
-        h_g_scale=evidence.h_g_scale,
+        h_g_precision=evidence.h_g_precision,
         highest_safe_mode=mode,
         blockers=blockers,
         evidence_refs=refs,

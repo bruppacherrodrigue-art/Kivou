@@ -93,7 +93,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -109,7 +109,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -125,7 +125,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -141,7 +141,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -157,7 +157,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -173,7 +173,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -189,7 +189,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -205,7 +205,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -221,7 +221,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "very_large",
+   "magnitude_band": "very_large",
    "cpv_profile": "n/a"
   },
   {
@@ -237,7 +237,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -253,7 +253,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -269,7 +269,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -285,7 +285,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -301,7 +301,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -317,7 +317,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -333,7 +333,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -349,7 +349,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -365,7 +365,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "technical_installation"
   },
   {
@@ -381,7 +381,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "very_large",
+   "magnitude_band": "very_large",
    "cpv_profile": "technical_installation"
   },
   {
@@ -397,7 +397,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "immediate",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -413,7 +413,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -429,7 +429,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -445,7 +445,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -461,7 +461,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -477,7 +477,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -493,7 +493,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -509,7 +509,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -525,7 +525,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -541,7 +541,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -557,7 +557,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -573,7 +573,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -589,7 +589,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -605,7 +605,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -621,7 +621,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -637,7 +637,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -653,7 +653,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -669,7 +669,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -685,7 +685,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -701,7 +701,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -717,7 +717,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -733,7 +733,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -749,7 +749,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -765,7 +765,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -781,7 +781,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -797,7 +797,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -813,7 +813,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -829,7 +829,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -845,7 +845,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -861,7 +861,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -877,7 +877,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -893,7 +893,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -909,7 +909,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -925,7 +925,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "immediate",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -941,7 +941,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -957,7 +957,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -973,7 +973,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -989,7 +989,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1005,7 +1005,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1021,7 +1021,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1037,7 +1037,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1053,7 +1053,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -1069,7 +1069,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -1085,7 +1085,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1101,7 +1101,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -1117,7 +1117,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1133,7 +1133,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1149,7 +1149,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -1165,7 +1165,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -1181,7 +1181,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -1197,7 +1197,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "finishing"
   },
   {
@@ -1213,7 +1213,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -1229,7 +1229,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1245,7 +1245,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -1261,7 +1261,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1277,7 +1277,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1293,7 +1293,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "finishing"
   },
   {
@@ -1309,7 +1309,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1325,7 +1325,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -1341,7 +1341,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1357,7 +1357,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "finishing"
   },
   {
@@ -1373,7 +1373,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -1389,7 +1389,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -1405,7 +1405,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -1421,7 +1421,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -1437,7 +1437,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1453,7 +1453,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1469,7 +1469,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1485,7 +1485,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "building_civil"
   },
   {
@@ -1501,7 +1501,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "building_civil"
   },
   {
@@ -1517,7 +1517,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -1533,7 +1533,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "general_or_unknown"
   },
   {
@@ -1549,7 +1549,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "building_civil"
   },
   {
@@ -1565,7 +1565,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "large",
+   "magnitude_band": "large",
    "cpv_profile": "n/a"
   },
   {
@@ -1581,7 +1581,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "not_material",
+   "magnitude_band": "not_material",
    "cpv_profile": "n/a"
   },
   {
@@ -1597,7 +1597,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "very_large",
+   "magnitude_band": "very_large",
    "cpv_profile": "building_civil"
   },
   {
@@ -1613,7 +1613,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1629,7 +1629,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "n/a"
   },
   {
@@ -1645,7 +1645,7 @@
     "waste_and_environment": "supported"
    },
    "gold_timing": "unknown",
-   "scale_band": "modest",
+   "magnitude_band": "modest",
    "cpv_profile": "earthworks"
   },
   {
@@ -1661,7 +1661,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   },
   {
@@ -1677,7 +1677,7 @@
     "waste_and_environment": "forbidden"
    },
    "gold_timing": "recurring",
-   "scale_band": "unknown",
+   "magnitude_band": "unknown",
    "cpv_profile": "n/a"
   }
  ]

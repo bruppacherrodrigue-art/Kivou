@@ -174,8 +174,8 @@ h3 { font-size: 20px; line-height: 1.28; }
 
 .nav-links { display: flex; align-items: center; gap: 27px; list-style: none; }
 .nav-links a { position: relative; color: var(--ink-soft); font-size: 14px; font-weight: 650; text-decoration: none; }
-.nav-links a::after { position: absolute; right: 0; bottom: -8px; left: 0; height: 2px; border-radius: 2px; background: var(--iris-600); content: ""; opacity: 0; transform: scaleX(.45); transition: .18s ease; }
-.nav-links a:hover::after, .nav-links a[aria-current="page"]::after { opacity: 1; transform: scaleX(1); }
+.nav-links a::after { position: absolute; right: 0; bottom: -8px; left: 0; height: 2px; border-radius: 2px; background: var(--iris-600); content: ""; opacity: 0; transform: matrix(.45 0 0 1 .275 0); transition: .18s ease; }
+.nav-links a:hover::after, .nav-links a[aria-current="page"]::after { opacity: 1; transform: matrix(1 0 0 1 0 0); }
 
 .nav-actions { display: flex; align-items: center; gap: 9px; }
 .locale { display: flex; gap: 4px; margin-right: 4px; font-size: 11px; font-weight: 800; }

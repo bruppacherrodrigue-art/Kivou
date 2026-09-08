@@ -2,7 +2,7 @@
 
 Le défaut corrigé ici
 ─────────────────────
-`locked_detail()` rendait la liste FIXE `essential / pro / scale` pour tout
+`locked_detail()` rendait la liste FIXE `essential / pro / pro` pour tout
 signal verrouillé. Or l'accès payant n'est pas « tout ou rien » : chaque plan
 porte une fenêtre d'historique, et un signal de 400 jours reste verrouillé
 après un paiement Essential. Recommander Essential dans ce cas, c'est encaisser
@@ -165,12 +165,12 @@ def read_at(clock: Clock, *, age_days: int) -> None:
 @pytest.mark.parametrize(
     "age_days, expected",
     [
-        (0, ["essential", "pro", "scale"]),
-        (30, ["essential", "pro", "scale"]),
-        (31, ["pro", "scale"]),
-        (365, ["pro", "scale"]),
-        (366, ["scale"]),
-        (900, ["scale"]),
+        (0, ["essential", "pro"]),
+        (30, ["essential", "pro"]),
+        (31, ["pro"]),
+        (365, ["pro"]),
+        (366, []),
+        (900, []),
     ],
     ids=["today", "essential-edge", "past-essential", "pro-edge", "past-pro", "long-past"],
 )
@@ -211,7 +211,7 @@ def exhaust_discovery_grants(engine, client: TestClient) -> None:
 # ─── Le plan déjà payé ────────────────────────────────────────────────────────
 
 
-def test_a_pro_account_is_only_offered_scale_for_a_signal_beyond_its_year(
+def test_a_pro_account_has_no_higher_plan_for_a_signal_beyond_its_year(
     alice, engine, clock: Clock
 ):
     """Recommander Pro à un client Pro serait lui vendre ce qu'il a déjà."""
@@ -220,26 +220,16 @@ def test_a_pro_account_is_only_offered_scale_for_a_signal_beyond_its_year(
     pay(engine, alice, plan="pro")
     read_at(clock, age_days=400)
 
-    assert upgrade_to(alice, signal) == ["scale"]
+    assert upgrade_to(alice, signal) == []
 
 
-def test_an_essential_account_keeps_pro_and_scale_as_real_options(alice, engine, clock: Clock):
+def test_an_essential_account_is_offered_pro_as_the_only_higher_plan(alice, engine, clock: Clock):
     icp = icp_of(alice)
     signal = a_signal(engine, icp)
     pay(engine, alice, plan="essential")
     read_at(clock, age_days=100)
 
-    assert upgrade_to(alice, signal) == ["pro", "scale"]
-
-
-def test_a_scale_account_has_nothing_left_to_be_sold(alice, engine, clock: Clock):
-    """Scale ouvre tout l'historique persisté : plus rien n'est verrouillé."""
-    icp = icp_of(alice)
-    signal = a_signal(engine, icp)
-    pay(engine, alice, plan="scale")
-    read_at(clock, age_days=5_000)
-
-    assert detail(alice, signal)["locked"] is False
+    assert upgrade_to(alice, signal) == ["pro"]
 
 
 # ─── Un déblocage Discovery est acquis, pas prêté ─────────────────────────────
@@ -267,11 +257,10 @@ def test_a_discovery_granted_signal_never_produces_a_payment_recommendation(
 # ─── Une date absente n'entre dans aucune fenêtre finie ───────────────────────
 
 
-def test_a_signal_without_a_usable_date_is_only_opened_by_unlimited_history(alice, engine):
+def test_a_signal_without_a_usable_date_is_not_opened_by_a_bounded_plan(alice, engine):
     """Sans date, le signal ne PEUT pas prouver qu'il tombe dans une fenêtre.
 
-    Seul un plan à historique `all_available` l'ouvre — et c'est exactement ce
-    que `upgrade_to` doit dire, plutôt que de proposer les trois plans.
+    Aucun plan à historique borné ne peut prouver qu'il entre dans sa fenêtre.
     """
     icp = icp_of(alice)
     account_id = account_of(alice)
@@ -289,7 +278,7 @@ def test_a_signal_without_a_usable_date_is_only_opened_by_unlimited_history(alic
     )
     assert item.event_date is None
 
-    assert eligible_upgrade_plans(item, access=access) == ("scale",)
+    assert eligible_upgrade_plans(item, access=access) == ()
 
 
 def undated():

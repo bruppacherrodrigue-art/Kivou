@@ -248,7 +248,7 @@ def test_the_database_refuses_two_current_attempts_for_one_account(client, engin
             sa.insert(billing_checkout_attempt).values(
                 account_id=account_id,
                 attempt_id="cka_forced",
-                plan_code="scale",
+                plan_code="pro",
                 currency="eur",
                 status="creating",
                 expires_at=NOW + dt.timedelta(minutes=30),
@@ -344,7 +344,7 @@ def test_a_different_plan_never_resumes_an_interrupted_attempt(client, engine, s
     with pytest.raises(RuntimeError):
         start(client, plan="essential")
 
-    response = start(client, plan="scale")
+    response = start(client, plan="pro")
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "checkout_in_progress"
 
@@ -358,10 +358,10 @@ def test_an_expired_attempt_stops_blocking_the_account(client, engine, stripe, c
     assert start(client).status_code == 409
 
     clock.advance(dt.timedelta(minutes=CHECKOUT_ATTEMPT_TTL_MINUTES + 1))
-    assert start(client, plan="scale").status_code == 200
+    assert start(client, plan="pro").status_code == 200
 
     stored = attempt_of(engine, account_of(client))
-    assert stored.plan_code == "scale"
+    assert stored.plan_code == "pro"
     assert stored.status == "open"
     assert len(attempt_rows(engine)) == 1, "la table ne garde pas d'historique"
     assert len(stripe.checkout_calls) == 2
@@ -422,7 +422,7 @@ def test_a_checkout_may_restart_after_the_expired_event(app, client, engine, str
             "Content-Type": "application/json",
         },
     )
-    assert start(client, plan="scale").status_code == 200
+    assert start(client, plan="pro").status_code == 200
 
 
 # ─── §7, §10 E — complétion ───────────────────────────────────────────────────
@@ -489,7 +489,7 @@ def test_an_existing_subscription_prevents_any_attempt(client, engine, stripe, s
     with engine.begin() as connection:
         subscribe(connection, account_id=account_of(client), plan="pro", status=status, now=NOW)
 
-    response = start(client, plan="scale")
+    response = start(client, plan="pro")
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "already_subscribed"
     assert attempt_rows(engine) == []
