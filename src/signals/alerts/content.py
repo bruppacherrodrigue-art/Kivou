@@ -37,8 +37,8 @@ _MONTHS = {
 }
 _DATE_LABELS = {
     "award": {"fr": "Attribué le", "en": "Awarded on"},
-    "notification": {"fr": "Notifié le", "en": "Notified on"},
-    "contract_notification": {"fr": "Notifié le", "en": "Notified on"},
+    "notification": {"fr": "Attribué le", "en": "Awarded on"},
+    "contract_notification": {"fr": "Attribué le", "en": "Awarded on"},
     "publication": {"fr": "Publié le", "en": "Published on"},
 }
 _COUNTRIES = {

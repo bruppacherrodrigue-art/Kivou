@@ -164,7 +164,7 @@ def test_cli_imports_and_dry_runs_in_a_fresh_process_without_smtp(tmp_path):
     assert 'no_delivery_attempted=true' in result.stdout
 
 
-@pytest.mark.parametrize(('clock', 'label'), [('notification', 'Notifié le'), ('publication', 'Publié le')])
+@pytest.mark.parametrize(('clock', 'label'), [('notification', 'Attribué le'), ('publication', 'Publié le')])
 def test_actual_job_uses_effective_date_and_clock_label(tmp_path, clock, label):
     from signals.persistence.schema import contract_award, materialized_signal, source_event
 
@@ -189,6 +189,7 @@ def test_actual_job_uses_effective_date_and_clock_label(tmp_path, clock, label):
     assert report.signals_sent == 1
     for body in (mailer.last.text_body, html.unescape(mailer.last.html_body)):
         assert f'{label} {expected_day} août' in body
+        assert 'Notifié le' not in body
 
 
 def test_real_discovery_job_does_not_render_locked_neighbour_cards(tmp_path):
