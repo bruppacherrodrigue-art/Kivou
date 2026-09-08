@@ -91,3 +91,10 @@ le Dashboard avant action. Un éventuel compte Scale est migré vers Pro.
 Les comptes sont des lignes physiques des fichiers Python/TypeScript/TSX/Markdown;
 les JSON et fichiers générés sont exclus de ce tableau. La durée de la suite sera
 ajoutée avec la sortie CI, pas estimée localement.
+
+## Recette Playwright staging
+
+Captures desktop/mobile et drawer pour les trois comptes :
+[`2026-09-08-cleanup-playwright/README.md`](2026-09-08-cleanup-playwright/README.md).
+Le run a utilisé Chromium installé par le déploiement ; le compte recette a été
+connecté une seule fois puis redimensionné pour éviter le rate-limit login.
