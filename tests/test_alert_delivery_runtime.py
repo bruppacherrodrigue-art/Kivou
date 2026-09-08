@@ -624,7 +624,7 @@ def test_changed_preference_version_rearms_future_signals(
 def test_changed_eligibility_plan_and_cadence_rearm_future_signals(
     app, engine, mailer
 ) -> None:
-    client, _ = subscriber(app, engine, count=11, plan="pro")
+    client, _ = subscriber(app, engine, count=11, plan="essential")
     mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
     cycle(engine, mailer, now=NOW)
     refused_fingerprint = deliveries(engine)[0].recipient_context_fingerprint

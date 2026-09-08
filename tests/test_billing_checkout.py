@@ -172,7 +172,7 @@ def test_an_unauthenticated_caller_cannot_open_a_checkout(engine, stripe: FakeSt
 def test_one_stripe_customer_is_created_per_account_and_only_once(
     client: TestClient, stripe: FakeStripe, engine
 ):
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "essential", "currency": "chf"})
     client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     with engine.connect() as connection:
@@ -384,5 +384,5 @@ def test_the_founding_discount_never_applies_to_another_plan(engine, stripe: Fak
     account_id = client.get("/me").json()["account_id"]
     app.state.founding_accounts = frozenset({account_id})
 
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "essential", "currency": "chf"})
     assert stripe.checkout_calls[-1]["coupon_id"] is None
