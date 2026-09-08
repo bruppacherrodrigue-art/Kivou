@@ -68,6 +68,9 @@ _ENGINE_TERMS = frozenset(
         "logistics_and_transport",
     }
 )
+_LEGACY_FALLBACK_MARKERS = frozenset(
+    {"peut concerner votre activité", "attribué le"}
+)
 _TRADE_ACRONYMS = frozenset(
     {"CVC", "VRD", "MOA", "MOE", "BTP", "GO", "SO", "ERP", "RE2020", "DPGF"}
 )
@@ -413,18 +416,21 @@ def validate_sentence(sentence: str | None, value: ForYouInput) -> ValidationRes
 
 
 def fallback_sentence(value: ForYouInput) -> str:
-    title = " ".join((value.title or value.cpv_label or "marché public").split())
+    title = " ".join((value.title or value.cpv_label or "marché public").split())[:60].rstrip(" .,:;")
     location = " ".join((value.location or "").split())
     if len(location) == 2 and location.isalpha():
         location = ""
-    facts: list[str] = []
-    if value.amount:
-        facts.append(value.amount)
-    if value.awarded_on:
-        facts.append(f"attribué le {value.awarded_on}")
-    suffix = f" à {location}" if location else ""
-    parenthetical = f" ({', '.join(facts)})" if facts else ""
-    return f"Le marché « {title} »{suffix}{parenthetical} peut concerner votre activité."
+    facts = tuple(
+        part
+        for part in (
+            _display_amount(value.amount) if value.amount else None,
+            _display_month(value.awarded_on) if value.awarded_on else None,
+        )
+        if part
+    )
+    location_suffix = f" à {location}" if location else ""
+    facts_suffix = f" ({', '.join(facts)})" if facts else ""
+    return f"{title}{location_suffix}{facts_suffix} : dans votre zone et votre secteur."
 
 
 def client_safe_sentence(sentence: str | None) -> str | None:
@@ -432,7 +438,7 @@ def client_safe_sentence(sentence: str | None) -> str | None:
     if not sentence:
         return None
     folded = sentence.casefold()
-    if any(term in folded for term in _ENGINE_TERMS):
+    if any(term in folded for term in _ENGINE_TERMS | _LEGACY_FALLBACK_MARKERS):
         return None
     return sentence
 
