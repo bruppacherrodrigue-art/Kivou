@@ -284,7 +284,7 @@ def test_uncertain_delivery_stops_at_the_retry_budget(app, engine, mailer) -> No
 
 
 def test_retry_batch_does_not_absorb_a_new_signal(app, engine, mailer) -> None:
-    client, original_keys = subscriber(app, engine)
+    client, _original_keys = subscriber(app, engine)
     mailer.fail_with = failure("smtp_451", retryable=True)
     cycle(engine, mailer, now=NOW)
     icp = client.get("/target-icps").json()[0]["target_icp_id"]

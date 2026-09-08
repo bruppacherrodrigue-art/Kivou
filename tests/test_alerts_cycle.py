@@ -41,8 +41,7 @@ from engagement_helpers import (
 from feed_helpers import RESEARCH_ICP_ID, SIMAP_RICH, materialize, materialize_simap, simap_award
 
 from signals.alerts import job as alert_job
-from signals.alerts import policy, run_alert_cycle
-from signals.alerts import renderer
+from signals.alerts import policy, renderer, run_alert_cycle
 from signals.alerts.gateway import UncertainDelivery, message_id
 from signals.engagement.schema import signal_alert_delivery
 from signals.persistence.schema import for_you_sentence

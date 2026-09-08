@@ -135,7 +135,7 @@ def test_only_a_purchasable_plan_and_a_billable_currency_are_accepted(client, pa
     assert client.post("/billing/checkout", json=payload).status_code == 422
 
 
-@pytest.mark.parametrize("plan", ["essential", "pro", "pro"])
+@pytest.mark.parametrize("plan", ["essential", "pro"])
 @pytest.mark.parametrize("currency", ["chf", "eur"])
 def test_the_server_resolves_the_price_from_its_own_lookup_key(
     client: TestClient, stripe: FakeStripe, plan: str, currency: str

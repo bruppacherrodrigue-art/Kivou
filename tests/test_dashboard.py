@@ -440,8 +440,8 @@ def test_dashboard_counts_and_ranks_beyond_a_single_page(tmp_path):
         keys.extend(seed(engine, icp_of(client, label=f"Suivi {index}"), count=12))
     assert len(keys) == 60
 
-    #: La source 11 est la plus ancienne : ce signal est le 56e au tri du feed.
-    last_ranked = keys[11]
+    #: Le premier signal reste visible sous la limite de profils actifs de Pro.
+    last_ranked = keys[0]
     _set_band_and_score(engine, last_ranked, band="strong", score=90)
 
     payload = _dashboard(client)
