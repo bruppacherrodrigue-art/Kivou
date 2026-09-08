@@ -34,6 +34,7 @@ KIVOU_BACKEND_LINK=${KIVOU_BACKEND_LINK:-/srv/kivou/app}
 # live after an otherwise successful release activation.
 KIVOU_FRONTEND_LINK=${KIVOU_FRONTEND_LINK:-/srv/kivou/frontend}
 KIVOU_BACKUP_DIR=${KIVOU_BACKUP_DIR:-/srv/kivou/backups}
+KIVOU_BACKUP_SCRIPT_CONFIGURED=${KIVOU_BACKUP_SCRIPT+x}
 KIVOU_BACKUP_SCRIPT=${KIVOU_BACKUP_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou-backup.sh}
 KIVOU_READINESS_SCRIPT=${KIVOU_READINESS_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou-api-readiness.sh}
 KIVOU_SYSTEMD_UNIT=${KIVOU_SYSTEMD_UNIT:-kivou-api.service}
@@ -63,6 +64,10 @@ if [[ ! -d "$KIVOU_RELEASE_DIR/.git" && ! -f "$KIVOU_RELEASE_DIR/.git" ]]; then
   git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" worktree add --detach "$KIVOU_RELEASE_DIR" "$KIVOU_SHA"
 fi
 [[ "$(git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" == "$KIVOU_SHA" ]] || fail "checkout différent du SHA demandé"
+if [[ -z "${KIVOU_BACKUP_SCRIPT_CONFIGURED:-}" ]]; then
+  KIVOU_BACKUP_SCRIPT="$KIVOU_RELEASE_DIR/ops/bin/kivou-backup.sh"
+fi
+[[ -x "$KIVOU_BACKUP_SCRIPT" ]] || fail "helper de sauvegarde introuvable dans la release"
 
 uv sync --project "$KIVOU_RELEASE_DIR" --frozen --extra server --extra postgres
 mkdir -p "$KIVOU_PLAYWRIGHT_BROWSERS_DIR"
