@@ -5,7 +5,6 @@ import argparse
 import datetime as dt
 import hashlib
 import json
-import os
 
 import sqlalchemy as sa
 
@@ -15,6 +14,7 @@ from signals.billing.access import feed_access
 from signals.billing.schema import discovery_signal_grant
 from signals.ingestion.backfill import landing_cohort_plan
 from signals.persistence import materialize_signal
+from signals.persistence.database import create_database_engine
 from signals.persistence.identity import signal_key
 from signals.persistence.schema import materialized_signal
 
@@ -104,10 +104,10 @@ def main() -> None:
     mode.add_argument("--apply", action="store_true")
     parser.add_argument("--expected-audit")
     args = parser.parse_args()
-    dsn = os.environ.get("DATABASE_URL")
-    if not dsn:
-        parser.error("DATABASE_URL is required; this command never creates or migrates a database")
-    engine = sa.create_engine(dsn)
+    try:
+        engine = create_database_engine()
+    except RuntimeError as exc:
+        parser.error(str(exc))
     try:
         result = reconcile_discovery_grants(
             engine, account_id=args.account_id, now=dt.datetime.now(dt.UTC),
