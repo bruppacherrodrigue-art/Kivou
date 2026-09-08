@@ -160,6 +160,6 @@ log "sauvegarde acceptée : $(basename "${TARGET}") (${ACTUAL} octets)"
 #
 # APRÈS succès seulement. Purger avant, ou purger après un échec, c'est effacer
 # les bonnes copies le jour précis où elles deviennent indispensables.
-DELETED="$(find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'kivou-*.dump' \
+DELETED="$(cd / && find "${BACKUP_DIR}" -maxdepth 1 -type f -name 'kivou-*.dump' \
     -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)"
 log "rétention ${RETENTION_DAYS} j — ${DELETED} archive(s) supprimée(s)"
