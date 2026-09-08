@@ -74,6 +74,8 @@ def get_dashboard(request: Request) -> dict[str, Any]:
                 limit=access.entitlements.max_active_icps,
             )
         )
+        discovery.fill_token_cohort(connection, account_id=session.account_id, now=now)
+        access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         previous_seen = accounts.read_last_seen_at(connection, account_id=session.account_id)
         result = build_dashboard(
             connection,

@@ -894,6 +894,9 @@ def record_landing_signal(
     signal, parce qu'entre-temps le profil du client a pu devenir actif et
     l'opportunité, matérialisée. La date de création, elle, ne bouge jamais.
     """
+    from signals.billing import discovery
+
+    discovery.lock_account(connection, account_id=account_id)
     row = connection.execute(
         sa.select(account_landing_signal).where(
             account_landing_signal.c.account_id == account_id
@@ -910,6 +913,7 @@ def record_landing_signal(
                 created_at=now,
             )
         )
+        discovery.fill_token_cohort(connection, account_id=account_id, now=now)
         return LandingSignal(account_id, opportunity_key, signal_key, now)
     if signal_key is not None and row.signal_key != signal_key:
         connection.execute(
@@ -917,7 +921,9 @@ def record_landing_signal(
             .where(account_landing_signal.c.account_id == account_id)
             .values(signal_key=signal_key)
         )
+        discovery.fill_token_cohort(connection, account_id=account_id, now=now)
         return LandingSignal(account_id, row.opportunity_key, signal_key, _aware(row.created_at))
+    discovery.fill_token_cohort(connection, account_id=account_id, now=now)
     return LandingSignal(
         account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
     )

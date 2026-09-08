@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
@@ -59,6 +59,18 @@ async function openLockedBilling(user: ReturnType<typeof userEvent.setup>) {
   await user.click(
     await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
   )
+  await openOffers(user)
+}
+
+async function openOffers(user = userEvent.setup()) {
+  const panel = await screen.findByRole('complementary', { name: 'Aperçu réservé' })
+  expect(screen.queryByRole('heading', { level: 1, name: 'Abonnement' })).not.toBeInTheDocument()
+  const link = within(panel).getByRole('link', { name: 'Voir les offres' })
+  expect(link).toHaveAttribute('href', '/tarifs')
+  await user.click(link)
+  // Merely visiting prices must not persist a purchase intent.
+  expect(sessionStorage.length).toBe(0)
+  await user.click(await screen.findByRole('link', { name: 'Choisir Pro' }))
   await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
 }
 
@@ -121,6 +133,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
+    await openOffers()
     await selectPro()
     expect(document.body.textContent).not.toContain(LOCKED_DETAIL.access.reason)
 
@@ -141,12 +154,43 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
+    await openOffers()
     await selectPro()
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
     for (const secret of PROTECTED) {
       expect(serialised).not.toContain(secret)
     }
+  })
+})
+
+describe('contexte valide entre tarifs et facturation', () => {
+  it('ne transmet que la cle validee, sans copier un etat de navigation arbitraire', async () => {
+    const user = userEvent.setup()
+    mockApi(BILLING_ROUTES)
+    renderApp(<>
+      <Link to="/tarifs" state={{ lockedSignalKey: ' sig_locked_1 ', company: PROTECTED[0], amount: PROTECTED[5] }}>Tarifs test</Link>
+      <AppRoutes /><NavigationStateProbe />
+    </>, { session: AUTHENTICATED, route: '/app/billing' })
+    await user.click(screen.getByRole('link', { name: 'Tarifs test' }))
+    const plan = await screen.findByRole('link', { name: 'Choisir Pro' })
+    expect(plan).toHaveAttribute('href', '/app/billing?plan=pro')
+    await user.click(plan)
+    await screen.findByLabelText('Offre')
+    expect(JSON.parse(screen.getByTestId('nav-state').textContent!)).toEqual({ lockedSignalKey: 'sig_locked_1' })
+    expect(sessionStorage.length).toBe(0)
+  })
+
+  it.each([null, '', '\u0000invalid', 'x'.repeat(129)])('ignore une cle de retour invalide: %j', async (key) => {
+    const user = userEvent.setup()
+    mockApi(BILLING_ROUTES)
+    renderApp(<>
+      <Link to="/tarifs" state={{ lockedSignalKey: key }}>Tarifs test</Link>
+      <AppRoutes />
+    </>, { session: AUTHENTICATED, route: '/app/billing' })
+    await user.click(screen.getByRole('link', { name: 'Tarifs test' }))
+    expect(await screen.findByRole('link', { name: 'Choisir Pro' })).toHaveAttribute('href', '/signup?plan=pro')
+    expect(sessionStorage.length).toBe(0)
   })
 })
 

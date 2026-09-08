@@ -1,4 +1,6 @@
 import type { AlertCadence, CataloguePlan, Currency, PlanCode } from '../api/types'
+import { useLocation } from 'react-router-dom'
+import { validateSignalKey } from '../billing/checkoutIntent'
 import { PublicPageMeta } from '../components/PublicPageMeta'
 import {
   PUBLIC_PLAN_CODES,
@@ -25,6 +27,10 @@ import {
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function PublicPricing() {
+  const location = useLocation()
+  const lockedSignalKey = validateSignalKey(
+    (location.state as { lockedSignalKey?: unknown } | null)?.lockedSignalKey,
+  )
   const pricing = usePricingResource()
   const discovery = publicPlan(pricing, 'discovery')
   const plans = pricing.status === 'ready' ? publicPlans(pricing.catalogue) : []
@@ -55,7 +61,7 @@ export function PublicPricing() {
           {PUBLIC_PLAN_CODES.map((code) => {
             const plan = plansByCode.get(code)
             return plan
-              ? <PricingCard key={code} plan={plan} currency={pricing.currency} plansByCode={plansByCode} />
+              ? <PricingCard key={code} plan={plan} currency={pricing.currency} plansByCode={plansByCode} lockedSignalKey={lockedSignalKey} />
               : <UnavailablePricingCard key={code} code={code} state={pricing} />
           })}
         </section>
@@ -92,15 +98,20 @@ function PricingCard({
   plan,
   currency,
   plansByCode,
+  lockedSignalKey,
 }: {
   plan: CataloguePlan
   currency: Currency | null
   plansByCode: ReadonlyMap<PlanCode, CataloguePlan>
+  lockedSignalKey: string | null
 }) {
   const price = publicPrice(plan, currency)
   const free = plan.plan_code === 'discovery'
   const checkoutPriceUnavailable = !free && plan.purchasable && !price
   const classes = `glass price-card${plan.recommended ? ' recommended' : ''}`
+  // The authenticated signal journey keeps only its validated return key.
+  // Billing remains responsible for saving intent after a successful checkout.
+  const signalCheckout = lockedSignalKey !== null && !free && plan.purchasable
 
   return (
     <article className={classes}>
@@ -116,7 +127,7 @@ function PricingCard({
       <PricingFeatureList plan={plan} plansByCode={plansByCode} />
       {checkoutPriceUnavailable
         ? <span className={`btn ${plan.recommended ? 'primary' : 'secondary'}`} aria-disabled="true">{PUBLIC_PLAN_CTA[plan.plan_code]}</span>
-        : <ReferenceLink className={`btn ${plan.recommended ? 'primary' : 'secondary'}`} href={publicPlanHref(plan)}>{PUBLIC_PLAN_CTA[plan.plan_code]}</ReferenceLink>}
+        : <ReferenceLink className={`btn ${plan.recommended ? 'primary' : 'secondary'}`} href={signalCheckout ? `/app/billing?plan=${plan.plan_code}` : publicPlanHref(plan)} state={signalCheckout ? { lockedSignalKey } : null}>{PUBLIC_PLAN_CTA[plan.plan_code]}</ReferenceLink>}
     </article>
   )
 }

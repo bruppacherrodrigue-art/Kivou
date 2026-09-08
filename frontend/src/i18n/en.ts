@@ -1132,6 +1132,10 @@ export const en: Dictionary = {
   },
 
   locked: {
+    previewTitle: 'Locked preview',
+    offers: 'View plans',
+    offersScope: 'Essential and Pro plans: check access rights and the history window before choosing.',
+    otherSignals: '{count} other signals in your area',
     badge: 'Locked',
     title: 'Extend access to your stream',
     teaserHeadingFallback: 'A signal detected in your scope',

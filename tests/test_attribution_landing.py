@@ -247,7 +247,7 @@ def _materialize_promise(engine, *, opportunity_key: str, target_icp_id: str) ->
     return signal_key
 
 
-def test_a_materialized_promise_lands_on_the_signal_and_costs_no_discovery_slot(
+def test_a_materialized_promise_lands_on_the_signal_and_consumes_a_discovery_slot(
     tmp_path,
 ) -> None:
     engine, service, token, _ = prepared(tmp_path)
@@ -277,10 +277,10 @@ def test_a_materialized_promise_lands_on_the_signal_and_costs_no_discovery_slot(
         access = feed_access(connection, account_id=account_id, as_of=CLICKED_AT.date())
         slots = remaining_slots(connection, account_id=account_id)
     assert promise["signal_key"] == signal_key
-    # Ouvert nominativement, et sans consommer une des trois places offertes :
-    # la promesse est antérieure au compte, la facturer serait la reprendre.
+    # The token promise is part of the lifetime allocation, never a bonus.
     assert signal_key in access.granted
-    assert slots == DISCOVERY_GRANT_LIMIT
+    assert slots == DISCOVERY_GRANT_LIMIT - len(access.granted)
+    assert slots < DISCOVERY_GRANT_LIMIT
 
 
 def test_an_expired_link_opens_nothing_at_all(tmp_path) -> None:

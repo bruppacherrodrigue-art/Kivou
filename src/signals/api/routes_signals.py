@@ -464,7 +464,14 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
     permettrait de choisir ses cadeaux en changeant l'URL, et rendrait le
     résultat non déterministe.
     """
-    if access.is_paid or discovery.remaining_slots(connection, account_id=account_id) == 0:
+    if access.is_paid:
+        return access
+    if service.landing_signal(connection, account_id=account_id) is not None:
+        discovery.fill_token_cohort(connection, account_id=account_id, now=now)
+        return dataclasses.replace(access, granted=discovery.granted_signal_keys(
+            connection, account_id=account_id
+        ))
+    if discovery.remaining_slots(connection, account_id=account_id) == 0:
         return access
     eligible = query.feed_page(
         connection,

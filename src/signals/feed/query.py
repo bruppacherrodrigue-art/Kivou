@@ -713,7 +713,20 @@ def feed_page(
                 excluded_by_status += 1
         selected = admitted_by_status
 
-    selected.sort(key=lambda item: item.sort_key)
+    from signals.billing import discovery
+
+    if discovery.is_token_discovery(connection, account_id=account_id, as_of=as_of):
+        facts = discovery.opportunity_facts(
+            connection, [item.signal.opportunity_key for item in selected], as_of=as_of
+        )
+        selected = [item for item in selected
+                    if facts.get(item.signal.opportunity_key, {}).get("named")]
+        granted = discovery.granted_signal_keys(connection, account_id=account_id)
+        selected.sort(key=lambda item: (
+            item.signal.signal_key not in granted, discovery.fit_sort_key(item)
+        ))
+    else:
+        selected.sort(key=lambda item: item.sort_key)
     page = selected[offset : offset + limit]
     return FeedPage(
         items=tuple(page),

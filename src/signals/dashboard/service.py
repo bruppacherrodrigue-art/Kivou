@@ -46,9 +46,7 @@ from signals.feed import policy
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
 from signals.feed.query import FeedSignal
-
-#: Meilleur `icp_match_band` d'abord. `None`/inconnu ne prétend à rien (§5).
-_BAND_RANK: dict[str, int] = {"strong": 3, "promising": 2, "weak": 1}
+from signals.feed.ranking import match_band_rank as _band_rank
 
 #: Fix round 2 (F4) — le nombre de relances rendues, et donc le nombre de
 #: lectures par signal que ce bloc peut coûter. Sans plafond, une entreprise
@@ -57,10 +55,6 @@ _BAND_RANK: dict[str, int] = {"strong": 3, "promising": 2, "weak": 1}
 #: anciennes suffisent à un écran « à faire aujourd'hui » ; au-delà,
 #: `to_follow_up_truncated` le dit plutôt que de le taire.
 _FOLLOW_UP_LIMIT = 10
-
-
-def _band_rank(band: str | None) -> int:
-    return _BAND_RANK.get(band, 0)
 
 
 def _top3_sort_key(item: FeedSignal) -> tuple[int, int, int]:

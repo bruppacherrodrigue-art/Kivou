@@ -159,7 +159,8 @@ def feed_access(connection: sa.Connection, *, account_id: str, as_of: dt.date) -
         entitlements=state.entitlements,
         granted=(
             discovery.granted_signal_keys(connection, account_id=account_id)
-            | accounts.landing_signal_keys(connection, account_id=account_id)
+        | (accounts.landing_signal_keys(connection, account_id=account_id)
+           if state.entitlements.is_paid else frozenset())
         ),
         as_of=as_of,
     )
