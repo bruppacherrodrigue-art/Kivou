@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
+import os
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -59,3 +63,55 @@ def test_cli_refuses_missing_runtime_configuration_without_fallback(monkeypatch,
     assert "KIVOU_DATABASE_URL" in output.err
     assert "must-not-be-created" not in output.err
     assert output.out == ""
+
+
+def test_cli_dry_run_in_fresh_process_without_preloaded_api(tmp_path, monkeypatch) -> None:
+    import test_discovery_landing_allocation as fixtures
+    from engagement_helpers import make_engine
+
+    from signals.accounts import service as accounts
+    from signals.billing import discovery
+    from signals.ingestion.backfill import materialize_landing_feed_in_transaction
+
+    now = dt.datetime.now(dt.UTC)
+    monkeypatch.setattr(fixtures, "NOW", now)
+    engine = make_engine(tmp_path)
+    account_id, target, opportunities = fixtures.source_fixture(engine, count=5)
+    with engine.begin() as connection:
+        bait = materialize_landing_feed_in_transaction(
+            connection, target_icp_id=target, opportunity_key=opportunities[0],
+            as_of=now.date(), materialized_at=now,
+        )
+        accounts.record_landing_signal(
+            connection, account_id=account_id, opportunity_key=opportunities[0],
+            signal_key=bait, qa=True, now=now,
+        )
+        before = discovery.grants(connection, account_id=account_id)
+    environment = dict(os.environ)
+    environment.pop("DATABASE_URL", None)
+    environment["KIVOU_DATABASE_URL"] = str(engine.url)
+    environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
+    result = subprocess.run(
+        [sys.executable, "-m", "signals.qa.discovery_grants", "--account-id", account_id,
+         "--dry-run"],
+        env=environment, text=True, capture_output=True, timeout=30, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    audit = json.loads(result.stdout)
+    assert audit["dry_run"] is True
+    assert audit["before"] == audit["after"]
+    assert audit["bait_preserved"] is True
+    assert len(audit["proposed_grants"]) == 3
+    with engine.connect() as connection:
+        assert discovery.grants(connection, account_id=account_id) == before
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("band", "expected"),
+    [("strong", 3), ("promising", 2), ("weak", 1), (None, 0), ("unknown", 0)],
+)
+def test_shared_match_ranking_preserves_dashboard_order(band, expected) -> None:
+    from signals.feed.ranking import match_band_rank
+
+    assert match_band_rank(band) == expected

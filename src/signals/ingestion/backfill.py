@@ -18,6 +18,7 @@ from signals.domain.french_departments import (
 from signals.domain.prospect import MAX_PROSPECT_AGE_DAYS, prospect_refusal_codes
 from signals.feed.policy import CANDIDATE_SCAN_CAP
 from signals.feed.query import is_customer_display_name
+from signals.feed.ranking import match_band_rank
 from signals.ingestion.persisted import canonical_award, canonical_event
 from signals.matching import MatchingEngine
 from signals.needs import NeedGraphEngine
@@ -454,13 +455,11 @@ def landing_cohort_plan(
                       "refusal_codes": codes})
         if result is not None:
             qualified.append((neighbour, result))
-    from signals.dashboard.service import _band_rank
-
     def rank(item):
         key, prepared = item
         award, event, match = prepared["award"], prepared["event"], prepared["match"]
         date = award.award_date or award.contract_notification_date or _publication_date(event)
-        return (-_band_rank(match.band), -match.normalized_score,
+        return (-match_band_rank(match.band), -match.normalized_score,
                 -(date.toordinal() if date else -1), key)
 
     qualified.sort(key=rank)
