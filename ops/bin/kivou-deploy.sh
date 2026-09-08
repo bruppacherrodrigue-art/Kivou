@@ -29,7 +29,10 @@ fi
 [[ "$(stat -c '%U:%G' "$KIVOU_SOURCE_DIR")" == "kivou:kivou" ]] || fail "propriétaire du checkout invalide : $KIVOU_SOURCE_DIR"
 KIVOU_RELEASES_DIR=${KIVOU_RELEASES_DIR:-/srv/kivou/releases}
 KIVOU_BACKEND_LINK=${KIVOU_BACKEND_LINK:-/srv/kivou/app}
-KIVOU_FRONTEND_LINK=${KIVOU_FRONTEND_LINK:-/var/www/kivou/current}
+# Nginx serves this path on both staging and production. Keep the default
+# aligned with the web server so a missing override cannot leave stale HTML
+# live after an otherwise successful release activation.
+KIVOU_FRONTEND_LINK=${KIVOU_FRONTEND_LINK:-/srv/kivou/frontend}
 KIVOU_BACKUP_DIR=${KIVOU_BACKUP_DIR:-/srv/kivou/backups}
 KIVOU_BACKUP_SCRIPT=${KIVOU_BACKUP_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou-backup.sh}
 KIVOU_READINESS_SCRIPT=${KIVOU_READINESS_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou-api-readiness.sh}
