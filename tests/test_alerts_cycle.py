@@ -254,7 +254,7 @@ def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine
     assert len(mailer.sent) == 1
     assert report.sent[0].signal_count == 1
     assert "autres signaux" in mailer.last.text_body
-    assert f"{PUBLIC_APP_URL}/pricing" in mailer.last.text_body
+    assert f"{PUBLIC_APP_URL}/tarifs" in mailer.last.text_body
 
 
 # ─── §37.2 à §37.5 — les cadences ────────────────────────────────────────────
@@ -640,7 +640,7 @@ def test_the_message_id_is_deterministic_and_leaks_nothing(app, engine, mailer):
 
     identifier = mailer.last.message_id
     assert identifier.startswith("<kivou-alert-")
-    assert identifier.endswith("@kivou.ch>")
+    assert identifier.endswith("@kivou.test>")
     for forbidden in ("@negoce-romand", "alice", "acc_"):
         assert forbidden not in identifier, forbidden
 
@@ -668,7 +668,8 @@ def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
     assert message.language == "en"
     assert "new signal" in message.subject
     assert "Hello," in message.text_body
-    assert "Plausible needs" in message.text_body
+    assert "For you" in message.text_body
+    assert "Plausible needs" not in message.text_body
 
 
 def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer):
@@ -677,8 +678,10 @@ def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer
 
     body = mailer.last.text_body
     assert "Bonjour," in body
-    assert "vient de remporter un marché public." in body
-    assert "Décision d'attribution récente." in body
+    assert "Pour vous :" in body
+    assert "Ouvrir :" in body
+    assert "vient de remporter un marché public." not in body
+    assert "Décision d'attribution récente." not in body
 
 
 def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mailer):
@@ -832,9 +835,9 @@ def test_the_email_never_claims_a_win_it_cannot_support(app, engine, mailer):
     cycle(engine, mailer)
 
     body = mailer.last.text_body
-    # Les signaux envoyés sont tous `recent_award` : la phrase de victoire est
-    # légitime ici, et c'est la seule configuration où elle l'est.
-    assert any(marker in body.lower() for marker in JUST_WON_MARKERS)
+    # PR6 uses the factual date instead of a second, email-only win claim.
+    assert not any(marker in body.lower() for marker in JUST_WON_MARKERS)
+    assert "Attribué le" in body
 
 
 def test_no_tracking_pixel_or_third_party_tracker_is_added(app, engine, mailer):

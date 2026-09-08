@@ -31,11 +31,13 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import datetime as dt
+import re
 import secrets
 from collections.abc import Iterator
 
 import sqlalchemy as sa
 
+from signals.accounts.qa import is_qa_account
 from signals.accounts.schema import account, auth_user
 from signals.accounts.service import normalize_email
 from signals.alerts import content, delivery, lease, policy
@@ -44,6 +46,7 @@ from signals.alerts.gateway import (
     AlertDeliveryGateway,
     AlertMessage,
     UncertainDelivery,
+    configured_message_domain,
 )
 from signals.billing import service as billing
 from signals.billing.access import feed_access
@@ -51,7 +54,6 @@ from signals.engagement import analytics, notifications
 from signals.engagement.schema import account_notification_preference, signal_alert_delivery
 from signals.feed import policy as feed_policy
 from signals.feed import query as feed_query
-from signals.feed import view as feed_view
 from signals.recency.claim import LANGUAGES
 from signals.runtime_events import emit_delivery_event
 from signals.transactional_email.links import preferences_url, signal_url
@@ -353,6 +355,8 @@ def run_alert_cycle(
     now: dt.datetime,
     public_app_url: str | None,
     account_id: str | None = None,
+    qa_resend_nonce: str | None = None,
+    message_id_domain: str | None = None,
     delivery_lease_ttl: dt.timedelta = dt.timedelta(minutes=30),
     job_lease_ttl: dt.timedelta | None = None,
     retry_base: dt.timedelta = dt.timedelta(minutes=15),
@@ -367,6 +371,11 @@ def run_alert_cycle(
     `account_id` limits an operator-triggered cycle to that exact account,
     while retaining the global job lease and every normal delivery check.
     """
+    if qa_resend_nonce is not None and (
+        not account_id or not account_id.strip()
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{7,127}", qa_resend_nonce) is None
+    ):
+        raise ValueError("QA resend requires an explicit account and valid nonce")
     owner_id = secrets.token_hex(16)
     with engine.begin() as connection:
         acquisition = lease.acquire(
@@ -381,6 +390,8 @@ def run_alert_cycle(
     try:
         outcomes: list[AlertOutcome] = []
         with engine.connect() as connection:
+            if qa_resend_nonce is not None and not is_qa_account(connection, account_id):
+                raise ValueError("QA resend requires a marked QA account")
             query = sa.select(account.c.account_id, account.c.locale).order_by(
                 account.c.account_id
             )
@@ -397,6 +408,8 @@ def run_alert_cycle(
                     locale=row.locale,
                     now=now,
                     public_app_url=public_app_url,
+                    qa_resend_nonce=qa_resend_nonce,
+                    message_id_domain=message_id_domain or configured_message_domain(public_app_url),
                     delivery_lease_ttl=delivery_lease_ttl,
                     retry_base=retry_base,
                     max_attempts=max_attempts,
@@ -416,6 +429,8 @@ def _run_for_account(
     locale: str | None,
     now: dt.datetime,
     public_app_url: str | None,
+    qa_resend_nonce: str | None = None,
+    message_id_domain: str = "localhost",
     delivery_lease_ttl: dt.timedelta,
     retry_base: dt.timedelta,
     max_attempts: int,
@@ -427,6 +442,13 @@ def _run_for_account(
         state = billing.billing_state(connection, account_id=account_id)
         cadence = state.entitlements.alert_cadence
         batch = delivery.next_due_batch(connection, account_id=account_id, now=now)
+        if qa_resend_nonce is not None:
+            manual_key = delivery.qa_resend_key(account_id, qa_resend_nonce)
+            requested = delivery.qa_resend_requested(connection, account_id, qa_resend_nonce)
+            if requested and (batch is None or batch.batch_key != manual_key):
+                return AlertOutcome(account_id, cadence, "qa_resend_already_processed")
+            if not requested and delivery.has_unfinished_batch(connection, account_id=account_id):
+                return AlertOutcome(account_id, cadence, "qa_resend_pending_batch")
         if cadence not in policy.SENDING_CADENCES:
             if batch is not None:
                 _suppress(
@@ -530,7 +552,7 @@ def _run_for_account(
             )
 
         if batch is None:
-            if not policy.is_due(
+            if qa_resend_nonce is None and not policy.is_due(
                 cadence,
                 last_sent_at=_last_successful_send(
                     connection,
@@ -556,21 +578,26 @@ def _run_for_account(
                 )
 
             signal_limit = 1 if state.is_discovery else policy.MAXIMUM_SIGNALS_PER_EMAIL
-            new_items = eligible_signals(
-                connection,
-                account_id=account_id,
-                as_of=now.date(),
-                limit=signal_limit,
+            new_items = (
+                _accessible_signals(connection, account_id=account_id, as_of=now.date(), enough=1)[:1]
+                if qa_resend_nonce is not None else eligible_signals(
+                    connection, account_id=account_id, as_of=now.date(), limit=signal_limit,
+                )
             )
             if not new_items:
                 return AlertOutcome(account_id, cadence, "nothing_to_send")
-            batch = delivery.queue_batch(
+            queue = delivery.queue_qa_resend if qa_resend_nonce is not None else delivery.queue_batch
+            extra = ({"nonce": qa_resend_nonce, "content_version": content.ALERT_COPY_VERSION}
+                     if qa_resend_nonce is not None else {})
+            batch = queue(
                 connection,
                 account_id=account_id,
                 signal_keys=(item.signal.signal_key for item in new_items),
                 cadence=cadence,
                 recipient_context_fingerprint=recipient_context_fingerprint,
                 now=now,
+                message_id_domain=message_id_domain,
+                **extra,
             )
             if batch is None:
                 return AlertOutcome(account_id, cadence, "nothing_to_send")
@@ -581,7 +608,7 @@ def _run_for_account(
                     signal_key=signal_key,
                     event_type="alert_queued",
                     occurred_at=now,
-                    properties={"cadence": cadence},
+                    properties={"cadence": cadence, "content_version": content.ALERT_COPY_VERSION},
                 )
 
         if not public_app_url:
@@ -684,9 +711,23 @@ def _run_for_account(
         )
         lang = _language(locale)
         items = [by_key[key] for key in batch.signal_keys]
+        # Local imports keep the CLI independent of API application bootstrap.
+        # Today re-exports these exact lower-level card rendering functions.
+        from signals.card_intelligence.store import published_for_signals
+        from signals.companies.enrichment import winner_enrichments_for_signals
+        from signals.feed.cards import presentation_bindings_for_items, render_unlocked_card
+
+        presentations = published_for_signals(
+            connection, account_id=account_id,
+            bindings=presentation_bindings_for_items(connection, items), language=lang,
+        )
+        enrichments = winner_enrichments_for_signals(connection, signal_keys=batch.signal_keys)
         lines = [
             content.line_from_card(
-                feed_view.feed_item(item, lang=lang),
+                render_unlocked_card(
+                    item, lang=lang, presentation=presentations.get(item.signal.signal_key),
+                    company_key=None, enrichment=enrichments.get(item.signal.signal_key), status="new",
+                ),
                 url=signal_url(public_app_url, item.signal.signal_key),
                 lang=lang,
             )
@@ -710,7 +751,7 @@ def _run_for_account(
                 0,
                 sum(1 for item in page.items if item.model_fit != "none") - len(lines),
             )
-            pricing_link = f"{public_app_url.rstrip('/')}/pricing"
+            pricing_link = f"{public_app_url.rstrip('/')}/tarifs"
         message = AlertMessage(
             to_email=preference.notification_email,
             subject=content.subject(len(lines), lang=lang),
@@ -725,6 +766,7 @@ def _run_for_account(
             message_id=batch.message_id,
             language=lang,
             preferences_url=preferences_link,
+            content_version=content.ALERT_COPY_VERSION,
         )
 
     # Queue/render are already committed. Only the final recipient guard spans
@@ -950,6 +992,7 @@ def _run_for_account(
                 properties={
                     "cadence": cadence,
                     "signal_count": len(batch.signal_keys),
+                    "content_version": content.ALERT_COPY_VERSION,
                 },
             )
     except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):

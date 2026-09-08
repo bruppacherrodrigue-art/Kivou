@@ -11,7 +11,7 @@ from collections.abc import Iterable, Sequence
 import sqlalchemy as sa
 
 from signals.alerts.gateway import message_id
-from signals.engagement.schema import signal_alert_delivery
+from signals.engagement.schema import product_event, signal_alert_delivery
 
 SUPPRESSION_REASON_CODES: frozenset[str] = frozenset(
     {
@@ -83,6 +83,7 @@ def queue_batch(
     cadence: str,
     recipient_context_fingerprint: str,
     now: dt.datetime,
+    message_id_domain: str = "localhost",
 ) -> DeliveryBatch | None:
     """Persist one new logical batch without changing an existing retry batch."""
 
@@ -108,7 +109,7 @@ def queue_batch(
         return None
 
     batch_key = logical_batch_key(account_id, accepted)
-    delivery_message_id = message_id(account_id=account_id, batch_key=batch_key)
+    delivery_message_id = message_id(account_id=account_id, batch_key=batch_key, domain=message_id_domain)
     legacy_keys = tuple(key for key in accepted if key in existing)
     if legacy_keys:
         connection.execute(
@@ -485,3 +486,88 @@ def _owned_rows(
 def _expect_all(result: sa.CursorResult, batch: DeliveryBatch) -> None:
     if result.rowcount != len(batch.signal_keys):
         raise DeliveryStateConflict(batch.batch_key)
+
+
+def qa_resend_key(account_id: str, nonce: str) -> str:
+    return hashlib.sha256(json.dumps(
+        ["qa-alert-resend", account_id, nonce], separators=(",", ":")
+    ).encode()).hexdigest()[:40]
+
+
+def qa_resend_requested(connection: sa.Connection, account_id: str, nonce: str) -> bool:
+    return bool(connection.scalar(sa.select(sa.exists().where(
+        product_event.c.event_id == f"evt_qa_alert_{qa_resend_key(account_id, nonce)}",
+        product_event.c.account_id == account_id,
+    ))))
+
+
+def has_unfinished_batch(connection: sa.Connection, *, account_id: str) -> bool:
+    return bool(connection.scalar(sa.select(sa.exists().where(
+        signal_alert_delivery.c.account_id == account_id,
+        sa.or_(signal_alert_delivery.c.status.in_(("queued", "sending")), sa.and_(
+            signal_alert_delivery.c.status.in_(("failed", "unknown_delivery_state")),
+            signal_alert_delivery.c.retryable.is_(True),
+        )),
+    ))))
+
+
+def queue_qa_resend(
+    connection: sa.Connection, *, account_id: str, signal_keys: Iterable[str],
+    cadence: str, recipient_context_fingerprint: str, now: dt.datetime,
+    nonce: str, message_id_domain: str, content_version: str,
+) -> DeliveryBatch | None:
+    """One explicit QA operation, durably claimed under the ordinary job lease.
+
+    Only this account's selected signal can be requeued. Prior accepted-delivery
+    evidence is retained in an append-only QA audit; no global watermark or
+    history deletion is performed. Replays retain the batch Message-ID and the
+    ordinary bounded retry/ambiguity policy, never SMTP exactly-once claims.
+    """
+    from signals.accounts.qa import is_qa_account
+
+    if not is_qa_account(connection, account_id):
+        raise ValueError("QA resend requires a marked QA account")
+    requested = tuple(dict.fromkeys(signal_keys))
+    if len(requested) != 1:
+        raise ValueError("QA resend requires exactly one accessible signal")
+    if qa_resend_requested(connection, account_id, nonce):
+        return None
+    key = requested[0]
+    previous = connection.execute(sa.select(signal_alert_delivery).where(
+        signal_alert_delivery.c.account_id == account_id,
+        signal_alert_delivery.c.signal_key == key,
+    )).mappings().one_or_none()
+    if previous is not None and previous["status"] != "sent":
+        return None
+    batch_key = qa_resend_key(account_id, nonce)
+    identifier = message_id(account_id=account_id, batch_key=batch_key, domain=message_id_domain)
+    connection.execute(sa.insert(product_event).values(
+        event_id=f"evt_qa_alert_{batch_key}", account_id=account_id,
+        signal_key=key, event_type="alert_queued", occurred_at=now, created_at=now,
+        properties={
+            "qa": True, "manual_resend": True, "batch_key": batch_key,
+            "content_version": content_version,
+            "previous_batch_key": previous["batch_key"] if previous else None,
+            "previous_attempt_count": previous["attempt_count"] if previous else None,
+            "previous_message_id": previous["delivery_message_id"] if previous else None,
+            "previous_sent_at": (previous["sent_at"].isoformat()
+                                 if previous and previous["sent_at"] else None),
+        },
+    ))
+    values = {
+        "status": "queued", "cadence": cadence, "queued_at": now, "attempt_count": 0,
+        "recipient_context_fingerprint": recipient_context_fingerprint,
+        "batch_key": batch_key, "delivery_message_id": identifier, "updated_at": now,
+    }
+    if previous is None:
+        connection.execute(sa.insert(signal_alert_delivery).values(
+            account_id=account_id, signal_key=key, created_at=now, **values))
+    else:
+        connection.execute(sa.update(signal_alert_delivery).where(
+            signal_alert_delivery.c.account_id == account_id,
+            signal_alert_delivery.c.signal_key == key,
+            signal_alert_delivery.c.status == "sent",
+        ).values(**values, failed_at=None, last_error_code=None, retryable=None,
+                 attempt_started_at=None, lease_expires_at=None, next_attempt_at=None))
+    return DeliveryBatch(account_id, requested, batch_key, identifier,
+                         recipient_context_fingerprint, 0, "queued")

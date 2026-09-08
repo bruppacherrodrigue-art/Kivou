@@ -15,7 +15,7 @@ import sys
 
 import sqlalchemy as sa
 
-from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
+from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration, configured_message_domain
 from signals.alerts.job import CycleReport, run_alert_cycle
 from signals.api.config import ApiConfig
 from signals.persistence.database import create_database_engine
@@ -91,7 +91,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="limit this cycle to the exact approved account; preserves the job lease and checks",
     )
+    parser.add_argument("--qa-resend-nonce", default=None,
+                        help="one explicit QA resend; requires --account-id and a unique operation nonce")
     arguments = parser.parse_args(argv)
+    if arguments.qa_resend_nonce is not None and not arguments.account_id:
+        parser.error("QA resend requires account scope")
 
     try:
         config = ApiConfig.from_environment()
@@ -131,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
             now=now,
             public_app_url=config.public_app_url,
             account_id=arguments.account_id,
+            qa_resend_nonce=arguments.qa_resend_nonce,
+            message_id_domain=configured_message_domain(config.public_app_url, config.smtp_from_email),
             delivery_lease_ttl=config.alert_lease_ttl,
             job_lease_ttl=config.alert_lease_ttl,
             retry_base=config.alert_retry_base,

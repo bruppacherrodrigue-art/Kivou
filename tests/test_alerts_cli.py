@@ -339,3 +339,25 @@ def test_account_scoped_dry_run_never_invokes_the_cycle(monkeypatch, configured_
     ))
 
     assert main(["--now", NOW.isoformat(), "--account-id", "acc_approved_qa", "--dry-run"]) == 0
+
+
+def test_cli_qa_resend_passes_nonce_scope_and_configured_sender_domain(monkeypatch, configured_runtime):
+    received = []
+
+    def cycle(*args, **kwargs):
+        received.append(kwargs)
+        return CycleReport(0, ())
+
+    monkeypatch.setattr(cli, 'run_alert_cycle', cycle)
+    assert main(['--account-id', 'acc_approved_qa', '--qa-resend-nonce',
+                 'recipe-20260908-g1', '--now', NOW.isoformat()]) == 0
+    assert received[0]['account_id'] == 'acc_approved_qa'
+    assert received[0]['qa_resend_nonce'] == 'recipe-20260908-g1'
+    assert received[0]['message_id_domain'] == 'kivou.eu'
+
+
+def test_cli_qa_resend_without_account_is_rejected_even_for_dry_run(configured_runtime, capsys):
+    with pytest.raises(SystemExit) as stopped:
+        main(['--qa-resend-nonce', 'recipe-20260908-g1', '--dry-run'])
+    assert stopped.value.code == 2
+    assert 'recipe-20260908-g1' not in capsys.readouterr().err
