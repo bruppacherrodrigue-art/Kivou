@@ -171,7 +171,7 @@ describe('port exact de la référence publique', () => {
     expect(container).toHaveTextContent('Plusieurs territoires par profil')
   })
 
-  it('keeps all three public slots honest when a catalogue plan is absent', async () => {
+  it('does not render a phantom public slot when a catalogue plan is absent', async () => {
     const catalogue = {
       ...CATALOGUE,
       plans: CATALOGUE.plans.filter((plan) => plan.plan_code !== 'pro'),
@@ -179,10 +179,9 @@ describe('port exact de la référence publique', () => {
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     await screen.findByRole('link', { name: 'Choisir Essentiel' })
-    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(3)
-    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
-    expect(pro).toHaveTextContent('Indisponible')
-    expect(within(pro).queryByRole('link')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(2)
+    expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+    expect(document.body).toHaveTextContent('Besoin de plus de profils ou de zones ? Écrivez-nous')
   })
 
   it('keeps the landing Discovery CTA grammatical and explained while loading', () => {

@@ -215,7 +215,7 @@ describe('tarifs publics exacts et autoritaires', () => {
     },
   )
 
-  it('retire les agrégats quand le plan de référence est absent', async () => {
+  it('ne rend pas de carte fantôme quand des plans publics manquent', async () => {
     const catalogue = {
       ...CATALOGUE,
       plans: CATALOGUE.plans
@@ -227,11 +227,11 @@ describe('tarifs publics exacts et autoritaires', () => {
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs' })
 
-    await screen.findByRole('heading', { name: 'Pro' })
-    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
-    expect(pro).not.toHaveTextContent('Tout Pro')
-    expect(pro).toHaveTextContent('Offre absente du catalogue')
-    expect(pro).not.toHaveTextContent('flux inclus · contexte inclus · source incluse')
+    await screen.findByRole('heading', { name: 'Découverte' })
+    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: 'Essentiel' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+    expect(document.body).toHaveTextContent('Besoin de plus de profils ou de zones ? Écrivez-nous')
   })
 
   it('contacte Kivou pour un plan non achetable même sans prix et bloque seulement le checkout sans prix', async () => {
@@ -256,7 +256,7 @@ describe('tarifs publics exacts et autoritaires', () => {
     expect(within(pro).getByText('Choisir Pro')).toHaveAttribute('aria-disabled', 'true')
   })
 
-  it('conserve cinq lignes et distingue une offre absente du catalogue', async () => {
+  it('ne rend pas une ligne fantôme pour un plan absent du catalogue', async () => {
     const catalogue = {
       ...CATALOGUE,
       plans: CATALOGUE.plans.filter((plan) => plan.plan_code !== 'pro'),
@@ -264,18 +264,9 @@ describe('tarifs publics exacts et autoritaires', () => {
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs' })
     await screen.findByRole('link', { name: 'Choisir Essentiel' })
-
-    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
-    expect(pro).toHaveTextContent('Offre absente du catalogue')
-    expect(pro.querySelector('.plan-intro')).toHaveTextContent('Informations')
-    expect(Array.from(pro.querySelectorAll('ul > li'), (item) => item.textContent)).toEqual([
-      'Contenu absent',
-      'Couverture absente',
-      'Accès absents',
-      'Alertes absentes',
-      'Historique absent',
-    ])
-    expect(within(pro).queryByRole('link')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.pricing-grid .price-card')).toHaveLength(2)
+    expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+    expect(document.body).toHaveTextContent('Besoin de plus de profils ou de zones ? Écrivez-nous')
   })
 
   it('préserve les actions de facturation serveur dans le dashboard', async () => {

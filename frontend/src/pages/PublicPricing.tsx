@@ -28,6 +28,9 @@ export function PublicPricing() {
   const pricing = usePricingResource()
   const discovery = publicPlan(pricing, 'discovery')
   const plans = pricing.status === 'ready' ? publicPlans(pricing.catalogue) : []
+  const visiblePlanCodes = pricing.status === 'ready'
+    ? plans.map((plan) => plan.plan_code)
+    : PUBLIC_PLAN_CODES
   const plansByCode = new Map(plans.map((plan) => [plan.plan_code, plan]))
 
   return (
@@ -52,7 +55,7 @@ export function PublicPricing() {
         </header>
 
         <section className="container pricing-grid" aria-label="Offres Kivou" aria-busy={pricing.status === 'loading'}>
-          {PUBLIC_PLAN_CODES.map((code) => {
+          {visiblePlanCodes.map((code) => {
             const plan = plansByCode.get(code)
             return plan
               ? <PricingCard key={code} plan={plan} currency={pricing.currency} plansByCode={plansByCode} />
@@ -66,7 +69,7 @@ export function PublicPricing() {
             <div className="table-wrap">
               <table>
                 <caption>Comparaison des offres Kivou</caption>
-                <thead><tr><th scope="col">Couverture</th>{PUBLIC_PLAN_CODES.map((code) => <th scope="col" className={plansByCode.get(code)?.recommended ? 'pro-col' : undefined} key={code}>{PUBLIC_PLAN_NAMES[code]}</th>)}</tr></thead>
+                <thead><tr><th scope="col">Couverture</th>{visiblePlanCodes.map((code) => <th scope="col" className={plansByCode.get(code)?.recommended ? 'pro-col' : undefined} key={code}>{PUBLIC_PLAN_NAMES[code]}</th>)}</tr></thead>
                 <tbody>
                   <ComparisonRow label="Prix mensuel" plans={plans} currency={pricing.status === 'ready' ? pricing.currency : null} value={(plan, currency) => plan.plan_code === 'discovery' ? 'Gratuit' : priceText(plan, currency)} />
                   <ComparisonRow label="Accès au flux" plans={plans} value={(plan) => plan.entitlements.feed_access ? 'Inclus' : 'Non inclus'} />
