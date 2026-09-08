@@ -1029,6 +1029,13 @@ class CampaignWorker:
         )
         if len(entries) != 1:
             raise CampaignInputChanged("exact campaign footer binding is unavailable")
+        discovered_email = str(contact.business_email)
+        recipient = (
+            self._recipient_override.resolve(discovered_email)
+            if self._recipient_override is not None
+            else discovered_email
+        )
+        recipient = str(TypeAdapter(EmailStr).validate_python(recipient)).casefold()
         envelope = build_envelope(
             EnvelopeInput(
                 language=artifact["language"],
@@ -1038,20 +1045,13 @@ class CampaignWorker:
                 body=artifact["body"],
                 cta=artifact["cta"],
                 attribution_url=self._service.attribution_url_for_member(
-                    member, campaign
+                    member, campaign, recipient_email=recipient
                 ),
                 catalog=self._deployment.footer_catalog,
             )
         )
         if envelope.envelope_fingerprint != member["envelope_fingerprint"]:
             raise CampaignInputChanged("provider envelope differs from authorized envelope")
-        discovered_email = str(contact.business_email)
-        recipient = (
-            self._recipient_override.resolve(discovered_email)
-            if self._recipient_override is not None
-            else discovered_email
-        )
-        recipient = str(TypeAdapter(EmailStr).validate_python(recipient)).casefold()
         if self._recipient_override is not None:
             self._bind_transport_recipient_identity(
                 str(member["member_ref"]),

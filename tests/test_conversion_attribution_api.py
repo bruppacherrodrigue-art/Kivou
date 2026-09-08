@@ -4,6 +4,7 @@ import datetime as dt
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from test_attribution_landing import prepared as prepared_landing
 from test_conversion_attribution import NOW, prepared
 
 from signals.api.app import create_app
@@ -47,7 +48,7 @@ def seed_click(client, service, token, *, at: dt.datetime) -> None:
 def test_click_lands_on_the_product_and_never_on_a_caller_supplied_redirect(
     tmp_path,
 ) -> None:
-    engine, service, token, _ = prepared(tmp_path)
+    engine, service, token, _ = prepared_landing(tmp_path)
     client = client_for(engine, service, now=NOW + dt.timedelta(hours=1))
 
     response = client.get(

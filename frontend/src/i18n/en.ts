@@ -1132,6 +1132,10 @@ export const en: Dictionary = {
   },
 
   locked: {
+    previewTitle: 'Locked preview',
+    offers: 'View plans',
+    offersScope: 'Essential and Pro plans: check access rights and the history window before choosing.',
+    otherSignals: '{count} other signals in your area',
     badge: 'Locked',
     title: 'Extend access to your stream',
     teaserHeadingFallback: 'A signal detected in your scope',
@@ -1449,7 +1453,7 @@ export const en: Dictionary = {
       amount: 'Amount',
       place: 'Place',
       awardedOn: 'Awarded on',
-      notifiedOn: 'Notified on',
+      notifiedOn: 'Awarded on',
       publishedOn: 'Published on',
       cpv: 'CPV',
       needs: 'What the winner will have to do',

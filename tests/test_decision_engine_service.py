@@ -71,7 +71,7 @@ from signals.policy.store import PolicyStore
 from signals.supplier_discovery.contracts import ApolloOrganizationCandidate
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
-EVALUATED_AT = dt.datetime(2026, 7, 18, 12, 30, tzinfo=dt.UTC)
+EVALUATED_AT = dt.datetime(2026, 6, 18, 12, 30, tzinfo=dt.UTC)
 
 
 class CountingClock:
@@ -279,8 +279,8 @@ def test_service_owns_one_authoritative_clock_and_records_send(context) -> None:
 
     assert clock.calls == 1
     assert result.decision is not None and result.decision.evaluated_at == EVALUATED_AT
-    assert result.audit.as_of_date == dt.date(2026, 7, 18)
-    assert result.audit.age_days == 60
+    assert result.audit.as_of_date == dt.date(2026, 6, 18)
+    assert result.audit.age_days == 30
     assert result.audit.disposition is DecisionAuditDisposition.RECORDED
     assert result.audit.recorded_event_id is not None
     current = acquisition.get_opportunity(opportunity_id)

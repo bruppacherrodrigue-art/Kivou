@@ -28,6 +28,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 
+from signals.domain.french_departments import location_matches_subdivision, location_subdivision
 from signals.matching.icp import MATCH_POLICY_VERSION, TargetICP
 from signals.matching.model import (
     SCORE_POLICY_VERSION,
@@ -372,7 +373,8 @@ class MatchingEngine:
             if territory.subdivision_code is not None
         }
         if wanted_subdivisions:
-            subdivision = place.subdivision_code if place is not None else None
+            place_data = place.model_dump(mode="json") if place is not None else None
+            subdivision = location_subdivision(place_data)
             if subdivision is None:
                 return (
                     HardFilterResult(
@@ -383,11 +385,17 @@ class MatchingEngine:
                     ),
                     "unknown",
                 )
-            matched = (
-                place.country,
-                subdivision,
-                place.subdivision_scheme,
-            ) in wanted_subdivisions
+            if place.country == "FR":
+                matched = any(
+                    country == place.country and location_matches_subdivision(
+                        place_data, code, requested_scheme=scheme,
+                    )
+                    for country, code, scheme in wanted_subdivisions
+                )
+            else:
+                matched = (
+                    place.country, subdivision, place.subdivision_scheme,
+                ) in wanted_subdivisions
         else:
             wanted = {territory.country for territory in icp.territories}
             matched = any(country in wanted for country in candidates)

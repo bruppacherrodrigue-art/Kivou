@@ -22,6 +22,8 @@ import types
 
 import pytest
 import sqlalchemy as sa
+from alert_identity_helpers import verified_signed_up as signed_up
+from alert_identity_helpers import verify_recipient
 from engagement_helpers import (
     NOW,
     PUBLIC_APP_URL,
@@ -36,7 +38,6 @@ from engagement_helpers import (
     pay,
     seed,
     seed_rich,
-    signed_up,
 )
 from feed_helpers import RESEARCH_ICP_ID, SIMAP_RICH, materialize, materialize_simap, simap_award
 
@@ -233,7 +234,7 @@ def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
 
 
 def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@negoce-romand.ch"):
-    client = signed_up(app, email)
+    client = signed_up(app, engine, email)
     icp = icp_of(client)
     pay(engine, client, plan=plan)
     keys = seed(engine, icp, count=count)
@@ -244,7 +245,7 @@ def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@ne
 
 
 def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine, mailer):
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     seed(engine, icp, count=5)
     assert client.get("/signals").status_code == 200
@@ -253,7 +254,7 @@ def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine
     assert len(mailer.sent) == 1
     assert report.sent[0].signal_count == 1
     assert "autres signaux" in mailer.last.text_body
-    assert f"{PUBLIC_APP_URL}/pricing" in mailer.last.text_body
+    assert f"{PUBLIC_APP_URL}/tarifs" in mailer.last.text_body
 
 
 # ─── §37.2 à §37.5 — les cadences ────────────────────────────────────────────
@@ -283,7 +284,7 @@ def test_pro_receives_at_most_one_digest_per_day(app, engine, mailer):
 
 
 def test_a_founding_account_follows_the_pro_cadence(app, engine, mailer):
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan="pro", coupon_id="coupon_test_f")
     seed(engine, icp, count=1)
@@ -357,6 +358,7 @@ def test_the_notification_email_is_initialised_from_the_owner_then_frozen(app, e
     client.patch(
         "/notification-preferences", json={"notification_email": "Alertes@Negoce-Romand.CH"}
     )
+    verify_recipient(engine, client, email="alertes@negoce-romand.ch")
     cycle(engine, mailer)
     assert mailer.last.to_email == "alertes@negoce-romand.ch"
 
@@ -372,7 +374,7 @@ def test_an_invalid_notification_email_is_refused(app, engine):
 
 def test_one_account_never_reads_the_preferences_of_another(app, engine):
     alice, _ = subscriber(app, engine, plan="pro")
-    bob = signed_up(app, "bob@materiaux-leman.ch")
+    bob = signed_up(app, engine, "bob@materiaux-leman.ch")
     alice.patch(
         "/notification-preferences", json={"notification_email": "alertes@negoce-romand.ch"}
     )
@@ -422,7 +424,7 @@ def test_the_job_is_safe_to_rerun(app, engine, mailer):
 
 def test_a_stale_signal_is_never_alerted(app, engine, mailer):
     """Seules les NOUVEAUTÉS partent : un marché de mai n'en est pas une."""
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan="scale")
     with engine.begin() as connection:
@@ -434,7 +436,7 @@ def test_a_stale_signal_is_never_alerted(app, engine, mailer):
 
 def test_a_foreign_account_signal_is_never_alerted(app, engine, mailer):
     _, alice_keys = subscriber(app, engine, plan="pro", count=1)
-    bob = signed_up(app, "bob@materiaux-leman.ch")
+    bob = signed_up(app, engine, "bob@materiaux-leman.ch")
     icp_of(bob)
     pay(engine, bob, plan="scale")
 
@@ -451,7 +453,7 @@ def test_a_foreign_account_signal_is_never_alerted(app, engine, mailer):
 
 
 def test_an_unbound_signal_is_never_alerted(app, engine, mailer):
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan="scale")
     keys = seed(engine, icp, count=1)
@@ -472,7 +474,7 @@ def test_an_unbound_signal_is_never_alerted(app, engine, mailer):
 
 def test_a_winner_known_only_by_its_identifier_is_never_alerted(app, engine, mailer):
     """Un e-mail annonçant « 44284979000013 » n'aiderait personne."""
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan="scale")
     with engine.begin() as connection:
@@ -517,7 +519,7 @@ def test_a_downgrade_before_sending_re_evaluates_the_entitlement(app, engine, ma
 
 def test_a_paid_account_only_receives_what_its_plan_unlocks(app, engine, mailer):
     """Essential ouvre 30 jours : un signal plus ancien reste verrouillé."""
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan="essential")
     with engine.begin() as connection:
@@ -638,7 +640,7 @@ def test_the_message_id_is_deterministic_and_leaks_nothing(app, engine, mailer):
 
     identifier = mailer.last.message_id
     assert identifier.startswith("<kivou-alert-")
-    assert identifier.endswith("@kivou.ch>")
+    assert identifier.endswith("@kivou.test>")
     for forbidden in ("@negoce-romand", "alice", "acc_"):
         assert forbidden not in identifier, forbidden
 
@@ -655,7 +657,7 @@ def test_the_same_batch_always_produces_the_same_message_id():
 
 
 def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
-    english = signed_up(app, "bob@materiaux-leman.ch", locale="en")
+    english = signed_up(app, engine, "bob@materiaux-leman.ch", locale="en")
     icp = icp_of(english)
     pay(engine, english, plan="scale")
     # L'avis riche : celui qui porte des besoins plausibles à traduire.
@@ -666,7 +668,8 @@ def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
     assert message.language == "en"
     assert "new signal" in message.subject
     assert "Hello," in message.text_body
-    assert "Plausible needs" in message.text_body
+    assert "For you" in message.text_body
+    assert "Plausible needs" not in message.text_body
 
 
 def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer):
@@ -675,8 +678,10 @@ def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer
 
     body = mailer.last.text_body
     assert "Bonjour," in body
-    assert "vient de remporter un marché public." in body
-    assert "Décision d'attribution récente." in body
+    assert "Pour vous :" in body
+    assert "Ouvrir :" in body
+    assert "vient de remporter un marché public." not in body
+    assert "Décision d'attribution récente." not in body
 
 
 def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mailer):
@@ -721,7 +726,7 @@ def test_the_digest_excludes_a_signal_rejected_by_the_model(app, engine, mailer)
 
 def test_an_old_signal_never_gets_new_opportunity_wording_in_an_email(app, engine, mailer):
     """§21 — la formulation vient de la politique de fraîcheur, jamais de l'e-mail."""
-    client = signed_up(app)
+    client = signed_up(app, engine)
     icp = icp_of(client)
     pay(engine, client, plan="scale")
     with engine.begin() as connection:
@@ -830,9 +835,9 @@ def test_the_email_never_claims_a_win_it_cannot_support(app, engine, mailer):
     cycle(engine, mailer)
 
     body = mailer.last.text_body
-    # Les signaux envoyés sont tous `recent_award` : la phrase de victoire est
-    # légitime ici, et c'est la seule configuration où elle l'est.
-    assert any(marker in body.lower() for marker in JUST_WON_MARKERS)
+    # PR6 uses the factual date instead of a second, email-only win claim.
+    assert not any(marker in body.lower() for marker in JUST_WON_MARKERS)
+    assert "Attribué le" in body
 
 
 def test_no_tracking_pixel_or_third_party_tracker_is_added(app, engine, mailer):

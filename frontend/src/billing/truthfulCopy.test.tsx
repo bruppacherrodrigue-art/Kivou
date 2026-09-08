@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -54,7 +54,23 @@ async function openLockedBilling() {
   await user.click(
     await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
   )
+  await openOffers(user)
   return screen.findByRole('heading', { level: 1, name: /Abonnement|Subscription/ })
+}
+
+async function openOffers(user = userEvent.setup(), locale: 'fr' | 'en' = 'fr') {
+  const panel = await screen.findByRole('complementary', { name: locale === 'fr' ? 'Aperçu réservé' : 'Locked preview' })
+  expect(panel).toHaveTextContent(locale === 'fr'
+    ? 'Votre accès actuel n’ouvre pas ce signal.'
+    : 'Your current access does not open this signal.')
+  expect(panel).toHaveTextContent(locale === 'fr' ? 'fenêtre d’historique' : 'history window')
+  expect(panel).not.toHaveTextContent(/réservé aux offres|reserved for paid plans|unlock this signal by/i)
+  expect(panel).toHaveTextContent(locale === 'fr' ? 'Essentiel et Pro' : 'Essential and Pro')
+  const link = within(panel).getByRole('link', { name: locale === 'fr' ? 'Voir les offres' : 'View plans' })
+  expect(link).toHaveAttribute('href', '/tarifs')
+  expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
+  await user.click(link)
+  await user.click(await screen.findByRole('link', { name: 'Choisir Pro' }))
 }
 
 // ─── 1. le retour depuis le paiement ─────────────────────────────────────────
@@ -147,7 +163,7 @@ describe('signal verrouillé sur un compte payant', () => {
     expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 
-  it('le teaser propose une action universelle, jamais « Voir les offres »', async () => {
+  it('le teaser ouvre explicitement les offres puis les droits reels du compte', async () => {
     mockApi({
       ...BILLING,
       'GET /billing/status': { body: PRO_STATUS },
@@ -168,6 +184,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1')
 
+    await openOffers()
     await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
     await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
@@ -184,6 +201,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1')
 
+    await openOffers()
     await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
     await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
@@ -198,6 +216,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1')
 
+    await openOffers()
     await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
     expect(screen.queryByRole('link', { name: 'Voir les offres' })).not.toBeInTheDocument()
     expect(
@@ -227,6 +246,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1', 'en')
 
+    await openOffers(userEvent.setup(), 'en')
     await screen.findByRole('heading', { level: 1, name: 'Subscription' })
     await screen.findByText('365 days of history')
     const page = document.body.textContent ?? ''

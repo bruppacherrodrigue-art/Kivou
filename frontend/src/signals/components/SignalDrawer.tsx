@@ -103,8 +103,11 @@ export function SignalDrawer({
     )
   }
 
-  const title = signalObject(item)
-  const objectLine = item.factual_display.object_short ?? item.contract.title ?? null
+  const objectLine = (item.contract.title || signalObject(item))?.replace(/\s+/g, ' ').trim() ?? null
+  const shortObject = (item.factual_display.object_short || objectLine)?.replace(/\s+/g, ' ').trim() ?? null
+  const title = shortObject && shortObject.length > 60
+    ? `${shortObject.slice(0, 59).trimEnd()}…`
+    : shortObject
   const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
   const place = placeLabel(item.contract.location, locale)
   const reasons = item.analysis.fit.for_you_sentence
@@ -123,9 +126,9 @@ export function SignalDrawer({
   const clock = dates.award
     ? { label: copy.awardedOn, value: dates.award }
     : dates.contract_notification
-      ? { label: copy.notifiedOn, value: dates.contract_notification }
+      ? { label: copy.awardedOn, value: dates.contract_notification }
       : dates.publication
-        ? { label: copy.awardedOn, value: dates.award ?? dates.publication }
+        ? { label: copy.publishedOn, value: dates.publication }
         : { label: copy.awardedOn, value: null }
 
   const actions: {

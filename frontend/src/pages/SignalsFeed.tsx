@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useCurrentUser } from '../auth/SessionProvider'
+import { PROFILE_CONFIRMATION_PATH } from '../auth/profileRoute'
+import { validateSignalKey } from '../billing/checkoutIntent'
 import { billing, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import type {
@@ -15,6 +18,7 @@ import { interpolate, plural, useI18n } from '../i18n'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
+import signalStyles from '../signals/components/signals.module.css'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 import styles from './SignalsFeed.module.css'
 
@@ -152,7 +156,7 @@ function LockedRow({
 }) {
   const { amount, shortDate } = useI18n()
   return (
-    <tr className={styles.lockedRow} onClick={onOpen}>
+    <tr className={styles.lockedRow} data-signal-key={item.signal_id} data-locked="true" onClick={onOpen}>
       <td>{shortDate(item.teaser.date) ?? MISSING}</td>
       <td>
         <button type="button" className={styles.lockedButton} onClick={(event) => {
@@ -171,6 +175,7 @@ function LockedRow({
 }
 
 export function SignalsFeed() {
+  const me = useCurrentUser()
   const { t } = useI18n()
   const copy = t.signalsTable
   const location = useLocation()
@@ -211,6 +216,7 @@ export function SignalsFeed() {
   const [paginationError, setPaginationError] = useState<unknown | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState(false)
+  const [lockedPreview, setLockedPreview] = useState<LockedFeedItem | null>(null)
   const [detail, setDetail] = useState<{
     key: string | null
     data: UnlockedFeedItem | null
@@ -292,24 +298,25 @@ export function SignalsFeed() {
     }
   }, [feed.data, filters])
 
+  const waitForFeed = !me.provisional_profile && feed.loading
   const selectedKey = signalKey ?? null
   const rowItem = selectedKey
     ? items.find((entry) => entry.signal_id === selectedKey) ?? null
     : null
 
-  /* Un lien profond vers un signal absent de la page chargée demande le détail.
-   * Un signal verrouillé ne passe jamais par là : il part à la facturation. */
+  /* A loaded locked row needs only its public teaser, never a detail request.
+   * A locked deep-link response uses the same small preview, not SignalDrawer. */
   useEffect(() => {
+    setLockedPreview(null)
     if (!selectedKey) {
       detailGeneration.current += 1
       setDetail({ key: null, data: null, loading: false, error: null })
       return
     }
-    if (feed.loading) return
+    if (waitForFeed) return
     if (rowItem?.locked) {
       detailGeneration.current += 1
       setDetail({ key: selectedKey, data: null, loading: false, error: null })
-      navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
       return
     }
     if (rowItem) {
@@ -324,8 +331,8 @@ export function SignalsFeed() {
       (data) => {
         if (!mounted.current || generation !== detailGeneration.current) return
         if (data.locked) {
+          setLockedPreview(data)
           setDetail({ key: selectedKey, data: null, loading: false, error: null })
-          navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
           return
         }
         setDetail({ key: selectedKey, data, loading: false, error: null })
@@ -336,7 +343,11 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [detailRetryToken, feed.loading, navigate, rowItem, selectedKey])
+  }, [detailRetryToken, waitForFeed, rowItem, selectedKey])
+
+  const lockedItem = rowItem
+    ? rowItem.locked ? rowItem : null
+    : lockedPreview?.signal_id === selectedKey ? lockedPreview : null
 
   const selectedItem: UnlockedFeedItem | null = rowItem && !rowItem.locked
     ? rowItem
@@ -424,13 +435,6 @@ export function SignalsFeed() {
       .querySelector<HTMLElement>(`[data-signal-key="${CSS.escape(key)}"] button`)
       ?.focus()
   }, [selectedKey])
-
-  const openBilling = useCallback(
-    (key: string) => {
-      navigate('/app/billing', { state: { lockedSignalKey: key } })
-    },
-    [navigate],
-  )
 
   /* Échap referme le tiroir de bureau. Sous 900 px, la feuille Radix possède
    * déjà cette touche : deux gestionnaires fermeraient deux fois. */
@@ -531,7 +535,8 @@ export function SignalsFeed() {
   const selectedSegmentCount = filters.segment !== 'all' && COUNTED_SEGMENTS.includes(filters.segment)
     ? counts?.[filters.segment] ?? null
     : null
-  const loadedCount = selectedSegmentCount ?? discoveryGrantCount ?? items.length
+  const loadedCount = Math.max(selectedSegmentCount ?? discoveryGrantCount ?? items.length,
+    feed.data?.provisional_profile && selectedItem ? 1 : 0)
   const moreBeyondLoaded = planCode !== 'discovery'
     && (Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated))
   const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''
@@ -545,16 +550,34 @@ export function SignalsFeed() {
 
   const sectorLocked = feed.data?.filter_access.sector === false
   const displayedRows = useMemo(() => {
-    if (planCode !== 'discovery') return rows
-    const unlocked = rows.filter((item) => !item.locked)
-    const locked = rows.filter((item) => item.locked)
+    const pinned = feed.data?.provisional_profile && selectedItem
+      && !rows.some((item) => item.signal_id === selectedItem.signal_id)
+      ? [selectedItem, ...rows]
+      : rows
+    if (planCode !== 'discovery') return pinned
+    const unlocked = pinned.filter((item) => !item.locked)
+    const locked = pinned.filter((item) => item.locked)
     return [...unlocked, ...locked.slice(0, 5)]
-  }, [planCode, rows])
+  }, [feed.data?.provisional_profile, planCode, rows, selectedItem])
   const hiddenDiscoveryCount = planCode === 'discovery'
     ? Math.max(0, rows.length - displayedRows.length)
     : 0
+  const showDiscoveryOffers = planCode === 'discovery' && rows.some((item) => item.locked)
+  const checkoutSignalKey = validateSignalKey(lockedItem?.signal_id)
 
-  const drawer = (
+  const drawer = lockedItem ? (
+    <aside className={signalStyles.drawer} data-locked-signal-preview aria-labelledby="locked-signal-title">
+      <div className={signalStyles.drawerHead}>
+        <LockKeyhole aria-hidden="true" size={16} />
+        <h2 className={signalStyles.drawerTitle} id="locked-signal-title">{t.locked.previewTitle}</h2>
+        <button type="button" className={signalStyles.drawerClose} onClick={closeDrawer}>{copy.drawer.close}</button>
+      </div>
+      <p className={signalStyles.drawerObject}>{lockedItem.headline}</p>
+      <p className={signalStyles.drawerEmpty}>{t.locked.detailBody}</p>
+      <p className={signalStyles.drawerEmpty}>{t.locked.offersScope}</p>
+      <Link className="text-link" to="/tarifs" state={checkoutSignalKey ? { lockedSignalKey: checkoutSignalKey } : null}>{t.locked.offers}</Link>
+    </aside>
+  ) : (
     <SignalDrawer
       item={selectedItem}
       loading={drawerLoading}
@@ -578,7 +601,7 @@ export function SignalsFeed() {
       {feed.data?.provisional_profile ? (
         <aside className={styles.provisionalBanner} role="note">
           <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
-          <Link to="/onboarding">Confirmer mon profil</Link>
+          <Link to={PROFILE_CONFIRMATION_PATH}>Confirmer mon profil</Link>
         </aside>
       ) : null}
 
@@ -683,11 +706,11 @@ export function SignalsFeed() {
         <section className={styles.tableColumn} aria-busy={feed.loading}>
           {compact ? <div className={styles.cardList} role="list">
             {displayedRows.map((entry) => entry.locked ? (
-              <LockedSignalCardRow key={entry.signal_id} item={entry} onOpen={() => openBilling(entry.signal_id)} />
+              <LockedSignalCardRow key={entry.signal_id} item={entry} onOpen={() => openSignal(entry.signal_id)} />
             ) : (
               <SignalCardRow key={entry.signal_id} item={entry} selected={entry.signal_id === selectedKey} onOpen={openSignal} />
             ))}
-            {hiddenDiscoveryCount ? <Link className={styles.lockedCardRow} to="/tarifs">{hiddenDiscoveryCount} autres signaux — voir les offres</Link> : null}
+            {showDiscoveryOffers ? <Link className={styles.lockedCardRow} to="/tarifs">{hiddenDiscoveryCount ? `${interpolate(t.locked.otherSignals, { count: hiddenDiscoveryCount })} — ` : ''}{t.locked.offers}</Link> : null}
           </div> : <table className={styles.table}>
             <thead>
               <tr>
@@ -706,7 +729,7 @@ export function SignalsFeed() {
                   item={entry}
                   compact={compact}
                   note={t.reference.signalsPage.lockedReason}
-                  onOpen={() => openBilling(entry.signal_id)}
+                  onOpen={() => openSignal(entry.signal_id)}
                 />
               ) : (
                 <SignalRow
@@ -717,10 +740,10 @@ export function SignalsFeed() {
                   onOpen={openSignal}
                 />
               )))}
-              {hiddenDiscoveryCount ? (
+              {showDiscoveryOffers ? (
                 <tr className={styles.lockedRow}>
                   <td colSpan={compact ? 5 : 6}>
-                    {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/tarifs">voir les offres</Link>
+                    {hiddenDiscoveryCount ? `${interpolate(t.locked.otherSignals, { count: hiddenDiscoveryCount })} — ` : ''}<Link to="/tarifs">{t.locked.offers}</Link>
                   </td>
                 </tr>
               ) : null}
@@ -736,7 +759,7 @@ export function SignalsFeed() {
                 {t.common.retry}
               </button>
             </div>
-          ) : rows.length === 0 ? (
+          ) : displayedRows.length === 0 ? (
             <p className={styles.note}>{copy.empty}</p>
           ) : null}
 

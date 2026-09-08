@@ -25,8 +25,11 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import re
 import ssl
+from email.utils import parseaddr
 from typing import Literal, Protocol
+from urllib.parse import urlsplit
 
 ALERT_GATEWAY_VERSION = "kivou-alert-smtp-v0.1"
 
@@ -70,6 +73,7 @@ class AlertMessage:
     #: l'en-tête `List-Unsubscribe` : les deux doivent désigner le même endroit,
     #: sans quoi le destinataire suit un lien qui ne le désabonne pas.
     preferences_url: str | None = None
+    content_version: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -83,7 +87,17 @@ class AlertDeliveryGateway(Protocol):
     def send(self, message: AlertMessage) -> DeliveryResult: ...
 
 
-def message_id(*, account_id: str, batch_key: str, domain: str = "kivou.ch") -> str:
+def configured_message_domain(public_app_url: str | None, from_email: str | None = None) -> str:
+    """Prefer the configured sender domain, then the public origin; no environment guess."""
+    sender = parseaddr(from_email or "")[1].rpartition("@")[2]
+    site = urlsplit(public_app_url).hostname if public_app_url else None
+    for candidate in (sender, site):
+        if candidate and re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?", candidate):
+            return candidate.lower()
+    return "localhost"
+
+
+def message_id(*, account_id: str, batch_key: str, domain: str = "localhost") -> str:
     """Un `Message-ID` déterministe, et qui ne divulgue rien (§28).
 
     Il est dérivé du compte et du lot par empreinte : deux envois du même lot
@@ -145,6 +159,8 @@ class SmtpAlertGateway:
         email["From"] = f"{configuration.from_name} <{configuration.from_email}>"
         email["To"] = message.to_email
         email["Message-ID"] = message.message_id
+        if message.content_version:
+            email["X-Kivou-Alert-Content-Version"] = message.content_version
         if configuration.reply_to_email:
             email["Reply-To"] = configuration.reply_to_email
         # Un en-tête de désinscription est attendu d'un envoi automatisé, et il

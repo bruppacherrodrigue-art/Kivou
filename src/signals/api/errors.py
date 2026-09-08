@@ -18,6 +18,9 @@ from typing import Any
 from fastapi import HTTPException
 
 ERROR_CODES: tuple[str, ...] = (
+    "email_verification_unavailable",
+    "email_verification_cooldown",
+    "invalid_email_verification",
     "email_already_used",
     "invalid_credentials",
     "unsupported_locale",

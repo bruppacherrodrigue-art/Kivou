@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, Navigate, useOutletContext } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, Navigate, useLocation, useNavigate, useOutletContext } from 'react-router-dom'
 import { feedback } from '../api/endpoints'
 import type { UnlockedFeedItem } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
@@ -14,11 +14,23 @@ import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
 
 export function Dashboard() {
   const me = useCurrentUser()
+  const location = useLocation()
   if (me.onboarding_status !== 'ready_for_signals') return <Navigate to="/onboarding" replace />
-  return <TodayDashboard />
+  return <TodayDashboard key={location.pathname} />
 }
 
 function TodayDashboard() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [firstSignals] = useState(() => location.state?.firstSignals === true)
+  const [emailVerificationSent] = useState<string | null>(() => typeof location.state?.emailVerificationSent === 'string' ? location.state.emailVerificationSent : null)
+  useEffect(() => {
+    if (!location.state?.firstSignals && !location.state?.emailVerificationSent) return
+    const next = { ...location.state }
+    delete next.firstSignals
+    delete next.emailVerificationSent
+    navigate(location.pathname + location.search + location.hash, { replace: true, state: next })
+  }, [location, navigate])
   const { locale, amount, shortDate } = useI18n()
   const resource = useOutletContext<DashboardOutletContext>()
   const [selected, setSelected] = useState<UnlockedFeedItem | null>(null)
@@ -59,7 +71,7 @@ function TodayDashboard() {
   if (resource.error || !resource.data) return <main className={styles.page}><p role="alert">Le résumé n’a pas pu être chargé.</p><button type="button" onClick={() => void resource.retry()}>Réessayer</button></main>
 
   const data = resource.data
-  const title = data.last_seen_at
+  const title = !firstSignals && data.last_seen_at
     ? data.new_since_last_visit === 0
       ? `Rien de nouveau depuis ${weekday(data.last_seen_at, locale)} · ${data.week.new} signaux cette semaine`
       : `${data.new_since_last_visit} nouveaux marchés depuis ${weekday(data.last_seen_at, locale)}`
@@ -70,6 +82,10 @@ function TodayDashboard() {
     <main className={styles.page} data-page="today">
       <ScreenHeader title={title} description={data.strong_matches > 0
         ? `${data.strong_matches} correspondent fortement à votre profil ${data.profile?.sector_label ?? MISSING} · ${zoneLabels.join(', ') || MISSING}` : undefined} />
+
+      {emailVerificationSent ? <p className="prototype-notice" role="status">
+        Un email de confirmation a été envoyé à {emailVerificationSent}. Votre adresse est en attente de vérification. Aucune alerte ne sera envoyée avant sa validation.
+      </p> : null}
 
       {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}
       {data.top3.length ? (

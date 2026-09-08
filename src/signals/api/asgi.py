@@ -68,6 +68,7 @@ def build_application() -> FastAPI:
         config,
         stripe_gateway=_stripe_gateway(config),
         password_reset_delivery=_password_reset_delivery(config),
+        email_verification_gateway=_smtp_gateway(config),
         instantly_webhook_service=(
             build_instantly_webhook_service(engine, webhook_configuration)
             if webhook_configuration is not None
@@ -109,9 +110,21 @@ def _password_reset_delivery(config: ApiConfig) -> SmtpPasswordResetDelivery | N
     acceptée et le jeton reste inutilisé jusqu'à expiration, ce qui vaut mieux
     qu'un démarrage refusé.
     """
+    gateway = _smtp_gateway(config)
+    if gateway is None:
+        return None
+    return SmtpPasswordResetDelivery(
+        gateway,
+        site_url=config.public_site_url or "",
+        ttl=config.password_reset_ttl,
+    )
+
+
+def _smtp_gateway(config: ApiConfig) -> SmtpAlertGateway | None:
+    """One SMTP configuration shared by the two security-mail adapters."""
     if not config.password_reset_email_configured:
         return None
-    gateway = SmtpAlertGateway(
+    return SmtpAlertGateway(
         SmtpConfiguration(
             host=config.smtp_host or "",
             port=config.smtp_port,
@@ -123,11 +136,6 @@ def _password_reset_delivery(config: ApiConfig) -> SmtpPasswordResetDelivery | N
             timeout_seconds=config.smtp_timeout_seconds,
             reply_to_email=config.smtp_reply_to_email,
         )
-    )
-    return SmtpPasswordResetDelivery(
-        gateway,
-        site_url=config.public_site_url or "",
-        ttl=config.password_reset_ttl,
     )
 
 

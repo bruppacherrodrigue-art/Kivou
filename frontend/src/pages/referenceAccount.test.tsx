@@ -17,6 +17,7 @@ import {
 const shell = {
   'GET /target-icps': { body: [ICP] },
   'GET /billing/status': { body: DISCOVERY_STATUS },
+  'GET /auth/email': { body: { email: ME.email, verified: true, pending_email: null } },
 }
 
 describe('compte exact connecté', () => {
@@ -144,8 +145,8 @@ describe('compte exact connecté', () => {
     const form = await screen.findByRole('form', { name: 'Informations principales' })
     expect(within(form).getByLabelText('Entreprise')).toHaveValue(ME.account_display_name)
     expect(within(form).getByLabelText('Entreprise')).toHaveAttribute('readonly')
-    expect(within(form).getByLabelText('Adresse professionnelle')).toHaveValue(ME.email)
-    expect(within(form).getByLabelText('Adresse professionnelle')).toHaveAttribute('readonly')
+    expect(screen.getByLabelText('Adresse professionnelle')).toHaveValue(ME.email)
+    expect(screen.getByLabelText('Adresse professionnelle')).not.toHaveAttribute('readonly')
     expect(within(form).queryByLabelText('Fuseau horaire')).not.toBeInTheDocument()
     expect(form).not.toHaveTextContent('Europe/Zurich')
     expect(container.querySelectorAll('main')).toHaveLength(1)

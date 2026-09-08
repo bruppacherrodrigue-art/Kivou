@@ -135,7 +135,10 @@ function readValidationDetail(detail: unknown): FieldError[] {
     const record = entry as { loc?: unknown; msg?: unknown }
     const loc = Array.isArray(record.loc) ? record.loc : []
     // `loc` vaut ["body", "email"] : le premier segment est la source, pas le champ.
-    const field = loc.length > 1 ? String(loc[loc.length - 1]) : String(loc[0] ?? '')
+    // A list index is not a field: preserve territory_subdivisions in
+    // ["body", "customer_input", "territory_subdivisions", 0].
+    const namedSegments = loc.filter((segment): segment is string => typeof segment === 'string')
+    const field = namedSegments.at(-1) ?? ''
     fields.push({ field, message: typeof record.msg === 'string' ? record.msg : '' })
   }
   return fields

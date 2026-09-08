@@ -321,6 +321,6 @@ describe('CompaniesPage', () => {
 
     expect(screen.getAllByRole('complementary')).toHaveLength(2)
     expect(screen.getByRole('heading', { name: 'H. Hüther GmbH' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Voirie' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Réfection de la voirie communale — lot 2' })).toBeInTheDocument()
   })
 })

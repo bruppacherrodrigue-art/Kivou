@@ -114,6 +114,7 @@ class CurrentUser:
     account_display_name: str
     locale: str
     onboarding_status: str
+    provisional_profile: bool = False
 
 
 def normalize_email(email: str) -> str:
@@ -369,6 +370,9 @@ def request_password_reset(
         sa.select(auth_user.c.user_id, account.c.locale)
         .select_from(auth_user.join(account, auth_user.c.account_id == account.c.account_id))
         .where(auth_user.c.email_normalized == normalized, auth_user.c.is_active.is_(True))
+        # Serialize with email changes before issuing to the current address.
+        # PostgreSQL rechecks the address/active predicate after a lock wait.
+        .with_for_update(of=auth_user)
     ).one_or_none()
     if row is None:
         return
@@ -407,6 +411,25 @@ def confirm_password_reset(
     Une réinitialisation sert précisément quand on soupçonne un accès
     illégitime : laisser vivre les sessions existantes annulerait l'opération.
     """
+    digest = token_hash(reset_token)
+    candidate_user_id = connection.scalar(
+        sa.select(password_reset.c.user_id).where(
+            password_reset.c.token_hash == digest,
+            password_reset.c.used_at.is_(None),
+            password_reset.c.expires_at > now,
+        )
+    )
+    if candidate_user_id is None:
+        raise InvalidResetToken("jeton de réinitialisation invalide")
+    # Every identity transition locks the user before any proof or session row.
+    active_user_id = connection.scalar(
+        sa.select(auth_user.c.user_id)
+        .where(auth_user.c.user_id == candidate_user_id, auth_user.c.is_active.is_(True))
+        .with_for_update(of=auth_user)
+    )
+    if active_user_id is None:
+        raise InvalidResetToken("jeton de réinitialisation invalide")
+
     # L'UPDATE conditionnel est la prise atomique du jeton. PostgreSQL
     # sérialise deux concurrents sur cette ligne ; après le commit du gagnant,
     # le perdant ne modifie aucune ligne. SQLite prend son verrou d'écriture
@@ -414,7 +437,8 @@ def confirm_password_reset(
     user_id = connection.execute(
         sa.update(password_reset)
         .where(
-            password_reset.c.token_hash == token_hash(reset_token),
+            password_reset.c.token_hash == digest,
+            password_reset.c.user_id == active_user_id,
             password_reset.c.used_at.is_(None),
             password_reset.c.expires_at > now,
         )
@@ -428,6 +452,14 @@ def confirm_password_reset(
         sa.update(auth_user)
         .where(auth_user.c.user_id == user_id)
         .values(password_hash=hash_password(new_password), updated_at=now)
+    )
+    # A proof issued before recovery must not restore access afterward.
+    from signals.accounts.email_verification import email_identity
+
+    connection.execute(
+        sa.update(email_identity)
+        .where(email_identity.c.user_id == user_id)
+        .values(token_hash=None, expires_at=None, pending_email=None)
     )
     revoke_all_sessions(connection, user_id=user_id, now=now)
     return user_id
@@ -465,7 +497,23 @@ def current_user(connection: sa.Connection, *, user_id: str) -> CurrentUser:
         .select_from(auth_user.join(account, auth_user.c.account_id == account.c.account_id))
         .where(auth_user.c.user_id == user_id)
     ).one()
-    return CurrentUser(*row)
+    return CurrentUser(*row, provisional_profile=is_provisional_profile(
+        connection, account_id=row.account_id,
+    ))
+
+
+def is_provisional_profile(connection: sa.Connection, *, account_id: str) -> bool:
+    """A materializable landing profile is not yet a confirmed customer choice."""
+    return bool(connection.scalar(
+        sa.select(sa.literal(True)).select_from(
+            account.join(account_landing_signal,
+                         account.c.account_id == account_landing_signal.c.account_id)
+        ).where(
+            account.c.account_id == account_id,
+            account.c.onboarding_status != "ready_for_signals",
+            account_landing_signal.c.profile_confirmed_at.is_(None),
+        ).limit(1)
+    ))
 
 
 def onboarding_status(connection: sa.Connection, *, account_id: str) -> str:
@@ -830,6 +878,7 @@ def record_landing_signal(
     opportunity_key: str | None,
     signal_key: str | None,
     token_fingerprint: str | None = None,
+    qa: bool = False,
     now: dt.datetime,
 ) -> LandingSignal:
     """Enregistre — ou complète — la promesse faite au prospect.
@@ -845,6 +894,9 @@ def record_landing_signal(
     signal, parce qu'entre-temps le profil du client a pu devenir actif et
     l'opportunité, matérialisée. La date de création, elle, ne bouge jamais.
     """
+    from signals.billing import discovery
+
+    discovery.lock_account(connection, account_id=account_id)
     row = connection.execute(
         sa.select(account_landing_signal).where(
             account_landing_signal.c.account_id == account_id
@@ -857,9 +909,11 @@ def record_landing_signal(
                 opportunity_key=opportunity_key,
                 signal_key=signal_key,
                 token_fingerprint=token_fingerprint,
+                qa=qa,
                 created_at=now,
             )
         )
+        discovery.fill_token_cohort(connection, account_id=account_id, now=now)
         return LandingSignal(account_id, opportunity_key, signal_key, now)
     if signal_key is not None and row.signal_key != signal_key:
         connection.execute(
@@ -867,7 +921,9 @@ def record_landing_signal(
             .where(account_landing_signal.c.account_id == account_id)
             .values(signal_key=signal_key)
         )
+        discovery.fill_token_cohort(connection, account_id=account_id, now=now)
         return LandingSignal(account_id, row.opportunity_key, signal_key, _aware(row.created_at))
+    discovery.fill_token_cohort(connection, account_id=account_id, now=now)
     return LandingSignal(
         account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
     )
@@ -913,7 +969,7 @@ def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSign
 
 
 def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozenset[str]:
-    """Le signal promis et au plus cinq voisins du même profil provisoire."""
+    """Le signal promis et au plus quatre voisins du même profil provisoire."""
     key = connection.execute(
         sa.select(account_landing_signal.c.signal_key).where(
             account_landing_signal.c.account_id == account_id
@@ -939,7 +995,7 @@ def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozen
             materialized_signal.c.materialized_at.desc(),
             materialized_signal.c.signal_key,
         )
-        .limit(6)
+        .limit(5)
     ).scalars()
     return frozenset(related)
 

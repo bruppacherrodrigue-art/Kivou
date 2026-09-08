@@ -29,6 +29,7 @@ from signals.decision_engine.input import (
 from signals.decision_engine.policy import DECISION_POLICY_V1, semantic_fingerprint
 from signals.decision_engine.service import _legacy_budget_usage_candidates, _publication_date
 from signals.decision_engine.store import DecisionEvaluationStore
+from signals.domain.prospect import PROSPECT_POLICY_VERSION, prospect_refusal_codes
 from signals.needs import NeedGraphEngine
 from signals.persistence.schema import acquisition_decision_evaluation, acquisition_event
 from signals.personalization.catalog import (
@@ -38,7 +39,6 @@ from signals.personalization.catalog import (
     TEMPLATE_VERSION,
     CatalogMessage,
     PersonalizationLanguageUnsupported,
-    for_you_fallback,
     render_catalog_message,
 )
 from signals.personalization.contracts import (
@@ -47,6 +47,7 @@ from signals.personalization.contracts import (
     PersonalizationDisposition,
     PersonalizationInput,
 )
+from signals.personalization.for_you import ForYouInput, fallback_sentence
 from signals.personalization.grounding import (
     PersonalizationDecisionNoLongerEligible,
     PersonalizationGroundingInsufficient,
@@ -496,6 +497,10 @@ class PersonalizationService:
     @staticmethod
     def _decision_input(opportunity, supplier, contact, profile, public, as_of_date):
         public_context = build_public_decision_context(
+            prospect_policy_version=PROSPECT_POLICY_VERSION,
+            prospect_refusal_codes=prospect_refusal_codes(
+                public.award, public.event, as_of=as_of_date,
+            ),
             opportunity_key=public.opportunity_key,
             representative_award_key=public.representative_award_key,
             source_event_key=public.event.ref().key(),
@@ -553,7 +558,7 @@ class PersonalizationService:
         )
         first_name = safe_first_name(contact.first_name)
         public_event_sentence = claim_for(recency, company=awardee, lang=language)
-        opportunity_key = opportunity.signal_ref.removeprefix("opportunity:")
+        opportunity_key = public.opportunity_key
         with self._engine.connect() as connection:
             from signals.personalization.for_you_store import (
                 model_fit_for_opportunity,
@@ -567,7 +572,18 @@ class PersonalizationService:
                 raise PersonalizationGroundingInsufficient(
                     opportunity.acquisition_opportunity_id
                 )
-        for_you_sentence = persisted_for_you or for_you_fallback(language, need.category)
+        from signals.domain.subdivisions import subdivision_label
+
+        award = public.award
+        place = award.place_of_performance
+        effective_date = (award.award_date or award.contract_notification_date
+                          or _publication_date(public.event.published_at))
+        for_you_sentence = persisted_for_you or fallback_sentence(ForYouInput(
+            title=(award.lot.title if award.lot else None) or award.title,
+            location=(place.locality or subdivision_label(place.subdivision_code)) if place else None,
+            amount=f"{award.value.amount} {award.value.currency}" if award.value else None,
+            awarded_on=effective_date.isoformat() if effective_date else None,
+        ))
         message = render_catalog_message(
             language=language,
             awardee=awardee,

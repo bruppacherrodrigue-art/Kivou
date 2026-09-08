@@ -25,6 +25,7 @@ import sqlalchemy as sa
 from signals.billing.access import FeedAccess, filter_is_available
 from signals.companies.listing import _scan_accessible_signals
 from signals.domain.cpv_labels import cpv_label
+from signals.domain.french_departments import subdivision_coverage
 from signals.domain.subdivisions import subdivision_label
 from signals.feed.french_departments import location_subdivision
 
@@ -75,10 +76,9 @@ def available_filters(
     subdivisions: dict[str, SubdivisionEntry] = {}
     sectors: dict[str, SectorEntry] = {}
     for signal in signals:
-        code = location_subdivision(signal.award.place_of_performance)
-        if code is not None and code not in subdivisions:
+        for code in subdivision_coverage(location_subdivision(signal.award.place_of_performance)):
             label = subdivision_label(code)
-            if label is not None:
+            if label is not None and code not in subdivisions:
                 country = code.split("-", 1)[0]
                 subdivisions[code] = SubdivisionEntry(code=code, label=label, country=country)
 

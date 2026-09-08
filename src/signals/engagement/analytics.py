@@ -32,6 +32,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from signals.accounts.qa import commercial_account, is_qa_account
 from signals.engagement.schema import (
     ACTIVATION_EVENT_TYPES,
     COMMERCIAL_ACTION_EVENT,
@@ -108,6 +109,8 @@ def record(
     if event_type not in PRODUCT_EVENT_TYPES:
         raise UnknownEventType(f"type d'événement inconnu : {event_type!r}")
     payload = check_properties(dict(properties or {}))
+    if is_qa_account(connection, account_id):
+        payload["qa"] = True
     event_id = _identifier()
     connection.execute(
         sa.insert(product_event).values(
@@ -129,7 +132,8 @@ def record(
 
 
 def _window(start: dt.datetime, end: dt.datetime) -> sa.ColumnElement[bool]:
-    return sa.and_(product_event.c.occurred_at >= start, product_event.c.occurred_at < end)
+    return sa.and_(product_event.c.occurred_at >= start, product_event.c.occurred_at < end,
+                   commercial_account(product_event.c.account_id))
 
 
 def _distinct_accounts(

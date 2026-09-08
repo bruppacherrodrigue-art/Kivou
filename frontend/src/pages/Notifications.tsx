@@ -1,6 +1,6 @@
 import { Check, Mail } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError } from '../api/client'
+import { Link } from 'react-router-dom'
 import { billing, notifications } from '../api/endpoints'
 import { describeError } from '../api/errorCopy'
 import type { AlertCadence, NotificationPreference } from '../api/types'
@@ -41,7 +41,7 @@ function sameDraft(left: NotificationDraft, right: NotificationDraft): boolean {
 
 export function Notifications() {
   const me = useCurrentUser()
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const copy = t.reference.notificationSettings
   const loadPreference = useCallback(() => notifications.read(), [])
   const loadCadence = useCallback(() => billing.status(), [])
@@ -52,7 +52,6 @@ export function Notifications() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<unknown>(null)
-  const [emptyEmailError, setEmptyEmailError] = useState(false)
   const loadedPreference = useRef<NotificationPreference | null>(null)
   const draftRef = useRef(draft)
   const mounted = useRef(true)
@@ -95,11 +94,6 @@ export function Notifications() {
     if (busyRef.current || !baseline || !dirty) return
 
     const snapshot = normaliseDraft(draftRef.current)
-    if (snapshot.enabled && snapshot.email === '') {
-      setEmptyEmailError(true)
-      setSaved(false)
-      return
-    }
     const generation = ++saveGeneration.current
     const startedForAccount = accountId
     busyRef.current = true
@@ -110,7 +104,6 @@ export function Notifications() {
     try {
       const response = await notifications.update({
         email_enabled: snapshot.enabled,
-        notification_email: snapshot.email === '' ? null : snapshot.email,
       })
       if (
         !mounted.current ||
@@ -145,12 +138,7 @@ export function Notifications() {
     }
   }
 
-  const emailFieldError = emptyEmailError
-    ? copy.recipientRequired
-    : saveError instanceof ApiError && saveError.code === 'invalid_notification_email'
-      ? t.notifications.invalidEmail
-      : null
-  const saveCopy = saveError && !emailFieldError ? describeError(saveError, t) : null
+  const saveCopy = saveError ? describeError(saveError, t) : null
 
   return (
     <div className="settings-main">
@@ -201,7 +189,6 @@ export function Notifications() {
                 setDraft(next)
                 setSaved(false)
                 setSaveError(null)
-                setEmptyEmailError(false)
               }}
             />
           </div>
@@ -213,24 +200,17 @@ export function Notifications() {
                 id="notification-recipient"
                 type="email"
                 value={draft.email}
-                disabled={!draft.enabled || saving}
-                required={draft.enabled}
-                aria-invalid={emailFieldError ? true : undefined}
-                aria-describedby={emailFieldError ? 'notification-email-error' : undefined}
-                onChange={(event) => {
-                  const next = { ...draftRef.current, email: event.target.value }
-                  draftRef.current = next
-                  setDraft(next)
-                  setSaved(false)
-                  setSaveError(null)
-                  setEmptyEmailError(false)
-                }}
+                readOnly
+                disabled={saving}
+                aria-describedby="notification-email-help"
               />
-              {emailFieldError ? (
-                <p id="notification-email-error" className="form-error" role="alert">
-                  {emailFieldError}
-                </p>
-              ) : null}
+              <p id="notification-email-help" className="field-hint">
+                {locale === 'en' ? 'An address awaiting verification receives no alerts. Saving these preferences does not verify your address.'
+                  : 'Une adresse en attente de vérification ne reçoit aucune alerte. Enregistrer ces préférences ne vérifie pas votre adresse.'}
+              </p>
+              <Link className="text-link" to="/app/settings/profile">
+                {locale === 'en' ? 'Edit and verify my email address' : 'Modifier et vérifier mon adresse email'}
+              </Link>
             </div>
 
             <div className="form-field">

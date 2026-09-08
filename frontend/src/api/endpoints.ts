@@ -8,6 +8,8 @@
 import { request } from './client'
 import type { QueryParams } from './client'
 import type {
+  AttributionPreview,
+  EmailIdentity,
   BillingStatus,
   CheckoutSession,
   CompanyProfile,
@@ -40,6 +42,20 @@ import type {
 
 export const auth = {
   me: () => request<Me>('/me', { silentUnauthenticated: true }),
+
+  email: () => request<EmailIdentity>('/auth/email'),
+
+  requestEmail: (email: string) => request<{ status: 'sent' }>('/auth/email/request', {
+    method: 'POST', body: { email },
+  }),
+
+  verifyEmail: (token: string) => request<{ status: 'verified' }>('/auth/email/verify', {
+    method: 'POST', body: { token },
+  }),
+
+  attributionPreview: (token: string) => request<AttributionPreview>('/auth/attribution/preview', {
+    method: 'POST', body: { token }, silentUnauthenticated: true,
+  }),
 
   updateLocale: (locale: Locale) =>
     request<Me>('/me', { method: 'PATCH', body: { locale } }),

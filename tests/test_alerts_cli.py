@@ -317,3 +317,47 @@ def test_invalid_now_is_reported_without_echoing_input(configured_runtime, capsy
     rendered = captured.out + captured.err
     assert "configuration_invalid" in rendered
     assert private_value not in rendered
+
+
+@pytest.mark.parametrize("account_id", ["acc_approved_qa", ""])
+def test_cli_passes_the_exact_account_filter(monkeypatch, configured_runtime, account_id):
+    received = []
+
+    def cycle(*args, **kwargs):
+        received.append(kwargs)
+        return CycleReport(0, ())
+
+    monkeypatch.setattr(cli, "run_alert_cycle", cycle)
+
+    assert main(["--now", NOW.isoformat(), "--account-id", account_id]) == 0
+    assert received[0]["account_id"] == account_id
+
+
+def test_account_scoped_dry_run_never_invokes_the_cycle(monkeypatch, configured_runtime):
+    monkeypatch.setattr(cli, "run_alert_cycle", lambda *args, **kwargs: pytest.fail(
+        "dry-run invoked the delivery cycle"
+    ))
+
+    assert main(["--now", NOW.isoformat(), "--account-id", "acc_approved_qa", "--dry-run"]) == 0
+
+
+def test_cli_qa_resend_passes_nonce_scope_and_configured_sender_domain(monkeypatch, configured_runtime):
+    received = []
+
+    def cycle(*args, **kwargs):
+        received.append(kwargs)
+        return CycleReport(0, ())
+
+    monkeypatch.setattr(cli, 'run_alert_cycle', cycle)
+    assert main(['--account-id', 'acc_approved_qa', '--qa-resend-nonce',
+                 'recipe-20260908-g1', '--now', NOW.isoformat()]) == 0
+    assert received[0]['account_id'] == 'acc_approved_qa'
+    assert received[0]['qa_resend_nonce'] == 'recipe-20260908-g1'
+    assert received[0]['message_id_domain'] == 'kivou.eu'
+
+
+def test_cli_qa_resend_without_account_is_rejected_even_for_dry_run(configured_runtime, capsys):
+    with pytest.raises(SystemExit) as stopped:
+        main(['--qa-resend-nonce', 'recipe-20260908-g1', '--dry-run'])
+    assert stopped.value.code == 2
+    assert 'recipe-20260908-g1' not in capsys.readouterr().err

@@ -31,12 +31,14 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import datetime as dt
+import re
 import secrets
 from collections.abc import Iterator
 
 import sqlalchemy as sa
 
-from signals.accounts.schema import account
+from signals.accounts.qa import is_qa_account
+from signals.accounts.schema import account, auth_user
 from signals.accounts.service import normalize_email
 from signals.alerts import content, delivery, lease, policy
 from signals.alerts.gateway import (
@@ -44,14 +46,14 @@ from signals.alerts.gateway import (
     AlertDeliveryGateway,
     AlertMessage,
     UncertainDelivery,
+    configured_message_domain,
 )
 from signals.billing import service as billing
 from signals.billing.access import feed_access
 from signals.engagement import analytics, notifications
-from signals.engagement.schema import signal_alert_delivery
+from signals.engagement.schema import account_notification_preference, signal_alert_delivery
 from signals.feed import policy as feed_policy
 from signals.feed import query as feed_query
-from signals.feed import view as feed_view
 from signals.recency.claim import LANGUAGES
 from signals.runtime_events import emit_delivery_event
 from signals.transactional_email.links import preferences_url, signal_url
@@ -352,6 +354,9 @@ def run_alert_cycle(
     *,
     now: dt.datetime,
     public_app_url: str | None,
+    account_id: str | None = None,
+    qa_resend_nonce: str | None = None,
+    message_id_domain: str | None = None,
     delivery_lease_ttl: dt.timedelta = dt.timedelta(minutes=30),
     job_lease_ttl: dt.timedelta | None = None,
     retry_base: dt.timedelta = dt.timedelta(minutes=15),
@@ -362,7 +367,15 @@ def run_alert_cycle(
     `now` est explicite : c'est ce qui permet de tester une cadence hebdomadaire
     sans attendre une semaine, et ce qui garantit qu'un rejeu ne dépend pas de
     l'heure à laquelle il tombe.
+
+    `account_id` limits an operator-triggered cycle to that exact account,
+    while retaining the global job lease and every normal delivery check.
     """
+    if qa_resend_nonce is not None and (
+        not account_id or not account_id.strip()
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{7,127}", qa_resend_nonce) is None
+    ):
+        raise ValueError("QA resend requires an explicit account and valid nonce")
     owner_id = secrets.token_hex(16)
     with engine.begin() as connection:
         acquisition = lease.acquire(
@@ -377,11 +390,14 @@ def run_alert_cycle(
     try:
         outcomes: list[AlertOutcome] = []
         with engine.connect() as connection:
-            accounts = connection.execute(
-                sa.select(account.c.account_id, account.c.locale).order_by(
-                    account.c.account_id
-                )
-            ).all()
+            if qa_resend_nonce is not None and not is_qa_account(connection, account_id):
+                raise ValueError("QA resend requires a marked QA account")
+            query = sa.select(account.c.account_id, account.c.locale).order_by(
+                account.c.account_id
+            )
+            if account_id is not None:
+                query = query.where(account.c.account_id == account_id)
+            accounts = connection.execute(query).all()
 
         for row in accounts:
             outcomes.append(
@@ -392,6 +408,8 @@ def run_alert_cycle(
                     locale=row.locale,
                     now=now,
                     public_app_url=public_app_url,
+                    qa_resend_nonce=qa_resend_nonce,
+                    message_id_domain=message_id_domain or configured_message_domain(public_app_url),
                     delivery_lease_ttl=delivery_lease_ttl,
                     retry_base=retry_base,
                     max_attempts=max_attempts,
@@ -411,6 +429,8 @@ def _run_for_account(
     locale: str | None,
     now: dt.datetime,
     public_app_url: str | None,
+    qa_resend_nonce: str | None = None,
+    message_id_domain: str = "localhost",
     delivery_lease_ttl: dt.timedelta,
     retry_base: dt.timedelta,
     max_attempts: int,
@@ -422,6 +442,13 @@ def _run_for_account(
         state = billing.billing_state(connection, account_id=account_id)
         cadence = state.entitlements.alert_cadence
         batch = delivery.next_due_batch(connection, account_id=account_id, now=now)
+        if qa_resend_nonce is not None:
+            manual_key = delivery.qa_resend_key(account_id, qa_resend_nonce)
+            requested = delivery.qa_resend_requested(connection, account_id, qa_resend_nonce)
+            if requested and (batch is None or batch.batch_key != manual_key):
+                return AlertOutcome(account_id, cadence, "qa_resend_already_processed")
+            if not requested and delivery.has_unfinished_batch(connection, account_id=account_id):
+                return AlertOutcome(account_id, cadence, "qa_resend_pending_batch")
         if cadence not in policy.SENDING_CADENCES:
             if batch is not None:
                 _suppress(
@@ -452,12 +479,17 @@ def _run_for_account(
 
         preference = notifications.preference(connection, account_id=account_id, now=now)
         if not preference.can_receive_email:
+            reason_code = (
+                "notifications_disabled"
+                if not preference.email_enabled or not preference.notification_email
+                else "recipient_context_unverifiable"
+            )
             if batch is not None:
                 _suppress(
                     connection,
                     batch=batch,
                     signal_keys=batch.signal_keys,
-                    reason_code="notifications_disabled",
+                    reason_code=reason_code,
                     cadence=cadence,
                     now=now,
                 )
@@ -465,7 +497,7 @@ def _run_for_account(
                     pending_events,
                     batch,
                     status="suppressed",
-                    code="notifications_disabled",
+                    code=reason_code,
                     retryable=False,
                 )
                 return AlertOutcome(
@@ -473,11 +505,11 @@ def _run_for_account(
                     cadence,
                     "suppressed",
                     len(batch.signal_keys),
-                    "notifications_disabled",
+                    reason_code,
                     False,
                     batch.attempt_count,
                 )
-            return AlertOutcome(account_id, cadence, "notifications_disabled")
+            return AlertOutcome(account_id, cadence, reason_code)
 
         recipient_context_fingerprint = _recipient_context_fingerprint(
             connection,
@@ -520,7 +552,7 @@ def _run_for_account(
             )
 
         if batch is None:
-            if not policy.is_due(
+            if qa_resend_nonce is None and not policy.is_due(
                 cadence,
                 last_sent_at=_last_successful_send(
                     connection,
@@ -546,21 +578,26 @@ def _run_for_account(
                 )
 
             signal_limit = 1 if state.is_discovery else policy.MAXIMUM_SIGNALS_PER_EMAIL
-            new_items = eligible_signals(
-                connection,
-                account_id=account_id,
-                as_of=now.date(),
-                limit=signal_limit,
+            new_items = (
+                _accessible_signals(connection, account_id=account_id, as_of=now.date(), enough=1)[:1]
+                if qa_resend_nonce is not None else eligible_signals(
+                    connection, account_id=account_id, as_of=now.date(), limit=signal_limit,
+                )
             )
             if not new_items:
                 return AlertOutcome(account_id, cadence, "nothing_to_send")
-            batch = delivery.queue_batch(
+            queue = delivery.queue_qa_resend if qa_resend_nonce is not None else delivery.queue_batch
+            extra = ({"nonce": qa_resend_nonce, "content_version": content.ALERT_COPY_VERSION}
+                     if qa_resend_nonce is not None else {})
+            batch = queue(
                 connection,
                 account_id=account_id,
                 signal_keys=(item.signal.signal_key for item in new_items),
                 cadence=cadence,
                 recipient_context_fingerprint=recipient_context_fingerprint,
                 now=now,
+                message_id_domain=message_id_domain,
+                **extra,
             )
             if batch is None:
                 return AlertOutcome(account_id, cadence, "nothing_to_send")
@@ -571,7 +608,7 @@ def _run_for_account(
                     signal_key=signal_key,
                     event_type="alert_queued",
                     occurred_at=now,
-                    properties={"cadence": cadence},
+                    properties={"cadence": cadence, "content_version": content.ALERT_COPY_VERSION},
                 )
 
         if not public_app_url:
@@ -674,9 +711,23 @@ def _run_for_account(
         )
         lang = _language(locale)
         items = [by_key[key] for key in batch.signal_keys]
+        # Local imports keep the CLI independent of API application bootstrap.
+        # Today re-exports these exact lower-level card rendering functions.
+        from signals.card_intelligence.store import published_for_signals
+        from signals.companies.enrichment import winner_enrichments_for_signals
+        from signals.feed.cards import presentation_bindings_for_items, render_unlocked_card
+
+        presentations = published_for_signals(
+            connection, account_id=account_id,
+            bindings=presentation_bindings_for_items(connection, items), language=lang,
+        )
+        enrichments = winner_enrichments_for_signals(connection, signal_keys=batch.signal_keys)
         lines = [
             content.line_from_card(
-                feed_view.feed_item(item, lang=lang),
+                render_unlocked_card(
+                    item, lang=lang, presentation=presentations.get(item.signal.signal_key),
+                    company_key=None, enrichment=enrichments.get(item.signal.signal_key), status="new",
+                ),
                 url=signal_url(public_app_url, item.signal.signal_key),
                 lang=lang,
             )
@@ -700,7 +751,7 @@ def _run_for_account(
                 0,
                 sum(1 for item in page.items if item.model_fit != "none") - len(lines),
             )
-            pricing_link = f"{public_app_url.rstrip('/')}/pricing"
+            pricing_link = f"{public_app_url.rstrip('/')}/tarifs"
         message = AlertMessage(
             to_email=preference.notification_email,
             subject=content.subject(len(lines), lang=lang),
@@ -715,12 +766,79 @@ def _run_for_account(
             message_id=batch.message_id,
             language=lang,
             preferences_url=preferences_link,
+            content_version=content.ALERT_COPY_VERSION,
         )
 
-    # L'envoi a lieu HORS transaction : garder une transaction ouverte pendant
-    # un appel réseau bloquerait la base le temps d'un timeout SMTP.
+    # Queue/render are already committed. Only the final recipient guard spans
+    # SMTP: lock the exact user, then this account's preference, matching the
+    # verification service's lock order. Identity writers must lock that user.
+    # Other accounts' rows remain unlocked. Release these locks before the
+    # existing delivery-result transactions below.
+    result = None
     try:
-        result = gateway.send(message)
+        with _transaction_with_delivery_events(engine) as (connection, pending_events):
+            recipient_user_id = connection.scalar(
+                sa.select(auth_user.c.user_id)
+                .where(
+                    auth_user.c.account_id == account_id,
+                    auth_user.c.email_normalized == normalize_email(message.to_email),
+                    auth_user.c.is_active.is_(True),
+                )
+                .with_for_update()
+            )
+            preference_account_id = connection.scalar(
+                sa.select(account_notification_preference.c.account_id)
+                .where(account_notification_preference.c.account_id == account_id)
+                .with_for_update()
+            )
+            reason_code = None
+            if recipient_user_id is None or preference_account_id is None:
+                reason_code = "recipient_context_unverifiable"
+            else:
+                current = notifications.preference(connection, account_id=account_id, now=now)
+                if not current.can_receive_email:
+                    reason_code = (
+                        "notifications_disabled"
+                        if not current.email_enabled or not current.notification_email
+                        else "recipient_context_unverifiable"
+                    )
+                elif (
+                    normalize_email(current.notification_email) != normalize_email(message.to_email)
+                    or _recipient_context_fingerprint(
+                        connection,
+                        account_id=account_id,
+                        state=billing.billing_state(connection, account_id=account_id),
+                        preference=current,
+                        cadence=cadence,
+                    ) != batch.recipient_context_fingerprint
+                ):
+                    reason_code = "recipient_context_changed"
+            if reason_code is not None:
+                _suppress(
+                    connection,
+                    batch=batch,
+                    signal_keys=batch.signal_keys,
+                    reason_code=reason_code,
+                    cadence=cadence,
+                    now=now,
+                )
+                _defer_batch_delivery(
+                    pending_events,
+                    batch,
+                    status="suppressed",
+                    code=reason_code,
+                    retryable=False,
+                )
+                return AlertOutcome(
+                    account_id,
+                    cadence,
+                    "suppressed",
+                    len(batch.signal_keys),
+                    reason_code,
+                    False,
+                    batch.attempt_count,
+                )
+            result = gateway.send(message)
     except UncertainDelivery as error:
         try:
             with engine.begin() as connection:
@@ -834,6 +952,30 @@ def _run_for_account(
             batch.attempt_count,
         )
 
+    except sa.exc.SQLAlchemyError:
+        if result is None:
+            # A pre-submission database failure keeps its existing behavior.
+            raise
+        # SMTP accepted, but closing the guard transaction failed. Preserve
+        # the durable sending lease and existing bounded persistence-failure
+        # outcome; never report a confirmed send without persisted evidence.
+        will_retry = batch.attempt_count < max_attempts
+        _emit_batch_delivery(
+            batch,
+            status="persistence_failed",
+            code="delivery_state_persistence_failed",
+            retryable=will_retry,
+        )
+        return AlertOutcome(
+            account_id,
+            cadence,
+            "persistence_failed",
+            len(batch.signal_keys),
+            "delivery_state_persistence_failed",
+            will_retry,
+            batch.attempt_count,
+        )
+
     try:
         with engine.begin() as connection:
             delivery.mark_sent(
@@ -850,6 +992,7 @@ def _run_for_account(
                 properties={
                     "cadence": cadence,
                     "signal_count": len(batch.signal_keys),
+                    "content_version": content.ALERT_COPY_VERSION,
                 },
             )
     except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):

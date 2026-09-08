@@ -199,11 +199,10 @@ def list_signals(
     # ses trois déblocages écrits ici, une fois pour toutes (§20).
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        provisional_profile = (
-            service.landing_signal(connection, account_id=session.account_id) is not None
-            and service.onboarding_status(connection, account_id=session.account_id)
-            != "ready_for_signals"
+        provisional_profile = service.is_provisional_profile(
+            connection, account_id=session.account_id,
         )
+        landing = service.landing_signal(connection, account_id=session.account_id)
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         service.reconcile_territory_plan_limits(
@@ -397,6 +396,7 @@ def list_signals(
         "language": lang,
         "plan_code": access.plan_code,
         "provisional_profile": provisional_profile,
+        "landing_signal_key": landing.signal_key if provisional_profile and landing else None,
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
         "policy": {
@@ -464,7 +464,14 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
     permettrait de choisir ses cadeaux en changeant l'URL, et rendrait le
     résultat non déterministe.
     """
-    if access.is_paid or discovery.remaining_slots(connection, account_id=account_id) == 0:
+    if access.is_paid:
+        return access
+    if service.landing_signal(connection, account_id=account_id) is not None:
+        discovery.fill_token_cohort(connection, account_id=account_id, now=now)
+        return dataclasses.replace(access, granted=discovery.granted_signal_keys(
+            connection, account_id=account_id
+        ))
+    if discovery.remaining_slots(connection, account_id=account_id) == 0:
         return access
     eligible = query.feed_page(
         connection,

@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from pydantic import Field, field_validator
 from sqlalchemy.engine import Engine
 
+from signals.accounts.qa import commercial_account
 from signals.cockpit.contracts import WeeklyCommercialCockpit, completed_week
 from signals.cockpit.service import WeeklyCommercialCockpitService
 from signals.engagement.schema import signal_feedback
@@ -306,8 +307,9 @@ class FounderReadService:
             .order_by(sa.func.count().desc(), signal_feedback.c.reason_code)
         )
         with self._engine.connect() as connection:
-            totals = connection.execute(statement).mappings().one()
-            reasons = connection.execute(reason_statement).mappings().all()
+            non_qa = commercial_account(signal_feedback.c.account_id)
+            totals = connection.execute(statement.where(non_qa)).mappings().one()
+            reasons = connection.execute(reason_statement.where(non_qa)).mappings().all()
         feedback_total = int(totals["feedback_total"] or 0)
         not_relevant_total = int(totals["not_relevant_total"] or 0)
         negative_rate = (

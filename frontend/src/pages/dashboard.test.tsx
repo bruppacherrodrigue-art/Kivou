@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
 import type { UnlockedFeedItem } from '../api/types'
@@ -45,6 +46,25 @@ function routes(payload = dashboard()) {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Aujourd’hui', () => {
+  it('conserve firstSignals malgré le préchargement et les rendus, puis le consomme avant un retour', async () => {
+    function Navigation() {
+      const navigate = useNavigate()
+      return <><button onClick={() => navigate('/app/settings/profile')}>Quitter la visite</button><button onClick={() => navigate(-1)}>Retour à la visite</button></>
+    }
+    mockApi({ ...routes(), 'GET /auth/email': { body: { email: 'test@example.test', verified: true, pending_email: null } } })
+    renderApp(<><AppRoutes /><Navigation /></>, { session: AUTHENTICATED, route: { pathname: '/app', state: { firstSignals: true, emailVerificationSent: 'test@example.test' } } })
+    const user = userEvent.setup()
+    expect(await screen.findByRole('heading', { name: 'Vos premiers signaux' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('Votre adresse est en attente de vérification.')
+    await user.click(within(screen.getByText('Titulaire 1').closest('article')!).getByRole('button', { name: 'Ouvrir' }))
+    expect(screen.getByRole('heading', { name: 'Vos premiers signaux' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('test@example.test')
+    await user.click(screen.getByRole('button', { name: 'Quitter la visite' }))
+    await screen.findByLabelText('Langue')
+    await user.click(screen.getByRole('button', { name: 'Retour à la visite' }))
+    expect(await screen.findByRole('heading', { name: '12 nouveaux marchés depuis mardi' })).toBeVisible()
+    expect(screen.queryByText(/Un email de confirmation a été envoyé/)).not.toBeInTheDocument()
+  })
   it('affiche le bandeau, trois cartes et leur phrase rédigée partagée', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })

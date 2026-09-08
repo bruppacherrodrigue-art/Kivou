@@ -49,6 +49,10 @@ describe('préférences de notification', () => {
 
     const field = await screen.findByLabelText(/Adresse de réception/)
     expect(field).toHaveValue('alertes@acme.test')
+    expect(field).toHaveAttribute('readonly')
+    expect(screen.getByRole('link', { name: 'Modifier et vérifier mon adresse email' })).toHaveAttribute('href', '/app/settings/profile')
+    expect(callsTo('/auth/email/request')).toHaveLength(0)
+    expect(callsTo('/auth/email/verify')).toHaveLength(0)
   })
 
   it('persiste l’activation ou la coupure des alertes', async () => {
@@ -72,8 +76,7 @@ describe('préférences de notification', () => {
       expect(callsTo('/notification-preferences', 'PATCH')).toHaveLength(1),
     )
     const sent = callsTo('/notification-preferences', 'PATCH')[0].body as Record<string, unknown>
-    expect(sent.email_enabled).toBe(false)
-    expect(sent).not.toHaveProperty('account_id')
+    expect(sent).toEqual({ email_enabled: false })
 
     expect(await screen.findByText('Enregistré')).toBeInTheDocument()
     expect(screen.getByRole('switch')).not.toBeChecked()
@@ -119,30 +122,23 @@ describe('préférences de notification', () => {
     expect(screen.getByText(/n’inclut pas d’alertes e-mail/)).toBeInTheDocument()
   })
 
-  it('rejette une adresse invalide en le disant sur le champ', async () => {
+  it('dirige les changements d’adresse vers la vérification du compte sans mutation silencieuse', async () => {
     const user = userEvent.setup()
     mockApi(
       routes(PRO_STATUS, PREFERENCE, {
-        'PATCH /notification-preferences': {
-          status: 422,
-          body: {
-            detail: {
-              code: 'invalid_notification_email',
-              message: 'adresse de notification invalide',
-            },
-          },
-        },
+        'GET /auth/email': { body: { email: AUTHENTICATED.me!.email, verified: false, pending_email: null } },
       }),
     )
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/notifications' })
 
     const field = await screen.findByLabelText(/Adresse de réception/)
-    await user.clear(field)
-    await user.type(field, 'pas-une-adresse')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer les notifications' }))
-
-    expect(await screen.findByText('Cette adresse n’est pas valide.')).toBeInTheDocument()
-    expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect(field).toHaveAttribute('readonly')
+    await user.click(screen.getByRole('link', { name: 'Modifier et vérifier mon adresse email' }))
+    expect(await screen.findByLabelText('Adresse professionnelle')).toHaveValue(AUTHENTICATED.me!.email)
+    expect(screen.getByRole('button', { name: 'Envoyer le lien de vérification' })).toBeVisible()
+    expect(callsTo('/notification-preferences', 'PATCH')).toHaveLength(0)
+    expect(callsTo('/auth/email/request')).toHaveLength(0)
+    expect(callsTo('/auth/email/verify')).toHaveLength(0)
   })
 
   it('n’invente aucun historique de livraison', async () => {

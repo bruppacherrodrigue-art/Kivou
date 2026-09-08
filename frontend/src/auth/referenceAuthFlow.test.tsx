@@ -198,6 +198,7 @@ describe('parcours d’entrée de la référence connectée', () => {
   it('inscrit en français sans stockage de démonstration ni sélecteur de langue', async () => {
     const user = userEvent.setup()
     mockApi({
+      'GET /target-icps': { body: [] },
       'POST /auth/signup': (request) => {
         expect(request.body).toEqual({
           company_name: 'Entreprise Test',

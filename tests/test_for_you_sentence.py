@@ -16,8 +16,8 @@ from signals.personalization.for_you import (
 
 def test_fallback_and_legacy_cache_never_expose_engine_vocabulary() -> None:
     assert fallback_sentence(context()) == (
-        "Le marché « Rénovation d'une école à Grenoble » à Grenoble, Isère "
-        "(250000 EUR, attribué le 2026-08-12) peut concerner votre activité."
+        "Rénovation d'une école à Grenoble à Grenoble, Isère "
+        "(250 000 €, août 2026) : dans votre zone et votre secteur."
     )
     assert client_safe_sentence("besoin principal couvert : materials_or_components") is None
     assert client_safe_sentence("Votre offre répond aux besoins de ce marché.") == (

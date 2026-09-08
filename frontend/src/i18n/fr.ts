@@ -1142,6 +1142,10 @@ export const fr = {
   },
 
   locked: {
+    previewTitle: 'Aperçu réservé',
+    offers: 'Voir les offres',
+    offersScope: 'Offres Essentiel et Pro : vérifiez les droits et la fenêtre d’historique avant de choisir.',
+    otherSignals: '{count} autres signaux dans votre zone',
     badge: 'Verrouillé',
     title: 'Étendre l’accès à votre flux',
     teaserHeadingFallback: 'Un signal détecté sur votre périmètre',
@@ -1468,7 +1472,7 @@ export const fr = {
       amount: 'Montant',
       place: 'Lieu',
       awardedOn: 'Attribué le',
-      notifiedOn: 'Notifié le',
+      notifiedOn: 'Attribué le',
       publishedOn: 'Publié le',
       cpv: 'CPV',
       needs: 'Ce que le titulaire va devoir faire',

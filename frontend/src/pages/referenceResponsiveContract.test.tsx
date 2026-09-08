@@ -70,7 +70,7 @@ describe('contrat responsive connecté à 390 px', () => {
       session: AUTHENTICATED,
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await screen.findByRole('heading', { level: 2, name: 'Réfection de la voirie communale — lot 2' })
     // Radix marque le fond `aria-hidden` tant que la feuille modale reste
     // ouverte : `getAllByRole('main'|'heading')` ne les y trouverait plus,
     // d'où une requête DOM directe pour vérifier leur unicité structurelle.

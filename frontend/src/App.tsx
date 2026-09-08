@@ -15,6 +15,7 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { Onboarding } from './pages/Onboarding'
+import { PROFILE_CONFIRMATION_PATH } from './auth/profileRoute'
 import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
 import { CompaniesPage } from './companies/CompaniesPage'
@@ -23,6 +24,8 @@ import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
 import { Settings } from './pages/Settings'
 import { ProfileSettings } from './pages/ProfileSettings'
+import { VerifyEmail } from './pages/VerifyEmail'
+import { PublicSignal } from './pages/PublicSignal'
 import { SecuritySettings } from './pages/SecuritySettings'
 import { Checkout, CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
@@ -89,6 +92,8 @@ export function AppRoutes() {
 
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
+          <Route path="verify-email" element={<VerifyEmail />} />
+          <Route path="public-signal" element={<PublicSignal />} />
         </Route>
       </Route>
 
@@ -96,6 +101,7 @@ export function AppRoutes() {
         <Route element={<DashboardSurface />}>
           <Route element={<RequireAuth />}>
             <Route path="onboarding" element={<Onboarding />} />
+            <Route path={PROFILE_CONFIRMATION_PATH} element={<Onboarding confirmationOnly />} />
             <Route path="checkout" element={<Checkout />} />
 
             <Route path="app" element={<AppShell />}>
