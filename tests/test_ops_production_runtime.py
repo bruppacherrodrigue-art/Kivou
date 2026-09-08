@@ -1649,7 +1649,7 @@ def test_backup_retention_claim_matches_versioned_scripts_and_success_order() ->
     assert "aucune sauvegarde n'est supprimée manuellement" in body.lower()
     assert "14 jours" in body.lower()
     assert "30 quotidiennes, 12 mensuelles et 3 annuelles" in body.lower()
-    assert_fragments_in_order(local, "pg_restore", 'mv -f "${PARTIAL}" "${TARGET}"', "-delete")
+    assert_fragments_in_order(local, "pg_restore", 'mv -f "${PARTIAL}" "${TARGET}"', "unlink()")
     assert_fragments_in_order(
         offsite,
         '"${RESTIC}" backup',
