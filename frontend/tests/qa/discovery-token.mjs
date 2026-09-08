@@ -4,6 +4,7 @@
  * Required: QA_ACCOUNT_ID. Optional: QA_ENVIRONMENT=staging|production|local,
  * QA_ORIGIN, QA_VIEWPORT=both|desktop|mobile, QA_OUTPUT_DIR, QA_TIMEOUT_MS,
  * QA_BROWSER_EXECUTABLE, EXPECTED_OPEN_COUNT=1|2|3 (default 3), QA_SCARCITY_REASON,
+ * QA_PROFILE_STATE=confirmed|provisional (default confirmed),
  * QA_COHORT_AUDIT_FILE: private backend CLI APPLY receipt, dry_run=false.
  * Only after.{account_id,used,quota,remaining,bait_signal_key,grants} is authoritative.
  * API signal_id maps to grants[].signal_key; canonical procedure_references
@@ -26,7 +27,10 @@ let stage = 'configuration'
 let browser
 let output
 const report = { status: 'fail', write_attempts: 0, screenshots: [], viewports: [] }
-const check = (condition, code) => { if (!condition) throw new Error(code) }
+class QaAssertionError extends Error {
+  constructor(code) { super(code); this.code = code }
+}
+const check = (condition, code) => { if (!condition) throw new QaAssertionError(code) }
 const elapsed = () => Math.round(performance.now() - started)
 const string = (value) => typeof value === 'string' && value.trim().length > 0
 const named = (value) => string(value) && /\p{L}/u.test(value) && !/^\s*(?:siret|siren)\s*[:#-]?\s*[\d\s.-]+\s*$/i.test(value)
@@ -44,6 +48,9 @@ try {
   const expected = Number(expectedText)
   const account = process.env.QA_ACCOUNT_ID
   check(string(account), 'account_required')
+  const profileState = process.env.QA_PROFILE_STATE || 'confirmed'
+  check(['confirmed', 'provisional'].includes(profileState), 'profile_state')
+  report.expected_profile_state = profileState
   const viewportName = process.env.QA_VIEWPORT || 'both'
   check(['both', 'desktop', 'mobile'].includes(viewportName), 'viewport')
   const timeout = Number(process.env.QA_TIMEOUT_MS || '30000')
@@ -110,15 +117,18 @@ try {
         if (pathname.startsWith('/signals/') && lockedIds.has(decodeURIComponent(pathname.slice('/signals/'.length)))) lockedDetailRequests += 1
       })
       stage = `${viewport.name}_token`
-      await page.goto(tokenUrl.href, { waitUntil: 'domcontentloaded' })
+      const landingResponse = await page.goto(tokenUrl.href, { waitUntil: 'domcontentloaded' })
+      result.landing_status = landingResponse?.status() ?? null
       await page.waitForURL((url) => url.origin === origin.origin && url.pathname.startsWith('/app'))
       const landing = new URL(page.url()).pathname.match(/^\/app\/signals\/([^/]+)$/)
       const bait = audit?.bait_signal_id || (landing ? decodeURIComponent(landing[1]) : null)
       check(string(bait), 'bait_audit_required')
       const meResponse = await context.request.get(`${origin.origin}/me`)
+      result.me_status = meResponse.status()
       check(meResponse.status() === 200, 'me_status')
       const me = await meResponse.json()
-      check(me.account_id === account && !me.provisional_profile, 'confirmed_account')
+      check(me.account_id === account, 'account_identity')
+      check(Boolean(me.provisional_profile) === (profileState === 'provisional'), 'expected_profile_state')
       result.timings_ms.token = elapsed()
 
       const capture = async (name) => {
@@ -205,9 +215,10 @@ try {
   }
   check(report.write_attempts === 0, 'writes_attempted')
   report.status = 'pass'
-} catch {
+} catch (error) {
   // Browser exceptions can embed bearer URLs or response bodies. Never serialize them.
   report.failure_stage = stage
+  report.failure_code = error instanceof QaAssertionError ? error.code : 'browser_or_transport_error'
   process.exitCode = 1
 } finally {
   if (browser) await browser.close().catch(() => { report.status = 'fail'; report.cleanup_failed = true; process.exitCode = 1 })
