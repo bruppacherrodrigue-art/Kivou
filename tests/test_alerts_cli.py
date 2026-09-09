@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 import pytest
 import sqlalchemy as sa
 
 from signals.alerts import cli
 from signals.alerts.cli import main
+from signals.alerts.gateway import AlertMessage
 from signals.alerts.job import AlertOutcome, CycleReport
 from signals.persistence.database import create_database_engine, migrate_to_latest
 
@@ -45,6 +47,24 @@ def configured_runtime(monkeypatch, migrated_url) -> None:
 
 def test_cli_reads_database_url_only_from_environment(configured_runtime) -> None:
     assert main(["--now", NOW.isoformat(), "--dry-run"]) == 0
+
+
+def test_cli_dry_run_account_emits_the_produced_message(monkeypatch, configured_runtime, capsys) -> None:
+    expected = AlertMessage(
+        to_email="qa@kivou.eu",
+        subject="1 nouveau signal pour vous",
+        text_body="Titulaire : Test\nOuvrir : https://kivou.eu/app/signals/sig",
+        html_body="<article>Test <a>Ouvrir</a></article>",
+        message_id="<kivou-alert-test@kivou.eu>",
+        language="fr",
+    )
+    monkeypatch.setattr(cli, "preview_account_message", lambda *args, **kwargs: expected)
+
+    assert main(["--now", NOW.isoformat(), "--dry-run", "--account", "acc_qa"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["message_id"].endswith("@kivou.eu>")
+    assert payload["text_body"] == expected.text_body
+    assert payload["html_body"] == expected.html_body
 
 
 def test_database_url_argument_is_rejected_without_echoing_its_value(

@@ -43,7 +43,31 @@ KIVOU_SERVICE_USER=${KIVOU_SERVICE_USER:-kivou}
 KIVOU_PLAYWRIGHT_BROWSERS_DIR=${KIVOU_PLAYWRIGHT_BROWSERS_DIR:-/srv/kivou/playwright}
 KIVOU_RELEASE_DIR="$KIVOU_RELEASES_DIR/$KIVOU_ENVIRONMENT-$KIVOU_SHA"
 
-for dependency in git uv npm createdb dropdb pg_restore runuser systemctl; do
+sync_systemd_units() {
+  local release_dir=$1
+  local unit_dir="$release_dir/ops/systemd"
+  local unit
+  local unit_count=0
+  local -a units=()
+
+  if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
+    unit_dir="$unit_dir/production"
+  fi
+  [[ -d "$unit_dir" ]] || fail "unités systemd introuvables : $unit_dir"
+
+  shopt -s nullglob
+  units=("$unit_dir"/*.service "$unit_dir"/*.timer)
+  shopt -u nullglob
+  for unit in "${units[@]}"; do
+    install -o root -g root -m 0644 "$unit" "/etc/systemd/system/$(basename "$unit")"
+    unit_count=$((unit_count + 1))
+  done
+  (( unit_count > 0 )) || fail "aucune unité systemd dans $unit_dir"
+  systemctl daemon-reload
+  log "unités systemd synchronisées : $unit_count ($KIVOU_ENVIRONMENT)"
+}
+
+for dependency in git uv npm createdb dropdb pg_restore runuser systemctl install; do
   command -v "$dependency" >/dev/null 2>&1 || fail "$dependency introuvable"
 done
 [[ -x "$KIVOU_BACKUP_SCRIPT" ]] || fail "helper de sauvegarde introuvable"
@@ -51,6 +75,7 @@ done
 
 if [[ "$(readlink -f "$KIVOU_BACKEND_LINK" 2>/dev/null || true)" == "$KIVOU_RELEASE_DIR" ]] \
   && [[ "$(readlink -f "$KIVOU_FRONTEND_LINK" 2>/dev/null || true)" == "$KIVOU_RELEASE_DIR/frontend/dist" ]]; then
+  sync_systemd_units "$KIVOU_RELEASE_DIR"
   "$KIVOU_READINESS_SCRIPT" "$KIVOU_SYSTEMD_UNIT" "$KIVOU_READINESS_PORT"
   log "release déjà active : $KIVOU_SHA"
   exit 0
@@ -142,6 +167,7 @@ preserve_previous "$KIVOU_BACKEND_LINK"
 preserve_previous "$KIVOU_FRONTEND_LINK"
 activate "$KIVOU_RELEASE_DIR" "$KIVOU_BACKEND_LINK"
 activate "$KIVOU_RELEASE_DIR/frontend/dist" "$KIVOU_FRONTEND_LINK"
+sync_systemd_units "$KIVOU_RELEASE_DIR"
 systemctl restart "$KIVOU_SYSTEMD_UNIT"
 "$KIVOU_READINESS_SCRIPT" "$KIVOU_SYSTEMD_UNIT" "$KIVOU_READINESS_PORT"
 trap - EXIT

@@ -1,0 +1,16 @@
+[Unit]
+Description=Kivou disk usage alert at 80 percent
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+ExecStart=/usr/local/sbin/kivou-disk-alert
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+TimeoutStartSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-disk-alert
+SyslogLevelPrefix=yes

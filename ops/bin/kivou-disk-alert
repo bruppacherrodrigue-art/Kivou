@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage=$(df -P /srv/kivou | awk 'NR == 2 {gsub(/%/, "", $5); print $5}')
+[[ "$usage" =~ ^[0-9]+$ ]] || {
+  printf '<3>disk_alert=measurement_failed path=/srv/kivou\n' >&2
+  exit 2
+}
+if (( usage >= 80 )); then
+  printf '<4>disk_alert=threshold_exceeded path=/srv/kivou used_percent=%s threshold_percent=80\n' "$usage" >&2
+  exit 1
+fi
+printf '<6>disk_alert=healthy path=/srv/kivou used_percent=%s threshold_percent=80\n' "$usage"

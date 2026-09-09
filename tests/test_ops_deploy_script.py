@@ -8,6 +8,18 @@ ROOT = pathlib.Path(__file__).parents[1]
 SCRIPT = ROOT / "ops/bin/kivou-deploy.sh"
 
 
+def test_deploy_synchronizes_environment_systemd_units_on_every_path() -> None:
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert "sync_systemd_units" in script
+    assert 'unit_dir="$unit_dir/production"' in script
+    assert 'ops/systemd' in script
+    assert 'install -o root -g root -m 0644' in script
+    assert 'systemctl daemon-reload' in script
+    assert script.index("sync_systemd_units") < script.index("release déjà active")
+    assert script.index("sync_systemd_units") < script.index('systemctl restart "$KIVOU_SYSTEMD_UNIT"')
+
+
 def _fake_bin(directory: pathlib.Path, name: str, body: str) -> None:
     target = directory / name
     target.write_text("#!/usr/bin/env bash\nset -eu\n" + body, encoding="utf-8")
@@ -91,7 +103,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         helper.chmod(0o755)
 
     recorder = 'printf "%s %s\\n" "$(basename "$0")" "$*" >> "$KIVOU_TEST_LOG"\n'
-    for command in ("chmod", "npm", "createdb", "dropdb", "pg_restore", "systemctl"):
+    for command in ("chmod", "install", "npm", "createdb", "dropdb", "pg_restore", "systemctl"):
         _fake_bin(fake_bin, command, recorder)
     _fake_bin(fake_bin, "stat", "printf 'kivou:kivou\\n'\n")
     _fake_bin(
@@ -103,7 +115,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         fake_bin,
         "git",
         recorder
-        + 'if [[ "$*" == *"worktree add"* ]]; then mkdir -p "$6/frontend"; fi\n'
+            + 'if [[ "$*" == *"worktree add"* ]]; then release="$KIVOU_RELEASES_DIR/staging-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; mkdir -p "$release/frontend" "$release/ops/systemd"; touch "$release/ops/systemd/kivou-api.service"; fi\n'
         + 'if [[ "$*" == *"rev-parse HEAD"* ]]; then printf "%s\\n" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; fi\n',
     )
     _fake_bin(
@@ -157,7 +169,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         fake_bin,
         "git",
         recorder
-        + 'if [[ "$*" == *"worktree add"* ]]; then mkdir -p "$6/frontend/dist"; fi\n'
+            + 'if [[ "$*" == *"worktree add"* ]]; then release="$KIVOU_RELEASES_DIR/staging-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; mkdir -p "$release/frontend/dist" "$release/ops/systemd"; touch "$release/ops/systemd/kivou-api.service"; fi\n'
         + 'if [[ "$*" == *"rev-parse HEAD"* ]]; then printf "%s\\n" "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; fi\n',
     )
     success = subprocess.run(

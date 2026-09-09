@@ -26,7 +26,9 @@ def test_four_channels_reuse_the_same_signal_facts_and_persisted_sentence():
     text = render_text([line], lang="fr", preferences_link="https://kivou.test/settings")
     html = render_html([line], lang="fr", preferences_link="https://kivou.test/settings")
 
-    for value in (sentence, line.company, line.contract_title, line.amount, line.location, line.awarded_on):
+    for value in (sentence, line.company, line.contract_title, line.amount, line.location):
         assert value
         assert value in text
         assert value in html
+    assert "1 sept. 2026" in text
+    assert "1 sept. 2026" in html

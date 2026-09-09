@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Kivou disk usage every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=kivou-disk-alert.service
+
+[Install]
+WantedBy=timers.target
