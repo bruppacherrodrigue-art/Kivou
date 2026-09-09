@@ -5,6 +5,16 @@ Chaque cycle relit aussi `/etc/kivou/acquisition.disabled`; sa présence bloque
 le cycle avant tout appel fournisseur. Pour reprendre, supprimer ce fichier
 après contrôle opérateur puis démarrer le timer.
 
+Un cycle `BLOCKED` n'empêche jamais le suivant. Pour abandonner proprement un
+cycle bloqué, sans prendre le verrou global :
+
+```bash
+python -m signals.acquisition_runtime abandon <cycle_id> --reason "raison opérateur"
+```
+
+La commande le passe à `SUPPRESSED` avec `OPERATOR_ABANDONED`; un cycle déjà
+terminal reste inchangé.
+
 Ce runbook installe le second orchestrateur borné, distinct de celui du
 staging décrit au runbook 10. Le cycle de production tourne en
 `PRODUCTION` avec zéro outil natif Hermes — `RuntimeExecutionMode` reste

@@ -22,8 +22,11 @@ MAX_RUNTIME_DOCUMENT_BYTES = 65_536
 class RuntimeConfigurationError(RuntimeError):
     """A bounded configuration result which never contains configuration values."""
 
-    def __init__(self, code: str) -> None:
-        super().__init__(f"acquisition runtime configuration error: {code}")
+    def __init__(self, code: str, *, detail: str | None = None) -> None:
+        message = f"acquisition runtime configuration error: {code}"
+        if detail:
+            message += f" ({detail})"
+        super().__init__(message)
         self.code = code
 
 
@@ -45,14 +48,10 @@ def _deployment(path: Path) -> AcquisitionRuntimeDeployment:
         if not isinstance(raw, dict):
             raise TypeError("runtime document is not an object")
         return AcquisitionRuntimeDeployment.model_validate(raw)
-    except (
-        OSError,
-        TypeError,
-        UnicodeDecodeError,
-        ValueError,
-        json.JSONDecodeError,
-        ValidationError,
-    ):
+    except ValidationError as error:
+        detail = ".".join(str(part) for part in error.errors()[0]["loc"])
+        raise RuntimeConfigurationError("INVALID_SCHEMA", detail=detail) from None
+    except (OSError, TypeError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
         raise RuntimeConfigurationError("NOT_CONFIGURED") from None
 
 

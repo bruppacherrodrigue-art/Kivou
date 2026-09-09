@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import os
 import signal
 import sys
@@ -18,6 +19,7 @@ from signals.acquisition_runtime.contracts import (
 )
 from signals.acquisition_runtime.events import configure_acquisition_runtime_logging
 from signals.acquisition_runtime.shadow_store import latest_shadow_mails
+from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.persistence.database import create_database_engine
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
@@ -54,6 +56,9 @@ def _parser() -> _SafeArgumentParser:
     review.add_argument("--last", type=int, default=20)
     stats = commands.add_parser("stats", help="show bounded shadow runtime counters")
     stats.add_argument("--since", default="24h")
+    abandon = commands.add_parser("abandon", help="suppress one blocked cycle")
+    abandon.add_argument("cycle_id")
+    abandon.add_argument("--reason", required=True)
     return parser
 
 
@@ -136,6 +141,21 @@ def main(
         except (OSError, sa.exc.SQLAlchemyError, ValueError):
             print("status=STATS_UNAVAILABLE")
             return 1
+        return 0
+    if arguments.command == "abandon":
+        try:
+            changed = AcquisitionRuntimeStore(create_database_engine()).abandon_cycle(
+                arguments.cycle_id,
+                reason=arguments.reason,
+                at=dt.datetime.now(dt.UTC),
+            )
+        except (KeyError, OSError, sa.exc.SQLAlchemyError, ValueError):
+            print("status=ABANDON_UNAVAILABLE")
+            return 1
+        print(
+            "status=ABANDONED cycle_ref="
+            f"{arguments.cycle_id} changed={'yes' if changed else 'no'}"
+        )
         return 0
     if arguments.command == "check-dependencies":
         check = check_dependencies or _default_check_dependencies

@@ -42,6 +42,55 @@ KIVOU_READINESS_PORT=${KIVOU_READINESS_PORT:-8000}
 KIVOU_SERVICE_USER=${KIVOU_SERVICE_USER:-kivou}
 KIVOU_PLAYWRIGHT_BROWSERS_DIR=${KIVOU_PLAYWRIGHT_BROWSERS_DIR:-/srv/kivou/playwright}
 KIVOU_RELEASE_DIR="$KIVOU_RELEASES_DIR/$KIVOU_ENVIRONMENT-$KIVOU_SHA"
+if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
+  KIVOU_RUNTIME_HOST_CONFIG=${KIVOU_RUNTIME_HOST_CONFIG:-/etc/kivou/acquisition-production.json}
+else
+  KIVOU_RUNTIME_HOST_CONFIG=${KIVOU_RUNTIME_HOST_CONFIG:-/etc/kivou/acquisition-runtime.json}
+fi
+
+check_runtime_config_shape() {
+  local example=$1 host=$2
+  [[ -f "$example" ]] || fail "exemple de configuration runtime introuvable : $example"
+  [[ -f "$host" ]] || fail "configuration runtime hôte introuvable : $host"
+  python3 - "$example" "$host" <<'PY'
+import json, sys
+
+example_path, host_path = sys.argv[1:]
+try:
+    with open(example_path, encoding="utf-8") as stream:
+        expected = json.load(stream)
+    with open(host_path, encoding="utf-8") as stream:
+        actual = json.load(stream)
+except (OSError, json.JSONDecodeError) as exc:
+    print(f"configuration runtime invalide : {type(exc).__name__}", file=sys.stderr)
+    raise SystemExit(1)
+
+def compare(required, observed, path="$"):
+    if isinstance(required, dict):
+        if not isinstance(observed, dict):
+            return f"{path}: objet requis"
+        for key, value in required.items():
+            if key not in observed:
+                return f"{path}.{key}: champ obligatoire absent"
+            mismatch = compare(value, observed[key], f"{path}.{key}")
+            if mismatch:
+                return mismatch
+        return None
+    if isinstance(required, list):
+        return None if isinstance(observed, list) else f"{path}: tableau requis"
+    if required is None:
+        return None
+    if type(required) is not type(observed):
+        return f"{path}: type JSON attendu {type(required).__name__}"
+    return None
+
+mismatch = compare(expected, actual)
+if mismatch:
+    print(f"écart structurel hôte/exemple : {mismatch}", file=sys.stderr)
+    raise SystemExit(1)
+print("configuration runtime : structure et champs obligatoires conformes")
+PY
+}
 
 sync_systemd_units() {
   local release_dir=$1
@@ -70,6 +119,7 @@ sync_systemd_units() {
 for dependency in git uv npm createdb dropdb pg_restore runuser systemctl install; do
   command -v "$dependency" >/dev/null 2>&1 || fail "$dependency introuvable"
 done
+command -v python3 >/dev/null 2>&1 || fail "python3 introuvable"
 [[ -x "$KIVOU_BACKUP_SCRIPT" ]] || fail "helper de sauvegarde introuvable"
 [[ -x "$KIVOU_READINESS_SCRIPT" ]] || fail "helper de readiness introuvable"
 
@@ -141,6 +191,14 @@ if ! KIVOU_DATABASE_URL="$rehearsal_url" uv run --project "$KIVOU_RELEASE_DIR" p
 fi
 dropdb --if-exists --maintenance-db="$KIVOU_ADMIN_SAFE_URL" "$rehearsal_name"
 rehearsal_created=0
+
+if [[ -f "$KIVOU_RUNTIME_HOST_CONFIG" ]]; then
+  check_runtime_config_shape \
+    "$KIVOU_RELEASE_DIR/ops/host/acquisition-runtime.$KIVOU_ENVIRONMENT.json" \
+    "$KIVOU_RUNTIME_HOST_CONFIG"
+else
+  log "configuration runtime hôte absente, contrôle structurel différé : $KIVOU_RUNTIME_HOST_CONFIG"
+fi
 
 KIVOU_DATABASE_URL="$KIVOU_DATABASE_URL" uv run --project "$KIVOU_RELEASE_DIR" python -c "$MIGRATE_CODE"
 

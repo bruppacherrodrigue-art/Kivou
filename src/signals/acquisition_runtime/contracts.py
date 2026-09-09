@@ -250,6 +250,33 @@ class RuntimeQaScope(_FrozenModel):
     region: BoundedRuntimeText | None = None
 
 
+class RuntimeSelection(_FrozenModel):
+    mode: Literal["fixed", "dynamic"] = "fixed"
+    allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(default=(), max_length=8)
+    vertical: OpaqueRef | None = None
+    region: BoundedRuntimeText | None = None
+    window_days: Literal[30] = 30
+    minimum_amount: Decimal = Field(default=Decimal("50000"), ge=Decimal("50000"))
+    require_named_holder: Literal[True] = True
+    require_nonempty_object: Literal[True] = True
+    require_model_fit: Literal[True] = True
+
+    @model_validator(mode="after")
+    def mode_fields_match(self) -> RuntimeSelection:
+        if self.mode == "fixed":
+            if not self.allowed_opportunity_keys:
+                raise ValueError("selection.fixed requires allowed_opportunity_keys")
+            if self.vertical is not None or self.region is not None:
+                raise ValueError("selection.fixed forbids vertical and region")
+        elif not self.vertical or not self.region:
+            raise ValueError("selection.dynamic requires vertical and region")
+        return self
+
+
+class RuntimeProviders(_FrozenModel):
+    mode: Literal["live", "fake"] = "live"
+
+
 class AcquisitionRuntimeDeployment(_FrozenModel):
     schema_version: Literal[
         "acquisition-runtime-v1", "acquisition-production-v1"
@@ -264,6 +291,36 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
     qa_recipient_key_version: OpaqueRef | None = None
     qa_provider_mutations_capable: bool = False
     limits: AcquisitionRuntimeLimits
+    selection: RuntimeSelection | None = None
+    providers: RuntimeProviders = RuntimeProviders()
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_selection(cls, value: object) -> object:
+        if not isinstance(value, dict) or "selection" in value:
+            return value
+        copied = dict(value)
+        keys = copied.get("allowed_opportunity_keys", ())
+        qa_scope = copied.get("qa_scope")
+        dynamic = (
+            copied.get("schema_version") == ACQUISITION_PRODUCTION_SCHEMA_VERSION
+        )
+        selection: dict[str, object] = {
+            "mode": "dynamic" if dynamic else "fixed",
+            "allowed_opportunity_keys": keys,
+        }
+        if dynamic:
+            if isinstance(qa_scope, dict):
+                selection.update(
+                    vertical=qa_scope.get("vertical"), region=qa_scope.get("region")
+                )
+            else:
+                selection.update(
+                    vertical=getattr(qa_scope, "vertical", None),
+                    region=getattr(qa_scope, "region", None),
+                )
+        copied["selection"] = selection
+        return copied
 
     @property
     def is_production(self) -> bool:
@@ -271,6 +328,9 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
 
     @model_validator(mode="after")
     def bindings_match_schema(self) -> AcquisitionRuntimeDeployment:
+        selection = self.selection
+        if selection is None:
+            raise ValueError("selection is required")
         if len(self.allowed_opportunity_keys) != len(
             set(self.allowed_opportunity_keys)
         ):
@@ -284,7 +344,9 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
                 any(item is not None for item in qa_bindings)
                 or self.qa_only
                 or self.qa_provider_mutations_capable
-                or self.allowed_opportunity_keys
+                or selection.mode != "dynamic"
+                or selection.allowed_opportunity_keys
+                or self.providers.mode != "live"
                 or not self.qa_scope.vertical
                 or not self.qa_scope.region
             ):
@@ -294,7 +356,6 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
             any(item is None for item in qa_bindings)
             or not self.qa_only
             or not self.qa_provider_mutations_capable
-            or not self.allowed_opportunity_keys
         ):
             raise ValueError("staging runtime requires its complete QA binding")
         return self
@@ -501,10 +562,12 @@ __all__ = [
     "RuntimeHermesIdentityEvidence",
     "RuntimeLeaseResult",
     "RuntimeProposal",
+    "RuntimeProviders",
     "RuntimeQaScope",
     "RuntimeRunRequest",
     "RuntimeRunResult",
     "RuntimeRunStatus",
+    "RuntimeSelection",
     "RuntimeStageDependency",
     "RuntimeStageSnapshot",
     "RuntimeStageStatus",

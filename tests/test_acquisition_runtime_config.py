@@ -219,3 +219,50 @@ def test_runtime_config_secret_fields_are_not_serialized() -> None:
         "qa_recipient",
         "qa_recipient_hmac_key",
     }
+
+
+def test_pr7_selection_and_provider_contract_is_explicit() -> None:
+    raw = _document(
+        selection={
+            "mode": "dynamic",
+            "vertical": "general_building",
+            "region": "Auvergne-Rhône-Alpes",
+            "window_days": 30,
+            "minimum_amount": "50000",
+            "require_named_holder": True,
+            "require_nonempty_object": True,
+            "require_model_fit": True,
+        },
+        providers={"mode": "fake"},
+    )
+    raw["schema_version"] = "acquisition-runtime-v1"
+    deployment = AcquisitionRuntimeDeployment.model_validate(raw)
+    assert deployment.selection is not None
+    assert deployment.selection.mode == "dynamic"
+    assert deployment.providers.mode == "fake"
+
+
+def test_production_rejects_fake_providers() -> None:
+    raw = _document(
+        schema_version="acquisition-production-v1",
+        qa_only=False,
+        providers={"mode": "fake"},
+        qa_scope={
+            "country": "FR",
+            "language": "fr",
+            "wedge": "general_building",
+            "vertical": "general_building",
+            "region": "Auvergne-Rhône-Alpes",
+        },
+        selection={
+            "mode": "dynamic",
+            "vertical": "general_building",
+            "region": "Auvergne-Rhône-Alpes",
+        },
+        qa_recipient_identity_hmac=None,
+        qa_recipient_key_version=None,
+        qa_provider_mutations_capable=False,
+        allowed_opportunity_keys=[],
+    )
+    with pytest.raises(ValidationError, match="production"):
+        AcquisitionRuntimeDeployment.model_validate(raw)
