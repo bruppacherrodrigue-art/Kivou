@@ -195,6 +195,20 @@ def production_composition(
     """
 
     arguments = dict(production_arguments)
+    # This invariant exercises the provider fence with a minimal legacy seed;
+    # the production loader itself requires the selected vertical and region.
+    deployment = arguments["runtime_config"].deployment
+    arguments["runtime_config"] = arguments["runtime_config"].model_copy(
+        update={
+            "deployment": deployment.model_copy(
+                update={
+                    "qa_scope": deployment.qa_scope.model_copy(
+                        update={"vertical": None, "region": None}
+                    )
+                }
+            )
+        }
+    )
     arguments["instantly_provider"] = instantly_double
     arguments["domain_builder"] = _canary_domain_builder(
         instantly_double=instantly_double, executed_stages=executed_stages

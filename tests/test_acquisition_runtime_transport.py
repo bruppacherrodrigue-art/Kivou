@@ -122,6 +122,8 @@ def test_production_configuration_cannot_build_a_recipient_override(tmp_path) ->
                     "country": "FR",
                     "language": "fr",
                     "wedge": "construction",
+                    "vertical": "general_building",
+                    "region": "Auvergne-Rhône-Alpes",
                 },
                 "limits": {
                     "maximum_cycle_cost": "10.00",

@@ -139,7 +139,7 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == "0043_qa_landing"
+    assert script.get_revision(CURRENT_HEAD).down_revision == "0044_email_verification"
     assert (
         script.get_revision(REQUEUE_UNRESOLVED_SIRET_REVISION).down_revision
         == REQUEUE_SIRET_PLACEHOLDERS_REVISION

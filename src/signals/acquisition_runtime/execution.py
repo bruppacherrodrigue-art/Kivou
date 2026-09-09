@@ -616,13 +616,19 @@ def build_runtime_execution_composition(
     supplier_location = (
         runtime_config.deployment.qa_scope.region
         if runtime_config.deployment.is_production
+        and runtime_config.deployment.qa_scope.region is not None
         else _APOLLO_LOCATION_BY_QA_COUNTRY.get(scope.country)
     )
     if supplier_location is None:
         raise RuntimeExecutionConfigurationError(
             "SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED"
         )
-    candidate_cap = 25 if runtime_config.deployment.is_production else 1
+    candidate_cap = (
+        25
+        if runtime_config.deployment.is_production
+        and runtime_config.deployment.qa_scope.vertical is not None
+        else 1
+    )
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
         max_pages=1,
