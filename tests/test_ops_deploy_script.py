@@ -159,6 +159,14 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         line for line in commands.splitlines() if not line.startswith("database_url ")
     )
     assert "runuser --user kivou --" in commands
+    assert (
+        "runuser --user kivou -- git "
+        f"-c safe.directory={source} -C {source} fetch --no-tags origin main"
+    ) in commands
+    assert (
+        "runuser --user kivou -- git "
+        f"-c safe.directory={source} -C {source} worktree add --detach"
+    ) in commands
     assert "systemctl restart" not in commands
     assert "migrate_to_latest" in commands
     assert not live_backend.exists()
