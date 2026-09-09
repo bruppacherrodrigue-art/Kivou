@@ -138,7 +138,7 @@ if [[ ! -d "$KIVOU_RELEASE_DIR/.git" && ! -f "$KIVOU_RELEASE_DIR/.git" ]]; then
   [[ ! -e "$KIVOU_RELEASE_DIR" ]] || fail "release partielle existante : $KIVOU_RELEASE_DIR"
   runuser --user "$KIVOU_SERVICE_USER" -- git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" worktree add --detach "$KIVOU_RELEASE_DIR" "$KIVOU_SHA"
 fi
-[[ "$(git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" == "$KIVOU_SHA" ]] || fail "checkout différent du SHA demandé"
+[[ "$(runuser --user "$KIVOU_SERVICE_USER" -- git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" == "$KIVOU_SHA" ]] || fail "checkout différent du SHA demandé"
 if [[ -z "${KIVOU_BACKUP_SCRIPT_CONFIGURED:-}" ]]; then
   KIVOU_BACKUP_SCRIPT="$KIVOU_RELEASE_DIR/ops/bin/kivou-backup.sh"
 fi
