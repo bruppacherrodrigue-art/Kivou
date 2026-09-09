@@ -124,6 +124,21 @@ def test_production_selection_accepts_the_selected_vertical_and_region(tmp_path)
     )
 
 
+def test_dynamic_selection_accepts_centre_val_de_loire_for_staging_stock(
+    tmp_path,
+) -> None:
+    assert (
+        select_production_opportunity_key(
+            _engine(tmp_path),
+            country="FR",
+            vertical="general_building",
+            region="Centre-Val de Loire",
+            observed_at=NOW,
+        )
+        is None
+    )
+
+
 def test_the_most_recent_french_opportunity_is_selected(tmp_path) -> None:
     engine = _engine(tmp_path)
     _seed(engine, key="fr-older", country="FR", published_on=dt.date(2026, 8, 28))
