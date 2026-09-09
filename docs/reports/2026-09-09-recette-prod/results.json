@@ -1,0 +1,30 @@
+[
+  {
+    "name": "today",
+    "url": "https://kivou.eu/app/dashboard"
+  },
+  {
+    "name": "today-drawer",
+    "url": "https://kivou.eu/app/dashboard"
+  },
+  {
+    "name": "signals",
+    "url": "https://kivou.eu/app/signals?status=all&period=all"
+  },
+  {
+    "name": "signals-drawer",
+    "url": "https://kivou.eu/app/signals/04fd163a2a8bb6715785ee32a012b19e31b97f7f?status=all&period=all"
+  },
+  {
+    "name": "companies",
+    "url": "https://kivou.eu/app/companies"
+  },
+  {
+    "name": "settings",
+    "url": "https://kivou.eu/app/settings"
+  },
+  {
+    "name": "logout-login",
+    "url": "https://kivou.eu/login"
+  }
+]
