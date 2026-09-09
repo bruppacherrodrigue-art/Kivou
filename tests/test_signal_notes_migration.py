@@ -12,7 +12,7 @@ from signals.persistence.database import (
 
 PREVIOUS = "0026_acquisition_runtime"
 HEAD = "0027_signal_notes"
-CURRENT_HEAD = "0045_pr7_shadow_mail"
+CURRENT_HEAD = "0046_sirene_apollo_binding"
 
 
 def _engine(tmp_path, name):

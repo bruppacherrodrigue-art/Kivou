@@ -16,13 +16,13 @@ from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
 from signals.supplier_discovery.contracts import (
-    ApolloOrganizationCandidate,
     ApolloProviderError,
     DiscoveryAuthorizationInput,
     DiscoveryRunIdentityConflict,
     DiscoveryRunStart,
     DiscoveryRunStatus,
     DiscoveryServiceResult,
+    SupplierOrganizationCandidate,
     SupplierSearchNotActionable,
     SupplierSearchProfile,
     SupplierTargetingConfig,
@@ -61,6 +61,7 @@ class SupplierDiscoveryService:
         profile_resolver: (
             Callable[[str, SupplierTargetingConfig], SupplierSearchProfile] | None
         ) = None,
+        organization_resolver: Callable[[SupplierOrganizationCandidate], bool] | None = None,
         clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
         self._engine = engine
@@ -69,6 +70,7 @@ class SupplierDiscoveryService:
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine)
         self._acquisition = acquisition_store or AcquisitionStore(engine)
         self._profile_resolver = profile_resolver or self._resolve_persisted_profile
+        self._organization_resolver = organization_resolver
         self._policy_store = PolicyStore(engine)
         self._clock = clock
 
@@ -89,9 +91,7 @@ class SupplierDiscoveryService:
         if not profile.need_categories or not profile.keyword_tags:
             raise SupplierSearchNotActionable
         profile_payload = profile.model_dump(mode="json")
-        canonical_arguments = _canonical_json(
-            {"profile": profile_payload, "provider": "apollo"}
-        )
+        canonical_arguments = _canonical_json({"profile": profile_payload, "provider": "sirene"})
         action_fingerprint = hashlib.sha256(canonical_arguments.encode()).hexdigest()
         request = PolicyRequest(
             evaluation_id=authorization.evaluation_id,
@@ -169,27 +169,21 @@ class SupplierDiscoveryService:
     def _durable_decision(self, run):
         profile = SupplierSearchProfile.model_validate(run.search_profile)
         canonical_arguments = _canonical_json(
-            {"profile": profile.model_dump(mode="json"), "provider": "apollo"}
+            {"profile": profile.model_dump(mode="json"), "provider": "sirene"}
         )
         expected_fingerprint = hashlib.sha256(canonical_arguments.encode()).hexdigest()
         with self._engine.connect() as connection:
-            row = self._policy_store.evaluation_row(
-                connection, run.policy_evaluation_id
-            )
+            row = self._policy_store.evaluation_row(connection, run.policy_evaluation_id)
         if row is None or not (
             row["command"] == "discover_suppliers"
             and row["target_ref"] == run.signal_ref
             and row["action_fingerprint"] == expected_fingerprint
             and run.provider_request_fingerprint == expected_fingerprint
         ):
-            raise DiscoveryRunIdentityConflict(
-                "supplier recovery policy binding changed"
-            )
+            raise DiscoveryRunIdentityConflict("supplier recovery policy binding changed")
         decision = decision_from_row(row)
         if not decision.executable:
-            raise DiscoveryRunIdentityConflict(
-                "supplier recovery policy was not executable"
-            )
+            raise DiscoveryRunIdentityConflict("supplier recovery policy was not executable")
         return decision
 
     def _execute(self, run, profile, decision) -> DiscoveryServiceResult:
@@ -203,10 +197,14 @@ class SupplierDiscoveryService:
             "records_accepted": 0,
             "records_rejected": 0,
             "rejection_reason_counts": {},
+            "family_result_counts": {},
+            "family_target_counts": {},
             "duplicates": 0,
             "opportunities_created": 0,
         }
         opportunity_ids: list[str] = []
+        family_counts: dict[str, int] = {}
+        organization_resolution_attempted = False
         expected_total_entries: int | None = None
         expected_total_pages: int | None = None
         expected_partial_results = False
@@ -264,12 +262,10 @@ class SupplierDiscoveryService:
 
             counters["provider_total_entries"] = page.total_entries
             counters["partial_results_only"] = page.partial_results_only
-            counters["records_returned"] = int(counters["records_returned"]) + len(
-                page.candidates
-            ) + len(page.rejections)
-            counters["records_rejected"] = int(counters["records_rejected"]) + len(
-                page.rejections
+            counters["records_returned"] = (
+                int(counters["records_returned"]) + len(page.candidates) + len(page.rejections)
             )
+            counters["records_rejected"] = int(counters["records_rejected"]) + len(page.rejections)
             reason_counts = counters["rejection_reason_counts"]
             assert isinstance(reason_counts, dict)
             for rejection in page.rejections:
@@ -281,10 +277,7 @@ class SupplierDiscoveryService:
                 page.total_entries > profile.search_too_broad_threshold
                 or page.partial_results_only is True
             ):
-                if (
-                    page.partial_results_only is not True
-                    and profile.narrowing_level < 2
-                ):
+                if page.partial_results_only is not True and profile.narrowing_level < 2:
                     profile = narrow_supplier_search_profile(profile)
                     expected_total_entries = None
                     expected_total_pages = None
@@ -302,15 +295,9 @@ class SupplierDiscoveryService:
                     ),
                     **counters,
                 )
-                return DiscoveryServiceResult(
-                    decision=decision, run=run, provider_called=True
-                )
+                return DiscoveryServiceResult(decision=decision, run=run, provider_called=True)
 
-            if (
-                page.total_entries > 0
-                and not page.candidates
-                and not page.rejections
-            ):
+            if page.total_entries > 0 and not page.candidates and not page.rejections:
                 run = self._suppliers.finish_run(
                     discovery_run_id,
                     status=(
@@ -330,20 +317,57 @@ class SupplierDiscoveryService:
                     provider_called=True,
                 )
 
+            result_counts = counters["family_result_counts"]
+            assert isinstance(result_counts, dict)
+            for returned_candidate in page.candidates:
+                returned_family = (
+                    returned_candidate.industry.split(":", 1)[0]
+                    if returned_candidate.industry
+                    and ":" in returned_candidate.industry
+                    else None
+                )
+                if returned_family:
+                    result_counts[returned_family] = (
+                        int(result_counts.get(returned_family, 0)) + 1
+                    )
+
             for candidate in page.candidates:
                 if int(counters["records_accepted"]) >= profile.candidate_cap:
                     break
-                if candidate.primary_domain in profile.excluded_domains:
-                    counters["records_rejected"] = (
-                        int(counters["records_rejected"]) + 1
+                family_key = (
+                    candidate.industry.split(":", 1)[0]
+                    if candidate.industry and ":" in candidate.industry
+                    else None
+                )
+                if (
+                    family_key
+                    and family_key in profile.supplier_family_keys
+                    and family_counts.get(family_key, 0) >= 25
+                ):
+                    counters["records_rejected"] = int(counters["records_rejected"]) + 1
+                    reason_counts["family_candidate_cap"] = (
+                        int(reason_counts.get("family_candidate_cap", 0)) + 1
                     )
+                    continue
+                if candidate.primary_domain in profile.excluded_domains:
+                    counters["records_rejected"] = int(counters["records_rejected"]) + 1
                     reason_counts["excluded_supplier_domain"] = (
                         int(reason_counts.get("excluded_supplier_domain", 0)) + 1
                     )
                     continue
+                if self._organization_resolver is not None:
+                    if organization_resolution_attempted:
+                        break
+                    organization_resolution_attempted = True
+                    if not self._organization_resolver(candidate):
+                        counters["records_rejected"] = int(counters["records_rejected"]) + 1
+                        reason_counts["apollo_organization_unresolved"] = (
+                            int(reason_counts.get("apollo_organization_unresolved", 0)) + 1
+                        )
+                        break
                 try:
-                    opportunity_id, supplier_created, opportunity_created = (
-                        self._persist_candidate(profile, candidate)
+                    opportunity_id, supplier_created, opportunity_created = self._persist_candidate(
+                        profile, candidate
                     )
                 except (AcquisitionError, sa.exc.SQLAlchemyError, ValueError) as exc:
                     run = self._suppliers.finish_run(
@@ -365,12 +389,15 @@ class SupplierDiscoveryService:
                         provider_called=True,
                     )
                 counters["records_accepted"] = int(counters["records_accepted"]) + 1
-                counters["duplicates"] = int(counters["duplicates"]) + int(
-                    not supplier_created
+                if family_key:
+                    family_counts[family_key] = family_counts.get(family_key, 0) + 1
+                    target_counts = counters["family_target_counts"]
+                    assert isinstance(target_counts, dict)
+                    target_counts[family_key] = int(target_counts.get(family_key, 0)) + 1
+                counters["duplicates"] = int(counters["duplicates"]) + int(not supplier_created)
+                counters["opportunities_created"] = int(counters["opportunities_created"]) + int(
+                    opportunity_created
                 )
-                counters["opportunities_created"] = int(
-                    counters["opportunities_created"]
-                ) + int(opportunity_created)
                 opportunity_ids.append(opportunity_id)
             if (
                 int(counters["records_accepted"]) >= profile.candidate_cap
@@ -429,7 +456,7 @@ class SupplierDiscoveryService:
     def _persist_candidate(
         self,
         profile: SupplierSearchProfile,
-        candidate: ApolloOrganizationCandidate,
+        candidate: SupplierOrganizationCandidate,
     ) -> tuple[str, bool, bool]:
         with self._engine.begin() as connection:
             supplier = self._suppliers.upsert_supplier_in_transaction(connection, candidate)

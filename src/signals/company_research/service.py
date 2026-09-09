@@ -16,6 +16,7 @@ from signals.acquisition.contracts import (
     OpportunityConcurrencyConflict,
 )
 from signals.acquisition.store import AcquisitionStore
+from signals.company_research.binding import BindingStatus, SireneApolloBindingStore
 from signals.company_research.contracts import (
     CompanyResearchAuthorizationInput,
     CompanyResearchEvaluationRequiresFreshAttempt,
@@ -62,6 +63,7 @@ class CompanyResearchService:
         company_store: CompanyResearchStore | None = None,
         acquisition_store: AcquisitionStore | None = None,
         supplier_store: SupplierDiscoveryStore | None = None,
+        binding_store: SireneApolloBindingStore | None = None,
         clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
         self._engine = engine
@@ -70,6 +72,7 @@ class CompanyResearchService:
         self._companies = company_store or CompanyResearchStore(engine, clock=clock)
         self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
+        self._bindings = binding_store or SireneApolloBindingStore(engine, clock=clock)
         self._policy_store = PolicyStore(engine)
         self._clock = clock
 
@@ -103,9 +106,13 @@ class CompanyResearchService:
         assert opportunity.supplier_ref is not None
         assert opportunity.contact_ref is not None
         supplier = self._suppliers.get_supplier(opportunity.supplier_ref)
+        binding = self._required_binding(supplier, opportunity_id)
         contact = self._companies.get_contact_binding(opportunity.contact_ref)
-        self._require_bindings(opportunity, supplier, contact)
-        profile = build_company_research_profile(supplier.provider_organization_id)
+        self._require_bindings(opportunity, supplier, contact, binding)
+        profile = build_company_research_profile(
+            binding.apollo_organization_id,
+            siren=supplier.provider_organization_id,
+        )
         action_fingerprint = policy_action_fingerprint(
             profile,
             acquisition_opportunity_id=opportunity_id,
@@ -149,7 +156,7 @@ class CompanyResearchService:
         )
         if not ownership.owned:
             return CompanyResearchServiceResult(decision=decision, run=ownership.run)
-        return self._execute(ownership.run, supplier, contact, decision)
+        return self._execute(ownership.run, supplier, contact, decision, binding)
 
     def resume_started(
         self,
@@ -177,14 +184,21 @@ class CompanyResearchService:
             ownership.run.acquisition_opportunity_id
         )
         supplier = self._suppliers.get_supplier(ownership.run.supplier_ref)
+        binding = self._required_binding(
+            supplier, ownership.run.acquisition_opportunity_id
+        )
         contact = self._companies.get_contact_binding(ownership.run.contact_ref)
         self._require_post_policy(opportunity, ownership.run)
-        self._require_bindings(opportunity, supplier, contact)
-        return self._execute(ownership.run, supplier, contact, decision)
+        self._require_bindings(opportunity, supplier, contact, binding)
+        return self._execute(ownership.run, supplier, contact, decision, binding)
 
     def _durable_decision(self, run):
         profile = build_company_research_profile(
-            str(run.research_profile["provider_organization_id"])
+            str(run.research_profile["provider_organization_id"]),
+            siren=run.research_profile.get("siren"),
+            organization_name=run.research_profile.get("organization_name"),
+            organization_city=run.research_profile.get("organization_city"),
+            organization_domain=run.research_profile.get("organization_domain"),
         )
         expected_action = policy_action_fingerprint(
             profile,
@@ -210,11 +224,17 @@ class CompanyResearchService:
             raise CompanyResearchRunIdentityConflict(run.policy_evaluation_id)
         return decision
 
-    def _execute(self, run, supplier, contact, decision) -> CompanyResearchServiceResult:
-        profile = build_company_research_profile(supplier.provider_organization_id)
+    def _execute(self, run, supplier, contact, decision, binding=None) -> CompanyResearchServiceResult:
+        binding = binding or self._required_binding(
+            supplier, run.acquisition_opportunity_id
+        )
+        profile = build_company_research_profile(
+            binding.apollo_organization_id,
+            siren=supplier.provider_organization_id,
+        )
         try:
             observation = self._provider.fetch_organization(profile)
-            if observation.provider_organization_id != supplier.provider_organization_id:
+            if observation.provider_organization_id != binding.apollo_organization_id:
                 raise CompanyResearchProviderError("provider_identity_mismatch")
             if observation.provider_observed_at < run.started_at:
                 raise CompanyResearchProviderError(
@@ -253,11 +273,14 @@ class CompanyResearchService:
             )
             self._require_post_policy(current, run)
             supplier = self._supplier_in_transaction(connection, run.supplier_ref)
+            binding = self._required_binding(
+                supplier, run.acquisition_opportunity_id
+            )
             contact = self._companies.get_contact_binding_in_transaction(
                 connection, run.contact_ref
             )
-            self._require_bindings(current, supplier, contact)
-            if supplier.provider_organization_id != observation.provider_organization_id:
+            self._require_bindings(current, supplier, contact, binding)
+            if binding.apollo_organization_id != observation.provider_organization_id:
                 raise CompanyResearchObservationConflict("research binding changed")
             prebuild = build_acquisition_prospect_prebuild(
                 acquisition_opportunity_id=current.acquisition_opportunity_id,
@@ -354,10 +377,11 @@ class CompanyResearchService:
             raise OpportunityConcurrencyConflict(opportunity.acquisition_opportunity_id)
 
     @staticmethod
-    def _require_bindings(opportunity, supplier, contact) -> None:
+    def _require_bindings(opportunity, supplier, contact, binding) -> None:
         if not (
-            supplier.provider == "apollo"
-            and supplier.provider_organization_id
+            supplier.provider == "sirene"
+            and binding.status is BindingStatus.RESOLVED
+            and binding.apollo_organization_id
             and opportunity.supplier_ref == supplier.supplier_ref
             and opportunity.contact_ref == contact.contact_ref
             and contact.supplier_ref == supplier.supplier_ref
@@ -366,6 +390,18 @@ class CompanyResearchService:
             and contact.provider_email_status == "verified"
         ):
             raise CompanyResearchNotActionable(opportunity.acquisition_opportunity_id)
+
+    def _required_binding(self, supplier, opportunity_id: str):
+        if supplier.provider != "sirene":
+            raise CompanyResearchNotActionable(opportunity_id)
+        binding = self._bindings.get(supplier.provider_organization_id)
+        if (
+            binding is None
+            or binding.status is not BindingStatus.RESOLVED
+            or binding.apollo_organization_id is None
+        ):
+            raise CompanyResearchNotActionable(opportunity_id)
+        return binding
 
     @staticmethod
     def _expected_target(opportunity_id: str) -> str:
@@ -381,7 +417,11 @@ class CompanyResearchService:
         with self._engine.connect() as connection:
             evaluation = self._policy_store.evaluation_row(connection, authorization.evaluation_id)
         profile = build_company_research_profile(
-            str(run.research_profile["provider_organization_id"])
+            str(run.research_profile["provider_organization_id"]),
+            siren=run.research_profile.get("siren"),
+            organization_name=run.research_profile.get("organization_name"),
+            organization_city=run.research_profile.get("organization_city"),
+            organization_domain=run.research_profile.get("organization_domain"),
         )
         expected_action = policy_action_fingerprint(
             profile,

@@ -21,12 +21,14 @@ from signals.acquisition_runtime.domain import (
     RuntimePolicyAuthorizationFactory,
     SqlAcquisitionDomainTruth,
 )
+from signals.acquisition_runtime.fake_providers import FakeSireneCompanySearch
 from signals.acquisition_runtime.registry import AcquisitionActionHandler
 from signals.acquisition_runtime.transport import StagingQaRecipientOverride
 from signals.campaigns.contracts import CampaignDeploymentConfig
 from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvider
 from signals.campaigns.service import CampaignService, MailboxReadinessSource
 from signals.campaigns.worker import CampaignWorker
+from signals.company_research.binding import BindingStatus, SireneApolloResolver
 from signals.company_research.service import CompanyResearchService
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.compliance.service import ComplianceService
@@ -47,6 +49,7 @@ from signals.decision_engine.service import DecisionEngineService
 from signals.personalization.service import PersonalizationService
 from signals.supplier_discovery.contracts import SupplierTargetingConfig
 from signals.supplier_discovery.service import SupplierDiscoveryService
+from signals.supplier_discovery.sirene_provider import SireneOrganizationSearchProvider
 
 RUNTIME_QA_CONTACT_PROFILE_VERSION = RUNTIME_QA_PROFILE_VERSION
 RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION = PROFILE_VERSION
@@ -69,11 +72,21 @@ def build_runtime_qa_contact_profile(
     acquisition_opportunity_id: str,
     supplier_ref: str,
     provider_organization_id: str,
+    supplier_siren: str | None = None,
+    binding_resolution_method: str | None = None,
+    organization_name: str | None = None,
+    organization_city: str | None = None,
+    organization_domain: str | None = None,
 ) -> DecisionMakerSearchProfile:
     return build_decision_maker_profile(
         acquisition_opportunity_id=acquisition_opportunity_id,
         supplier_ref=supplier_ref,
         provider_organization_id=provider_organization_id,
+        supplier_siren=supplier_siren,
+        binding_resolution_method=binding_resolution_method,
+        organization_name=organization_name,
+        organization_city=organization_city,
+        organization_domain=organization_domain,
         profile_version=RUNTIME_QA_CONTACT_PROFILE_VERSION,
     )
 
@@ -120,9 +133,24 @@ def build_acquisition_domain_composition(
             raise ValueError("runtime supplier discovery is capped at one candidate")
     elif targeting.max_pages != 1 or targeting.per_page > 25 or targeting.candidate_cap > 25:
         raise ValueError("production supplier discovery is capped at 25 candidates")
+    organization_provider = SireneOrganizationSearchProvider(
+        FakeSireneCompanySearch()
+        if runtime_config.deployment.providers.mode == "fake"
+        else None
+    )
+    organization_resolver = SireneApolloResolver(
+        engine, provider=apollo.company_research
+    )
+
+    def resolve_supplier(candidate) -> bool:
+        if candidate.provider != "sirene":
+            raise ValueError("runtime supplier identity must come from SIRENE")
+        return organization_resolver.resolve(candidate).status is BindingStatus.RESOLVED
+
     supplier_service = SupplierDiscoveryService(
         engine,
-        provider=apollo.organization_search,
+        provider=organization_provider,
+        organization_resolver=resolve_supplier,
         clock=clock,
     )
     contact_service = ContactDiscoveryService(

@@ -7,6 +7,7 @@ import hashlib
 
 from signals.acquisition_connectivity.apollo import ApolloComponents
 from signals.acquisition_connectivity.contracts import ApolloIdentityEvidence
+from signals.companies.sirene import SireneCompany
 from signals.company_research.contracts import ApolloOrganizationObservation
 from signals.contact_discovery.contracts import (
     ApolloEnrichedPerson,
@@ -14,6 +15,29 @@ from signals.contact_discovery.contracts import (
     PeopleSearchPage,
 )
 from signals.supplier_discovery.contracts import ApolloOrganizationCandidate, SupplierSearchPage
+
+
+class FakeSireneCompanySearch:
+    """Deterministic SIRENE-shaped identities for offline staging mechanics."""
+
+    def find(self, criteria):
+        companies = []
+        for index, naf_code in enumerate(criteria.naf_codes[:5]):
+            material = f"{naf_code}:{','.join(criteria.departments)}:{index}"
+            siren = str(int(_fingerprint(material)[:14], 16))[:9].ljust(9, "0")
+            companies.append(
+                SireneCompany(
+                    legal_name=f"Entreprise test {naf_code} {index + 1}",
+                    siren=siren,
+                    siret=f"{siren}00010",
+                    city="Lyon",
+                    department=criteria.departments[0],
+                    employees=25,
+                    naf_code=naf_code,
+                    observed_at=dt.datetime.now(dt.UTC),
+                )
+            )
+        return tuple(companies[: criteria.limit])
 
 
 def _fingerprint(value: str) -> str:
@@ -45,7 +69,7 @@ class FakeApolloOrganizationSearch:
 
 class FakeApolloContactDiscovery:
     def search_people(self, profile, *, observed_at: dt.datetime) -> PeopleSearchPage:
-        person_id = f"fake-person-{_fingerprint(profile.provider_organization_id)[:20]}"
+        person_id = f"fake-person-{profile.provider_organization_id}"
         return PeopleSearchPage(
             total_entries=1,
             candidates=(PeopleSearchCandidate(
@@ -60,7 +84,7 @@ class FakeApolloContactDiscovery:
         organization_id = provider_person_id.removeprefix("fake-person-")
         return ApolloEnrichedPerson(
             provider_person_id=provider_person_id,
-            provider_organization_id=f"fake-org-{organization_id}",
+            provider_organization_id=organization_id,
             first_name="Camille", last_name="Dupont", display_name="Camille Dupont",
             title="Directeur commercial",
             business_email=f"camille.{organization_id[:8]}@example.test",
@@ -71,7 +95,11 @@ class FakeApolloContactDiscovery:
 
 class FakeApolloCompanyResearch:
     def fetch_organization(self, profile):
-        org = profile.provider_organization_id
+        org = (
+            f"fake-org-{_fingerprint(profile.siren)[:20]}"
+            if profile.siren
+            else profile.provider_organization_id
+        )
         return ApolloOrganizationObservation(
             provider_organization_id=org, provider_company_name="Entreprise staging",
             provider_primary_domain=f"{org}.example.test", provider_website_url=f"https://{org}.example.test",
@@ -96,4 +124,4 @@ def build_fake_apollo_components() -> ApolloComponents:
     )
 
 
-__all__ = ["build_fake_apollo_components"]
+__all__ = ["FakeSireneCompanySearch", "build_fake_apollo_components"]

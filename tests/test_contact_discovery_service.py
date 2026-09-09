@@ -18,6 +18,7 @@ from signals.acquisition.contracts import (
     OpportunityConcurrencyConflict,
 )
 from signals.acquisition.store import AcquisitionStore
+from signals.company_research.binding import BindingStatus, SireneApolloBindingStore
 from signals.contact_discovery.contracts import (
     PROFILE_VERSION,
     ApolloEnrichedPerson,
@@ -55,7 +56,7 @@ from signals.policy.contracts import (
 )
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore
-from signals.supplier_discovery.contracts import ApolloOrganizationCandidate
+from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
 NOW = dt.datetime(2026, 8, 20, 12, tzinfo=dt.UTC)
@@ -158,15 +159,23 @@ def context(tmp_path):
     supplier = (
         SupplierDiscoveryStore(engine, clock=lambda: NOW)
         .upsert_supplier(
-            ApolloOrganizationCandidate(
-                provider_organization_id="apollo-org-1",
+            SireneOrganizationCandidate(
+                provider_organization_id="123456789",
                 display_name="Acme SA",
                 normalized_name="acme sa",
+                location="Lyon",
                 provider_observed_at=NOW,
                 source_fingerprint="a" * 64,
             )
         )
         .supplier
+    )
+    SireneApolloBindingStore(engine, clock=lambda: NOW).put(
+        siren="123456789",
+        apollo_organization_id="apollo-org-1",
+        resolution_method="name_city",
+        confidence_score=Decimal("0.80"),
+        status=BindingStatus.RESOLVED,
     )
     acquisition = AcquisitionStore(engine, clock=lambda: NOW)
     created = acquisition.create_opportunity(
@@ -260,6 +269,8 @@ def test_success_is_bounded_truncated_and_updates_workflow_atomically(context) -
     assert result.run.provider_total_entries == 80
     assert result.run.search_results_returned == 1
     assert result.run.search_results_truncated is True
+    assert result.run.search_profile["supplier_siren"] == "123456789"
+    assert result.run.search_profile["binding_resolution_method"] == "name_city"
     assert provider.search_calls == provider.enrich_calls == 1
     current = acquisition.get_opportunity(opportunity_id)
     assert current.state is AcquisitionState.ENRICHING
@@ -270,6 +281,20 @@ def test_success_is_bounded_truncated_and_updates_workflow_atomically(context) -
     assert result.decision.evaluated_at < result.run.started_at
     assert result.run.started_at <= result.contact.provider_observed_at
     assert result.contact.provider_observed_at <= result.run.completed_at
+
+
+def test_unresolved_siren_binding_is_not_actionable(context) -> None:
+    engine, _, supplier, opportunity_id = context
+    SireneApolloBindingStore(engine, clock=lambda: NOW).put(
+        siren=supplier.provider_organization_id,
+        apollo_organization_id=None,
+        resolution_method="name_city",
+        confidence_score=None,
+        status=BindingStatus.UNRESOLVED,
+    )
+
+    with pytest.raises(ContactDiscoveryNotActionable):
+        _find(_service(engine, FakeProvider(_page())), opportunity_id)
 
 
 def test_injected_profile_is_persisted_on_the_run_and_selected_contact(context) -> None:
@@ -760,7 +785,7 @@ def test_concurrent_runtime_profile_requeues_write_one_causal_event(context) -> 
     profile = _runtime_qa_profile(
         acquisition_opportunity_id=opportunity_id,
         supplier_ref=supplier.supplier_ref,
-        provider_organization_id=supplier.provider_organization_id,
+        provider_organization_id="apollo-org-1",
     )
     providers = [FakeProvider(_page()), FakeProvider(_page())]
     services = [

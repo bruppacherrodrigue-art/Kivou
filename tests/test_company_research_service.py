@@ -14,6 +14,10 @@ from test_policy_persistence import control
 from signals.acquisition.contracts import AcquisitionState, ActorType, EventType
 from signals.acquisition.store import AcquisitionStore
 from signals.company_research.apollo import ApolloCompanyResearchClient
+from signals.company_research.binding import (
+    BindingStatus,
+    SireneApolloBindingStore,
+)
 from signals.company_research.contracts import (
     ApolloOrganizationObservation,
     CompanyResearchAuthorizationInput,
@@ -51,7 +55,7 @@ from signals.policy.contracts import (
 )
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore
-from signals.supplier_discovery.contracts import ApolloOrganizationCandidate
+from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
 NOW = dt.datetime(2026, 8, 20, 12, tzinfo=dt.UTC)
@@ -120,15 +124,23 @@ def context(tmp_path):
     supplier = (
         SupplierDiscoveryStore(engine, clock=lambda: NOW)
         .upsert_supplier(
-            ApolloOrganizationCandidate(
-                provider_organization_id="apollo-org-1",
+            SireneOrganizationCandidate(
+                provider_organization_id="123456789",
                 display_name="Acme SA",
                 normalized_name="acme sa",
+                location="Lyon",
                 provider_observed_at=NOW,
                 source_fingerprint="a" * 64,
             )
         )
         .supplier
+    )
+    SireneApolloBindingStore(engine, clock=lambda: NOW).put(
+        siren="123456789",
+        apollo_organization_id="apollo-org-1",
+        resolution_method="name_city",
+        confidence_score=Decimal("0.80"),
+        status=BindingStatus.RESOLVED,
     )
     contact = (
         ContactDiscoveryStore(engine, clock=lambda: NOW)

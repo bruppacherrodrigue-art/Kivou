@@ -18,6 +18,7 @@ from signals.acquisition.contracts import (
     OpportunityConcurrencyConflict,
 )
 from signals.acquisition.store import AcquisitionStore
+from signals.company_research.binding import BindingStatus, SireneApolloBindingStore
 from signals.contact_discovery.contracts import (
     ApolloContactProviderError,
     ContactAuthorizationInput,
@@ -63,6 +64,7 @@ class ContactDiscoveryService:
         contact_store: ContactDiscoveryStore | None = None,
         acquisition_store: AcquisitionStore | None = None,
         supplier_store: SupplierDiscoveryStore | None = None,
+        binding_store: SireneApolloBindingStore | None = None,
         profile_builder: Callable[..., DecisionMakerSearchProfile] = (
             build_decision_maker_profile
         ),
@@ -75,6 +77,7 @@ class ContactDiscoveryService:
         self._contacts = contact_store or ContactDiscoveryStore(engine, clock=clock)
         self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
+        self._bindings = binding_store or SireneApolloBindingStore(engine, clock=clock)
         self._policy_store = PolicyStore(engine)
         self._profile_builder = profile_builder
         if profile_upgrade_requeue is not None:
@@ -119,11 +122,25 @@ class ContactDiscoveryService:
             self._require_actionable(opportunity)
         assert opportunity.supplier_ref is not None
         supplier = self._suppliers.get_supplier(opportunity.supplier_ref)
+        if supplier.provider != "sirene":
+            raise ContactDiscoveryNotActionable(opportunity.acquisition_opportunity_id)
+        binding = self._bindings.get(supplier.provider_organization_id)
+        if (
+            binding is None
+            or binding.status is not BindingStatus.RESOLVED
+            or binding.apollo_organization_id is None
+        ):
+            raise ContactDiscoveryNotActionable(opportunity.acquisition_opportunity_id)
         profile = DecisionMakerSearchProfile.model_validate(
             self._profile_builder(
                 acquisition_opportunity_id=opportunity_id,
                 supplier_ref=supplier.supplier_ref,
-                provider_organization_id=supplier.provider_organization_id,
+                provider_organization_id=binding.apollo_organization_id,
+                supplier_siren=supplier.provider_organization_id,
+                binding_resolution_method=binding.resolution_method,
+                organization_name=supplier.display_name,
+                organization_city=supplier.location,
+                organization_domain=supplier.primary_domain,
             )
         )
         opportunity = self._requeue_profile_upgrade(

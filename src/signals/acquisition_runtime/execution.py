@@ -640,11 +640,7 @@ def build_runtime_execution_composition(
         raise RuntimeExecutionConfigurationError(
             "SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED"
         )
-    candidate_cap = (
-        25
-        if selection.mode == "dynamic" and selection.vertical is not None
-        else 1
-    )
+    candidate_cap = runtime_config.deployment.limits.maximum_suppliers
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
         max_pages=1,

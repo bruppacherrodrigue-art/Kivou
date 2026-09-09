@@ -154,7 +154,13 @@ class CompanyResearchProfile(CompanyResearchContract):
     profile_version: ShortText = PROFILE_VERSION
     provider: Literal["apollo"] = PROVIDER
     provider_organization_id: ProviderId
-    endpoint_kind: Literal["exact_organization_id"] = ENDPOINT_KIND
+    siren: Annotated[str, StringConstraints(pattern=r"^\d{9}$")] | None = None
+    organization_name: ShortText | None = None
+    organization_city: ShortText | None = None
+    organization_domain: ShortText | None = None
+    endpoint_kind: Literal[
+        "exact_organization_id", "resolve_name_city_then_exact"
+    ] = ENDPOINT_KIND
     response_contract_version: ShortText = RESPONSE_CONTRACT_VERSION
     allowed_provider_fields: tuple[ShortText, ...] = ALLOWED_PROVIDER_FIELDS
     max_response_bytes: int = Field(default=MAX_RESPONSE_BYTES, ge=1, le=MAX_RESPONSE_BYTES)
@@ -185,6 +191,8 @@ class ApolloOrganizationObservation(CompanyResearchContract):
     ] = Field(default=(), max_length=MAX_KEYWORDS)
     provider_observed_at: dt.datetime
     provider_source_fingerprint: Fingerprint
+    resolution_method: ShortText | None = None
+    resolution_confidence_score: Decimal | None = Field(default=None, ge=0, le=1)
     research_gaps: tuple[ResearchGap, ...] = Field(default=(), max_length=MAX_RESEARCH_GAPS)
 
     _observed = field_validator("provider_observed_at")(_aware)

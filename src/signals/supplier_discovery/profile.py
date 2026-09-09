@@ -46,6 +46,9 @@ def build_supplier_search_profile(
     targeting: SupplierTargetingConfig,
     cpv_codes: tuple[str, ...] = (),
     trade_terms: tuple[str, ...] = (),
+    sirene_naf_codes: tuple[str, ...] = (),
+    sirene_departments: tuple[str, ...] = (),
+    supplier_family_keys: tuple[str, ...] = (),
 ) -> SupplierSearchProfile:
     categories = tuple(sorted(set(need_categories)))
     unknown = tuple(category for category in categories if category not in _KEYWORDS)
@@ -80,6 +83,9 @@ def build_supplier_search_profile(
         "cpv_codes": tuple(sorted(set(cpv_codes))),
         "trade_terms": tuple(sorted(explicit_terms)),
         "keyword_tags": keywords,
+        "sirene_naf_codes": tuple(sorted(set(sirene_naf_codes))),
+        "sirene_departments": tuple(sorted(set(sirene_departments))),
+        "supplier_family_keys": tuple(sorted(set(supplier_family_keys))),
         "organization_locations": targeting.organization_locations,
         "organization_not_locations": targeting.organization_not_locations,
         "employee_ranges": targeting.employee_ranges,
