@@ -17,6 +17,7 @@ le même signal au même compte.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import pathlib
 import types
 
@@ -40,8 +41,8 @@ from engagement_helpers import (
 )
 from feed_helpers import RESEARCH_ICP_ID, SIMAP_RICH, materialize, materialize_simap, simap_award
 
+from signals.alerts import cli, policy, renderer, run_alert_cycle
 from signals.alerts import job as alert_job
-from signals.alerts import policy, renderer, run_alert_cycle
 from signals.alerts.gateway import UncertainDelivery, message_id
 from signals.engagement.schema import signal_alert_delivery
 from signals.persistence.schema import for_you_sentence
@@ -90,10 +91,13 @@ def test_real_alert_job_output_reuses_the_same_card_facts(
     assert report.sent
     assert len(cards) == 1
     line = renderer.line_from_card(cards[0], url=f"{PUBLIC_APP_URL}/signals/{line_key(cards[0])}", lang="fr")
-    for value in (line.company, line.contract_title, line.amount, line.location, line.awarded_on, line.for_you_sentence):
+    for value in (line.company, line.contract_title, line.amount, line.location, line.for_you_sentence):
         if value:
             assert value in mailer.last.text_body
             assert value in mailer.last.html_body
+    if line.awarded_on:
+        assert line.awarded_on not in mailer.last.text_body
+        assert "Date :" in mailer.last.text_body
     assert "Besoins plausibles" not in mailer.last.text_body
     assert "Besoins plausibles" not in mailer.last.html_body
 
@@ -273,7 +277,7 @@ def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@ne
 # ─── PR6 — Discovery reçoit un aperçu hebdomadaire ───────────────────────────
 
 
-def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine, mailer):
+def test_a_discovery_account_receives_one_signal_without_extra_prose(app, engine, mailer):
     client = signed_up(app)
     icp = icp_of(client)
     seed(engine, icp, count=5)
@@ -282,8 +286,7 @@ def test_a_discovery_account_receives_one_signal_and_an_upgrade_link(app, engine
     report = cycle(engine, mailer)
     assert len(mailer.sent) == 1
     assert report.sent[0].signal_count == 1
-    assert "autres signaux" in mailer.last.text_body
-    assert f"{PUBLIC_APP_URL}/pricing" in mailer.last.text_body
+    assert "autres signaux" not in mailer.last.text_body
 
 
 # ─── §37.2 à §37.5 — les cadences ────────────────────────────────────────────
@@ -655,7 +658,7 @@ def test_the_message_id_is_deterministic_and_leaks_nothing(app, engine, mailer):
 
     identifier = mailer.last.message_id
     assert identifier.startswith("<kivou-alert-")
-    assert identifier.endswith("@kivou.ch>")
+    assert identifier.endswith("@kivou.eu>")
     for forbidden in ("@negoce-romand", "alice", "acc_"):
         assert forbidden not in identifier, forbidden
 
@@ -682,18 +685,18 @@ def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
     message = mailer.last
     assert message.language == "en"
     assert "new signal" in message.subject
-    assert "Hello," in message.text_body
-    assert "To plan for" in message.text_body
+    assert "Hello," not in message.text_body
+    assert "To plan for" not in message.text_body
 
 
-def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer):
+def test_the_french_digest_excludes_internal_recency_wording(app, engine, mailer):
     subscriber(app, engine, plan="pro", count=1)
     cycle(engine, mailer)
 
     body = mailer.last.text_body
-    assert "Bonjour," in body
-    assert "vient de remporter un marché public." in body
-    assert "Décision d'attribution récente." in body
+    assert "Bonjour," not in body
+    assert "vient de remporter un marché public." not in body
+    assert "Décision d'attribution récente." not in body
 
 
 def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mailer):
@@ -814,6 +817,45 @@ def test_the_weekly_email_has_matching_html_and_text_cards(app, engine, mailer):
     assert message.preferences_url in message.html_body
 
 
+def test_the_alert_card_has_no_recency_claim_or_prose_outside_the_card(app, engine, mailer):
+    subscriber(app, engine, plan="pro", count=1)
+    cycle(engine, mailer)
+
+    message = mailer.last
+    assert message.html_body is not None
+    for forbidden in (
+        "Une attribution concernant",
+        "Publication récente",
+        "date de décision",
+    ):
+        assert forbidden not in message.text_body
+        assert forbidden not in message.html_body
+    assert "Bonjour" not in message.text_body
+    assert "Ouvrir" in message.text_body
+    assert "Ouvrir" in message.html_body
+
+
+def test_cli_dry_run_contract_matches_dashboard_card(app, engine, monkeypatch, capsys):
+    client, keys = subscriber(app, engine, plan="pro", count=1)
+    dashboard = client.get("/dashboard").json()
+    account_id = account_of(client)
+    config = types.SimpleNamespace(alerts_configured=True, public_app_url=PUBLIC_APP_URL)
+    monkeypatch.setattr(cli.ApiConfig, "from_environment", lambda: config)
+    monkeypatch.setattr(cli, "create_database_engine", lambda: engine)
+
+    assert cli.main(["--now", NOW.isoformat(), "--dry-run", "--account", account_id]) == 0
+    message = json.loads(capsys.readouterr().out)
+    card = dashboard["top3"][0]
+    assert card["signal_id"] == keys[0]
+    assert card["company"]["name"] in message["text_body"]
+    assert card["contract"]["title"] in message["text_body"]
+    assert card["analysis"]["fit"]["for_you_sentence"] in message["text_body"]
+    assert f"/app/signals/{keys[0]}" in message["html_body"]
+    for forbidden in ("Une attribution concernant", "Publication récente", "date de décision"):
+        assert forbidden not in message["text_body"]
+        assert forbidden not in message["html_body"]
+
+
 def test_the_email_never_dumps_evidence(app, engine, mailer):
     subscriber(app, engine, plan="pro", count=2)
     cycle(engine, mailer)
@@ -847,9 +889,7 @@ def test_the_email_never_claims_a_win_it_cannot_support(app, engine, mailer):
     cycle(engine, mailer)
 
     body = mailer.last.text_body
-    # Les signaux envoyés sont tous `recent_award` : la phrase de victoire est
-    # légitime ici, et c'est la seule configuration où elle l'est.
-    assert any(marker in body.lower() for marker in JUST_WON_MARKERS)
+    assert not any(marker in body.lower() for marker in JUST_WON_MARKERS)
 
 
 def test_no_tracking_pixel_or_third_party_tracker_is_added(app, engine, mailer):

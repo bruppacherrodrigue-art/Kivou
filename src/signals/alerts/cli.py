@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import sys
 
 import sqlalchemy as sa
 
 from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
-from signals.alerts.job import CycleReport, run_alert_cycle
+from signals.alerts.job import CycleReport, preview_account_message, run_alert_cycle
 from signals.api.config import ApiConfig
 from signals.persistence.database import create_database_engine
 from signals.runtime_events import configure_runtime_event_logging
@@ -86,6 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         "où elle est lue, la logique métier la recevant toujours explicitement",
     )
     parser.add_argument("--dry-run", action="store_true", help="n'envoie rien, décrit seulement")
+    parser.add_argument("--account", default=None, help="identifiant du compte pour un dry-run")
     arguments = parser.parse_args(argv)
 
     try:
@@ -116,7 +118,31 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_RUNTIME_INCIDENT
 
     if arguments.dry_run:
-        print("status=dry_run no_delivery_attempted=true")
+        if not arguments.account:
+            print("status=dry_run no_delivery_attempted=true")
+            return 0
+        if not config.public_app_url:
+            print("configuration_invalid", file=sys.stderr)
+            return EXIT_CONFIGURATION
+        try:
+            message = preview_account_message(
+                engine,
+                account_id=arguments.account,
+                now=now,
+                public_app_url=config.public_app_url,
+            )
+        except (sa.exc.SQLAlchemyError, ValueError):
+            print("configuration_invalid", file=sys.stderr)
+            return EXIT_CONFIGURATION
+        print(json.dumps({
+            "status": "dry_run",
+            "no_delivery_attempted": True,
+            "to_email": message.to_email,
+            "subject": message.subject,
+            "message_id": message.message_id,
+            "text_body": message.text_body,
+            "html_body": message.html_body,
+        }, ensure_ascii=False))
         return 0
 
     try:

@@ -292,7 +292,7 @@ def test_retry_batch_does_not_absorb_a_new_signal(app, engine, mailer) -> None:
 
     cycle(engine, mailer, now=NOW + RETRY_BASE)
 
-    assert mailer.last.text_body.count("\n1. ") == 1
+    assert mailer.last.text_body.count("Titulaire : ") == 1
     assert new_keys[0] not in mailer.last.text_body
     cycle(engine, mailer, now=NOW + RETRY_BASE)
     assert mailer.attempts == 2

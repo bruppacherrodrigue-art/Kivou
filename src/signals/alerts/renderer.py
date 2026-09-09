@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import dataclasses
 import html
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from signals.feed import copy as feed_copy
@@ -92,11 +93,7 @@ def line_from_card(card: dict[str, Any], *, url: str, lang: str) -> AlertLine:
     ][:MAXIMUM_NEEDS_SHOWN]
     buyer = (card["contract"].get("buyer") or {}).get("name")
     amount = card["contract"].get("amount") or {}
-    amount_label = (
-        f"{amount['value']} {amount['currency']}"
-        if amount.get("value") and amount.get("currency")
-        else None
-    )
+    amount_label = _format_amount(amount.get("value"), amount.get("currency"), lang=lang)
     location = card["contract"].get("location") or {}
     return AlertLine(
         signal_key=card["signal_id"],
@@ -127,9 +124,36 @@ def _truncate(text: str, limit: int = 120) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
+def _format_amount(value: str | None, currency: str | None, *, lang: str) -> str | None:
+    if not value or not currency:
+        return None
+    try:
+        number = Decimal(value)
+    except (InvalidOperation, ValueError):
+        return f"{value} {currency}"
+    rendered = f"{number:,.0f}" if lang == "en" else f"{number:,.0f}".replace(",", "\u00a0")
+    symbol = {"EUR": "€", "CHF": "CHF", "GBP": "£", "USD": "$"}.get(currency.upper(), currency.upper())
+    return f"{rendered} {symbol}"
+
+
+def _format_date(value: str | None, *, lang: str) -> str | None:
+    if not value:
+        return None
+    try:
+        year, month, day = (int(part) for part in value[:10].split("-"))
+    except (ValueError, TypeError):
+        return value
+    if lang == "en":
+        return f"{month:02d}/{day:02d}/{year}"
+    months = (
+        "janv.", "févr.", "mars", "avr.", "mai", "juin",
+        "juil.", "août", "sept.", "oct.", "nov.", "déc.",
+    )
+    return f"{day} {months[month - 1]} {year}"
+
+
 def render_text(
     lines: list[AlertLine], *, lang: str, preferences_link: str,
-    remaining_count: int = 0, pricing_link: str | None = None,
 ) -> str:
     """Le corps en texte simple. Pas de HTML, pas de pixel, pas de traqueur.
 
@@ -138,27 +162,20 @@ def render_text(
     sortie visible se fait classer indésirable.
     """
     feed_copy.check_language(lang)
-    blocks = [GREETING[lang], ""]
-    for index, line in enumerate(lines, start=1):
-        blocks.append(f"{index}. {line.company}")
-        blocks.append(f"   {line.headline}")
-        blocks.append(f"   {line.why_now}")
+    blocks: list[str] = []
+    for line in lines:
+        blocks.append(f"Titulaire : {line.company}")
         if line.contract_title:
-            blocks.append(f"   {_truncate(line.contract_title)}")
-        facts = tuple(value for value in (line.amount, line.location, line.awarded_on) if value)
-        if facts:
-            blocks.append(f"   {' · '.join(facts)}")
-        if line.buyer:
-            blocks.append(f"   {BUYER_LABEL[lang]} : {line.buyer}")
-        if line.needs:
-            blocks.append(f"   {NEEDS_LABEL[lang]} : {', '.join(line.needs)}")
+            blocks.append(f"Objet : {_truncate(line.contract_title)}")
+        if line.amount:
+            blocks.append(f"Montant : {line.amount}")
+        if line.location:
+            blocks.append(f"Lieu : {line.location}")
+        if line.awarded_on:
+            blocks.append(f"Date : {_format_date(line.awarded_on, lang=lang)}")
         if line.for_you_sentence:
-            blocks.append(f"   {FOR_YOU_LABEL[lang]} : {line.for_you_sentence}")
-        blocks.append(f"   {line.url}")
-        blocks.append("")
-    if remaining_count and pricing_link:
-        blocks.append(f"{remaining_count} autres signaux dans votre zone — voir les offres :")
-        blocks.append(pricing_link)
+            blocks.append(f"{FOR_YOU_LABEL[lang]} : {line.for_you_sentence}")
+        blocks.append(f"Ouvrir : {line.url}")
         blocks.append("")
     blocks.append(FOOTER[lang].format(preferences=preferences_link))
     return "\n".join(blocks)
@@ -166,35 +183,32 @@ def render_text(
 
 def render_html(
     lines: list[AlertLine], *, lang: str, preferences_link: str,
-    remaining_count: int = 0, pricing_link: str | None = None,
 ) -> str:
     """Version HTML sobre construite depuis exactement les mêmes lignes."""
     feed_copy.check_language(lang)
     cards = []
     for line in lines:
-        details = [line.headline, line.why_now, line.contract_title]
-        facts = tuple(value for value in (line.amount, line.location, line.awarded_on) if value)
-        if facts:
-            details.append(" · ".join(facts))
+        details = [
+            ("Titulaire", line.company),
+            ("Objet", _truncate(line.contract_title) if line.contract_title else None),
+            ("Montant", line.amount),
+            ("Lieu", line.location),
+            ("Date", _format_date(line.awarded_on, lang=lang)),
+        ]
         if line.for_you_sentence:
-            details.append(f"{FOR_YOU_LABEL[lang]} : {line.for_you_sentence}")
+            details.append((FOR_YOU_LABEL[lang], line.for_you_sentence))
         body = "".join(
-            f"<p>{html.escape(value)}</p>" for value in details if value
+            f"<p><strong>{html.escape(label)} :</strong> {html.escape(value)}</p>"
+            for label, value in details if value
         )
         cards.append(
             '<article style="border:1px solid #d8e0dc;padding:16px;margin:12px 0">'
-            f"<h2>{html.escape(line.company)}</h2>{body}"
+            f"{body}"
             f'<p><a href="{html.escape(line.url, quote=True)}">Ouvrir</a></p></article>'
         )
-    upsell = (
-        f'<p>{remaining_count} autres signaux dans votre zone — '
-        f'<a href="{html.escape(pricing_link, quote=True)}">voir les offres</a></p>'
-        if remaining_count and pricing_link else ""
-    )
     return (
-        '<!doctype html><html><body><p>Bonjour,</p>'
+        '<!doctype html><html><body>'
         + "".join(cards)
-        + upsell
         + f'<p><a href="{html.escape(preferences_link, quote=True)}">'
         "Se désinscrire des alertes</a></p></body></html>"
     )

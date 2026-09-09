@@ -83,7 +83,7 @@ class AlertDeliveryGateway(Protocol):
     def send(self, message: AlertMessage) -> DeliveryResult: ...
 
 
-def message_id(*, account_id: str, batch_key: str, domain: str = "kivou.ch") -> str:
+def message_id(*, account_id: str, batch_key: str, domain: str = "kivou.eu") -> str:
     """Un `Message-ID` déterministe, et qui ne divulgue rien (§28).
 
     Il est dérivé du compte et du lot par empreinte : deux envois du même lot

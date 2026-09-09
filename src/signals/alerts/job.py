@@ -32,11 +32,11 @@ import contextlib
 import dataclasses
 import datetime as dt
 import secrets
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 
 import sqlalchemy as sa
 
-from signals.accounts.schema import account
+from signals.accounts.schema import account, auth_user
 from signals.accounts.service import normalize_email
 from signals.alerts import delivery, lease, policy, renderer
 from signals.alerts.gateway import (
@@ -48,7 +48,7 @@ from signals.alerts.gateway import (
 from signals.billing import service as billing
 from signals.billing.access import feed_access
 from signals.engagement import analytics, notifications
-from signals.engagement.schema import signal_alert_delivery
+from signals.engagement.schema import account_notification_preference, signal_alert_delivery
 from signals.feed import policy as feed_policy
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
@@ -241,6 +241,80 @@ def eligible_signals(
 
 def _language(locale: str | None) -> str:
     return locale if locale in LANGUAGES else "fr"
+
+
+def render_account_message(
+    items: Sequence,
+    *,
+    account_id: str,
+    locale: str | None,
+    now: dt.datetime,
+    public_app_url: str,
+) -> AlertMessage:
+    """Project the same feed cards used by Aujourd'hui into one mail."""
+    lang = _language(locale)
+    lines = [
+        renderer.line_from_card(
+            feed_view.feed_item(item, lang=lang),
+            url=signal_url(public_app_url, item.signal.signal_key),
+            lang=lang,
+        )
+        for item in items
+    ]
+    batch_key = delivery.logical_batch_key(
+        account_id,
+        tuple(item.signal.signal_key for item in items),
+    )
+    preference_link = preferences_url(public_app_url)
+    return AlertMessage(
+        to_email="",
+        subject=renderer.subject(len(lines), lang=lang),
+        text_body=renderer.render_text(lines, lang=lang, preferences_link=preference_link),
+        html_body=renderer.render_html(lines, lang=lang, preferences_link=preference_link),
+        message_id=delivery.message_id(account_id=account_id, batch_key=batch_key),
+        language=lang,
+        preferences_url=preference_link,
+    )
+
+
+def preview_account_message(
+    engine: sa.Engine,
+    *,
+    account_id: str,
+    now: dt.datetime,
+    public_app_url: str,
+) -> AlertMessage:
+    """Build a dry-run message without leases, delivery rows, or SMTP."""
+    with engine.connect() as connection:
+        row = connection.execute(
+            sa.select(account.c.locale).where(account.c.account_id == account_id)
+        ).one()
+        items = _accessible_signals(
+            connection,
+            account_id=account_id,
+            as_of=now.date(),
+            enough=policy.MAXIMUM_SIGNALS_PER_EMAIL,
+        )[: policy.MAXIMUM_SIGNALS_PER_EMAIL]
+        message = render_account_message(
+            items,
+            account_id=account_id,
+            locale=row.locale,
+            now=now,
+            public_app_url=public_app_url,
+        )
+        recipient = connection.execute(
+            sa.select(account_notification_preference.c.notification_email).where(
+                account_notification_preference.c.account_id == account_id
+            )
+        ).scalar_one_or_none()
+        if recipient is None:
+            recipient = connection.execute(
+                sa.select(auth_user.c.email_normalized)
+                .where(auth_user.c.account_id == account_id)
+                .order_by(auth_user.c.created_at, auth_user.c.user_id)
+                .limit(1)
+            ).scalar_one_or_none()
+        return dataclasses.replace(message, to_email=recipient or "")
 
 
 def _recipient_context_fingerprint(
@@ -672,49 +746,20 @@ def _run_for_account(
             lease_ttl=delivery_lease_ttl,
             max_attempts=max_attempts,
         )
-        lang = _language(locale)
         items = [by_key[key] for key in batch.signal_keys]
-        lines = [
-            renderer.line_from_card(
-                feed_view.feed_item(item, lang=lang),
-                url=signal_url(public_app_url, item.signal.signal_key),
-                lang=lang,
-            )
-            for item in items
-        ]
         assert preference.notification_email is not None
         # `public_app_url` est garanti non nul ici : l'absence est traitée plus
         # haut par `public_app_url_missing`, avant toute construction de lot.
-        preferences_link = preferences_url(public_app_url)
-        remaining_count = 0
-        pricing_link = None
-        if state.is_discovery:
-            page = feed_query.feed_page(
-                connection,
+        message = dataclasses.replace(
+            render_account_message(
+                items,
                 account_id=account_id,
-                as_of=now.date(),
-                freshness=feed_policy.DEFAULT_FRESHNESS,
-                limit=feed_policy.MAXIMUM_PAGE_SIZE,
-            )
-            remaining_count = max(
-                0,
-                sum(1 for item in page.items if item.model_fit != "none") - len(lines),
-            )
-            pricing_link = f"{public_app_url.rstrip('/')}/pricing"
-        message = AlertMessage(
+                locale=locale,
+                now=now,
+                public_app_url=public_app_url,
+            ),
             to_email=preference.notification_email,
-            subject=renderer.subject(len(lines), lang=lang),
-            text_body=renderer.render_text(
-                lines, lang=lang, preferences_link=preferences_link,
-                remaining_count=remaining_count, pricing_link=pricing_link,
-            ),
-            html_body=renderer.render_html(
-                lines, lang=lang, preferences_link=preferences_link,
-                remaining_count=remaining_count, pricing_link=pricing_link,
-            ),
             message_id=batch.message_id,
-            language=lang,
-            preferences_url=preferences_link,
         )
 
     # L'envoi a lieu HORS transaction : garder une transaction ouverte pendant
