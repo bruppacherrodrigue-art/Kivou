@@ -17,6 +17,7 @@ from signals.acquisition_runtime.contracts import (
     OpaqueRef,
     require_aware,
 )
+from signals.acquisition_runtime.selection import select_production_opportunity_key
 from signals.api.config import resolve_acquisition_environment
 from signals.operations.contracts import canonical_fingerprint
 from signals.operations.safety_controller import SAFETY_CONTROLLER_REF
@@ -89,9 +90,9 @@ class RuntimeQaPolicyWindowController:
         runtime_config: AcquisitionRuntimeConfig,
     ) -> PolicyControlSnapshot:
         self._require_staging()
-        authority = self._authority(runtime_config)
-        self._verify_public_authority(authority)
         at = self._instant(at)
+        authority = self._open_authority(runtime_config, observed_at=at)
+        self._verify_public_authority(authority)
         expires_at = self._instant(expires_at)
         actor = self._actor(actor_ref)
         reason = self._reason(reason_code)
@@ -152,7 +153,6 @@ class RuntimeQaPolicyWindowController:
         runtime_config: AcquisitionRuntimeConfig,
     ) -> PolicyControlSnapshot:
         self._require_staging()
-        authority = self._authority(runtime_config)
         at = self._instant(at)
         actor = self._actor(actor_ref)
         reason = self._reason(reason_code)
@@ -163,6 +163,7 @@ class RuntimeQaPolicyWindowController:
                 continue
             if current.control_revision != head.control_revision:
                 raise RuntimeQaPolicyWindowError("runtime QA policy durable head is not effective")
+            authority = self._close_authority(runtime_config, current=current)
             self._require_chf(current)
             if self._same_closed_window(current, authority=authority):
                 return current
@@ -267,12 +268,88 @@ class RuntimeQaPolicyWindowController:
             raise RuntimeQaPolicyWindowError("runtime QA policy authority is unavailable") from None
         return None
 
-    def _authority(self, runtime_config: AcquisitionRuntimeConfig) -> _QaAuthority:
+    def _open_authority(
+        self,
+        runtime_config: AcquisitionRuntimeConfig,
+        *,
+        observed_at: dt.datetime,
+    ) -> _QaAuthority:
         deployment = runtime_config.deployment
-        if runtime_config.environment != "STAGING" or len(deployment.allowed_opportunity_keys) != 1:
+        selection = deployment.selection
+        if runtime_config.environment != "STAGING" or selection is None:
+            raise RuntimeQaPolicyWindowError("runtime QA policy requires staging selection")
+        if selection.mode == "fixed":
+            if len(selection.allowed_opportunity_keys) != 1:
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA policy requires one exact opportunity"
+                )
+            opportunity_key = selection.allowed_opportunity_keys[0]
+        else:
+            scope = deployment.qa_scope
+            if (
+                selection.vertical != scope.vertical
+                or selection.region != scope.region
+            ):
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA dynamic selection does not match its QA scope"
+                )
+            try:
+                opportunity_key = select_production_opportunity_key(
+                    self._engine,
+                    country=scope.country,
+                    observed_at=observed_at,
+                    vertical=selection.vertical,
+                    region=selection.region,
+                )
+            except (sa.exc.SQLAlchemyError, TypeError, ValueError):
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA dynamic opportunity is unavailable"
+                ) from None
+            if opportunity_key is None:
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA dynamic selection has no eligible opportunity"
+                )
+        return self._authority_for_key(runtime_config, opportunity_key=opportunity_key)
+
+    def _close_authority(
+        self,
+        runtime_config: AcquisitionRuntimeConfig,
+        *,
+        current: PolicyControlSnapshot,
+    ) -> _QaAuthority:
+        deployment = runtime_config.deployment
+        selection = deployment.selection
+        if runtime_config.environment != "STAGING" or selection is None:
+            raise RuntimeQaPolicyWindowError("runtime QA policy requires staging selection")
+        if selection.mode == "fixed":
+            if len(selection.allowed_opportunity_keys) != 1:
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA policy requires one exact opportunity"
+                )
+            opportunity_key = selection.allowed_opportunity_keys[0]
+        else:
+            prefix = "procurement-opportunity:"
+            if current.qa_signal_ref is None or not current.qa_signal_ref.startswith(prefix):
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA dynamic authority has no exact opportunity"
+                )
+            opportunity_key = current.qa_signal_ref.removeprefix(prefix)
+            if not opportunity_key:
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA dynamic authority has no exact opportunity"
+                )
+        return self._authority_for_key(runtime_config, opportunity_key=opportunity_key)
+
+    @staticmethod
+    def _authority_for_key(
+        runtime_config: AcquisitionRuntimeConfig,
+        *,
+        opportunity_key: str,
+    ) -> _QaAuthority:
+        deployment = runtime_config.deployment
+        if runtime_config.environment != "STAGING":
             raise RuntimeQaPolicyWindowError("runtime QA policy requires one exact opportunity")
         scope = deployment.qa_scope
-        opportunity_key = deployment.allowed_opportunity_keys[0]
         return _QaAuthority(
             opportunity_key=opportunity_key,
             signal_ref=f"procurement-opportunity:{opportunity_key}",
