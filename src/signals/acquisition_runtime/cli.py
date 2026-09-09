@@ -8,6 +8,8 @@ import signal
 import sys
 from collections.abc import Callable
 
+import sqlalchemy as sa
+
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeDependencyState,
@@ -15,6 +17,8 @@ from signals.acquisition_runtime.contracts import (
     RuntimeStageDependency,
 )
 from signals.acquisition_runtime.events import configure_acquisition_runtime_logging
+from signals.acquisition_runtime.shadow_store import latest_shadow_mails
+from signals.persistence.database import create_database_engine
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
 RuntimeDependencyExecutor = Callable[[], tuple[RuntimeStageDependency, ...]]
@@ -46,6 +50,10 @@ def _parser() -> _SafeArgumentParser:
         "check-dependencies",
         help="run fresh read-only production dependency probes",
     )
+    review = commands.add_parser("review", help="render recent shadow mails as Markdown")
+    review.add_argument("--last", type=int, default=20)
+    stats = commands.add_parser("stats", help="show bounded shadow runtime counters")
+    stats.add_argument("--since", default="24h")
     return parser
 
 
@@ -98,6 +106,37 @@ def main(
 ) -> int:
     configure_acquisition_runtime_logging()
     arguments = _parser().parse_args(argv)
+    if arguments.command == "review":
+        try:
+            records = latest_shadow_mails(
+                create_database_engine(), limit=max(1, min(arguments.last, 20))
+            )
+        except (OSError, sa.exc.SQLAlchemyError, ValueError):
+            print("status=REVIEW_UNAVAILABLE")
+            return 1
+        print("# PR7 shadow — relecture\n")
+        for index, record in enumerate(records, 1):
+            print(f"## {index}. {record.company_name} — {record.contact_role}")
+            print(f"E-mail : {record.masked_email}\n")
+            print(f"Signal : {record.opportunity_key}\n")
+            print(f"Requête Apollo : `{record.apollo_query}`\n")
+            print("### Texte\n")
+            print(record.body)
+            print("\n---\n")
+        return 0
+    if arguments.command == "stats":
+        try:
+            engine = create_database_engine()
+            with engine.connect() as connection:
+                from signals.persistence.schema import acquisition_runtime_cycle
+                count = connection.execute(
+                    sa.select(sa.func.count()).select_from(acquisition_runtime_cycle)
+                ).scalar_one()
+            print(f"cycles={count} mails_generated={len(latest_shadow_mails(engine, limit=20))}")
+        except (OSError, sa.exc.SQLAlchemyError, ValueError):
+            print("status=STATS_UNAVAILABLE")
+            return 1
+        return 0
     if arguments.command == "check-dependencies":
         check = check_dependencies or _default_check_dependencies
         try:

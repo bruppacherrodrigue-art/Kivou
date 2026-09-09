@@ -1,5 +1,10 @@
 # Runtime Acquisition PRODUCTION/SHADOW — phase 1
 
+Le coupe-circuit immédiat est `systemctl stop kivou-acquisition-production.timer`.
+Chaque cycle relit aussi `/etc/kivou/acquisition.disabled`; sa présence bloque
+le cycle avant tout appel fournisseur. Pour reprendre, supprimer ce fichier
+après contrôle opérateur puis démarrer le timer.
+
 Ce runbook installe le second orchestrateur borné, distinct de celui du
 staging décrit au runbook 10. Le cycle de production tourne en
 `PRODUCTION` avec zéro outil natif Hermes — `RuntimeExecutionMode` reste

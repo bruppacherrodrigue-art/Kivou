@@ -137,6 +137,7 @@ class SupplierSearchProfile(DiscoveryContract):
     per_page: int = Field(ge=1, le=100)
     candidate_cap: int = Field(ge=1, le=500)
     search_too_broad_threshold: int = Field(ge=100, le=50_000)
+    narrowing_level: int = Field(default=0, ge=0, le=2)
     profile_fingerprint: Fingerprint
 
     @field_validator("signal_ref")

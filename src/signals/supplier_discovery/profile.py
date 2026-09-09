@@ -91,3 +91,25 @@ def build_supplier_search_profile(
     }
     values["profile_fingerprint"] = _fingerprint(values)
     return SupplierSearchProfile.model_validate(values)
+
+
+def narrow_supplier_search_profile(profile: SupplierSearchProfile) -> SupplierSearchProfile:
+    """Tighten one Apollo query without widening its business meaning."""
+
+    if profile.narrowing_level >= 2:
+        return profile
+    terms = tuple(profile.trade_terms)
+    extra = terms[profile.narrowing_level : profile.narrowing_level + 1]
+    locations = tuple(
+        f"{location}, rayon {100 - profile.narrowing_level * 25} km"
+        for location in profile.organization_locations
+    )
+    values = profile.model_copy(
+        update={
+            "keyword_tags": tuple(sorted(set(profile.keyword_tags) | set(extra))),
+            "organization_locations": locations,
+            "narrowing_level": profile.narrowing_level + 1,
+        }
+    )
+    raw = values.model_dump(mode="json", exclude={"profile_fingerprint"})
+    return values.model_copy(update={"profile_fingerprint": _fingerprint(raw)})

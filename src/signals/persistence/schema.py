@@ -1363,6 +1363,33 @@ acquisition_personalization_artifact = sa.Table(
 )
 
 
+# PR7: generated messages are durable review material, never a provider send.
+# The recipient address is deliberately absent; the contact binding remains in
+# the acquisition graph and review receives only a masked address.
+acquisition_shadow_mail = sa.Table(
+    "acquisition_shadow_mail",
+    METADATA,
+    sa.Column("shadow_mail_id", sa.String(64), primary_key=True),
+    sa.Column("cycle_ref", sa.String(64), sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"), nullable=False, index=True),
+    sa.Column("opportunity_key", sa.String(256), nullable=False, index=True),
+    sa.Column("procedure_award_key", sa.String(64), nullable=False),
+    sa.Column("supplier_ref", sa.String(64)),
+    sa.Column("contact_ref", sa.String(64)),
+    sa.Column("company_name", sa.Text, nullable=False),
+    sa.Column("contact_role", sa.String(128), nullable=False),
+    sa.Column("masked_email", sa.String(320), nullable=False),
+    sa.Column("signal_snapshot", sa.JSON, nullable=False),
+    sa.Column("subject", sa.String(256), nullable=False),
+    sa.Column("body", sa.Text, nullable=False),
+    sa.Column("apollo_query", sa.JSON, nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("created_day", sa.Date, nullable=False, index=True),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint("procedure_award_key", "created_day", name="uq_shadow_mail_procedure_day"),
+    sa.CheckConstraint("status = 'SHADOW'", name="ck_shadow_mail_status"),
+)
+
+
 # SPEC-025: purpose-limited, append-only recipient suppression identity. Raw
 # contact details never enter this cross-attempt hard-boundary table.
 acquisition_contact_suppression = sa.Table(

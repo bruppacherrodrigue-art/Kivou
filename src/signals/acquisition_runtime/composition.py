@@ -24,7 +24,7 @@ from signals.acquisition_runtime.domain import (
 from signals.acquisition_runtime.registry import AcquisitionActionHandler
 from signals.acquisition_runtime.transport import StagingQaRecipientOverride
 from signals.campaigns.contracts import CampaignDeploymentConfig
-from signals.campaigns.instantly import InstantlyProvider
+from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvider
 from signals.campaigns.service import CampaignService, MailboxReadinessSource
 from signals.campaigns.worker import CampaignWorker
 from signals.company_research.service import CompanyResearchService
@@ -146,6 +146,8 @@ def build_acquisition_domain_composition(
         clock=clock,
         expected_contact_profile_version=RUNTIME_QA_CONTACT_PROFILE_VERSION,
     )
+    if runtime_config.environment == "PRODUCTION":
+        instantly_provider = ShadowInstantlyProvider(instantly_provider)
     campaign_service = CampaignService(
         engine,
         keyring=suppression_keyring,
