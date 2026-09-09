@@ -17,6 +17,7 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeLimits,
     AcquisitionRuntimeStage,
     RuntimeQaScope,
+    RuntimeSelection,
 )
 from signals.operations.cli import main
 from signals.operations.contracts import HealthStatus
@@ -152,6 +153,43 @@ def _runtime_config(
                 maximum_provider_operations=3,
                 maximum_wall_seconds=900,
                 lease_seconds=1200,
+            ),
+        ),
+        qa_recipient=SecretStr("qa-controlled@example.test"),
+        qa_recipient_hmac_key=SecretStr("private-qa-hmac-marker"),
+    )
+
+
+def _dynamic_runtime_config() -> AcquisitionRuntimeConfig:
+    return AcquisitionRuntimeConfig(
+        environment="STAGING",
+        deployment_path=Path("/etc/kivou/acquisition-runtime.json"),
+        deployment=AcquisitionRuntimeDeployment(
+            mode="SHADOW",
+            qa_only=True,
+            allowed_opportunity_keys=(),
+            qa_scope=RuntimeQaScope(
+                country="FR",
+                language="fr",
+                wedge="construction",
+                vertical="general_building",
+                region="Auvergne-Rhône-Alpes",
+            ),
+            qa_recipient_identity_hmac="0" * 64,
+            qa_recipient_key_version="qa-recipient-key-v1",
+            qa_provider_mutations_capable=True,
+            limits=AcquisitionRuntimeLimits(
+                maximum_cycle_cost=Decimal("10"),
+                maximum_suppliers=1,
+                maximum_contacts=1,
+                maximum_provider_operations=3,
+                maximum_wall_seconds=900,
+                lease_seconds=1200,
+            ),
+            selection=RuntimeSelection(
+                mode="dynamic",
+                vertical="general_building",
+                region="Auvergne-Rhône-Alpes",
             ),
         ),
         qa_recipient=SecretStr("qa-controlled@example.test"),
@@ -309,6 +347,53 @@ def test_open_window_requires_the_one_allowlisted_public_opportunity_to_exist(
         )
 
     assert PolicyStore(engine).get_effective_control(NOW).control_revision == 1
+
+
+def test_dynamic_window_binds_the_opportunity_selected_at_open_time(
+    tmp_path, monkeypatch
+) -> None:
+    engine = _engine(tmp_path)
+    _seed_public_opportunity(
+        engine,
+        opportunity_key="opportunity-dynamic-001",
+        country="FR",
+    )
+    calls: list[dict[str, object]] = []
+
+    def select(_engine, **criteria):
+        assert _engine is engine
+        calls.append(criteria)
+        return "opportunity-dynamic-001"
+
+    monkeypatch.setattr(
+        "signals.operations.qa_policy_window.select_production_opportunity_key",
+        select,
+    )
+    controller = _controller(engine)
+    runtime_config = _dynamic_runtime_config()
+
+    opened = _open(controller, runtime_config=runtime_config)
+    closed = controller.close(
+        at=NOW + dt.timedelta(minutes=1),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_CYCLE_COMPLETE",
+        runtime_config=runtime_config,
+    )
+
+    assert calls == [
+        {
+            "country": "FR",
+            "observed_at": NOW,
+            "vertical": "general_building",
+            "region": "Auvergne-Rhône-Alpes",
+        }
+    ]
+    assert opened.qa_signal_ref == (
+        "procurement-opportunity:opportunity-dynamic-001"
+    )
+    assert closed.qa_signal_ref == opened.qa_signal_ref
+    assert closed.autonomy_mode is AutonomyMode.SHADOW
+    assert closed.read_only is True
 
 
 def test_open_window_requires_the_public_country_to_match_the_exact_qa_scope(

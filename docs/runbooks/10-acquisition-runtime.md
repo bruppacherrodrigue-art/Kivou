@@ -86,6 +86,11 @@ timer sont obligatoires, même si une commande intermédiaire échoue. L’expir
 de la fenêtre restaure en plus l’ancien contrôle comme sécurité passive. Remplacer
 uniquement les références opaques, jamais par une adresse ou un secret.
 
+Avec `selection.mode=dynamic`, l’ouverture applique les critères configurés et
+lie la fenêtre au signal exact choisi à cet instant. La fermeture reprend cette
+liaison durable : elle ne relance pas la sélection et reste donc possible si le
+signal entre ensuite en refroidissement.
+
 ```bash
 sudo systemctl stop kivou-acquisition.timer
 sudo systemd-run --wait --collect --pipe \

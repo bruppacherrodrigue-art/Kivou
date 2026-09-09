@@ -35,6 +35,10 @@ _REGION_DEPARTMENTS: dict[str, tuple[str, ...]] = {
         "FRK11", "FRK12", "FRK13", "FRK14", "FRK21", "FRK22",
         "FRK23", "FRK24", "FRK25", "FRK26", "FRK27", "FRK28",
     ),
+    "Centre-Val de Loire": (
+        "FR-18", "FR-28", "FR-36", "FR-37", "FR-41", "FR-45",
+        "FRB01", "FRB02", "FRB03", "FRB04", "FRB05", "FRB06",
+    ),
 }
 
 
