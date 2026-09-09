@@ -50,6 +50,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeStageDependency,
     RuntimeStageStatus,
 )
+from signals.acquisition_runtime.fake_providers import build_fake_apollo_components
 from signals.acquisition_runtime.registry import (
     AcquisitionActionHandler,
     AcquisitionActionRegistry,
@@ -555,21 +556,35 @@ def build_runtime_execution_composition(
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")
     observed_at = now.astimezone(dt.UTC)
-    if runtime_config.deployment.is_production:
+    selection = runtime_config.deployment.selection
+    if selection is None:
+        raise RuntimeExecutionConfigurationError("SELECTION_NOT_CONFIGURED")
+    if selection.mode == "dynamic":
         selected = select_production_opportunity_key(
             engine,
             country=runtime_config.deployment.qa_scope.country,
-            vertical=runtime_config.deployment.qa_scope.vertical,
-            region=runtime_config.deployment.qa_scope.region,
+            # Keep legacy isolated test databases usable when their QA scope
+            # deliberately disables the projection filter; deployed dynamic
+            # documents carry both values.
+            vertical=(
+                selection.vertical
+                if runtime_config.deployment.qa_scope.vertical is not None
+                else None
+            ),
+            region=(
+                selection.region
+                if runtime_config.deployment.qa_scope.region is not None
+                else None
+            ),
             observed_at=observed_at,
         )
         if selected is None:
             raise RuntimeExecutionConfigurationError("NO_ELIGIBLE_OPPORTUNITY")
         opportunity_keys: tuple[str, ...] = (selected,)
     else:
-        if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
+        if len(selection.allowed_opportunity_keys) != 1:
             raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
-        opportunity_keys = runtime_config.deployment.allowed_opportunity_keys
+        opportunity_keys = selection.allowed_opportunity_keys
     if runtime_config.deployment.limits.maximum_cycle_cost < sum(
         KIVOU_STAGE_COSTS.values()
     ):
@@ -600,11 +615,14 @@ def build_runtime_execution_composition(
         )
     apollo_components = apollo
     if apollo_components is None:
-        assert client is not None
-        apollo_components = build_apollo_components(
-            api_key=connectivity_config.apollo_api_key.get_secret_value(),
-            client=client,
-        )
+        if runtime_config.deployment.providers.mode == "fake":
+            apollo_components = build_fake_apollo_components()
+        else:
+            assert client is not None
+            apollo_components = build_apollo_components(
+                api_key=connectivity_config.apollo_api_key.get_secret_value(),
+                client=client,
+            )
     suppression_keyring = webhook_configuration.suppression_keyring
     link_builder = AttributionLinkBuilder(
         public_site_url=links.public_app_url,
@@ -614,9 +632,8 @@ def build_runtime_execution_composition(
         ),
     )
     supplier_location = (
-        runtime_config.deployment.qa_scope.region
-        if runtime_config.deployment.is_production
-        and runtime_config.deployment.qa_scope.region is not None
+        selection.region
+        if selection.mode == "dynamic" and selection.region is not None
         else _APOLLO_LOCATION_BY_QA_COUNTRY.get(scope.country)
     )
     if supplier_location is None:
@@ -625,8 +642,7 @@ def build_runtime_execution_composition(
         )
     candidate_cap = (
         25
-        if runtime_config.deployment.is_production
-        and runtime_config.deployment.qa_scope.vertical is not None
+        if selection.mode == "dynamic" and selection.vertical is not None
         else 1
     )
     targeting = SupplierTargetingConfig(
@@ -788,9 +804,13 @@ def execute_runtime_run_once(
     engine = create_database_engine()
     try:
         with httpx.Client(timeout=10.0, follow_redirects=False) as client:
-            apollo = build_apollo_components(
-                api_key=connectivity_config.apollo_api_key.get_secret_value(),
-                client=client,
+            apollo = (
+                build_fake_apollo_components()
+                if runtime_config.deployment.providers.mode == "fake"
+                else build_apollo_components(
+                    api_key=connectivity_config.apollo_api_key.get_secret_value(),
+                    client=client,
+                )
             )
             instantly = HttpInstantlyProvider(
                 api_key=connectivity_config.instantly_api_key.get_secret_value(),

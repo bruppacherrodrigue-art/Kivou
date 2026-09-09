@@ -145,6 +145,31 @@ def test_run_once_defaults_to_non_mutating_shadow_mode(capsys) -> None:
     )
 
 
+def test_abandon_requires_reason_and_uses_durable_store(monkeypatch, capsys) -> None:
+    calls = []
+
+    class Store:
+        def __init__(self, engine):
+            calls.append(engine)
+
+        def abandon_cycle(self, cycle_id, *, reason, at):
+            assert cycle_id == "cycle-001"
+            assert reason == "provider recovery abandoned"
+            assert at.tzinfo is not None
+            return True
+
+    monkeypatch.setattr(cli, "AcquisitionRuntimeStore", Store)
+    monkeypatch.setattr(cli, "create_database_engine", lambda: object())
+
+    assert main(
+        ["abandon", "cycle-001", "--reason", "provider recovery abandoned"]
+    ) == 0
+    assert calls
+    assert capsys.readouterr().out == (
+        "status=ABANDONED cycle_ref=cycle-001 changed=yes\n"
+    )
+
+
 def test_process_boundary_configures_closed_runtime_logging(monkeypatch) -> None:
     configured: list[bool] = []
     monkeypatch.setattr(

@@ -112,7 +112,10 @@ def build_acquisition_domain_composition(
 ) -> AcquisitionDomainComposition:
     """Wire existing domains; construction performs no provider operation."""
 
-    if runtime_config.environment == "STAGING":
+    if runtime_config.environment == "STAGING" and (
+        runtime_config.deployment.selection is None
+        or runtime_config.deployment.selection.mode == "fixed"
+    ):
         if targeting.max_pages != 1 or targeting.per_page != 1 or targeting.candidate_cap != 1:
             raise ValueError("runtime supplier discovery is capped at one candidate")
     elif targeting.max_pages != 1 or targeting.per_page > 25 or targeting.candidate_cap > 25:

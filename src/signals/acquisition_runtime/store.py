@@ -377,6 +377,32 @@ class AcquisitionRuntimeStore:
             return "RUNTIME_CYCLE_REASON_INVALID"
         return value
 
+    def abandon_cycle(
+        self, cycle_ref: str, *, reason: str, at: dt.datetime
+    ) -> bool:
+        """Terminally suppress one cycle without acquiring the runtime lease."""
+        at = require_aware(at)
+        cleaned = reason.strip()
+        if not cleaned or len(cleaned) > 200:
+            raise ValueError("abandon reason must contain 1-200 characters")
+        with self.engine.begin() as connection:
+            self._cycle(connection, cycle_ref)
+            result = connection.execute(
+                sa.update(acquisition_runtime_cycle)
+                .where(
+                    acquisition_runtime_cycle.c.cycle_ref == cycle_ref,
+                    acquisition_runtime_cycle.c.status.not_in(_TERMINAL_CYCLES),
+                )
+                .values(
+                    status=RuntimeCycleStatus.SUPPRESSED.value,
+                    next_stage=None,
+                    last_reason_code="OPERATOR_ABANDONED",
+                    completed_at=at,
+                    updated_at=at,
+                )
+            )
+            return result.rowcount == 1
+
     def resume_or_create_cycle(
         self,
         *,
