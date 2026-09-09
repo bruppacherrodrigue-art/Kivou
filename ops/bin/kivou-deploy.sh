@@ -131,12 +131,12 @@ if [[ "$(readlink -f "$KIVOU_BACKEND_LINK" 2>/dev/null || true)" == "$KIVOU_RELE
   exit 0
 fi
 
-mkdir -p "$KIVOU_RELEASES_DIR"
-git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" fetch --no-tags origin main
-git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" cat-file -e "$KIVOU_SHA^{commit}"
+install -d -o "$KIVOU_SERVICE_USER" -g "$KIVOU_SERVICE_USER" -m 0755 "$KIVOU_RELEASES_DIR"
+runuser --user "$KIVOU_SERVICE_USER" -- git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" fetch --no-tags origin main
+runuser --user "$KIVOU_SERVICE_USER" -- git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" cat-file -e "$KIVOU_SHA^{commit}"
 if [[ ! -d "$KIVOU_RELEASE_DIR/.git" && ! -f "$KIVOU_RELEASE_DIR/.git" ]]; then
   [[ ! -e "$KIVOU_RELEASE_DIR" ]] || fail "release partielle existante : $KIVOU_RELEASE_DIR"
-  git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" worktree add --detach "$KIVOU_RELEASE_DIR" "$KIVOU_SHA"
+  runuser --user "$KIVOU_SERVICE_USER" -- git -c "safe.directory=$KIVOU_SOURCE_DIR" -C "$KIVOU_SOURCE_DIR" worktree add --detach "$KIVOU_RELEASE_DIR" "$KIVOU_SHA"
 fi
 [[ "$(git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" == "$KIVOU_SHA" ]] || fail "checkout différent du SHA demandé"
 if [[ -z "${KIVOU_BACKUP_SCRIPT_CONFIGURED:-}" ]]; then
