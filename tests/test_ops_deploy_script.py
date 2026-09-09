@@ -167,6 +167,10 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         "runuser --user kivou -- git "
         f"-c safe.directory={source} -C {source} worktree add --detach"
     ) in commands
+    assert (
+        "runuser --user kivou -- git -C "
+        f"{releases / f'staging-{'a' * 40}'} rev-parse HEAD"
+    ) in commands
     assert "systemctl restart" not in commands
     assert "migrate_to_latest" in commands
     assert not live_backend.exists()
