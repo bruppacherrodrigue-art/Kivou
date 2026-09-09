@@ -22,6 +22,16 @@ _KEYWORDS: dict[str, tuple[str, ...]] = {
     "waste_and_environment": ("environmental services", "waste management"),
 }
 
+_CPV_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "452612": ("couverture",),
+    "4526265": ("bardage",),
+    "452613": ("zinguerie",),
+}
+
+_TRADE_TERMS_BY_VERTICAL: dict[str, tuple[str, ...]] = {
+    "general_building": ("bardage", "couverture", "zinguerie"),
+}
+
 
 def _fingerprint(values: dict[str, object]) -> str:
     encoded = json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
@@ -34,12 +44,32 @@ def build_supplier_search_profile(
     representative_award_key: str,
     need_categories: tuple[str, ...],
     targeting: SupplierTargetingConfig,
+    cpv_codes: tuple[str, ...] = (),
+    trade_terms: tuple[str, ...] = (),
 ) -> SupplierSearchProfile:
     categories = tuple(sorted(set(need_categories)))
     unknown = tuple(category for category in categories if category not in _KEYWORDS)
     if unknown:
         raise ValueError(f"unsupported need categories: {unknown}")
-    keywords = tuple(sorted({tag for category in categories for tag in _KEYWORDS[category]}))
+    cpv_keywords = {
+        keyword
+        for code in cpv_codes
+        for prefix, terms in _CPV_KEYWORDS.items()
+        if code.replace("-", "").startswith(prefix)
+        for keyword in terms
+    }
+    explicit_terms = {term.strip().casefold() for term in trade_terms if term.strip()}
+    keywords = tuple(
+        sorted(
+            {
+                tag
+                for category in categories
+                for tag in _KEYWORDS[category]
+            }
+            | cpv_keywords
+            | explicit_terms
+        )
+    )
     if not keywords:
         raise SupplierSearchNotActionable
     values: dict[str, object] = {
@@ -47,6 +77,8 @@ def build_supplier_search_profile(
         "signal_ref": signal_ref,
         "representative_award_key": representative_award_key,
         "need_categories": categories,
+        "cpv_codes": tuple(sorted(set(cpv_codes))),
+        "trade_terms": tuple(sorted(explicit_terms)),
         "keyword_tags": keywords,
         "organization_locations": targeting.organization_locations,
         "organization_not_locations": targeting.organization_not_locations,

@@ -558,6 +558,8 @@ def build_runtime_execution_composition(
         selected = select_production_opportunity_key(
             engine,
             country=runtime_config.deployment.qa_scope.country,
+            vertical=runtime_config.deployment.qa_scope.vertical,
+            region=runtime_config.deployment.qa_scope.region,
             observed_at=observed_at,
         )
         if selected is None:
@@ -618,8 +620,9 @@ def build_runtime_execution_composition(
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
         max_pages=1,
-        per_page=1,
-        candidate_cap=1,
+        per_page=25,
+        candidate_cap=25,
+        search_too_broad_threshold=200,
     )
     empty_registry = AcquisitionActionRegistry(
         {

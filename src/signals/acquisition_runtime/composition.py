@@ -112,8 +112,11 @@ def build_acquisition_domain_composition(
 ) -> AcquisitionDomainComposition:
     """Wire existing domains; construction performs no provider operation."""
 
-    if targeting.max_pages != 1 or targeting.per_page != 1 or targeting.candidate_cap != 1:
-        raise ValueError("runtime supplier discovery is capped at one candidate")
+    if runtime_config.environment == "STAGING":
+        if targeting.max_pages != 1 or targeting.per_page != 1 or targeting.candidate_cap != 1:
+            raise ValueError("runtime supplier discovery is capped at one candidate")
+    elif targeting.max_pages != 1 or targeting.per_page > 25 or targeting.candidate_cap > 25:
+        raise ValueError("production supplier discovery is capped at 25 candidates")
     supplier_service = SupplierDiscoveryService(
         engine,
         provider=apollo.organization_search,

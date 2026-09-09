@@ -126,6 +126,8 @@ class SupplierSearchProfile(DiscoveryContract):
     signal_ref: StableRef
     representative_award_key: StableRef
     need_categories: tuple[ShortText, ...] = Field(max_length=7)
+    cpv_codes: tuple[ShortText, ...] = Field(default=(), max_length=32)
+    trade_terms: tuple[ShortText, ...] = Field(default=(), max_length=32)
     keyword_tags: tuple[ShortText, ...] = Field(max_length=32)
     organization_locations: tuple[ShortText, ...] = Field(default=(), max_length=32)
     organization_not_locations: tuple[ShortText, ...] = Field(default=(), max_length=32)

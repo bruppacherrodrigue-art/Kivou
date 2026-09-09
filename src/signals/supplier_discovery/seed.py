@@ -21,7 +21,10 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchProfile,
     SupplierTargetingConfig,
 )
-from signals.supplier_discovery.profile import build_supplier_search_profile
+from signals.supplier_discovery.profile import (
+    _TRADE_TERMS_BY_VERTICAL,
+    build_supplier_search_profile,
+)
 from signals.understanding import ContractUnderstanding, ContractUnderstandingEngine
 
 
@@ -148,9 +151,30 @@ def resolve_acquisition_seed(engine: Engine, opportunity_key: str) -> Acquisitio
 def build_profile_from_seed(
     seed: AcquisitionSeed, *, targeting: SupplierTargetingConfig
 ) -> SupplierSearchProfile:
+    award = getattr(seed, "award", None)
+    understanding = getattr(seed, "understanding", None)
+    cpv_codes = (
+        tuple(
+            code
+            for code in (
+                award.cpv_main.code if award.cpv_main else None,
+                *(str(value) for value in (award.cpv_additional or ())),
+            )
+            if code
+        )
+        if award is not None
+        else ()
+    )
     return build_supplier_search_profile(
         signal_ref=seed.signal_ref,
         representative_award_key=seed.representative_award_key,
         need_categories=tuple(need.category for need in seed.needs.needs),
+        cpv_codes=cpv_codes,
+        trade_terms=_TRADE_TERMS_BY_VERTICAL.get(
+            understanding.trade_domain.value
+            if understanding and understanding.trade_domain
+            else "",
+            (),
+        ),
         targeting=targeting,
     )

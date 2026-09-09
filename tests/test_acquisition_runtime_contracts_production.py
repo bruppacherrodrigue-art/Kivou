@@ -20,14 +20,23 @@ LIMITS = {
     "maximum_wall_seconds": 900,
     "lease_seconds": 1200,
 }
-SCOPE = {"country": "FR", "language": "fr", "wedge": "construction"}
+SCOPE = {
+    "country": "FR",
+    "language": "fr",
+    "wedge": "construction",
+}
+PRODUCTION_SCOPE = {
+    **SCOPE,
+    "vertical": "general_building",
+    "region": "Auvergne-Rhône-Alpes",
+}
 
 
 def _production_document(**updates: object) -> dict[str, object]:
     value: dict[str, object] = {
         "schema_version": ACQUISITION_PRODUCTION_SCHEMA_VERSION,
         "mode": "SHADOW",
-        "qa_scope": SCOPE,
+        "qa_scope": PRODUCTION_SCOPE,
         "limits": LIMITS,
     }
     value.update(updates)

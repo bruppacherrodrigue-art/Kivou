@@ -81,3 +81,25 @@ def test_targeting_rejects_unbounded_or_unknown_provider_parameters() -> None:
             need_categories=("workforce_capacity",),
             targeting=SupplierTargetingConfig(),
         )
+
+
+def test_general_building_profile_uses_precise_cpv_trade_terms() -> None:
+    profile = build_supplier_search_profile(
+        signal_ref="procurement-opportunity:signal-1",
+        representative_award_key="award-1",
+        need_categories=("materials_or_components",),
+        cpv_codes=("45261200", "45262650"),
+        trade_terms=("bardage", "couverture", "zinguerie"),
+        targeting=SupplierTargetingConfig(
+            organization_locations=("FR-ARA",),
+            organization_not_locations=("FR-OTHER",),
+            employee_ranges=("5,250",),
+            candidate_cap=25,
+            search_too_broad_threshold=200,
+        ),
+    )
+
+    assert {"bardage", "couverture", "zinguerie"} <= set(profile.keyword_tags)
+    assert "construction" not in profile.keyword_tags
+    assert profile.candidate_cap == 25
+    assert profile.search_too_broad_threshold == 200

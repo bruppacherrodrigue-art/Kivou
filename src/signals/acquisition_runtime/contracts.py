@@ -246,6 +246,8 @@ class RuntimeQaScope(_FrozenModel):
     country: Literal["CH", "FR"]
     language: Literal["fr", "en"]
     wedge: OpaqueRef
+    vertical: OpaqueRef | None = None
+    region: BoundedRuntimeText | None = None
 
 
 class AcquisitionRuntimeDeployment(_FrozenModel):
@@ -283,6 +285,8 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
                 or self.qa_only
                 or self.qa_provider_mutations_capable
                 or self.allowed_opportunity_keys
+                or not self.qa_scope.vertical
+                or not self.qa_scope.region
             ):
                 raise ValueError("production runtime forbids every QA binding")
             return self
