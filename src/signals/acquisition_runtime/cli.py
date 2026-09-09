@@ -124,7 +124,7 @@ def main(
             print(f"## {index}. {record.company_name} — {record.contact_role}")
             print(f"E-mail : {record.masked_email}\n")
             print(f"Signal : {record.opportunity_key}\n")
-            print(f"Requête Apollo : `{record.apollo_query}`\n")
+            print(f"Requêtes SIRENE/Apollo : `{record.apollo_query}`\n")
             print("### Texte\n")
             print(record.body)
             print("\n---\n")

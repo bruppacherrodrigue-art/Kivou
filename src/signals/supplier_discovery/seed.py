@@ -18,11 +18,12 @@ from signals.persistence.schema import (
     source_event,
 )
 from signals.supplier_discovery.contracts import (
+    SupplierSearchNotActionable,
     SupplierSearchProfile,
     SupplierTargetingConfig,
 )
+from signals.supplier_discovery.families import department_and_neighbours, families_for_signal
 from signals.supplier_discovery.profile import (
-    _TRADE_TERMS_BY_VERTICAL,
     build_supplier_search_profile,
 )
 from signals.understanding import ContractUnderstanding, ContractUnderstandingEngine
@@ -151,6 +152,8 @@ def resolve_acquisition_seed(engine: Engine, opportunity_key: str) -> Acquisitio
 def build_profile_from_seed(
     seed: AcquisitionSeed, *, targeting: SupplierTargetingConfig
 ) -> SupplierSearchProfile:
+    if not seed.needs.needs:
+        raise SupplierSearchNotActionable
     award = getattr(seed, "award", None)
     understanding = getattr(seed, "understanding", None)
     cpv_codes = (
@@ -165,16 +168,28 @@ def build_profile_from_seed(
         if award is not None
         else ()
     )
+    vertical = (
+        understanding.trade_domain.value
+        if understanding and understanding.trade_domain
+        else ""
+    )
+    object_text = " ".join(filter(None, (award.title, award.description)))
+    families = families_for_signal(vertical, cpv_codes=cpv_codes, object_text=object_text)
+    place = award.place_of_performance
+    subdivision = place.subdivision_code if place else None
+    department = (
+        subdivision.removeprefix("FR-")
+        if subdivision and subdivision.startswith("FR-")
+        else None
+    )
     return build_supplier_search_profile(
         signal_ref=seed.signal_ref,
         representative_award_key=seed.representative_award_key,
         need_categories=tuple(need.category for need in seed.needs.needs),
         cpv_codes=cpv_codes,
-        trade_terms=_TRADE_TERMS_BY_VERTICAL.get(
-            understanding.trade_domain.value
-            if understanding and understanding.trade_domain
-            else "",
-            (),
-        ),
+        trade_terms=tuple(term for family in families for term in family.object_terms),
+        sirene_naf_codes=tuple(code for family in families for code in family.naf_codes),
+        sirene_departments=department_and_neighbours(department) if department else (),
+        supplier_family_keys=tuple(family.key for family in families),
         targeting=targeting,
     )

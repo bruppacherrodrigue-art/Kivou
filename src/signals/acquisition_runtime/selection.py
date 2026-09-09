@@ -138,6 +138,11 @@ def select_production_opportunity_key(
                 source_event.c.published_on <= horizon,
                 contract_award.c.amount >= 50000,
                 contract_award.c.winner_status == "identified",
+                sa.func.nullif(sa.func.trim(sa.func.coalesce(materialized_signal.c.winner_name, "")), "").isnot(None),
+                sa.or_(
+                    sa.func.lower(sa.func.coalesce(materialized_signal.c.winner_identifier_scheme, "")) != "siret",
+                    materialized_signal.c.winner_name != materialized_signal.c.winner_identifier_value,
+                ),
                 sa.func.nullif(sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), "").isnot(None),
                 materialized_signal.c.inferred_trade_domain == vertical,
                 contract_award.c.place_of_performance["subdivision_code"].as_string().in_(region_codes),

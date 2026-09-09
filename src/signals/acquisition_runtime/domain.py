@@ -66,6 +66,8 @@ from signals.persistence.schema import (
     acquisition_provider_operation,
     acquisition_response_evaluation,
     acquisition_supplier,
+    contact_discovery_run,
+    sirene_apollo_binding,
     supplier_discovery_run,
 )
 from signals.personalization.contracts import (
@@ -80,6 +82,7 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchNotActionable,
     SupplierTargetingConfig,
 )
+from signals.supplier_discovery.families import load_supplier_family_catalog
 from signals.supplier_discovery.seed import (
     AcquisitionSeedNotFound,
     resolve_public_acquisition_context,
@@ -1170,10 +1173,25 @@ class AcquisitionDomainActions:
                     "AND f.model_fit <> 'none' ORDER BY f.updated_at DESC LIMIT 1"
                 ), {"key": context.cycle.opportunity_key}
             ).scalar_one_or_none()
-            query = connection.execute(
+            sirene_query = connection.execute(
                 sa.select(supplier_discovery_run.c.search_profile)
-                .where(supplier_discovery_run.c.signal_ref == context.cycle.opportunity_key)
+                .where(
+                    supplier_discovery_run.c.signal_ref
+                    == f"procurement-opportunity:{context.cycle.opportunity_key}"
+                )
                 .order_by(supplier_discovery_run.c.started_at.desc()).limit(1)
+            ).scalar_one_or_none()
+            binding = connection.execute(
+                sa.select(sirene_apollo_binding).where(
+                    sirene_apollo_binding.c.siren
+                    == supplier["provider_organization_id"]
+                )
+            ).mappings().one_or_none()
+            contact_query = connection.execute(
+                sa.select(contact_discovery_run.c.search_profile)
+                .where(contact_discovery_run.c.selected_contact_ref == opportunity.contact_ref)
+                .order_by(contact_discovery_run.c.started_at.desc())
+                .limit(1)
             ).scalar_one_or_none()
         if supplier is None or contact is None or not for_you:
             return
@@ -1186,7 +1204,17 @@ class AcquisitionDomainActions:
         )
         place = str(public.award.place_of_performance or "lieu non publié")
         date = str(public.award.award_date or public.event.event_date or "date non publiée")
+        family_key = str(supplier["industry"] or "").partition(":")[0]
+        family_labels = {
+            family.key: family.label_fr
+            for families in load_supplier_family_catalog().values()
+            for family in families
+        }
+        family_label = family_labels.get(family_key)
+        if family_label is None:
+            return
         rendered = render_shadow_mail(ShadowMailInput(
+            supplier_family=family_label,
             object=title, holder=holder, amount=amount_text, place=place, date=date,
             for_you=for_you,
             attribution_url=f"/a/{context.cycle.opportunity_key}-{context.cycle.cycle_ref[:12]}",
@@ -1202,8 +1230,23 @@ class AcquisitionDomainActions:
             email=contact["business_email"], signal_snapshot={
                 "object": title, "holder": holder, "amount": amount_text,
                 "place": place, "date": date, "for_you": for_you,
+                "supplier_family": family_label,
             }, subject=rendered.subject, body=rendered.body,
-            apollo_query=query or {}, created_at=context.at,
+            apollo_query={
+                "sirene": sirene_query or {},
+                "organization_binding": (
+                    {
+                        "siren": binding["siren"],
+                        "apollo_organization_id": binding["apollo_organization_id"],
+                        "resolution_method": binding["resolution_method"],
+                        "confidence_score": str(binding["confidence_score"]),
+                    }
+                    if binding is not None
+                    else {}
+                ),
+                "contact": contact_query or {},
+            },
+            created_at=context.at,
         )
 
     @_closed_domain_action

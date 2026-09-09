@@ -25,6 +25,7 @@ from signals.policy.contracts import (
 
 PROFILE_VERSION = "supplier-search-v1"
 PROVIDER = "apollo"
+SIRENE_PROVIDER = "sirene"
 MAX_RESPONSE_BYTES = 1_048_576
 _DOMAIN = re.compile(
     r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
@@ -49,6 +50,8 @@ class DiscoveryContract(BaseModel):
 
 class SupplierIdentityStatus(StrEnum):
     PROVIDER_IDENTIFIED = "PROVIDER_IDENTIFIED"
+    SIRENE_IDENTIFIED = "SIRENE_IDENTIFIED"
+    LEGACY_APOLLO = "LEGACY_APOLLO"
     DOMAIN_CONFLICT = "DOMAIN_CONFLICT"
 
 
@@ -129,6 +132,9 @@ class SupplierSearchProfile(DiscoveryContract):
     cpv_codes: tuple[ShortText, ...] = Field(default=(), max_length=32)
     trade_terms: tuple[ShortText, ...] = Field(default=(), max_length=32)
     keyword_tags: tuple[ShortText, ...] = Field(max_length=32)
+    sirene_naf_codes: tuple[ShortText, ...] = Field(default=(), max_length=32)
+    sirene_departments: tuple[ShortText, ...] = Field(default=(), max_length=32)
+    supplier_family_keys: tuple[ShortText, ...] = Field(default=(), max_length=5)
     organization_locations: tuple[ShortText, ...] = Field(default=(), max_length=32)
     organization_not_locations: tuple[ShortText, ...] = Field(default=(), max_length=32)
     employee_ranges: tuple[ShortText, ...] = Field(default=(), max_length=16)
@@ -173,9 +179,29 @@ class ApolloOrganizationCandidate(DiscoveryContract):
     _observed = field_validator("provider_observed_at")(_aware)
 
 
+class SireneOrganizationCandidate(DiscoveryContract):
+    provider: Literal["sirene"] = SIRENE_PROVIDER
+    provider_organization_id: Annotated[str, StringConstraints(pattern=r"^\d{9}$")]
+    display_name: ShortText
+    normalized_name: ShortText
+    primary_domain: Annotated[str, StringConstraints(max_length=253)] | None = None
+    website_url: Annotated[str, StringConstraints(max_length=2048)] | None = None
+    linkedin_company_url: None = None
+    country_code: Literal["FR"] = "FR"
+    location: Annotated[str, StringConstraints(max_length=512)] | None = None
+    industry: Annotated[str, StringConstraints(max_length=256)] | None = None
+    provider_observed_at: dt.datetime
+    source_fingerprint: Fingerprint
+
+    _observed = field_validator("provider_observed_at")(_aware)
+
+
+SupplierOrganizationCandidate = ApolloOrganizationCandidate | SireneOrganizationCandidate
+
+
 class SupplierRecord(DiscoveryContract):
     supplier_ref: StableRef
-    provider: Literal["apollo"]
+    provider: Literal["apollo", "sirene"]
     provider_organization_id: ProviderId
     display_name: ShortText
     normalized_name: ShortText
@@ -207,7 +233,7 @@ class SupplierSearchPage(DiscoveryContract):
     total_entries: int = Field(ge=0)
     total_pages: int = Field(ge=0)
     partial_results_only: bool | None = None
-    candidates: tuple[ApolloOrganizationCandidate, ...] = Field(max_length=100)
+    candidates: tuple[SupplierOrganizationCandidate, ...] = Field(max_length=100)
     rejections: tuple[CandidateRejection, ...] = Field(max_length=100)
 
 
@@ -250,6 +276,8 @@ class DiscoveryRunRecord(DiscoveryContract):
     records_accepted: int
     records_rejected: int
     rejection_reason_counts: dict[str, int]
+    family_result_counts: dict[str, int]
+    family_target_counts: dict[str, int]
     duplicates: int
     opportunities_created: int
     started_at: dt.datetime

@@ -775,9 +775,26 @@ acquisition_supplier = sa.Table(
         name="uq_acquisition_supplier_provider_identity",
     ),
     sa.CheckConstraint(
-        "identity_status IN ('PROVIDER_IDENTIFIED', 'DOMAIN_CONFLICT')",
+        "identity_status IN ('PROVIDER_IDENTIFIED', 'SIRENE_IDENTIFIED', "
+        "'LEGACY_APOLLO', 'DOMAIN_CONFLICT')",
         name="ck_acquisition_supplier_identity_status",
     ),
+)
+
+
+sirene_apollo_binding = sa.Table(
+    "sirene_apollo_binding",
+    METADATA,
+    sa.Column("siren", sa.String(9), primary_key=True),
+    sa.Column("apollo_organization_id", sa.String(128)),
+    sa.Column("resolved_at", sa.DateTime(timezone=True)),
+    sa.Column("resolution_method", sa.String(64), nullable=False),
+    sa.Column("confidence_score", sa.Numeric(5, 4)),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("status IN ('resolved', 'unresolved', 'legacy')", name="ck_sirene_apollo_binding_status"),
+    sa.CheckConstraint("confidence_score IS NULL OR confidence_score >= 0 AND confidence_score <= 1", name="ck_sirene_apollo_binding_confidence"),
 )
 
 
@@ -816,6 +833,8 @@ supplier_discovery_run = sa.Table(
     sa.Column("records_accepted", sa.Integer, nullable=False),
     sa.Column("records_rejected", sa.Integer, nullable=False),
     sa.Column("rejection_reason_counts", sa.JSON, nullable=False),
+    sa.Column("family_result_counts", sa.JSON, nullable=False),
+    sa.Column("family_target_counts", sa.JSON, nullable=False),
     sa.Column("duplicates", sa.Integer, nullable=False),
     sa.Column("opportunities_created", sa.Integer, nullable=False),
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
@@ -1078,7 +1097,8 @@ acquisition_company_profile = sa.Table(
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("provider = 'apollo'", name="ck_company_profile_provider"),
     sa.CheckConstraint(
-        "supplier_identity_status IN ('PROVIDER_IDENTIFIED', 'DOMAIN_CONFLICT')",
+        "supplier_identity_status IN ('PROVIDER_IDENTIFIED', 'SIRENE_IDENTIFIED', "
+        "'LEGACY_APOLLO', 'DOMAIN_CONFLICT')",
         name="ck_company_profile_supplier_identity",
     ),
     sa.CheckConstraint(

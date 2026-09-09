@@ -622,6 +622,11 @@ def test_default_root_composition_constructs_real_domains_without_network(
         "acquisition_opportunity_id",
         "supplier_ref",
         "provider_organization_id",
+        "supplier_siren",
+        "binding_resolution_method",
+        "organization_name",
+        "organization_city",
+        "organization_domain",
         "profile_fingerprint",
     ):
         effective_profile.pop(identity_field)

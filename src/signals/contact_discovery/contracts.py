@@ -52,6 +52,11 @@ class DecisionMakerSearchProfile(ContactDiscoveryContract):
     acquisition_opportunity_id: StableRef
     supplier_ref: StableRef
     provider_organization_id: ProviderId
+    supplier_siren: Annotated[str, StringConstraints(pattern=r"^\d{9}$")] | None = None
+    binding_resolution_method: ShortText | None = None
+    organization_name: ShortText | None = None
+    organization_city: ShortText | None = None
+    organization_domain: ShortText | None = None
     person_titles: tuple[ShortText, ...] = Field(min_length=1, max_length=32)
     person_seniorities: tuple[ShortText, ...] = Field(min_length=1, max_length=16)
     contact_email_statuses: tuple[ShortText, ...] = ("verified",)

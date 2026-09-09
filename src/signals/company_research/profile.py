@@ -26,12 +26,25 @@ def _fingerprint(value: object) -> str:
     ).hexdigest()
 
 
-def _profile_values(provider_organization_id: str) -> dict[str, object]:
+def _profile_values(
+    provider_organization_id: str,
+    *,
+    siren: str | None = None,
+    organization_name: str | None = None,
+    organization_city: str | None = None,
+    organization_domain: str | None = None,
+) -> dict[str, object]:
     return {
         "profile_version": PROFILE_VERSION,
         "provider": PROVIDER,
         "provider_organization_id": provider_organization_id,
-        "endpoint_kind": ENDPOINT_KIND,
+        "siren": siren,
+        "organization_name": organization_name,
+        "organization_city": organization_city,
+        "organization_domain": organization_domain,
+        "endpoint_kind": (
+            "resolve_name_city_then_exact" if organization_name else ENDPOINT_KIND
+        ),
         "response_contract_version": RESPONSE_CONTRACT_VERSION,
         "allowed_provider_fields": ALLOWED_PROVIDER_FIELDS,
         "max_response_bytes": MAX_RESPONSE_BYTES,
@@ -44,8 +57,19 @@ def _profile_values(provider_organization_id: str) -> dict[str, object]:
 
 def build_company_research_profile(
     provider_organization_id: str,
+    *,
+    siren: str | None = None,
+    organization_name: str | None = None,
+    organization_city: str | None = None,
+    organization_domain: str | None = None,
 ) -> CompanyResearchProfile:
-    values = _profile_values(provider_organization_id)
+    values = _profile_values(
+        provider_organization_id,
+        siren=siren,
+        organization_name=organization_name,
+        organization_city=organization_city,
+        organization_domain=organization_domain,
+    )
     return CompanyResearchProfile(
         **values,
         profile_fingerprint=_fingerprint(

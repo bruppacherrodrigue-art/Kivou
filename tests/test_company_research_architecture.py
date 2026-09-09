@@ -33,11 +33,10 @@ def test_company_research_has_no_customer_private_dependencies() -> None:
         assert forbidden not in source
 
 
-def test_company_research_has_no_outbound_or_research_executor_path() -> None:
+def test_company_research_has_only_bounded_identity_resolution_and_exact_lookup() -> None:
     source = "\n".join(inspect.getsource(module) for module in (apollo_module, service_module))
     for forbidden in (
         "/organizations/enrich",
-        "mixed_companies/search",
         "mixed_people",
         "people/match",
         "instantly",
@@ -49,6 +48,8 @@ def test_company_research_has_no_outbound_or_research_executor_path() -> None:
         "hermes",
     ):
         assert forbidden not in source.casefold()
+    assert source.count('ORGANIZATION_SEARCH_PATH = "/api/v1/mixed_companies/search"') == 1
+    assert source.count("ORGANIZATION_PATH_PREFIX") >= 2
 
 
 def test_company_profile_store_does_not_select_or_persist_contact_pii() -> None:

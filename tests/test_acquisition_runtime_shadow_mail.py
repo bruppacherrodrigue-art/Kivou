@@ -6,6 +6,7 @@ from signals.acquisition_runtime.shadow_mail import ShadowMailInput, render_shad
 def test_shadow_mail_contains_only_the_bait_facts_and_required_links() -> None:
     mail = render_shadow_mail(
         ShadowMailInput(
+            supplier_family="Béton prêt à l'emploi",
             object="Réfection de couverture",
             holder="Entreprise Exemple",
             amount="125 000 €",
@@ -19,11 +20,14 @@ def test_shadow_mail_contains_only_the_bait_facts_and_required_links() -> None:
     )
 
     assert mail.subject == "Réfection de couverture"
+    assert "Béton prêt à l'emploi" in mail.body
+    assert "Entreprise Exemple vient de gagner" in mail.body
     assert "Titulaire : Entreprise Exemple" in mail.body
     assert "Montant : 125 000 €" in mail.body
     assert "Lieu : Rhône" in mail.body
     assert "Date : septembre 2026" in mail.body
     assert "Pour vous :" in mail.body
+    assert "travaux de couverture correspondent" not in mail.body
     assert "https://kivou.eu/a/token-1" in mail.body
     assert "Source des données" in mail.body
     assert "https://www.boamp.fr/avis/1" in mail.body

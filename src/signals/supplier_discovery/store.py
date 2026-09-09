@@ -12,13 +12,13 @@ from sqlalchemy.engine import Connection, Engine, RowMapping
 from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_supplier, supplier_discovery_run
 from signals.supplier_discovery.contracts import (
-    ApolloOrganizationCandidate,
     DiscoveryAlreadyStarted,
     DiscoveryRunIdentityConflict,
     DiscoveryRunRecord,
     DiscoveryRunStart,
     DiscoveryRunStatus,
     SupplierIdentityStatus,
+    SupplierOrganizationCandidate,
     SupplierRecord,
 )
 from signals.supplier_discovery.identity import (
@@ -90,7 +90,7 @@ class SupplierDiscoveryStore:
             "discovery_run_id": start.discovery_run_id,
             "signal_ref": profile.signal_ref,
             "policy_evaluation_id": start.policy_evaluation_id,
-            "provider": "apollo",
+            "provider": "sirene",
             "search_profile_version": profile.profile_version,
             "search_profile_fingerprint": profile.profile_fingerprint,
             "search_profile": profile.model_dump(mode="json"),
@@ -108,6 +108,8 @@ class SupplierDiscoveryStore:
             "records_accepted": 0,
             "records_rejected": 0,
             "rejection_reason_counts": {},
+            "family_result_counts": {},
+            "family_target_counts": {},
             "duplicates": 0,
             "opportunities_created": 0,
             "started_at": start.started_at,
@@ -206,6 +208,8 @@ class SupplierDiscoveryStore:
         rejection_reason_counts: dict[str, int],
         duplicates: int,
         opportunities_created: int,
+        family_result_counts: dict[str, int] | None = None,
+        family_target_counts: dict[str, int] | None = None,
         provider_credit_units_observed: int | None = None,
         error_category: str | None = None,
         error_detail: str | None = None,
@@ -231,6 +235,8 @@ class SupplierDiscoveryStore:
                     records_accepted=records_accepted,
                     records_rejected=records_rejected,
                     rejection_reason_counts=rejection_reason_counts,
+                    family_result_counts=family_result_counts or {},
+                    family_target_counts=family_target_counts or {},
                     duplicates=duplicates,
                     opportunities_created=opportunities_created,
                     error_category=error_category,
@@ -278,7 +284,7 @@ class SupplierDiscoveryStore:
         return _record(row)
 
     def upsert_supplier(
-        self, candidate: ApolloOrganizationCandidate
+        self, candidate: SupplierOrganizationCandidate
     ) -> SupplierUpsertResult:
         with self._engine.begin() as connection:
             return self.upsert_supplier_in_transaction(connection, candidate)
@@ -286,7 +292,7 @@ class SupplierDiscoveryStore:
     def upsert_supplier_in_transaction(
         self,
         connection: Connection,
-        candidate: ApolloOrganizationCandidate,
+        candidate: SupplierOrganizationCandidate,
     ) -> SupplierUpsertResult:
         now = self._clock()
         supplier_ref = supplier_ref_for(
@@ -304,7 +310,11 @@ class SupplierDiscoveryStore:
             "country_code": candidate.country_code,
             "location": candidate.location,
             "industry": candidate.industry,
-            "identity_status": SupplierIdentityStatus.PROVIDER_IDENTIFIED.value,
+            "identity_status": (
+                SupplierIdentityStatus.SIRENE_IDENTIFIED.value
+                if candidate.provider == "sirene"
+                else SupplierIdentityStatus.PROVIDER_IDENTIFIED.value
+            ),
             "identity_conflict_fingerprint": None,
             "provider_observed_at": candidate.provider_observed_at,
             "source_fingerprint": candidate.source_fingerprint,
@@ -339,7 +349,11 @@ class SupplierDiscoveryStore:
                     linkedin_company_url=candidate.linkedin_company_url,
                     country_code=candidate.country_code,
                     location=candidate.location,
-                    industry=candidate.industry,
+                    industry=(
+                        existing_row["industry"]
+                        if candidate.provider == "sirene" and existing_row["industry"]
+                        else candidate.industry
+                    ),
                     provider_observed_at=candidate.provider_observed_at,
                     source_fingerprint=candidate.source_fingerprint,
                     updated_at=now,
@@ -351,7 +365,11 @@ class SupplierDiscoveryStore:
                 sa.update(acquisition_supplier)
                 .where(acquisition_supplier.c.supplier_ref == supplier_ref)
                 .values(
-                    identity_status=SupplierIdentityStatus.PROVIDER_IDENTIFIED.value,
+                    identity_status=(
+                        SupplierIdentityStatus.SIRENE_IDENTIFIED.value
+                        if candidate.provider == "sirene"
+                        else SupplierIdentityStatus.PROVIDER_IDENTIFIED.value
+                    ),
                     identity_conflict_fingerprint=None,
                     updated_at=now,
                 )

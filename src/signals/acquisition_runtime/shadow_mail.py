@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ShadowMailInput:
+    supplier_family: str
     object: str
     holder: str
     amount: str
@@ -26,11 +27,20 @@ class ShadowMail:
 
 
 def render_shadow_mail(value: ShadowMailInput) -> ShadowMail:
+    family_sentence = (
+        f"Votre activité couvre-t-elle « {value.supplier_family} » ? "
+        f"{value.holder} vient de gagner ce marché."
+    )
+    family_for_you = (
+        f"Pour vous : ce signal indique un besoin possible en "
+        f"{value.supplier_family.casefold()} autour de {value.place}."
+    )
     body = "\n\n".join(
         (
+            family_sentence,
             f"Signal : {value.object}",
             f"Titulaire : {value.holder}\nMontant : {value.amount}\nLieu : {value.place}\nDate : {value.date}",
-            value.for_you,
+            family_for_you,
             f"Ouvrir : {value.attribution_url}",
             "Bien cordialement,\nL’équipe Kivou",
             f"Source des données : {value.source_url}\nLien de désinscription : {value.unsubscribe_url}",

@@ -95,12 +95,22 @@ def build_decision_maker_profile(
     acquisition_opportunity_id: str,
     supplier_ref: str,
     provider_organization_id: str,
+    supplier_siren: str | None = None,
+    binding_resolution_method: str | None = None,
+    organization_name: str | None = None,
+    organization_city: str | None = None,
+    organization_domain: str | None = None,
     profile_version: str = PROFILE_VERSION,
 ) -> DecisionMakerSearchProfile:
     values: dict[str, object] = {
         "acquisition_opportunity_id": acquisition_opportunity_id,
         "supplier_ref": supplier_ref,
         "provider_organization_id": provider_organization_id,
+        "supplier_siren": supplier_siren,
+        "binding_resolution_method": binding_resolution_method,
+        "organization_name": organization_name,
+        "organization_city": organization_city,
+        "organization_domain": organization_domain,
         **decision_maker_profile_semantics(profile_version),
     }
     return DecisionMakerSearchProfile(**values, profile_fingerprint=_fingerprint(values))

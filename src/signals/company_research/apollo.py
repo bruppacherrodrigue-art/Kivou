@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable
+from decimal import Decimal
 from urllib.parse import urlsplit
 
 import httpx
@@ -26,6 +27,7 @@ from signals.company_research.contracts import (
 
 APOLLO_BASE_URL = "https://api.apollo.io"
 ORGANIZATION_PATH_PREFIX = "/api/v1/organizations/"
+ORGANIZATION_SEARCH_PATH = "/api/v1/mixed_companies/search"
 _DOMAIN = re.compile(
     r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
@@ -205,7 +207,7 @@ class ApolloCompanyResearchClient:
         self._clock = clock
 
     def fetch_organization(self, profile: CompanyResearchProfile) -> ApolloOrganizationObservation:
-        payload = self._get(profile)
+        payload, resolution_method, resolution_confidence = self._get(profile)
         observed_at = _aware(self._clock())
         if not isinstance(payload, dict):
             raise CompanyResearchProviderError("malformed_response")
@@ -216,7 +218,7 @@ class ApolloCompanyResearchClient:
         company_name = _required_text(organization.get("name"), 512)
         if provider_id is None or company_name is None:
             raise CompanyResearchProviderError("malformed_response")
-        if provider_id != profile.provider_organization_id:
+        if profile.siren is None and provider_id != profile.provider_organization_id:
             raise CompanyResearchProviderError("provider_identity_mismatch")
 
         gaps: set[ResearchGap] = set()
@@ -262,14 +264,27 @@ class ApolloCompanyResearchClient:
             **safe,
             provider_observed_at=observed_at,
             provider_source_fingerprint=_source_fingerprint(safe, ordered_gaps),
+            resolution_method=resolution_method,
+            resolution_confidence_score=resolution_confidence,
             research_gaps=ordered_gaps,
         )
 
-    def _get(self, profile: CompanyResearchProfile) -> object:
+    def _get(
+        self, profile: CompanyResearchProfile
+    ) -> tuple[object, str | None, Decimal | None]:
+        organization_id = profile.provider_organization_id
+        resolution_method = None
+        resolution_confidence = None
+        if profile.organization_name:
+            (
+                organization_id,
+                resolution_method,
+                resolution_confidence,
+            ) = self._resolve_organization_id(profile)
         try:
             with self._client.stream(
                 "GET",
-                f"{APOLLO_BASE_URL}{ORGANIZATION_PATH_PREFIX}{profile.provider_organization_id}",
+                f"{APOLLO_BASE_URL}{ORGANIZATION_PATH_PREFIX}{organization_id}",
                 headers={"x-api-key": self._api_key, "accept": "application/json"},
             ) as response:
                 category = {
@@ -308,6 +323,36 @@ class ApolloCompanyResearchClient:
         except (httpx.NetworkError, httpx.RemoteProtocolError) as exc:
             raise CompanyResearchProviderError("network_error") from exc
         try:
-            return json.loads(body)
+            return json.loads(body), resolution_method, resolution_confidence
         except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
             raise CompanyResearchProviderError("malformed_response") from exc
+
+    def _resolve_organization_id(
+        self, profile: CompanyResearchProfile
+    ) -> tuple[str, str, Decimal]:
+        params = [("q_organization_name", profile.organization_name or "")]
+        if profile.organization_city:
+            params.append(("organization_locations[]", profile.organization_city))
+        if profile.organization_domain:
+            params.append(("organization_domains[]", profile.organization_domain))
+        try:
+            response = self._client.post(
+                f"{APOLLO_BASE_URL}{ORGANIZATION_SEARCH_PATH}",
+                params=params,
+                headers={"x-api-key": self._api_key, "accept": "application/json"},
+            )
+            if response.status_code >= 400:
+                raise CompanyResearchProviderError("not_found")
+            payload = response.json()
+            organizations = payload.get("organizations") if isinstance(payload, dict) else None
+            first = organizations[0] if isinstance(organizations, list) and organizations else None
+            identifier = first.get("id") if isinstance(first, dict) else None
+        except CompanyResearchProviderError:
+            raise
+        except (httpx.RequestError, ValueError, TypeError, IndexError) as exc:
+            raise CompanyResearchProviderError("not_found") from exc
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise CompanyResearchProviderError("not_found")
+        method = "domain_name_city" if profile.organization_domain else "name_city"
+        confidence = Decimal("0.95") if profile.organization_domain else Decimal("0.80")
+        return identifier.strip(), method, confidence

@@ -1,0 +1,141 @@
+version: supplier-families-v1
+verticals:
+  general_building:
+    - key: ready_mix_concrete
+      label_fr: Béton prêt à l'emploi
+      apollo_tags: [ready mix concrete, concrete supplier]
+      priority: 1
+      cpv_prefixes: [452623]
+      naf_codes: [23.63Z]
+      object_terms: [gros œuvre, béton]
+    - key: reinforcement_steel
+      label_fr: Armatures et ferraillage
+      apollo_tags: [reinforcing steel, rebar, steel reinforcement]
+      priority: 2
+      cpv_prefixes: [452624]
+      naf_codes: [24.10Z]
+      object_terms: [armatures, ferraillage]
+    - key: formwork
+      label_fr: Coffrage
+      apollo_tags: [formwork, concrete formwork]
+      priority: 3
+      cpv_prefixes: [452623]
+      naf_codes: [43.99C]
+      object_terms: [coffrage]
+    - key: scaffolding
+      label_fr: Échafaudage
+      apollo_tags: [scaffolding, scaffold hire]
+      priority: 4
+      cpv_prefixes: [442123]
+      naf_codes: [43.99C]
+      object_terms: [échafaudage]
+  interior_finishing:
+    - key: plastering
+      label_fr: Plâtrerie
+      apollo_tags: [plastering, drywall, interior walls]
+      priority: 1
+      cpv_prefixes: [4541]
+      naf_codes: [43.31Z]
+      object_terms: [plâtrerie, placo]
+    - key: flooring
+      label_fr: Revêtements de sol
+      apollo_tags: [flooring contractor, floor coverings]
+      priority: 2
+      cpv_prefixes: [4543]
+      naf_codes: [43.33Z, 43.34Z]
+      object_terms: [sol, revêtement]
+    - key: exterior_joinery
+      label_fr: Menuiserie extérieure
+      apollo_tags: [external joinery, windows and doors, fenestration]
+      priority: 3
+      cpv_prefixes: [4542]
+      naf_codes: [43.32A, 43.32B]
+      object_terms: [menuiserie extérieure, fenêtres]
+  technical_installation:
+    - key: plumbing
+      label_fr: Plomberie
+      apollo_tags: [plumbing contractor, plumbing systems]
+      priority: 1
+      cpv_prefixes: [4533]
+      naf_codes: [43.22A, 43.22B, 43.29A]
+      object_terms: [plomberie]
+    - key: electrical
+      label_fr: Électricité
+      apollo_tags: [electrical contractor, electrical installation]
+      priority: 2
+      cpv_prefixes: [4531]
+      naf_codes: [43.21A]
+      object_terms: [électricité, courant fort]
+    - key: hvac
+      label_fr: Chauffage et ventilation
+      apollo_tags: [HVAC contractor, heating ventilation air conditioning]
+      priority: 3
+      cpv_prefixes: [4533]
+      naf_codes: [43.22A, 43.22B]
+      object_terms: [chauffage, ventilation, climatisation]
+  roadworks_civil:
+    - key: road_construction
+      label_fr: Travaux routiers
+      apollo_tags: [road construction, road contractor]
+      priority: 1
+      cpv_prefixes: [4523]
+      naf_codes: [42.11Z]
+      object_terms: [voirie, route]
+    - key: asphalt
+      label_fr: Enrobés et asphalte
+      apollo_tags: [asphalt contractor, asphalt paving]
+      priority: 2
+      cpv_prefixes: [4411]
+      naf_codes: [42.11Z]
+      object_terms: [enrobé, asphalte]
+    - key: road_markings
+      label_fr: Signalisation routière
+      apollo_tags: [road markings, traffic signs]
+      priority: 3
+      cpv_prefixes: [4523]
+      naf_codes: [42.11Z]
+      object_terms: [signalisation]
+  earthworks_demolition:
+    - key: earthmoving
+      label_fr: Terrassement
+      apollo_tags: [earthmoving, excavation contractor]
+      priority: 1
+      cpv_prefixes: [4511]
+      naf_codes: [43.12A, 43.12B]
+      object_terms: [terrassement, excavation]
+    - key: demolition
+      label_fr: Démolition
+      apollo_tags: [demolition contractor, building demolition]
+      priority: 2
+      cpv_prefixes: [4511]
+      naf_codes: [43.12A, 43.12B]
+      object_terms: [démolition]
+    - key: waste_removal
+      label_fr: Évacuation des déchets
+      apollo_tags: [construction waste removal, waste hauling]
+      priority: 3
+      cpv_prefixes: [9051]
+      naf_codes: [38.11Z]
+      object_terms: [déchets, évacuation]
+  special_civil:
+    - key: waterproofing
+      label_fr: Étanchéité
+      apollo_tags: [waterproofing contractor, building envelope]
+      priority: 1
+      cpv_prefixes: [452614]
+      naf_codes: [43.99C]
+      object_terms: [étanchéité]
+    - key: structural_steel
+      label_fr: Charpente métallique
+      apollo_tags: [structural steel, steel frame contractor]
+      priority: 2
+      cpv_prefixes: [452624]
+      naf_codes: [43.91A, 43.91B]
+      object_terms: [charpente métallique]
+    - key: facade_cladding
+      label_fr: Bardage et façade
+      apollo_tags: [cladding contractor, facade contractor, building cladding]
+      priority: 3
+      cpv_prefixes: [4526265]
+      naf_codes: [43.91A, 43.91B]
+      object_terms: [bardage, façade]
