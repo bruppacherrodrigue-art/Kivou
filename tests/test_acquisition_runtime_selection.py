@@ -5,11 +5,14 @@ import datetime as dt
 
 import sqlalchemy as sa
 
+from signals.accounts.schema import target_icp
 from signals.acquisition_runtime.selection import select_production_opportunity_key
 from signals.persistence.schema import (
     METADATA,
     acquisition_runtime_cycle,
     contract_award,
+    for_you_sentence,
+    materialized_signal,
     opportunity_representation,
     source_event,
 )
@@ -28,6 +31,9 @@ def _engine(tmp_path) -> sa.Engine:
         tables=[
             source_event,
             contract_award,
+            materialized_signal,
+            for_you_sentence,
+            target_icp,
             opportunity_representation,
             acquisition_runtime_cycle,
         ],
@@ -98,6 +104,21 @@ def test_no_eligible_opportunity_returns_none(tmp_path) -> None:
     assert (
         select_production_opportunity_key(
             _engine(tmp_path), country="FR", observed_at=NOW
+        )
+        is None
+    )
+
+
+def test_production_selection_accepts_the_selected_vertical_and_region(tmp_path) -> None:
+    """Production selection must scope the signal before choosing recency."""
+
+    assert (
+        select_production_opportunity_key(
+            _engine(tmp_path),
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            observed_at=NOW,
         )
         is None
     )

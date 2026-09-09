@@ -94,6 +94,32 @@ class InstantlyProvider(Protocol):
     def get_webhook_events(self) -> object: ...
 
 
+class ShadowSendForbidden(RuntimeError):
+    """A provider mutation that could deliver mail is forbidden in SHADOW."""
+
+
+class ShadowInstantlyProvider:
+    """Read-only facade used by the production shadow runtime."""
+
+    def __init__(self, provider: InstantlyProvider) -> None:
+        self._provider = provider
+
+    def __getattr__(self, name: str):
+        return getattr(self._provider, name)
+
+    def create_campaign(self, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids Instantly campaign creation")
+
+    def configure_campaign(self, *_args, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids Instantly campaign configuration")
+
+    def activate_campaign(self, *_args, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids Instantly activation")
+
+    def create_lead_or_batch(self, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids Instantly lead delivery")
+
+
 _CAMPAIGN_CONFIG_KEYS = frozenset(
     {
         "campaign_schedule",

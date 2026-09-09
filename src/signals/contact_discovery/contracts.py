@@ -195,6 +195,8 @@ class ContactObservation(ContactDiscoveryContract):
     def valid_business_email(cls, value: str) -> str:
         if not _EMAIL.fullmatch(value):
             raise ValueError("invalid business email")
+        if value.split("@", 1)[0].casefold() in {"contact", "info", "hello", "office", "admin"}:
+            raise ValueError("generic mailbox is not a decision-maker email")
         return value
 
     @field_validator("provider", "verification_provider")

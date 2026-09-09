@@ -201,7 +201,11 @@ def _production_runtime_config() -> AcquisitionRuntimeConfig:
         deployment=AcquisitionRuntimeDeployment(
             schema_version=ACQUISITION_PRODUCTION_SCHEMA_VERSION,
             qa_scope=RuntimeQaScope(
-                country="FR", language="fr", wedge="construction"
+                    country="FR",
+                    language="fr",
+                    wedge="construction",
+                    vertical="general_building",
+                    region="Auvergne-Rhône-Alpes",
             ),
             limits=AcquisitionRuntimeLimits(
                 maximum_cycle_cost=Decimal("10"),

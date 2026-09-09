@@ -11,7 +11,10 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchProfile,
     SupplierTargetingConfig,
 )
-from signals.supplier_discovery.profile import build_supplier_search_profile
+from signals.supplier_discovery.profile import (
+    build_supplier_search_profile,
+    narrow_supplier_search_profile,
+)
 
 __all__ = [
     "ApolloOrganizationCandidate",
@@ -24,4 +27,5 @@ __all__ = [
     "SupplierSearchProfile",
     "SupplierTargetingConfig",
     "build_supplier_search_profile",
+    "narrow_supplier_search_profile",
 ]

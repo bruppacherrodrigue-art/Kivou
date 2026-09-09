@@ -46,6 +46,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeQaScope,
     RuntimeRunRequest,
     RuntimeRunResult,
+    RuntimeRunStatus,
     RuntimeStageDependency,
     RuntimeStageStatus,
 )
@@ -558,6 +559,8 @@ def build_runtime_execution_composition(
         selected = select_production_opportunity_key(
             engine,
             country=runtime_config.deployment.qa_scope.country,
+            vertical=runtime_config.deployment.qa_scope.vertical,
+            region=runtime_config.deployment.qa_scope.region,
             observed_at=observed_at,
         )
         if selected is None:
@@ -610,16 +613,28 @@ def build_runtime_execution_composition(
             keys={links.attribution_key_version: links.attribution_hmac_key},
         ),
     )
-    supplier_location = _APOLLO_LOCATION_BY_QA_COUNTRY.get(scope.country)
+    supplier_location = (
+        runtime_config.deployment.qa_scope.region
+        if runtime_config.deployment.is_production
+        and runtime_config.deployment.qa_scope.region is not None
+        else _APOLLO_LOCATION_BY_QA_COUNTRY.get(scope.country)
+    )
     if supplier_location is None:
         raise RuntimeExecutionConfigurationError(
             "SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED"
         )
+    candidate_cap = (
+        25
+        if runtime_config.deployment.is_production
+        and runtime_config.deployment.qa_scope.vertical is not None
+        else 1
+    )
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
         max_pages=1,
-        per_page=1,
-        candidate_cap=1,
+        per_page=candidate_cap,
+        candidate_cap=candidate_cap,
+        search_too_broad_threshold=200,
     )
     empty_registry = AcquisitionActionRegistry(
         {
@@ -757,6 +772,14 @@ def execute_runtime_run_once(
     allow_qa_provider_mutations: bool,
 ) -> RuntimeRunResult:
     runtime_config = load_runtime_config()
+    disabled_file = os.environ.get(
+        "KIVOU_ACQUISITION_DISABLED_FILE", "/etc/kivou/acquisition.disabled"
+    )
+    if runtime_config.environment == "PRODUCTION" and os.path.exists(disabled_file):
+        return RuntimeRunResult(
+            status=RuntimeRunStatus.BLOCKED,
+            reason_code="ACQUISITION_DISABLED",
+        )
     connectivity_config = load_connectivity_config()
     validate_hermes_shadow_config(connectivity_config)
     links = load_runtime_link_config()

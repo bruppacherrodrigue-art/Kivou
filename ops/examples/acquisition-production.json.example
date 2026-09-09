@@ -4,7 +4,9 @@
   "qa_scope": {
     "country": "FR",
     "language": "fr",
-    "wedge": "construction"
+    "wedge": "construction",
+    "vertical": "general_building",
+    "region": "Auvergne-Rhône-Alpes"
   },
   "limits": {
     "maximum_cycle_cost": "10.00",

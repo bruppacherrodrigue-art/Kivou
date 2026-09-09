@@ -24,7 +24,7 @@ from signals.acquisition_runtime.domain import (
 from signals.acquisition_runtime.registry import AcquisitionActionHandler
 from signals.acquisition_runtime.transport import StagingQaRecipientOverride
 from signals.campaigns.contracts import CampaignDeploymentConfig
-from signals.campaigns.instantly import InstantlyProvider
+from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvider
 from signals.campaigns.service import CampaignService, MailboxReadinessSource
 from signals.campaigns.worker import CampaignWorker
 from signals.company_research.service import CompanyResearchService
@@ -112,8 +112,11 @@ def build_acquisition_domain_composition(
 ) -> AcquisitionDomainComposition:
     """Wire existing domains; construction performs no provider operation."""
 
-    if targeting.max_pages != 1 or targeting.per_page != 1 or targeting.candidate_cap != 1:
-        raise ValueError("runtime supplier discovery is capped at one candidate")
+    if runtime_config.environment == "STAGING":
+        if targeting.max_pages != 1 or targeting.per_page != 1 or targeting.candidate_cap != 1:
+            raise ValueError("runtime supplier discovery is capped at one candidate")
+    elif targeting.max_pages != 1 or targeting.per_page > 25 or targeting.candidate_cap > 25:
+        raise ValueError("production supplier discovery is capped at 25 candidates")
     supplier_service = SupplierDiscoveryService(
         engine,
         provider=apollo.organization_search,
@@ -143,6 +146,8 @@ def build_acquisition_domain_composition(
         clock=clock,
         expected_contact_profile_version=RUNTIME_QA_CONTACT_PROFILE_VERSION,
     )
+    if runtime_config.environment == "PRODUCTION":
+        instantly_provider = ShadowInstantlyProvider(instantly_provider)
     campaign_service = CampaignService(
         engine,
         keyring=suppression_keyring,

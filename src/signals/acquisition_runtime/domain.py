@@ -22,6 +22,8 @@ from signals.acquisition_runtime.actions import (
 )
 from signals.acquisition_runtime.contracts import RuntimeQaScope, RuntimeStageSnapshot
 from signals.acquisition_runtime.registry import AcquisitionActionContext
+from signals.acquisition_runtime.shadow_mail import ShadowMailInput, render_shadow_mail
+from signals.acquisition_runtime.shadow_store import write_shadow_mail
 from signals.campaigns.contracts import (
     CampaignAuthorizationInput,
     CampaignDeploymentBlocked,
@@ -55,6 +57,7 @@ from signals.persistence.schema import (
     acquisition_campaign_member,
     acquisition_company_profile,
     acquisition_compliance_assessment,
+    acquisition_contact,
     acquisition_conversion_event,
     acquisition_conversion_journey,
     acquisition_decision_evaluation,
@@ -62,6 +65,8 @@ from signals.persistence.schema import (
     acquisition_personalization_artifact,
     acquisition_provider_operation,
     acquisition_response_evaluation,
+    acquisition_supplier,
+    supplier_discovery_run,
 )
 from signals.personalization.contracts import (
     PersonalizationArtifactWrite,
@@ -798,12 +803,18 @@ class AcquisitionDomainActions:
             per_page=1,
             candidate_cap=1,
         )
-        if (
+        if qa_scope.vertical is None and (
             selected_targeting.max_pages != 1
             or selected_targeting.per_page != 1
             or selected_targeting.candidate_cap != 1
         ):
             raise ValueError("runtime supplier discovery is capped at one candidate")
+        if qa_scope.vertical is not None and (
+            selected_targeting.max_pages != 1
+            or selected_targeting.per_page > 25
+            or selected_targeting.candidate_cap > 25
+        ):
+            raise ValueError("production supplier discovery is capped at 25 candidates")
         self._truth = truth
         self._supplier = supplier_service
         self._contact = contact_service
@@ -834,6 +845,7 @@ class AcquisitionDomainActions:
         )
         self._qa_scope = qa_scope
         self._targeting = selected_targeting
+        self._engine = getattr(truth, "engine", None)
 
     @_closed_domain_action
     def resolve_signal_seed(self, context: AcquisitionActionContext) -> KivouDomainOutcome:
@@ -1127,7 +1139,72 @@ class AcquisitionDomainActions:
         observed = self._truth.personalization(opportunity.opportunity_id)
         if observed is None:
             return _failed("PERSONALIZATION_RESULT_MISSING")
+        if self._qa_scope.vertical is not None and self._engine is not None:
+            self._record_shadow_mail(context, opportunity.opportunity_id)
         return _personalization_outcome(observed)
+
+    def _record_shadow_mail(
+        self, context: AcquisitionActionContext, opportunity_id: str
+    ) -> None:
+        """Materialize the review mail after personalization, never transport it."""
+        opportunity = self._truth.opportunity(context.cycle.opportunity_key)
+        if opportunity is None or not opportunity.supplier_ref or not opportunity.contact_ref:
+            return
+        public = resolve_public_acquisition_context(self._engine, context.cycle.opportunity_key)
+        with self._engine.connect() as connection:
+            supplier = connection.execute(
+                sa.select(acquisition_supplier).where(
+                    acquisition_supplier.c.supplier_ref == opportunity.supplier_ref
+                )
+            ).mappings().one_or_none()
+            contact = connection.execute(
+                sa.select(acquisition_contact).where(
+                    acquisition_contact.c.contact_ref == opportunity.contact_ref
+                )
+            ).mappings().one_or_none()
+            for_you = connection.execute(
+                sa.text(
+                    "SELECT sentence FROM for_you_sentence f "
+                    "JOIN materialized_signal m ON m.signal_key=f.signal_key "
+                    "WHERE m.opportunity_key=:key AND f.model_fit IS NOT NULL "
+                    "AND f.model_fit <> 'none' ORDER BY f.updated_at DESC LIMIT 1"
+                ), {"key": context.cycle.opportunity_key}
+            ).scalar_one_or_none()
+            query = connection.execute(
+                sa.select(supplier_discovery_run.c.search_profile)
+                .where(supplier_discovery_run.c.signal_ref == context.cycle.opportunity_key)
+                .order_by(supplier_discovery_run.c.started_at.desc()).limit(1)
+            ).scalar_one_or_none()
+        if supplier is None or contact is None or not for_you:
+            return
+        title = public.award.title or public.award.description or "Signal marché public"
+        holder = public.award.awardee_organizations()[0].legal_name
+        amount = public.award.value
+        amount_text = (
+            f"{amount.amount:,.2f} {amount.currency}".replace(",", " ")
+            if amount is not None else "montant non publié"
+        )
+        place = str(public.award.place_of_performance or "lieu non publié")
+        date = str(public.award.award_date or public.event.event_date or "date non publiée")
+        rendered = render_shadow_mail(ShadowMailInput(
+            object=title, holder=holder, amount=amount_text, place=place, date=date,
+            for_you=for_you,
+            attribution_url=f"/a/{context.cycle.opportunity_key}-{context.cycle.cycle_ref[:12]}",
+            source_url=public.event.provenance.source_url,
+            unsubscribe_url="/unsubscribe",
+        ))
+        write_shadow_mail(
+            self._engine, cycle_ref=context.cycle.cycle_ref,
+            opportunity_key=context.cycle.opportunity_key,
+            procedure_award_key=public.representative_award_key,
+            supplier_ref=opportunity.supplier_ref, contact_ref=opportunity.contact_ref,
+            company_name=supplier["display_name"], contact_role=contact["title"] or contact["normalized_title"],
+            email=contact["business_email"], signal_snapshot={
+                "object": title, "holder": holder, "amount": amount_text,
+                "place": place, "date": date, "for_you": for_you,
+            }, subject=rendered.subject, body=rendered.body,
+            apollo_query=query or {}, created_at=context.at,
+        )
 
     @_closed_domain_action
     def assess_compliance(self, context: AcquisitionActionContext) -> KivouDomainOutcome:

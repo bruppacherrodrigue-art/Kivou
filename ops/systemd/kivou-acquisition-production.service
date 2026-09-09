@@ -3,6 +3,7 @@ Description=Kivou — cycle Acquisition PRODUCTION/SHADOW borné
 Documentation=file:/srv/kivou/app/docs/runbooks/12-acquisition-production-shadow.md
 Wants=network-online.target
 After=network-online.target postgresql.service
+ConditionPathExists=!/etc/kivou/acquisition.disabled
 
 [Service]
 Type=oneshot

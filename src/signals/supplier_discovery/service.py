@@ -28,6 +28,7 @@ from signals.supplier_discovery.contracts import (
     SupplierTargetingConfig,
 )
 from signals.supplier_discovery.identity import acquisition_identity_for
+from signals.supplier_discovery.profile import narrow_supplier_search_profile
 from signals.supplier_discovery.provider import SupplierDiscoveryProvider
 from signals.supplier_discovery.seed import (
     build_profile_from_seed,
@@ -210,7 +211,8 @@ class SupplierDiscoveryService:
         expected_total_pages: int | None = None
         expected_partial_results = False
 
-        for page_number in range(1, profile.max_pages + 1):
+        page_number = 1
+        while page_number <= profile.max_pages:
             counters["pages_requested"] = int(counters["pages_requested"]) + 1
             provider_observed_at = self._now()
             try:
@@ -279,6 +281,16 @@ class SupplierDiscoveryService:
                 page.total_entries > profile.search_too_broad_threshold
                 or page.partial_results_only is True
             ):
+                if (
+                    page.partial_results_only is not True
+                    and profile.narrowing_level < 2
+                ):
+                    profile = narrow_supplier_search_profile(profile)
+                    expected_total_entries = None
+                    expected_total_pages = None
+                    expected_partial_results = False
+                    page_number = 1
+                    continue
                 run = self._suppliers.finish_run(
                     discovery_run_id,
                     status=DiscoveryRunStatus.SEARCH_TOO_BROAD,
@@ -365,6 +377,7 @@ class SupplierDiscoveryService:
                 or page_number >= page.total_pages
             ):
                 break
+            page_number += 1
 
         run = self._suppliers.finish_run(
             discovery_run_id,

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
+
+NOW = dt.datetime(2026, 9, 9, 12, tzinfo=dt.UTC)
 
 from signals.contact_discovery.contracts import (
     MAX_ENRICHMENT_ATTEMPTS,
@@ -14,6 +18,27 @@ from signals.contact_discovery.profile import (
     RUNTIME_QA_PROFILE_VERSION,
     build_decision_maker_profile,
 )
+
+
+def test_contact_contract_rejects_generic_mailboxes() -> None:
+    from pydantic import ValidationError
+
+    from signals.contact_discovery.contracts import ContactObservation
+
+    with pytest.raises(ValidationError):
+        ContactObservation(
+            supplier_ref="supplier-1",
+            provider_person_id="person-1",
+            provider_organization_id="org-1",
+            display_name="Commercial",
+            title="Directeur commercial",
+            normalized_title="directeur commercial",
+            role_tier=1,
+            business_email="info@example.com",
+            provider_observed_at=NOW,
+            email_observed_at=NOW,
+            source_fingerprint="a" * 64,
+        )
 from signals.contact_discovery.ranking import classify_title, rank_candidates
 
 
