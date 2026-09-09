@@ -16,7 +16,13 @@ from signals.acquisition_runtime.contracts import (
 DOCUMENT = {
     "schema_version": ACQUISITION_PRODUCTION_SCHEMA_VERSION,
     "mode": "SHADOW",
-    "qa_scope": {"country": "FR", "language": "fr", "wedge": "construction"},
+    "qa_scope": {
+        "country": "FR",
+        "language": "fr",
+        "wedge": "construction",
+        "vertical": "general_building",
+        "region": "Auvergne-Rhône-Alpes",
+    },
     "limits": {
         "maximum_cycle_cost": "10.00",
         "maximum_suppliers": 1,

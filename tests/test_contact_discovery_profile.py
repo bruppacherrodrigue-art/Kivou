@@ -22,6 +22,7 @@ from signals.contact_discovery.profile import (
 
 def test_contact_contract_rejects_generic_mailboxes() -> None:
     from pydantic import ValidationError
+
     from signals.contact_discovery.contracts import ContactObservation
 
     with pytest.raises(ValidationError):

@@ -50,7 +50,7 @@ REQUEUE_UNRESOLVED_SIRET_REVISION = "0033_requeue_unresolved_siret"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_UNRESOLVED_SIRET_REVISION, et écraser ce lien ferait passer un test faux.
 COMPANY_ENGAGEMENT_REVISION = "0034_company_engagement"
-CURRENT_HEAD = "0044_email_verification"
+CURRENT_HEAD = "0045_pr7_shadow_mail"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 

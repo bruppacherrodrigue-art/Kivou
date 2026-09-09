@@ -24,7 +24,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
 LATEST = "0042_account_deletion"
-CURRENT_HEAD = "0044_email_verification"
+CURRENT_HEAD = "0045_pr7_shadow_mail"
 
 
 def _engine(path: pathlib.Path):
