@@ -30,6 +30,7 @@ _DIRECTORY_DOMAINS = frozenset(
         "companieshouse.com",
         "europages.fr",
         "facebook.com",
+        "infogreffe.fr",
         "kompass.com",
         "linkedin.com",
         "manageo.fr",
@@ -39,6 +40,8 @@ _DIRECTORY_DOMAINS = frozenset(
         "verif.com",
     }
 )
+
+_PUBLIC_TITLE_WORDS = frozenset({"mairie", "commune", "municipalite"})
 
 
 class DomainResolution(BaseModel):
@@ -71,6 +74,17 @@ def _domain_from_url(value: object) -> tuple[str, str] | None:
 def _directory(domain: str) -> bool:
     return any(
         domain == blocked or domain.endswith(f".{blocked}") for blocked in _DIRECTORY_DOMAINS
+    )
+
+
+def _public_or_municipal(domain: str, title: str) -> bool:
+    labels = domain.split(".")
+    title_words = set(significant_name_words(title))
+    return (
+        domain == "gouv.fr"
+        or domain.endswith(".gouv.fr")
+        or any(label.startswith("mairie-") or label == "mairie" for label in labels)
+        or bool(title_words.intersection(_PUBLIC_TITLE_WORDS))
     )
 
 
@@ -129,7 +143,8 @@ class SerperDomainSearchClient:
         organic = payload.get("organic") if isinstance(payload, dict) else None
         if not isinstance(organic, list) or len(organic) > 10:
             return None
-        expected = set(significant_name_words(name))
+        expected_words = significant_name_words(name)
+        expected_anchor = expected_words[0] if expected_words else None
         for item in organic:
             if not isinstance(item, dict):
                 continue
@@ -137,11 +152,12 @@ class SerperDomainSearchClient:
             if parsed is None:
                 continue
             domain, website_url = parsed
-            if _directory(domain):
+            title = str(item.get("title") or "")
+            if _directory(domain) or _public_or_municipal(domain, title):
                 continue
-            title_words = set(significant_name_words(str(item.get("title") or "")))
+            title_words = set(significant_name_words(title))
             url_words = set(significant_name_words(website_url.replace(".", " ")))
-            if expected and (expected.issubset(title_words) or expected.issubset(url_words)):
+            if expected_anchor and expected_anchor in title_words | url_words:
                 return DomainResolution(
                     domain=domain,
                     website_url=website_url,

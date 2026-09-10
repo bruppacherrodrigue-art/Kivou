@@ -35,7 +35,16 @@
 - [ ] Ajouter un contrôle MX séparé et conserver SMTP comme information complémentaire sans envoi.
 - [ ] Exécuter les tests contact ciblés.
 
-### Task 4: Mesure et livraison
+### Task 4: Annuaire fournisseur réutilisable
+
+**Files:** `src/signals/supplier_directory/`, `src/signals/persistence/schema.py`, migration `0048`, composition et services de découverte.
+
+- [ ] Écrire les tests rouges du schéma, de l'union des familles, de la fraîcheur 90 jours et de la réutilisation avant réseau.
+- [ ] Persister l'identité, le domaine, les dirigeants et le contact avec une date par groupe de champs.
+- [ ] Journaliser les appels Serper/Apollo évités et alimenter l'annuaire après chaque observation.
+- [ ] Écrire le test rouge d'opposition, puis effacer les coordonnées et créer la suppression campagne dans une transaction.
+
+### Task 5: Mesure et livraison
 
 **Files:** commande de mesure existante et tests CLI associés si son contrat change.
 

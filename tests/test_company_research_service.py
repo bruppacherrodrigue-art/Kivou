@@ -28,6 +28,7 @@ from signals.company_research.contracts import (
     CompanyResearchRunStatus,
     ResearchCompleteness,
 )
+from signals.company_research.domain import DomainResolution
 from signals.company_research.prebuild import build_acquisition_prospect_prebuild
 from signals.company_research.profile import build_company_research_profile
 from signals.company_research.service import CompanyResearchService
@@ -55,6 +56,7 @@ from signals.policy.contracts import (
 )
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
@@ -267,6 +269,62 @@ def test_success_persists_profile_and_advances_workflow_atomically(context) -> N
     assert result.profile.provider_observed_at <= result.run.completed_at
 
 
+def test_unresolved_apollo_binding_uses_sirene_directory_without_provider_call(
+    context,
+) -> None:
+    engine, acquisition, _, _, opportunity_id = context
+    directory = SupplierDirectoryStore(engine, clock=lambda: NOW)
+    directory.upsert_identity(
+        siren="123456789",
+        legal_name="Acme SA",
+        naf_code="43.99C",
+        family_key="subcontracted_structural_work",
+        department="69",
+        city="Lyon",
+        employees=19,
+        observed_at=NOW,
+    )
+    domain = DomainResolution(
+        domain="acme.example",
+        website_url="https://acme.example",
+        source="serper",
+        query="Acme Lyon",
+        observed_at=NOW,
+    )
+    directory.record_domain(
+        "123456789",
+        domain=domain.domain,
+        website_url=domain.website_url,
+        source=domain.source,
+        observed_at=NOW,
+    )
+    SireneApolloBindingStore(engine, clock=lambda: NOW).put(
+        siren="123456789",
+        apollo_organization_id=None,
+        resolution_method="domain",
+        confidence_score=None,
+        status=BindingStatus.UNRESOLVED,
+        domain_resolution=domain,
+    )
+    provider = FakeProvider()
+
+    result = _research(
+        CompanyResearchService(
+            engine,
+            provider=provider,
+            directory_store=directory,
+            clock=TickClock(),
+        ),
+        opportunity_id,
+    )
+
+    assert provider.calls == 0
+    assert result.provider_called is False
+    assert result.profile.provider == "sirene"
+    assert result.run.provider_calls == 0
+    assert acquisition.get_opportunity(opportunity_id).next_action == "evaluate_opportunity"
+
+
 def test_started_run_recovery_reuses_policy_run_and_calls_apollo_once(context) -> None:
     engine, _, _, _, opportunity_id = context
     store = CrashAfterStartedCompanyStore(engine, clock=TickClock())
@@ -300,11 +358,14 @@ def test_started_run_recovery_reuses_policy_run_and_calls_apollo_once(context) -
     assert provider.calls == 1
     assert revalidations == ["current-policy"]
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(policy_evaluation)
-            .where(policy_evaluation.c.evaluation_id == started.policy_evaluation_id)
-        ) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(policy_evaluation)
+                .where(policy_evaluation.c.evaluation_id == started.policy_evaluation_id)
+            )
+            == 1
+        )
 
 
 def test_limited_optional_fields_still_advance_with_explicit_gaps(context) -> None:

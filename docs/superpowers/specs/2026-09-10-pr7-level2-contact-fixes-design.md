@@ -19,3 +19,11 @@ général et variantes opérationnelles sont conservés ; les commissaires aux c
 Les compteurs du replay distinguent domaine valide, binding Apollo, contacts niveau 1 et niveau 2,
 validation MX et chaque motif d'écart. Le timer reste arrêté et aucun message n'est envoyé.
 
+`supplier_directory` conserve une ligne par SIREN : identité SIRENE, familles métier, implantation,
+effectif, domaine, dirigeants opérationnels et adresse professionnelle avec sa source et son statut.
+Chaque groupe de champs possède sa propre date d'observation. Un domaine, des dirigeants ou un
+contact âgés de moins de 90 jours sont réutilisés avant tout appel Serper ou Apollo ; chaque cache
+hit journalise le fournisseur réseau évité. Une opposition efface dirigeants et adresse de
+l'annuaire, interdit leur réécriture et inscrit l'adresse dans la suppression existante, déjà
+contrôlée avant toute campagne. Aucun téléphone, adresse privée ni donnée personnelle libre n'entre
+dans cet annuaire.

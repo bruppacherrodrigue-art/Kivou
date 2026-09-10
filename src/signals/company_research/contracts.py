@@ -172,7 +172,7 @@ class CompanyResearchProfile(CompanyResearchContract):
 
 
 class ApolloOrganizationObservation(CompanyResearchContract):
-    provider: Literal["apollo"] = PROVIDER
+    provider: Literal["apollo", "sirene"] = PROVIDER
     provider_organization_id: ProviderId
     provider_company_name: ShortText
     provider_primary_domain: Annotated[str, StringConstraints(max_length=253)] | None = None
@@ -207,7 +207,7 @@ class AcquisitionProspectPrebuild(CompanyResearchContract):
     supplier_ref: StableRef
     contact_ref: StableRef
     supplier_identity_status: SupplierIdentityStatus
-    provider: Literal["apollo"] = PROVIDER
+    provider: Literal["apollo", "sirene"] = PROVIDER
     provider_organization_id: ProviderId
     provider_company_name: ShortText
     provider_primary_domain: Annotated[str, StringConstraints(max_length=253)] | None = None
@@ -250,8 +250,8 @@ class CompanyResearchContactBinding(CompanyResearchContract):
     contact_ref: StableRef
     supplier_ref: StableRef
     verification_state: Literal["PROVIDER_VERIFIED", "DELIVERABILITY_VERIFIED"]
-    verification_provider: Literal["apollo", "mx_smtp"]
-    provider_email_status: Literal["verified", "smtp_accepted"]
+    verification_provider: Literal["apollo", "dns_mx"]
+    provider_email_status: Literal["verified", "mx_accepted"]
     role_profile_version: ShortText
     role_tier: int = Field(ge=1, le=4)
 

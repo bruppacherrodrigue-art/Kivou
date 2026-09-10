@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import logging
 from collections.abc import Callable
 
 import sqlalchemy as sa
@@ -41,7 +42,10 @@ from signals.contact_discovery.web import PublishedWebsiteContactProvider
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.store import SupplierDiscoveryStore
+
+logger = logging.getLogger(__name__)
 
 
 def _canonical_json(value: object) -> str:
@@ -67,6 +71,7 @@ class ContactDiscoveryService:
         acquisition_store: AcquisitionStore | None = None,
         supplier_store: SupplierDiscoveryStore | None = None,
         binding_store: SireneApolloBindingStore | None = None,
+        directory_store: SupplierDirectoryStore | None = None,
         fallback_provider: PublishedWebsiteContactProvider | None = None,
         profile_builder: Callable[..., DecisionMakerSearchProfile] = (build_decision_maker_profile),
         profile_upgrade_requeue: tuple[str, str] | None = None,
@@ -79,6 +84,7 @@ class ContactDiscoveryService:
         self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
         self._bindings = binding_store or SireneApolloBindingStore(engine, clock=clock)
+        self._directory = directory_store
         self._fallback_provider = fallback_provider
         self._policy_store = PolicyStore(engine)
         self._profile_builder = profile_builder
@@ -230,6 +236,33 @@ class ContactDiscoveryService:
         return decision
 
     def _execute(self, run, profile, decision) -> ContactDiscoveryServiceResult:
+        cached = self._directory_contact(profile, run.supplier_ref)
+        if cached is not None:
+            counters: dict[str, object] = {
+                "people_search_requests": 0,
+                "provider_total_entries": 0,
+                "search_results_returned": 0,
+                "search_results_truncated": False,
+                "candidates_eligible": 1,
+                "candidates_rejected": 0,
+                "enrichment_attempts": 0,
+                "attempted_contact_refs": (),
+            }
+            logger.info(
+                "supplier_directory_provider_call_avoided",
+                extra={"provider": "apollo_contact", "siren": profile.supplier_siren},
+            )
+            try:
+                contact, finished = self._commit_success(run, cached, counters)
+            except (OpportunityConcurrencyConflict, sa.exc.SQLAlchemyError, RuntimeError) as exc:
+                finished = self._finish_persistence_failure(run, exc, counters)
+                return ContactDiscoveryServiceResult(decision=decision, run=finished)
+            return ContactDiscoveryServiceResult(
+                decision=decision,
+                run=finished,
+                contact=contact,
+                provider_called=False,
+            )
         if profile.provider_organization_id.startswith("siren-"):
             counters: dict[str, object] = {
                 "people_search_requests": 0,
@@ -452,7 +485,81 @@ class ContactDiscoveryService:
                 selected_contact_ref=persisted.contact_ref,
                 **counters,
             )
+        self._remember_directory_contact(run.supplier_ref, persisted)
         return persisted, finished
+
+    def _directory_contact(self, profile, supplier_ref):
+        if self._directory is None or not profile.supplier_siren:
+            return None
+        record = self._directory.fresh_email(profile.supplier_siren, at=self._now())
+        if (
+            record is None
+            or not record.professional_email
+            or not record.email_contact_name
+            or not record.email_contact_title
+        ):
+            return None
+        digest = hashlib.sha256(
+            f"directory\0{record.siren}\0{record.professional_email}".encode()
+        ).hexdigest()
+        if record.email_source == "apollo":
+            if not record.apollo_organization_id:
+                return None
+            provider = "apollo"
+            provider_organization_id = record.apollo_organization_id
+            provider_email_status = "verified"
+            verification_state = "PROVIDER_VERIFIED"
+            verification_provider = "apollo"
+        else:
+            provider = "company_website"
+            provider_organization_id = record.siren
+            provider_email_status = "mx_accepted"
+            verification_state = "DELIVERABILITY_VERIFIED"
+            verification_provider = "dns_mx"
+        return ContactObservation(
+            supplier_ref=supplier_ref,
+            provider=provider,
+            provider_person_id=f"directory-{digest[:24]}",
+            provider_organization_id=provider_organization_id,
+            display_name=record.email_contact_name,
+            title=record.email_contact_title,
+            normalized_title=(
+                classify_title(record.email_contact_title).normalized_title
+                if classify_title(record.email_contact_title) is not None
+                else "dirigeant"
+            ),
+            role_profile_version=profile.profile_version,
+            role_tier=(
+                classify_title(record.email_contact_title).role_tier
+                if classify_title(record.email_contact_title) is not None
+                else 1
+            ),
+            business_email=record.professional_email,
+            provider_email_status=provider_email_status,
+            verification_state=verification_state,
+            verification_provider=verification_provider,
+            provider_observed_at=record.email_observed_at or self._now(),
+            email_observed_at=record.email_observed_at or self._now(),
+            source_fingerprint=digest,
+        )
+
+    def _remember_directory_contact(self, supplier_ref, contact) -> None:
+        if self._directory is None:
+            return
+        supplier = self._suppliers.get_supplier(supplier_ref)
+        if supplier.provider != "sirene" or not contact.display_name or not contact.title:
+            return
+        self._directory.record_email(
+            supplier.provider_organization_id,
+            email=contact.business_email,
+            source="apollo" if contact.provider == "apollo" else "site",
+            verification_status=(
+                "provider_verified" if contact.provider == "apollo" else "mx_verified"
+            ),
+            contact_name=contact.display_name,
+            contact_title=contact.title,
+            observed_at=contact.email_observed_at,
+        )
 
     def _complete_without_contact(self, run, decision, status, counters):
         try:

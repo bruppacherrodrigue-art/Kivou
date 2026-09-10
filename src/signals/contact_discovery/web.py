@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import logging
 import re
 from html.parser import HTMLParser
 from typing import Protocol
@@ -13,11 +14,19 @@ import httpx
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from signals.companies.france import ANNUAIRE_BASE_URL, MAX_RESPONSE_BYTES
+from signals.company_research.identity import ascii_text
 from signals.contact_discovery.contracts import ContactObservation, DecisionMakerSearchProfile
 from signals.contact_discovery.providers import PublishedContactExtractor
+from signals.supplier_directory.store import SupplierDirectoryStore
+
+logger = logging.getLogger(__name__)
 
 _CONTACT_WORDS = ("contact", "nous-contacter", "coordonnees")
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+_TEXT_EMAIL = re.compile(
+    r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63})(?![A-Za-z0-9-])"
+)
+_OPERATIONAL_TITLES = ("gerant", "president", "directeur general", "directrice generale")
 
 
 class OfficialDirector(BaseModel):
@@ -46,10 +55,26 @@ class DeliverabilitySource(Protocol):
 
 
 class AnnuaireDirectorClient:
-    def __init__(self, *, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        client: httpx.Client | None = None,
+        directory: SupplierDirectoryStore | None = None,
+        clock=lambda: dt.datetime.now(dt.UTC),
+    ) -> None:
         self._client = client or httpx.Client(timeout=10.0, follow_redirects=False)
+        self._directory = directory
+        self._clock = clock
 
     def find(self, siren: str) -> tuple[OfficialDirector, ...]:
+        now = self._clock()
+        cached = self._directory.fresh_directors(siren, at=now) if self._directory else None
+        if cached is not None:
+            logger.info(
+                "supplier_directory_provider_call_avoided",
+                extra={"provider": "annuaire_directors", "siren": siren},
+            )
+            return tuple(OfficialDirector.model_validate(item) for item in cached.directors)
         try:
             response = self._client.get(
                 f"{ANNUAIRE_BASE_URL}/search",
@@ -72,9 +97,17 @@ class AnnuaireDirectorClient:
                     str(leader.get(key) or "").strip() for key in ("prenoms", "nom")
                 ).strip()
                 title = str(leader.get("qualite") or leader.get("type_dirigeant") or "Dirigeant")
-                if name:
+                normalized_title = " ".join(ascii_text(title).casefold().split())
+                if name and any(value in normalized_title for value in _OPERATIONAL_TITLES):
                     output.append(OfficialDirector(name=name, title=title))
-            return tuple(output)
+            result = tuple(output)
+            if self._directory is not None and result:
+                self._directory.record_directors(
+                    siren,
+                    directors=tuple(item.model_dump() for item in result),
+                    observed_at=now,
+                )
+            return result
         except (httpx.HTTPError, ValueError, TypeError):
             return ()
 
@@ -120,10 +153,17 @@ class CompanyWebsiteClient:
                 return None, []
             parser = _PageParser()
             parser.feed(response.text)
+            text = " ".join(parser.text)[:40_000]
+            text_emails = {
+                match.casefold() for match in _TEXT_EMAIL.findall(text) if _EMAIL.fullmatch(match)
+            }
+            ordered_emails = tuple(sorted(parser.emails)) + tuple(
+                sorted(text_emails.difference(parser.emails))
+            )
             return WebsiteEvidence(
                 url=str(response.url),
-                text=" ".join(parser.text)[:40_000],
-                published_emails=tuple(sorted(parser.emails)),
+                text=text,
+                published_emails=ordered_emails,
             ), parser.links
         except (httpx.HTTPError, UnicodeError, ValueError):
             return None, []
@@ -163,30 +203,58 @@ class PublishedWebsiteContactProvider:
             return None
         directors = self._directors.find(profile.supplier_siren)
         evidence = self._pages.fetch(profile.organization_domain)
+        if not directors:
+            logger.info(
+                "website_contact_rejected",
+                extra={"siren": profile.supplier_siren, "reason": "pas de dirigeant opérationnel"},
+            )
+            return None
+        if not evidence or not any(page.published_emails for page in evidence):
+            logger.info(
+                "website_contact_rejected",
+                extra={"siren": profile.supplier_siren, "reason": "pas d'adresse publiée"},
+            )
+            return None
         extraction = self._extractor.extract(
             company_name=profile.organization_name or profile.supplier_siren,
             directors=directors,
             evidence=evidence,
         )
-        if extraction is None or not self._deliverability.verify(str(extraction.email)):
+        if extraction is None:
+            logger.info(
+                "website_contact_rejected",
+                extra={"siren": profile.supplier_siren, "reason": "adresse non retenue"},
+            )
+            return None
+        if not self._deliverability.verify(str(extraction.email)):
+            logger.info(
+                "website_contact_rejected",
+                extra={"siren": profile.supplier_siren, "reason": "mx invalide"},
+            )
             return None
         digest = hashlib.sha256(
-            f"{profile.supplier_siren}\0{extraction.director_name}\0{extraction.email}".encode()
+            f"{profile.supplier_siren}\0{extraction.dirigeant}\0{extraction.email}".encode()
         ).hexdigest()
+        director = next(
+            item
+            for item in directors
+            if " ".join(item.name.casefold().split())
+            == " ".join(extraction.dirigeant.casefold().split())
+        )
         return ContactObservation(
             supplier_ref=profile.supplier_ref,
             provider="company_website",
             provider_person_id=f"web-{digest[:24]}",
             provider_organization_id=profile.supplier_siren,
-            display_name=extraction.director_name,
-            title=extraction.title,
+            display_name=director.name,
+            title=director.title,
             normalized_title="dirigeant",
             role_profile_version=profile.profile_version,
             role_tier=1,
             business_email=str(extraction.email),
-            provider_email_status="smtp_accepted",
+            provider_email_status="mx_accepted",
             verification_state="DELIVERABILITY_VERIFIED",
-            verification_provider="mx_smtp",
+            verification_provider="dns_mx",
             provider_observed_at=observed_at,
             email_observed_at=observed_at,
             source_fingerprint=digest,

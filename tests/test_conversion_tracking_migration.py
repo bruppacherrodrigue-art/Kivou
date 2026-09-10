@@ -19,7 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0047_contact_waterfall"
+CURRENT_HEAD = "0048_supplier_directory"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",
