@@ -131,6 +131,19 @@ def test_serper_rejects_public_directory_and_municipal_false_matches() -> None:
                             "title": "Jacquet",
                             "link": "https://infogreffe.fr/entreprise/jacquet",
                         },
+                        {"title": "Jacquet", "link": "https://fr.mappy.com/poi/jacquet"},
+                        {
+                            "title": "Jacquet",
+                            "link": "https://france-artisan.fr/annuaire/jacquet",
+                        },
+                        {
+                            "title": "Jacquet",
+                            "link": "https://monartisan.info/entreprise-jacquet",
+                        },
+                        {
+                            "title": "Jacquet — ville de Certines",
+                            "link": "https://ville-certines.fr/jacquet",
+                        },
                     ]
                 },
             )

@@ -332,6 +332,44 @@ def test_website_records_contact_form_without_published_email() -> None:
     assert recorded == [("123456789", "https://beton-alpes.fr/contact", NOW)]
 
 
+def test_website_does_not_record_third_party_contact_form() -> None:
+    recorded = []
+
+    class Directors:
+        def find(self, _siren):
+            return ()
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://fr.mappy.com/",
+                    text="Formulaire de l'annuaire",
+                    published_emails=(),
+                    has_contact_form=True,
+                ),
+            )
+
+    class Directory:
+        def record_contact_form(self, siren, *, url, observed_at):
+            recorded.append((siren, url, observed_at))
+
+    assert (
+        PublishedWebsiteContactProvider(
+            directors=Directors(),
+            pages=Pages(),
+            extractor=object(),
+            deliverability=object(),
+            directory=Directory(),
+        ).find(
+            _profile().model_copy(update={"organization_domain": "fr.mappy.com"}),
+            observed_at=NOW,
+        )
+        is None
+    )
+    assert recorded == []
+
+
 def test_model_rejects_published_email_from_unrelated_domain() -> None:
     client = httpx.Client(
         transport=httpx.MockTransport(

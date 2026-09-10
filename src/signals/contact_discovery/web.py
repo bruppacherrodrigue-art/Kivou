@@ -14,6 +14,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from signals.companies.france import ANNUAIRE_BASE_URL, MAX_RESPONSE_BYTES
+from signals.company_research.domain import rejected_supplier_domain
 from signals.company_research.identity import ascii_text
 from signals.contact_discovery.contracts import ContactObservation, DecisionMakerSearchProfile
 from signals.contact_discovery.providers import PublishedContactExtractor, coherent_email_domain
@@ -37,17 +38,6 @@ _OPERATIONAL_TITLES = (
     "personne physique dirigeante",
 )
 _EXCLUDED_TITLES = ("commissaire aux comptes", "representant")
-_FORM_DOMAIN_BLOCKLIST = (
-    "118712.fr",
-    "cataloxy.org",
-    "hoodspot.fr",
-    "industrie.usinenouvelle.com",
-    "kompass.com",
-    "lagazettefrance.fr",
-    "pagesjaunes.fr",
-    "societe.com",
-    "verif.com",
-)
 
 
 class OfficialDirector(BaseModel):
@@ -238,14 +228,7 @@ class CompanyWebsiteClient:
 
 
 def _form_domain_is_usable(domain: str) -> bool:
-    normalized = domain.casefold().removeprefix("www.")
-    return not (
-        normalized.endswith(".gouv.fr")
-        or normalized.startswith("mairie-")
-        or any(
-            normalized == item or normalized.endswith(f".{item}") for item in _FORM_DOMAIN_BLOCKLIST
-        )
-    )
+    return not rejected_supplier_domain(domain)
 
 
 class PublishedWebsiteContactProvider:
