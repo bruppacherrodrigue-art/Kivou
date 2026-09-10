@@ -158,9 +158,7 @@ class CompanyResearchProfile(CompanyResearchContract):
     organization_name: ShortText | None = None
     organization_city: ShortText | None = None
     organization_domain: ShortText | None = None
-    endpoint_kind: Literal[
-        "exact_organization_id", "resolve_name_city_then_exact"
-    ] = ENDPOINT_KIND
+    endpoint_kind: Literal["exact_organization_id", "resolve_name_city_then_exact"] = ENDPOINT_KIND
     response_contract_version: ShortText = RESPONSE_CONTRACT_VERSION
     allowed_provider_fields: tuple[ShortText, ...] = ALLOWED_PROVIDER_FIELDS
     max_response_bytes: int = Field(default=MAX_RESPONSE_BYTES, ge=1, le=MAX_RESPONSE_BYTES)
@@ -251,9 +249,9 @@ class AcquisitionCompanyProfile(AcquisitionProspectPrebuild):
 class CompanyResearchContactBinding(CompanyResearchContract):
     contact_ref: StableRef
     supplier_ref: StableRef
-    verification_state: Literal["PROVIDER_VERIFIED"]
-    verification_provider: Literal["apollo"]
-    provider_email_status: Literal["verified"]
+    verification_state: Literal["PROVIDER_VERIFIED", "DELIVERABILITY_VERIFIED"]
+    verification_provider: Literal["apollo", "mx_smtp"]
+    provider_email_status: Literal["verified", "smtp_accepted"]
     role_profile_version: ShortText
     role_tier: int = Field(ge=1, le=4)
 

@@ -31,14 +31,44 @@ SELECTION_COOLDOWN = dt.timedelta(hours=20)
 
 _REGION_DEPARTMENTS: dict[str, tuple[str, ...]] = {
     "Auvergne-Rhône-Alpes": (
-        "FR-01", "FR-03", "FR-07", "FR-15", "FR-26", "FR-38",
-        "FR-42", "FR-43", "FR-63", "FR-69", "FR-73", "FR-74",
-        "FRK11", "FRK12", "FRK13", "FRK14", "FRK21", "FRK22",
-        "FRK23", "FRK24", "FRK25", "FRK26", "FRK27", "FRK28",
+        "FR-01",
+        "FR-03",
+        "FR-07",
+        "FR-15",
+        "FR-26",
+        "FR-38",
+        "FR-42",
+        "FR-43",
+        "FR-63",
+        "FR-69",
+        "FR-73",
+        "FR-74",
+        "FRK11",
+        "FRK12",
+        "FRK13",
+        "FRK14",
+        "FRK21",
+        "FRK22",
+        "FRK23",
+        "FRK24",
+        "FRK25",
+        "FRK26",
+        "FRK27",
+        "FRK28",
     ),
     "Centre-Val de Loire": (
-        "FR-18", "FR-28", "FR-36", "FR-37", "FR-41", "FR-45",
-        "FRB01", "FRB02", "FRB03", "FRB04", "FRB05", "FRB06",
+        "FR-18",
+        "FR-28",
+        "FR-36",
+        "FR-37",
+        "FR-41",
+        "FR-45",
+        "FRB01",
+        "FRB02",
+        "FRB03",
+        "FRB04",
+        "FRB05",
+        "FRB06",
     ),
 }
 
@@ -70,8 +100,7 @@ def unresolved_dynamic_holder_signal_keys(
     official_holder_is_resolved = sa.and_(
         official_holder_name.isnot(None),
         saas_company.c.official_source == "official_register",
-        saas_company.c.official_name
-        != materialized_signal.c.winner_identifier_value,
+        saas_company.c.official_name != materialized_signal.c.winner_identifier_value,
     )
     statement = (
         sa.select(materialized_signal.c.signal_key, latest)
@@ -110,16 +139,13 @@ def unresolved_dynamic_holder_signal_keys(
             source_event.c.published_on <= horizon,
             contract_award.c.amount >= 50000,
             contract_award.c.winner_status == "identified",
-            sa.func.lower(
-                sa.func.coalesce(materialized_signal.c.winner_identifier_scheme, "")
-            )
+            sa.func.lower(sa.func.coalesce(materialized_signal.c.winner_identifier_scheme, ""))
             == "siret",
             sa.func.length(materialized_signal.c.winner_identifier_value) == 14,
-            materialized_signal.c.winner_name
-            == materialized_signal.c.winner_identifier_value,
-            sa.func.nullif(
-                sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), ""
-            ).isnot(None),
+            materialized_signal.c.winner_name == materialized_signal.c.winner_identifier_value,
+            sa.func.nullif(sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), "").isnot(
+                None
+            ),
             materialized_signal.c.inferred_trade_domain == vertical,
             contract_award.c.place_of_performance["subdivision_code"]
             .as_string()
@@ -143,9 +169,7 @@ def unresolved_dynamic_holder_signal_keys(
         return tuple(str(row.signal_key) for row in connection.execute(statement))
 
 
-def resolved_holder_name_for_opportunity(
-    engine: Engine, opportunity_key: str
-) -> str | None:
+def resolved_holder_name_for_opportunity(engine: Engine, opportunity_key: str) -> str | None:
     """Read the official holder cache without altering the public source fact."""
 
     statement = (
@@ -163,12 +187,9 @@ def resolved_holder_name_for_opportunity(
                 sa.func.trim(sa.func.coalesce(saas_company.c.official_name, "")), ""
             ).isnot(None),
             saas_company.c.official_source == "official_register",
-            saas_company.c.official_name
-            != materialized_signal.c.winner_identifier_value,
+            saas_company.c.official_name != materialized_signal.c.winner_identifier_value,
         )
-        .order_by(
-            saas_company.c.official_observed_at.desc(), saas_company.c.company_key
-        )
+        .order_by(saas_company.c.official_observed_at.desc(), saas_company.c.company_key)
         .limit(1)
     )
     with engine.connect() as connection:
@@ -240,13 +261,17 @@ def select_production_opportunity_key(
             )
         if not vertical or not region or region not in _REGION_DEPARTMENTS:
             raise ValueError("production selection requires a known vertical and region")
-        played_procedures = sa.select(opportunity_representation.c.award_key).select_from(
-            opportunity_representation.join(
-                acquisition_runtime_cycle,
-                acquisition_runtime_cycle.c.opportunity_key
-                == opportunity_representation.c.opportunity_key,
+        played_procedures = (
+            sa.select(opportunity_representation.c.award_key)
+            .select_from(
+                opportunity_representation.join(
+                    acquisition_runtime_cycle,
+                    acquisition_runtime_cycle.c.opportunity_key
+                    == opportunity_representation.c.opportunity_key,
+                )
             )
-        ).where(sa.func.date(acquisition_runtime_cycle.c.started_at) == horizon)
+            .where(sa.func.date(acquisition_runtime_cycle.c.started_at) == horizon)
+        )
         region_codes = _REGION_DEPARTMENTS[region]
         published_holder_name = sa.func.nullif(
             sa.func.trim(sa.func.coalesce(materialized_signal.c.winner_name, "")),
@@ -259,20 +284,14 @@ def select_production_opportunity_key(
         official_holder_is_resolved = sa.and_(
             official_holder_name.isnot(None),
             saas_company.c.official_source == "official_register",
-            saas_company.c.official_name
-            != materialized_signal.c.winner_identifier_value,
+            saas_company.c.official_name != materialized_signal.c.winner_identifier_value,
         )
         published_holder_is_named = sa.and_(
             published_holder_name.isnot(None),
             sa.or_(
-                sa.func.lower(
-                    sa.func.coalesce(
-                        materialized_signal.c.winner_identifier_scheme, ""
-                    )
-                )
+                sa.func.lower(sa.func.coalesce(materialized_signal.c.winner_identifier_scheme, ""))
                 != "siret",
-                materialized_signal.c.winner_name
-                != materialized_signal.c.winner_identifier_value,
+                materialized_signal.c.winner_name != materialized_signal.c.winner_identifier_value,
             ),
         )
         statement = (
@@ -282,20 +301,24 @@ def select_production_opportunity_key(
                     materialized_signal,
                     materialized_signal.c.opportunity_key
                     == opportunity_representation.c.opportunity_key,
-                ).join(
+                )
+                .join(
                     contract_award,
                     opportunity_representation.c.award_key == contract_award.c.award_key,
-                ).join(
+                )
+                .join(
                     source_event,
                     contract_award.c.event_key == source_event.c.event_key,
-                ).join(
+                )
+                .join(
                     for_you_sentence,
                     sa.and_(
                         for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
                         for_you_sentence.c.signal_fingerprint
                         == materialized_signal.c.content_fingerprint,
                     ),
-                ).outerjoin(
+                )
+                .outerjoin(
                     saas_company,
                     saas_company.c.identity_fingerprint
                     == materialized_signal.c.company_identity_fingerprint,
@@ -308,9 +331,13 @@ def select_production_opportunity_key(
                 contract_award.c.amount >= 50000,
                 contract_award.c.winner_status == "identified",
                 sa.or_(published_holder_is_named, official_holder_is_resolved),
-                sa.func.nullif(sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), "").isnot(None),
+                sa.func.nullif(
+                    sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), ""
+                ).isnot(None),
                 materialized_signal.c.inferred_trade_domain == vertical,
-                contract_award.c.place_of_performance["subdivision_code"].as_string().in_(region_codes),
+                contract_award.c.place_of_performance["subdivision_code"]
+                .as_string()
+                .in_(region_codes),
                 for_you_sentence.c.model_fit.isnot(None),
                 for_you_sentence.c.model_fit != "none",
                 opportunity_representation.c.opportunity_key.notin_(already_played),

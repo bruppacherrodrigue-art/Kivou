@@ -18,6 +18,7 @@ from signals.company_research.contracts import (
     ApolloOrganizationObservation,
     CompanyResearchProviderError,
 )
+from signals.company_research.domain import DomainResolution
 from signals.company_research.profile import build_company_research_profile
 from signals.persistence.database import alembic_config, create_database_engine
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
@@ -93,6 +94,32 @@ def test_resolver_persists_unresolved_binding_without_apollo_id(tmp_path) -> Non
     assert result.status is BindingStatus.UNRESOLVED
     assert result.apollo_organization_id is None
     assert result.confidence_score is None
+
+
+def test_resolver_persists_domain_journal_when_apollo_is_unresolved(tmp_path) -> None:
+    engine = _engine(tmp_path)
+
+    class DomainResolver:
+        def resolve(self, identity):
+            return DomainResolution(
+                domain="beton-alpes.fr",
+                website_url="https://beton-alpes.fr",
+                source="serper",
+                query="Beton Alpes Lyon",
+                observed_at=NOW,
+            )
+
+    result = SireneApolloResolver(
+        engine,
+        provider=Provider(missing=True),
+        domain_resolver=DomainResolver(),
+    ).resolve(_identity())
+
+    assert result.status is BindingStatus.UNRESOLVED
+    assert result.domain == "beton-alpes.fr"
+    assert result.domain_source == "serper"
+    assert result.domain_query == "Beton Alpes Lyon"
+    assert result.domain_observed_at == NOW
 
 
 def test_binding_store_rejects_no_implicit_legacy_lookup(tmp_path) -> None:
@@ -180,6 +207,59 @@ def test_apollo_resolution_is_name_city_then_one_exact_organization_get() -> Non
     }
 
 
+def test_apollo_resolution_uses_exact_domain_before_name_city() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "organizations": [
+                        {
+                            "id": "apollo-domain-42",
+                            "name": "Beton Alpes",
+                            "primary_domain": "beton-alpes.fr",
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "organization": {
+                    "id": "apollo-domain-42",
+                    "name": "Beton Alpes",
+                    "primary_domain": "beton-alpes.fr",
+                    "country": "France",
+                    "estimated_num_employees": 42,
+                }
+            },
+        )
+
+    result = ApolloCompanyResearchClient(
+        api_key="test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        clock=lambda: NOW,
+    ).fetch_organization(
+        build_company_research_profile(
+            "123456789",
+            siren="123456789",
+            organization_name="BETON ALPES",
+            organization_city="Lyon",
+            organization_domain="beton-alpes.fr",
+        )
+    )
+
+    assert result.provider_organization_id == "apollo-domain-42"
+    assert result.resolution_method == "domain"
+    assert result.resolution_confidence_score == Decimal("0.95")
+    assert dict(requests[0].url.params.multi_items()) == {
+        "q_organization_domains[]": "beton-alpes.fr"
+    }
+
+
 def test_apollo_resolution_rejects_first_result_and_accepts_strict_name_city_match() -> None:
     requests: list[httpx.Request] = []
 
@@ -235,6 +315,8 @@ def test_apollo_resolution_rejects_first_result_and_accepts_strict_name_city_mat
 def test_apollo_resolution_requires_significant_name_words_and_city_or_domain() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST":
+            if request.url.params.get("q_organization_domains[]"):
+                return httpx.Response(200, json={"organizations": []})
             return httpx.Response(
                 200,
                 json={

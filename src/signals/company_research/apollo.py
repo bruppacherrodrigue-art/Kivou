@@ -7,7 +7,6 @@ import email.utils
 import hashlib
 import json
 import re
-import unicodedata
 from collections.abc import Callable
 from decimal import Decimal
 from urllib.parse import urlsplit
@@ -25,6 +24,11 @@ from signals.company_research.contracts import (
     CompanyResearchProviderError,
     ResearchGap,
 )
+from signals.company_research.identity import (
+    normalized_city,
+    normalized_organization_name,
+    significant_name_words,
+)
 
 APOLLO_BASE_URL = "https://api.apollo.io"
 ORGANIZATION_PATH_PREFIX = "/api/v1/organizations/"
@@ -33,49 +37,16 @@ _DOMAIN = re.compile(
     r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
 )
-_LEGAL_FORMS = frozenset({"sa", "sarl", "sas", "sasu", "eurl", "snc", "sca", "scs"})
-_NAME_STOP_WORDS = frozenset(
-    {"a", "au", "aux", "d", "de", "des", "du", "et", "l", "la", "le", "les"}
-)
 
 
 def _utc_now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
-def _ascii(value: str) -> str:
-    return "".join(
-        character
-        for character in unicodedata.normalize("NFKD", value)
-        if not unicodedata.combining(character)
-    )
-
-
-def _name_tokens(value: str) -> tuple[str, ...]:
-    words = re.findall(r"[a-z0-9]+", _ascii(value).casefold())
-    return tuple(
-        word for word in words if word not in _LEGAL_FORMS and word not in _NAME_STOP_WORDS
-    )
-
-
-def _normalized_organization_name(value: str) -> str:
-    words = re.findall(r"[A-Za-z0-9]+", _ascii(value))
-    without_legal_form = [word for word in words if word.casefold() not in _LEGAL_FORMS]
-    return " ".join(without_legal_form).title()
-
-
-def _normalized_city(value: str) -> str:
-    candidate = _ascii(value).strip()
-    candidate = re.sub(r"(?i)^ste(?=[\s-])", "Sainte", candidate)
-    candidate = re.sub(r"(?i)^st(?=[\s-])", "Saint", candidate)
-    candidate = re.sub(r"[^A-Za-z0-9'-]+", " ", candidate)
-    return " ".join(candidate.split()).title()
-
-
 def _canonical_location(value: object) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
-    return " ".join(re.findall(r"[a-z0-9]+", _normalized_city(value).casefold()))
+    return " ".join(re.findall(r"[a-z0-9]+", normalized_city(value).casefold()))
 
 
 def _canonical_domain(value: object) -> str | None:
@@ -91,11 +62,11 @@ def _canonical_domain(value: object) -> str | None:
 def _match_confidence(
     profile: CompanyResearchProfile, organization: dict[str, object]
 ) -> Decimal | None:
-    expected_words = set(_name_tokens(profile.organization_name or ""))
+    expected_words = set(significant_name_words(profile.organization_name or ""))
     candidate_name = organization.get("name")
     if not expected_words or not isinstance(candidate_name, str):
         return None
-    if not expected_words.issubset(set(_name_tokens(candidate_name))):
+    if not expected_words.issubset(set(significant_name_words(candidate_name))):
         return None
     expected_city = _canonical_location(profile.organization_city)
     candidate_city = _canonical_location(organization.get("city"))
@@ -402,63 +373,82 @@ class ApolloCompanyResearchClient:
             raise CompanyResearchProviderError("malformed_response") from exc
 
     def _resolve_organization_id(self, profile: CompanyResearchProfile) -> tuple[str, str, Decimal]:
-        params = [
+        attempts: list[tuple[str, list[tuple[str, str]]]] = []
+        expected_domain = _canonical_domain(profile.organization_domain)
+        if expected_domain:
+            attempts.append(("domain", [("q_organization_domains[]", expected_domain)]))
+        name_city_params = [
             (
                 "q_organization_name",
-                _normalized_organization_name(profile.organization_name or ""),
+                normalized_organization_name(profile.organization_name or ""),
             )
         ]
         if profile.organization_city:
-            params.append(("organization_locations[]", _normalized_city(profile.organization_city)))
-        if profile.organization_domain:
-            params.append(("organization_domains[]", profile.organization_domain))
-        try:
-            response = self._client.post(
-                f"{APOLLO_BASE_URL}{ORGANIZATION_SEARCH_PATH}",
-                params=params,
-                headers={"x-api-key": self._api_key, "accept": "application/json"},
+            name_city_params.append(
+                ("organization_locations[]", normalized_city(profile.organization_city))
             )
-            if response.status_code >= 400:
-                raise CompanyResearchProviderError("not_found")
-            payload = response.json()
-            organizations = payload.get("organizations") if isinstance(payload, dict) else None
-            if not isinstance(organizations, list):
-                raise CompanyResearchProviderError("not_found")
-            identifier = None
-            confidence = None
-            for candidate in organizations:
-                if not isinstance(candidate, dict):
+        attempts.append(("name_city", name_city_params))
+        try:
+            for method, params in attempts:
+                response = self._client.post(
+                    f"{APOLLO_BASE_URL}{ORGANIZATION_SEARCH_PATH}",
+                    params=params,
+                    headers={"x-api-key": self._api_key, "accept": "application/json"},
+                )
+                if response.status_code == 429:
+                    raise CompanyResearchProviderError("rate_limited")
+                if response.status_code >= 400:
                     continue
-                candidate_id = candidate.get("id")
-                if not isinstance(candidate_id, str) or not candidate_id.strip():
+                payload = response.json()
+                organizations = payload.get("organizations") if isinstance(payload, dict) else None
+                if not isinstance(organizations, list):
                     continue
-                confidence = _match_confidence(profile, candidate)
-                if confidence is None and set(
-                    _name_tokens(profile.organization_name or "")
-                ).issubset(set(_name_tokens(str(candidate.get("name") or "")))):
-                    detail_response = self._client.get(
-                        f"{APOLLO_BASE_URL}{ORGANIZATION_PATH_PREFIX}{candidate_id.strip()}",
-                        headers={"x-api-key": self._api_key, "accept": "application/json"},
-                    )
-                    if detail_response.status_code == 429:
-                        raise CompanyResearchProviderError("rate_limited")
-                    if detail_response.status_code == 200:
-                        detail_payload = detail_response.json()
-                        detail = (
-                            detail_payload.get("organization")
-                            if isinstance(detail_payload, dict)
-                            else None
+                for candidate in organizations:
+                    if not isinstance(candidate, dict):
+                        continue
+                    candidate_id = candidate.get("id")
+                    if not isinstance(candidate_id, str) or not candidate_id.strip():
+                        continue
+                    candidate_id = candidate_id.strip()
+                    if method == "domain":
+                        candidate_domain = _canonical_domain(candidate.get("primary_domain"))
+                        if candidate_domain is None:
+                            candidate_domain = _canonical_domain(candidate.get("website_url"))
+                        confidence = (
+                            Decimal("0.95") if candidate_domain == expected_domain else None
                         )
-                        if isinstance(detail, dict):
-                            confidence = _match_confidence(profile, detail)
-                if confidence is not None:
-                    identifier = candidate_id.strip()
-                    break
+                    else:
+                        confidence = _match_confidence(profile, candidate)
+                    if confidence is None:
+                        detail_response = self._client.get(
+                            f"{APOLLO_BASE_URL}{ORGANIZATION_PATH_PREFIX}{candidate_id}",
+                            headers={"x-api-key": self._api_key, "accept": "application/json"},
+                        )
+                        if detail_response.status_code == 429:
+                            raise CompanyResearchProviderError("rate_limited")
+                        if detail_response.status_code == 200:
+                            detail_payload = detail_response.json()
+                            detail = (
+                                detail_payload.get("organization")
+                                if isinstance(detail_payload, dict)
+                                else None
+                            )
+                            if isinstance(detail, dict):
+                                if method == "domain":
+                                    detail_domain = _canonical_domain(
+                                        detail.get("primary_domain")
+                                    ) or _canonical_domain(detail.get("website_url"))
+                                    confidence = (
+                                        Decimal("0.95")
+                                        if detail_domain == expected_domain
+                                        else None
+                                    )
+                                else:
+                                    confidence = _match_confidence(profile, detail)
+                    if confidence is not None:
+                        return candidate_id, method, confidence
         except CompanyResearchProviderError:
             raise
         except (httpx.RequestError, ValueError, TypeError, IndexError) as exc:
             raise CompanyResearchProviderError("not_found") from exc
-        if not isinstance(identifier, str) or not identifier.strip():
-            raise CompanyResearchProviderError("not_found")
-        method = "domain_name_city" if profile.organization_domain else "name_city"
-        return identifier.strip(), method, confidence or Decimal("0.80")
+        raise CompanyResearchProviderError("not_found")

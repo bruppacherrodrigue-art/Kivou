@@ -75,9 +75,7 @@ class AcquisitionRuntimeExecutionGuard:
                 or row["expires_at"] is None
                 or _aware(row["expires_at"]) <= observed_at
             ):
-                raise AcquisitionRuntimeConflict(
-                    "runtime business action lost its fencing lease"
-                )
+                raise AcquisitionRuntimeConflict("runtime business action lost its fencing lease")
             connection.execute(
                 sa.update(acquisition_runtime_lease)
                 .where(
@@ -87,9 +85,7 @@ class AcquisitionRuntimeExecutionGuard:
                 )
                 .values(
                     heartbeat_at=observed_at,
-                    expires_at=(
-                        observed_at + dt.timedelta(seconds=self.lease_seconds)
-                    ),
+                    expires_at=(observed_at + dt.timedelta(seconds=self.lease_seconds)),
                 )
             )
             yield observed_at
@@ -154,10 +150,7 @@ class AcquisitionRuntimeStore:
             expires_at = observed_at + dt.timedelta(seconds=lease_seconds)
             previous_owner = row["owner_ref"]
             previous_expiry = row["expires_at"]
-            expired = (
-                previous_expiry is not None
-                and _aware(previous_expiry) <= observed_at
-            )
+            expired = previous_expiry is not None and _aware(previous_expiry) <= observed_at
             eligible = previous_owner in {None, owner_ref} or expired
             if not eligible:
                 return RuntimeLeaseResult(owned=False, reclaimed=False)
@@ -182,9 +175,7 @@ class AcquisitionRuntimeStore:
             return RuntimeLeaseResult(
                 owned=True,
                 reclaimed=bool(
-                    previous_owner is not None
-                    and previous_owner != owner_ref
-                    and expired
+                    previous_owner is not None and previous_owner != owner_ref and expired
                 ),
                 fencing_token=generation,
             )
@@ -285,8 +276,7 @@ class AcquisitionRuntimeStore:
                 updated = connection.execute(
                     sa.update(acquisition_runtime_observation)
                     .where(
-                        acquisition_runtime_observation.c.runtime_name
-                        == RUNTIME_OBSERVATION_NAME,
+                        acquisition_runtime_observation.c.runtime_name == RUNTIME_OBSERVATION_NAME,
                         acquisition_runtime_observation.c.heartbeat_at <= at,
                     )
                     .values(
@@ -327,25 +317,26 @@ class AcquisitionRuntimeStore:
             cycle = self._cycle(connection, cycle_ref)
             cycle_at = _aware(cycle["updated_at"])
             if cycle_at > at:
-                raise AcquisitionRuntimeConflict(
-                    "runtime cycle observation follows its heartbeat"
+                raise AcquisitionRuntimeConflict("runtime cycle observation follows its heartbeat")
+            updated = (
+                connection.execute(
+                    sa.update(acquisition_runtime_observation)
+                    .where(
+                        acquisition_runtime_observation.c.runtime_name == RUNTIME_OBSERVATION_NAME,
+                        acquisition_runtime_observation.c.heartbeat_at <= at,
+                    )
+                    .values(
+                        heartbeat_at=at,
+                        last_cycle_ref=cycle_ref,
+                        last_cycle_status=cycle["status"],
+                        last_cycle_at=at,
+                        updated_at=at,
+                    )
+                    .returning(acquisition_runtime_observation)
                 )
-            updated = connection.execute(
-                sa.update(acquisition_runtime_observation)
-                .where(
-                    acquisition_runtime_observation.c.runtime_name
-                    == RUNTIME_OBSERVATION_NAME,
-                    acquisition_runtime_observation.c.heartbeat_at <= at,
-                )
-                .values(
-                    heartbeat_at=at,
-                    last_cycle_ref=cycle_ref,
-                    last_cycle_status=cycle["status"],
-                    last_cycle_at=at,
-                    updated_at=at,
-                )
-                .returning(acquisition_runtime_observation)
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if updated is None:
                 raise AcquisitionRuntimeConflict(
                     "runtime cycle observation timestamp moved backwards"
@@ -354,12 +345,15 @@ class AcquisitionRuntimeStore:
 
     def read_runtime_observation(self) -> RuntimeHealthObservation | None:
         with self.engine.connect() as connection:
-            row = connection.execute(
-                sa.select(acquisition_runtime_observation).where(
-                    acquisition_runtime_observation.c.runtime_name
-                    == RUNTIME_OBSERVATION_NAME
+            row = (
+                connection.execute(
+                    sa.select(acquisition_runtime_observation).where(
+                        acquisition_runtime_observation.c.runtime_name == RUNTIME_OBSERVATION_NAME
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
         return None if row is None else self._runtime_observation(row)
 
     def read_cycle_reason_code(self, cycle_ref: str) -> str | None:
@@ -377,9 +371,7 @@ class AcquisitionRuntimeStore:
             return "RUNTIME_CYCLE_REASON_INVALID"
         return value
 
-    def abandon_cycle(
-        self, cycle_ref: str, *, reason: str, at: dt.datetime
-    ) -> bool:
+    def abandon_cycle(self, cycle_ref: str, *, reason: str, at: dt.datetime) -> bool:
         """Terminally suppress one cycle without acquiring the runtime lease."""
         at = require_aware(at)
         cleaned = reason.strip()
@@ -422,15 +414,16 @@ class AcquisitionRuntimeStore:
                 fencing_token=fencing_token,
                 at=at,
             )
-            rows = connection.execute(
-                sa.select(acquisition_runtime_cycle).where(
-                    acquisition_runtime_cycle.c.config_fingerprint
-                    == config_fingerprint,
-                    acquisition_runtime_cycle.c.opportunity_key.in_(
-                        opportunity_keys
-                    ),
+            rows = (
+                connection.execute(
+                    sa.select(acquisition_runtime_cycle).where(
+                        acquisition_runtime_cycle.c.config_fingerprint == config_fingerprint,
+                        acquisition_runtime_cycle.c.opportunity_key.in_(opportunity_keys),
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
             by_opportunity = {row["opportunity_key"]: row for row in rows}
             for opportunity_key in opportunity_keys:
                 existing = by_opportunity.get(opportunity_key)
@@ -478,20 +471,21 @@ class AcquisitionRuntimeStore:
                 raise AcquisitionRuntimeConflict("terminal runtime stage cannot restart")
             if row["status"] == RuntimeStageStatus.RUNNING.value:
                 return self._stage_snapshot(row)
-            if (
-                row["status"] == RuntimeStageStatus.WAITING.value
-                and row["replay_same_attempt"]
-            ):
-                attempt = connection.execute(
-                    sa.select(acquisition_runtime_stage_attempt)
-                    .where(
-                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
-                        acquisition_runtime_stage_attempt.c.stage == stage.value,
-                        acquisition_runtime_stage_attempt.c.attempt_count
-                        == row["attempt_count"],
+            if row["status"] == RuntimeStageStatus.WAITING.value and row["replay_same_attempt"]:
+                attempt = (
+                    connection.execute(
+                        sa.select(acquisition_runtime_stage_attempt)
+                        .where(
+                            acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                            acquisition_runtime_stage_attempt.c.stage == stage.value,
+                            acquisition_runtime_stage_attempt.c.attempt_count
+                            == row["attempt_count"],
+                        )
+                        .with_for_update()
                     )
-                    .with_for_update()
-                ).mappings().one()
+                    .mappings()
+                    .one()
+                )
                 if (
                     attempt["status"] != RuntimeStageStatus.WAITING.value
                     or not attempt["replay_same_attempt"]
@@ -504,8 +498,7 @@ class AcquisitionRuntimeStore:
                     .where(
                         acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
                         acquisition_runtime_stage_attempt.c.stage == stage.value,
-                        acquisition_runtime_stage_attempt.c.attempt_count
-                        == row["attempt_count"],
+                        acquisition_runtime_stage_attempt.c.attempt_count == row["attempt_count"],
                     )
                     .values(
                         status=RuntimeStageStatus.RUNNING.value,
@@ -514,22 +507,26 @@ class AcquisitionRuntimeStore:
                         completed_at=None,
                     )
                 )
-                updated = connection.execute(
-                    sa.update(acquisition_runtime_stage)
-                    .where(
-                        acquisition_runtime_stage.c.cycle_ref == cycle_ref,
-                        acquisition_runtime_stage.c.stage == stage.value,
+                updated = (
+                    connection.execute(
+                        sa.update(acquisition_runtime_stage)
+                        .where(
+                            acquisition_runtime_stage.c.cycle_ref == cycle_ref,
+                            acquisition_runtime_stage.c.stage == stage.value,
+                        )
+                        .values(
+                            status=RuntimeStageStatus.RUNNING.value,
+                            reason_codes=[],
+                            retry_at=None,
+                            replay_same_attempt=False,
+                            completed_at=None,
+                            updated_at=at,
+                        )
+                        .returning(acquisition_runtime_stage)
                     )
-                    .values(
-                        status=RuntimeStageStatus.RUNNING.value,
-                        reason_codes=[],
-                        retry_at=None,
-                        replay_same_attempt=False,
-                        completed_at=None,
-                        updated_at=at,
-                    )
-                    .returning(acquisition_runtime_stage)
-                ).mappings().one()
+                    .mappings()
+                    .one()
+                )
                 connection.execute(
                     sa.update(acquisition_runtime_cycle)
                     .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
@@ -540,29 +537,33 @@ class AcquisitionRuntimeStore:
                     )
                 )
                 return self._stage_snapshot(updated)
-            updated = connection.execute(
-                sa.update(acquisition_runtime_stage)
-                .where(
-                    acquisition_runtime_stage.c.cycle_ref == cycle_ref,
-                    acquisition_runtime_stage.c.stage == stage.value,
+            updated = (
+                connection.execute(
+                    sa.update(acquisition_runtime_stage)
+                    .where(
+                        acquisition_runtime_stage.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage.c.stage == stage.value,
+                    )
+                    .values(
+                        status=RuntimeStageStatus.RUNNING.value,
+                        attempt_count=row["attempt_count"] + 1,
+                        plan_ref=None,
+                        command=None,
+                        argument_fingerprint=None,
+                        reserved_cost=Decimal("0"),
+                        observed_cost=Decimal("0"),
+                        reason_codes=[],
+                        retry_at=None,
+                        replay_same_attempt=False,
+                        started_at=at,
+                        completed_at=None,
+                        updated_at=at,
+                    )
+                    .returning(acquisition_runtime_stage)
                 )
-                .values(
-                    status=RuntimeStageStatus.RUNNING.value,
-                    attempt_count=row["attempt_count"] + 1,
-                    plan_ref=None,
-                    command=None,
-                    argument_fingerprint=None,
-                    reserved_cost=Decimal("0"),
-                    observed_cost=Decimal("0"),
-                    reason_codes=[],
-                    retry_at=None,
-                    replay_same_attempt=False,
-                    started_at=at,
-                    completed_at=None,
-                    updated_at=at,
-                )
-                .returning(acquisition_runtime_stage)
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             connection.execute(
                 sa.update(acquisition_runtime_cycle)
                 .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
@@ -605,16 +606,20 @@ class AcquisitionRuntimeStore:
                 or row["attempt_count"] != stage_snapshot.attempt_count
             ):
                 raise AcquisitionRuntimeConflict("runtime attempt cannot reserve cost")
-            attempt = connection.execute(
-                sa.select(acquisition_runtime_stage_attempt)
-                .where(
-                    acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
-                    acquisition_runtime_stage_attempt.c.stage == stage.value,
-                    acquisition_runtime_stage_attempt.c.attempt_count
-                    == stage_snapshot.attempt_count,
+            attempt = (
+                connection.execute(
+                    sa.select(acquisition_runtime_stage_attempt)
+                    .where(
+                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage_attempt.c.stage == stage.value,
+                        acquisition_runtime_stage_attempt.c.attempt_count
+                        == stage_snapshot.attempt_count,
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if attempt is not None:
                 unreserved_interruption = (
                     attempt["status"] == RuntimeStageStatus.RUNNING.value
@@ -637,16 +642,13 @@ class AcquisitionRuntimeStore:
                     connection.execute(
                         sa.update(acquisition_runtime_stage_attempt)
                         .where(
-                            acquisition_runtime_stage_attempt.c.cycle_ref
-                            == cycle_ref,
-                            acquisition_runtime_stage_attempt.c.stage
-                            == stage.value,
+                            acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                            acquisition_runtime_stage_attempt.c.stage == stage.value,
                             acquisition_runtime_stage_attempt.c.attempt_count
                             == stage_snapshot.attempt_count,
                             acquisition_runtime_stage_attempt.c.status
                             == RuntimeStageStatus.RUNNING.value,
-                            acquisition_runtime_stage_attempt.c.reserved_cost
-                            == Decimal("0"),
+                            acquisition_runtime_stage_attempt.c.reserved_cost == Decimal("0"),
                         )
                         .values(reserved_cost=reserved_cost)
                     )
@@ -774,16 +776,20 @@ class AcquisitionRuntimeStore:
                 at=at,
             )
             row = self._stage(connection, cycle_ref, stage)
-            attempt = connection.execute(
-                sa.select(acquisition_runtime_stage_attempt)
-                .where(
-                    acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
-                    acquisition_runtime_stage_attempt.c.stage == stage.value,
-                    acquisition_runtime_stage_attempt.c.attempt_count
-                    == stage_snapshot.attempt_count,
+            attempt = (
+                connection.execute(
+                    sa.select(acquisition_runtime_stage_attempt)
+                    .where(
+                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage_attempt.c.stage == stage.value,
+                        acquisition_runtime_stage_attempt.c.attempt_count
+                        == stage_snapshot.attempt_count,
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             if (
                 row["status"] != RuntimeStageStatus.RUNNING.value
                 or row["attempt_count"] != stage_snapshot.attempt_count
@@ -797,9 +803,7 @@ class AcquisitionRuntimeStore:
             if stored is not None:
                 replay = RuntimeProposal.model_validate(stored)
                 if replay != proposal:
-                    raise AcquisitionRuntimeConflict(
-                        "runtime proposal changed during replay"
-                    )
+                    raise AcquisitionRuntimeConflict("runtime proposal changed during replay")
                 return replay
             encoded = proposal.model_dump(mode="json")
             connection.execute(
@@ -849,14 +853,17 @@ class AcquisitionRuntimeStore:
             row = self._stage(connection, cycle_ref, stage)
             if row["status"] != RuntimeStageStatus.RUNNING.value:
                 raise AcquisitionRuntimeConflict("runtime stage is not owned for completion")
-            attempt = connection.execute(
-                sa.select(acquisition_runtime_stage_attempt).where(
-                    acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
-                    acquisition_runtime_stage_attempt.c.stage == stage.value,
-                    acquisition_runtime_stage_attempt.c.attempt_count
-                    == row["attempt_count"],
+            attempt = (
+                connection.execute(
+                    sa.select(acquisition_runtime_stage_attempt).where(
+                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage_attempt.c.stage == stage.value,
+                        acquisition_runtime_stage_attempt.c.attempt_count == row["attempt_count"],
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if attempt is None:
                 reserved_cost = result.reserved_cost
                 insert_if_absent(
@@ -870,9 +877,7 @@ class AcquisitionRuntimeStore:
                         "reserved_cost": reserved_cost,
                         "observed_cost": result.observed_cost,
                         "proposal": (
-                            proposal.model_dump(mode="json")
-                            if proposal is not None
-                            else None
+                            proposal.model_dump(mode="json") if proposal is not None else None
                         ),
                         "retry_at": result.retry_at,
                         "replay_same_attempt": result.replay_same_attempt,
@@ -886,29 +891,21 @@ class AcquisitionRuntimeStore:
                 )
             else:
                 if attempt["status"] != RuntimeStageStatus.RUNNING.value:
-                    raise AcquisitionRuntimeConflict(
-                        "runtime attempt was already finalized"
-                    )
+                    raise AcquisitionRuntimeConflict("runtime attempt was already finalized")
                 reserved_cost = Decimal(attempt["reserved_cost"])
                 if result.reserved_cost not in {Decimal("0"), reserved_cost}:
-                    raise AcquisitionRuntimeConflict(
-                        "runtime attempt reserved cost changed"
-                    )
+                    raise AcquisitionRuntimeConflict("runtime attempt reserved cost changed")
                 if proposal is not None and (
                     attempt["proposal"] is None
-                    or RuntimeProposal.model_validate(attempt["proposal"])
-                    != proposal
+                    or RuntimeProposal.model_validate(attempt["proposal"]) != proposal
                 ):
-                    raise AcquisitionRuntimeConflict(
-                        "runtime attempt proposal changed"
-                    )
+                    raise AcquisitionRuntimeConflict("runtime attempt proposal changed")
                 connection.execute(
                     sa.update(acquisition_runtime_stage_attempt)
                     .where(
                         acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
                         acquisition_runtime_stage_attempt.c.stage == stage.value,
-                        acquisition_runtime_stage_attempt.c.attempt_count
-                        == row["attempt_count"],
+                        acquisition_runtime_stage_attempt.c.attempt_count == row["attempt_count"],
                         acquisition_runtime_stage_attempt.c.status
                         == RuntimeStageStatus.RUNNING.value,
                     )
@@ -931,9 +928,7 @@ class AcquisitionRuntimeStore:
                     plan_ref=proposal.plan_ref if proposal else row["plan_ref"],
                     command=proposal.command if proposal else row["command"],
                     argument_fingerprint=(
-                        proposal.argument_fingerprint
-                        if proposal
-                        else row["argument_fingerprint"]
+                        proposal.argument_fingerprint if proposal else row["argument_fingerprint"]
                     ),
                     result_refs=list(result.result_refs),
                     reserved_cost=reserved_cost,
@@ -961,9 +956,7 @@ class AcquisitionRuntimeStore:
                     next_stage=next_stage.value if next_stage else None,
                     spent_cost=spent,
                     last_reason_code=reason,
-                    completed_at=(
-                        at if result.status is RuntimeStageStatus.SUPPRESSED else None
-                    ),
+                    completed_at=(at if result.status is RuntimeStageStatus.SUPPRESSED else None),
                     updated_at=at,
                 )
             )
@@ -1062,11 +1055,15 @@ class AcquisitionRuntimeStore:
                     acquisition_runtime_stage.c.stage,
                 ],
             )
-        row = connection.execute(
-            sa.select(acquisition_runtime_cycle).where(
-                acquisition_runtime_cycle.c.cycle_ref == cycle_ref
+        row = (
+            connection.execute(
+                sa.select(acquisition_runtime_cycle).where(
+                    acquisition_runtime_cycle.c.cycle_ref == cycle_ref
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
         return AcquisitionRuntimeStore._snapshot(row)
 
     @staticmethod
@@ -1092,19 +1089,21 @@ class AcquisitionRuntimeStore:
             status=RuntimeStageStatus(row["status"]),
             attempt_count=row["attempt_count"],
             result_refs=tuple(row["result_refs"]),
-            retry_at=(
-                _aware(row["retry_at"]) if row["retry_at"] is not None else None
-            ),
+            retry_at=(_aware(row["retry_at"]) if row["retry_at"] is not None else None),
             replay_same_attempt=bool(row["replay_same_attempt"]),
         )
 
     @staticmethod
     def _cycle(connection: Connection, cycle_ref: str) -> RowMapping:
-        row = connection.execute(
-            sa.select(acquisition_runtime_cycle)
-            .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
-            .with_for_update()
-        ).mappings().one_or_none()
+        row = (
+            connection.execute(
+                sa.select(acquisition_runtime_cycle)
+                .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise KeyError(cycle_ref)
         return row
@@ -1115,14 +1114,18 @@ class AcquisitionRuntimeStore:
         cycle_ref: str,
         stage: AcquisitionRuntimeStage,
     ) -> RowMapping:
-        row = connection.execute(
-            sa.select(acquisition_runtime_stage)
-            .where(
-                acquisition_runtime_stage.c.cycle_ref == cycle_ref,
-                acquisition_runtime_stage.c.stage == stage.value,
+        row = (
+            connection.execute(
+                sa.select(acquisition_runtime_stage)
+                .where(
+                    acquisition_runtime_stage.c.cycle_ref == cycle_ref,
+                    acquisition_runtime_stage.c.stage == stage.value,
+                )
+                .with_for_update()
             )
-            .with_for_update()
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise KeyError((cycle_ref, stage.value))
         return row
@@ -1159,17 +1162,19 @@ class AcquisitionRuntimeStore:
             or row["expires_at"] is None
             or _aware(row["expires_at"]) <= observed_at
         ):
-            raise AcquisitionRuntimeConflict(
-                "runtime observation requires the active lease owner"
-            )
+            raise AcquisitionRuntimeConflict("runtime observation requires the active lease owner")
 
     @staticmethod
     def _lease_row(connection: Connection) -> RowMapping:
-        row = connection.execute(
-            sa.select(acquisition_runtime_lease)
-            .where(acquisition_runtime_lease.c.lease_name == LEASE_NAME)
-            .with_for_update()
-        ).mappings().one_or_none()
+        row = (
+            connection.execute(
+                sa.select(acquisition_runtime_lease)
+                .where(acquisition_runtime_lease.c.lease_name == LEASE_NAME)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise AcquisitionRuntimeConflict("runtime lease is unavailable")
         return row
@@ -1206,21 +1211,20 @@ class AcquisitionRuntimeStore:
             "registry_identity": capability.registry_identity,
             "native_tools": capability.native_tools,
             "commands": list(capability.commands),
-            "dependencies": [
-                item.model_dump(mode="json") for item in capability.dependencies
-            ],
+            "dependencies": [item.model_dump(mode="json") for item in capability.dependencies],
         }
 
     @staticmethod
     def _runtime_observation_row(connection: Connection) -> RowMapping:
-        row = connection.execute(
-            sa.select(acquisition_runtime_observation)
-            .where(
-                acquisition_runtime_observation.c.runtime_name
-                == RUNTIME_OBSERVATION_NAME
+        row = (
+            connection.execute(
+                sa.select(acquisition_runtime_observation)
+                .where(acquisition_runtime_observation.c.runtime_name == RUNTIME_OBSERVATION_NAME)
+                .with_for_update()
             )
-            .with_for_update()
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise AcquisitionRuntimeConflict("runtime observation is unavailable")
         return row
@@ -1242,14 +1246,11 @@ class AcquisitionRuntimeStore:
             native_tools=row["native_tools"],
             commands=tuple(row["commands"]),
             dependencies=tuple(
-                RuntimeStageDependency.model_validate(item)
-                for item in row["dependencies"]
+                RuntimeStageDependency.model_validate(item) for item in row["dependencies"]
             ),
         )
         if capability.fingerprint != row["capability_fingerprint"]:
-            raise AcquisitionRuntimeConflict(
-                "runtime capability fingerprint mismatch"
-            )
+            raise AcquisitionRuntimeConflict("runtime capability fingerprint mismatch")
         return RuntimeHealthObservation(
             capability=capability,
             observed_at=_aware(row["observed_at"]),
@@ -1257,9 +1258,7 @@ class AcquisitionRuntimeStore:
             last_cycle_ref=row["last_cycle_ref"],
             last_cycle_status=row["last_cycle_status"],
             last_cycle_at=(
-                _aware(row["last_cycle_at"])
-                if row["last_cycle_at"] is not None
-                else None
+                _aware(row["last_cycle_at"]) if row["last_cycle_at"] is not None else None
             ),
         )
 
@@ -1275,6 +1274,7 @@ class AcquisitionRuntimeStore:
         stages = tuple(AcquisitionRuntimeStage)
         index = stages.index(stage) + 1
         return stages[index] if index < len(stages) else None
+
 
 __all__ = [
     "LEASE_NAME",

@@ -25,6 +25,7 @@ from signals.contact_discovery.contracts import (
     ContactAuthorizationInput,
     ContactDiscoveryEvaluationRequiresFreshAttempt,
     ContactDiscoveryNotActionable,
+    ContactObservation,
     ContactRunIdentityConflict,
     ContactRunStatus,
     PeopleSearchCandidate,
@@ -250,9 +251,7 @@ def _find(
         "correlation_id": run_id,
     }
     if authorize_profile_upgrade_requeue is not None:
-        arguments["authorize_profile_upgrade_requeue"] = (
-            authorize_profile_upgrade_requeue
-        )
+        arguments["authorize_profile_upgrade_requeue"] = authorize_profile_upgrade_requeue
     return service.find(
         opportunity_id,
         authorization or _authorization(),
@@ -366,11 +365,14 @@ def test_started_run_recovery_reuses_policy_run_and_calls_apollo_once(context) -
     assert provider.search_calls == provider.enrich_calls == 1
     assert revalidations == ["current-policy"]
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(policy_evaluation)
-            .where(policy_evaluation.c.evaluation_id == started.policy_evaluation_id)
-        ) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(policy_evaluation)
+                .where(policy_evaluation.c.evaluation_id == started.policy_evaluation_id)
+            )
+            == 1
+        )
 
 
 @pytest.mark.parametrize(
@@ -469,6 +471,45 @@ def test_no_candidate_sets_human_review_without_changing_state(context) -> None:
     assert current.stream_version == 4
 
 
+def test_no_apollo_person_uses_named_verified_website_contact(context) -> None:
+    engine, acquisition, _, opportunity_id = context
+
+    class WebsiteFallback:
+        def find(self, profile, *, observed_at):
+            return ContactObservation(
+                supplier_ref=profile.supplier_ref,
+                provider="company_website",
+                provider_person_id="web-alice-martin",
+                provider_organization_id="123456789",
+                display_name="Alice Martin",
+                title="Gérante",
+                normalized_title="dirigeant",
+                role_tier=1,
+                business_email="contact@acme.example",
+                provider_email_status="smtp_accepted",
+                verification_state="DELIVERABILITY_VERIFIED",
+                verification_provider="mx_smtp",
+                provider_observed_at=observed_at,
+                email_observed_at=observed_at,
+                source_fingerprint="f" * 64,
+            )
+
+    result = _find(
+        ContactDiscoveryService(
+            engine,
+            provider=FakeProvider(_page()),
+            fallback_provider=WebsiteFallback(),
+            clock=TickClock(),
+        ),
+        opportunity_id,
+    )
+
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.contact.provider == "company_website"
+    assert result.contact.display_name == "Alice Martin"
+    assert acquisition.get_opportunity(opportunity_id).next_action == "enrich_company"
+
+
 @pytest.mark.parametrize("total", [10, 80])
 def test_positive_total_empty_search_fails_without_human_review(context, total) -> None:
     engine, acquisition, _, opportunity_id = context
@@ -526,9 +567,10 @@ def test_runtime_profile_requeues_only_the_durable_legacy_too_broad_outcome(
     assert result.run.status is ContactRunStatus.SUCCESS
     assert result.run.search_profile_version == RUNTIME_QA_PROFILE_VERSION
     assert runtime_provider.search_calls == runtime_provider.enrich_calls == 1
-    assert ContactDiscoveryStore(engine).get_run(
-        legacy.run.contact_discovery_run_id
-    ).status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    assert (
+        ContactDiscoveryStore(engine).get_run(legacy.run.contact_discovery_run_id).status
+        is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    )
     requeue_events = [
         event
         for event in acquisition.list_events(opportunity_id)
@@ -537,14 +579,11 @@ def test_runtime_profile_requeues_only_the_durable_legacy_too_broad_outcome(
     assert len(requeue_events) == 1
     assert requeue_events[0].event_type is EventType.NEXT_ACTION_SET
     assert requeue_events[0].actor_ref == "kivou-contact-discovery"
-    assert requeue_events[0].evidence_refs == (
-        legacy.run.contact_discovery_run_id,
-    )
+    assert requeue_events[0].evidence_refs == (legacy.run.contact_discovery_run_id,)
     legacy_event = next(
         event
         for event in acquisition.list_events(opportunity_id)
-        if event.idempotency_key
-        == f"contact_human_review:{legacy.run.contact_discovery_run_id}"
+        if event.idempotency_key == f"contact_human_review:{legacy.run.contact_discovery_run_id}"
     )
     assert requeue_events[0].correlation_id == "contact-run-runtime-profile"
     assert requeue_events[0].causation_id == legacy_event.event_id
@@ -557,10 +596,13 @@ def test_runtime_profile_requeues_only_the_durable_legacy_too_broad_outcome(
     )
     assert replay.run.contact_discovery_run_id == result.run.contact_discovery_run_id
     assert runtime_provider.search_calls == runtime_provider.enrich_calls == 1
-    assert sum(
-        event.reason_codes == ("contact_search_profile_upgraded",)
-        for event in acquisition.list_events(opportunity_id)
-    ) == 1
+    assert (
+        sum(
+            event.reason_codes == ("contact_search_profile_upgraded",)
+            for event in acquisition.list_events(opportunity_id)
+        )
+        == 1
+    )
 
 
 def test_runtime_profile_does_not_override_a_later_human_review(
@@ -659,10 +701,13 @@ def test_runtime_profile_requeue_survives_a_crash_before_policy_and_replays_once
 
     assert recovered.run.status is ContactRunStatus.SUCCESS
     assert provider.search_calls == provider.enrich_calls == 1
-    assert sum(
-        event.reason_codes == ("contact_search_profile_upgraded",)
-        for event in acquisition.list_events(opportunity_id)
-    ) == 1
+    assert (
+        sum(
+            event.reason_codes == ("contact_search_profile_upgraded",)
+            for event in acquisition.list_events(opportunity_id)
+        )
+        == 1
+    )
 
 
 def test_runtime_profile_requeue_requires_fresh_runtime_authority(context) -> None:
@@ -744,8 +789,7 @@ def test_runtime_profile_requeue_rejects_a_mismatched_historical_correlation(
     legacy_event = next(
         event
         for event in acquisition.list_events(opportunity_id)
-        if event.idempotency_key
-        == f"contact_human_review:{legacy.run.contact_discovery_run_id}"
+        if event.idempotency_key == f"contact_human_review:{legacy.run.contact_discovery_run_id}"
     )
     with engine.begin() as connection:
         connection.execute(
@@ -823,17 +867,15 @@ def test_concurrent_runtime_profile_requeues_write_one_causal_event(context) -> 
         if event.reason_codes == ("contact_search_profile_upgraded",)
     ]
     assert len(requeue_events) == 1
-    assert ContactDiscoveryStore(engine).get_run(
-        legacy.run.contact_discovery_run_id
-    ).status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    assert (
+        ContactDiscoveryStore(engine).get_run(legacy.run.contact_discovery_run_id).status
+        is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    )
     assert all(
         isinstance(outcome, (IdempotencyConflict, OpportunityConcurrencyConflict))
         or outcome.next_action == "find_decision_makers"
         for outcome in outcomes
-    ), [
-        (type(outcome).__name__, getattr(outcome, "next_action", None))
-        for outcome in outcomes
-    ]
+    ), [(type(outcome).__name__, getattr(outcome, "next_action", None)) for outcome in outcomes]
     assert sum(provider.search_calls for provider in providers) == 0
 
 

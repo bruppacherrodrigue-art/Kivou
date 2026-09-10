@@ -180,13 +180,9 @@ class CompanyResearchService:
                 decision=decision,
                 run=ownership.run,
             )
-        opportunity = self._acquisition.get_opportunity(
-            ownership.run.acquisition_opportunity_id
-        )
+        opportunity = self._acquisition.get_opportunity(ownership.run.acquisition_opportunity_id)
         supplier = self._suppliers.get_supplier(ownership.run.supplier_ref)
-        binding = self._required_binding(
-            supplier, ownership.run.acquisition_opportunity_id
-        )
+        binding = self._required_binding(supplier, ownership.run.acquisition_opportunity_id)
         contact = self._companies.get_contact_binding(ownership.run.contact_ref)
         self._require_post_policy(opportunity, ownership.run)
         self._require_bindings(opportunity, supplier, contact, binding)
@@ -207,14 +203,11 @@ class CompanyResearchService:
             contact_ref=run.contact_ref,
         )
         with self._engine.connect() as connection:
-            row = self._policy_store.evaluation_row(
-                connection, run.policy_evaluation_id
-            )
+            row = self._policy_store.evaluation_row(connection, run.policy_evaluation_id)
         if row is None or not (
             row["acquisition_opportunity_id"] == run.acquisition_opportunity_id
             and row["command"] == "enrich_company"
-            and row["target_ref"]
-            == self._expected_target(run.acquisition_opportunity_id)
+            and row["target_ref"] == self._expected_target(run.acquisition_opportunity_id)
             and row["action_fingerprint"] == expected_action
             and run.research_profile_fingerprint == profile.profile_fingerprint
         ):
@@ -224,10 +217,10 @@ class CompanyResearchService:
             raise CompanyResearchRunIdentityConflict(run.policy_evaluation_id)
         return decision
 
-    def _execute(self, run, supplier, contact, decision, binding=None) -> CompanyResearchServiceResult:
-        binding = binding or self._required_binding(
-            supplier, run.acquisition_opportunity_id
-        )
+    def _execute(
+        self, run, supplier, contact, decision, binding=None
+    ) -> CompanyResearchServiceResult:
+        binding = binding or self._required_binding(supplier, run.acquisition_opportunity_id)
         profile = build_company_research_profile(
             binding.apollo_organization_id,
             siren=supplier.provider_organization_id,
@@ -273,9 +266,7 @@ class CompanyResearchService:
             )
             self._require_post_policy(current, run)
             supplier = self._supplier_in_transaction(connection, run.supplier_ref)
-            binding = self._required_binding(
-                supplier, run.acquisition_opportunity_id
-            )
+            binding = self._required_binding(supplier, run.acquisition_opportunity_id)
             contact = self._companies.get_contact_binding_in_transaction(
                 connection, run.contact_ref
             )
@@ -378,6 +369,16 @@ class CompanyResearchService:
 
     @staticmethod
     def _require_bindings(opportunity, supplier, contact, binding) -> None:
+        contact_verified = (
+            contact.verification_state == "PROVIDER_VERIFIED"
+            and contact.verification_provider == "apollo"
+            and contact.provider_email_status == "verified"
+        ) or (
+            contact.verification_state == "DELIVERABILITY_VERIFIED"
+            and contact.verification_provider == "mx_smtp"
+            and contact.provider_email_status == "smtp_accepted"
+            and contact.display_name
+        )
         if not (
             supplier.provider == "sirene"
             and binding.status is BindingStatus.RESOLVED
@@ -385,9 +386,7 @@ class CompanyResearchService:
             and opportunity.supplier_ref == supplier.supplier_ref
             and opportunity.contact_ref == contact.contact_ref
             and contact.supplier_ref == supplier.supplier_ref
-            and contact.verification_state == "PROVIDER_VERIFIED"
-            and contact.verification_provider == "apollo"
-            and contact.provider_email_status == "verified"
+            and contact_verified
         ):
             raise CompanyResearchNotActionable(opportunity.acquisition_opportunity_id)
 

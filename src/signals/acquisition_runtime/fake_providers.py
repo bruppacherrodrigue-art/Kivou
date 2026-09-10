@@ -56,14 +56,20 @@ class FakeApolloOrganizationSearch:
             primary_domain=f"{org_id}.example.test",
             website_url=f"https://{org_id}.example.test",
             country_code="FR",
-            location=profile.organization_locations[0] if profile.organization_locations else "France",
+            location=profile.organization_locations[0]
+            if profile.organization_locations
+            else "France",
             industry="Building materials",
             provider_observed_at=observed_at,
             source_fingerprint=_fingerprint(org_id),
         )
         return SupplierSearchPage(
-            page=page, per_page=profile.per_page, total_entries=1, total_pages=1,
-            candidates=(candidate,), rejections=()
+            page=page,
+            per_page=profile.per_page,
+            total_entries=1,
+            total_pages=1,
+            candidates=(candidate,),
+            rejections=(),
         )
 
 
@@ -72,12 +78,20 @@ class FakeApolloContactDiscovery:
         person_id = f"fake-person-{profile.provider_organization_id}"
         return PeopleSearchPage(
             total_entries=1,
-            candidates=(PeopleSearchCandidate(
-                provider_person_id=person_id, first_name="Camille",
-                last_name_obfuscated="D.", title="Directeur commercial",
-                provider_position=0, organization_name="Entreprise staging",
-                provider_refreshed_at=observed_at, has_email=True,
-            ),), rejections=(), observed_at=observed_at
+            candidates=(
+                PeopleSearchCandidate(
+                    provider_person_id=person_id,
+                    first_name="Camille",
+                    last_name_obfuscated="D.",
+                    title="Directeur commercial",
+                    provider_position=0,
+                    organization_name="Entreprise staging",
+                    provider_refreshed_at=observed_at,
+                    has_email=True,
+                ),
+            ),
+            rejections=(),
+            observed_at=observed_at,
         )
 
     def enrich_person(self, provider_person_id: str, *, observed_at: dt.datetime):
@@ -85,10 +99,13 @@ class FakeApolloContactDiscovery:
         return ApolloEnrichedPerson(
             provider_person_id=provider_person_id,
             provider_organization_id=organization_id,
-            first_name="Camille", last_name="Dupont", display_name="Camille Dupont",
+            first_name="Camille",
+            last_name="Dupont",
+            display_name="Camille Dupont",
             title="Directeur commercial",
             business_email=f"camille.{organization_id[:8]}@example.test",
-            provider_email_status="verified", provider_observed_at=observed_at,
+            provider_email_status="verified",
+            provider_observed_at=observed_at,
             source_fingerprint=_fingerprint(provider_person_id),
         )
 
@@ -101,12 +118,17 @@ class FakeApolloCompanyResearch:
             else profile.provider_organization_id
         )
         return ApolloOrganizationObservation(
-            provider_organization_id=org, provider_company_name="Entreprise staging",
-            provider_primary_domain=f"{org}.example.test", provider_website_url=f"https://{org}.example.test",
-            provider_country="France", provider_industry="Building materials",
-            provider_employee_count=25, provider_short_description="Entreprise de bâtiment",
+            provider_organization_id=org,
+            provider_company_name="Entreprise staging",
+            provider_primary_domain=f"{org}.example.test",
+            provider_website_url=f"https://{org}.example.test",
+            provider_country="France",
+            provider_industry="Building materials",
+            provider_employee_count=25,
+            provider_short_description="Entreprise de bâtiment",
             provider_keywords=("bardage", "couverture"),
-            provider_observed_at=dt.datetime.now(dt.UTC), provider_source_fingerprint=_fingerprint(org),
+            provider_observed_at=dt.datetime.now(dt.UTC),
+            provider_source_fingerprint=_fingerprint(org),
         )
 
 

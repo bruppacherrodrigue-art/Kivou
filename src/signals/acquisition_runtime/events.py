@@ -46,18 +46,14 @@ class _ClosedJsonFormatter(logging.Formatter):
         )
 
 
-def configure_acquisition_runtime_logging(
-    *, stream: TextIO | None = None
-) -> logging.Logger:
+def configure_acquisition_runtime_logging(*, stream: TextIO | None = None) -> logging.Logger:
     """Attach one dedicated handler without altering uvicorn/root logging."""
 
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.INFO)
     logger.disabled = False
     logger.propagate = False
-    if not any(
-        getattr(handler, _HANDLER_MARKER, False) for handler in logger.handlers
-    ):
+    if not any(getattr(handler, _HANDLER_MARKER, False) for handler in logger.handlers):
         handler = logging.StreamHandler(stream or sys.stderr)
         setattr(handler, _HANDLER_MARKER, True)
         handler.setLevel(logging.INFO)
@@ -85,14 +81,10 @@ def emit_acquisition_runtime_event(
         "attempt": max(0, int(attempt)),
     }
     if cycle_ref is not None:
-        payload["cycle_ref"] = (
-            cycle_ref if _FINGERPRINT.fullmatch(cycle_ref) else "invalid_ref"
-        )
+        payload["cycle_ref"] = cycle_ref if _FINGERPRINT.fullmatch(cycle_ref) else "invalid_ref"
     if stage is not None:
         payload["stage"] = stage if stage in _STAGES else "INVALID_STAGE"
-    logging.getLogger(LOGGER_NAME).info(
-        "acquisition_runtime", extra={"runtime_event": payload}
-    )
+    logging.getLogger(LOGGER_NAME).info("acquisition_runtime", extra={"runtime_event": payload})
 
 
 def _validated_payload(value: object) -> dict[str, str | int]:
@@ -118,18 +110,12 @@ def _validated_payload(value: object) -> dict[str, str | int]:
                 cycle_ref is None
                 or (
                     isinstance(cycle_ref, str)
-                    and (
-                        cycle_ref == "invalid_ref"
-                        or _FINGERPRINT.fullmatch(cycle_ref)
-                    )
+                    and (cycle_ref == "invalid_ref" or _FINGERPRINT.fullmatch(cycle_ref))
                 )
             )
             and (
                 stage is None
-                or (
-                    isinstance(stage, str)
-                    and (stage == "INVALID_STAGE" or stage in _STAGES)
-                )
+                or (isinstance(stage, str) and (stage == "INVALID_STAGE" or stage in _STAGES))
             )
         ):
             return {key: value[key] for key in value}

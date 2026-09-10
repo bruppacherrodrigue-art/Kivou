@@ -8,7 +8,14 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from signals.policy.contracts import (
     MAX_APPROVAL_GRANTS,
@@ -200,30 +207,40 @@ class ContactObservation(ContactDiscoveryContract):
     def valid_business_email(cls, value: str) -> str:
         if not _EMAIL.fullmatch(value):
             raise ValueError("invalid business email")
-        if value.split("@", 1)[0].casefold() in {"contact", "info", "hello", "office", "admin"}:
-            raise ValueError("generic mailbox is not a decision-maker email")
         return value
 
-    @field_validator("provider", "verification_provider")
+    @field_validator("provider")
     @classmethod
-    def apollo_only(cls, value: str) -> str:
-        if value != PROVIDER:
-            raise ValueError("only Apollo provider observations are supported")
+    def supported_provider(cls, value: str) -> str:
+        if value not in {PROVIDER, "company_website"}:
+            raise ValueError("unsupported contact provider")
         return value
 
-    @field_validator("provider_email_status")
-    @classmethod
-    def verified_status(cls, value: str) -> str:
-        if value != "verified":
-            raise ValueError("provider email status must be verified")
-        return value
-
-    @field_validator("verification_state")
-    @classmethod
-    def provider_verified_state(cls, value: str) -> str:
-        if value != "PROVIDER_VERIFIED":
-            raise ValueError("contact must be provider verified")
-        return value
+    @model_validator(mode="after")
+    def verified_contact_contract(self):
+        if self.provider == PROVIDER:
+            if (
+                self.verification_provider != PROVIDER
+                or self.provider_email_status != "verified"
+                or self.verification_state != "PROVIDER_VERIFIED"
+            ):
+                raise ValueError("Apollo contact must be provider verified")
+            if self.business_email.split("@", 1)[0].casefold() in {
+                "contact",
+                "info",
+                "hello",
+                "office",
+                "admin",
+            }:
+                raise ValueError("generic Apollo mailbox is not a decision-maker email")
+        elif not (
+            self.display_name
+            and self.verification_provider == "mx_smtp"
+            and self.provider_email_status == "smtp_accepted"
+            and self.verification_state == "DELIVERABILITY_VERIFIED"
+        ):
+            raise ValueError("website contact must name a deliverability-verified director")
+        return self
 
 
 class ContactRecord(ContactObservation):

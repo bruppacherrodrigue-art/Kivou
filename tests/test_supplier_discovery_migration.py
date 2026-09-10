@@ -8,7 +8,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 
 PREVIOUS = "0008_policy_gateway"
 HEAD = "0009_supplier_discovery"
-CURRENT_HEAD = "0046_sirene_apollo_binding"
+CURRENT_HEAD = "0047_contact_waterfall"
 
 
 def test_supplier_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:

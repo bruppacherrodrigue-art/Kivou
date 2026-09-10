@@ -42,9 +42,7 @@ def _profile_values(
         "organization_name": organization_name,
         "organization_city": organization_city,
         "organization_domain": organization_domain,
-        "endpoint_kind": (
-            "resolve_name_city_then_exact" if organization_name else ENDPOINT_KIND
-        ),
+        "endpoint_kind": ("resolve_name_city_then_exact" if organization_name else ENDPOINT_KIND),
         "response_contract_version": RESPONSE_CONTRACT_VERSION,
         "allowed_provider_fields": ALLOWED_PROVIDER_FIELDS,
         "max_response_bytes": MAX_RESPONSE_BYTES,
