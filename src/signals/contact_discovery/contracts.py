@@ -251,25 +251,26 @@ class ContactRecord(ContactObservation):
     _record_times = field_validator("created_at", "updated_at")(_aware_optional)
 
 
-def is_attachable_contact(value: ContactObservation) -> bool:
-    return bool(
-        value.business_email
-        and (
-            (
-                value.provider == "apollo"
-                and value.verification_state == "PROVIDER_VERIFIED"
-                and value.verification_provider == "apollo"
-                and value.provider_email_status == "verified"
-            )
-            or (
-                value.provider == "company_website"
-                and value.verification_state == "DELIVERABILITY_VERIFIED"
-                and value.verification_provider == "mx_smtp"
-                and value.provider_email_status == "smtp_accepted"
-                and value.display_name
-            )
-        )
+def is_attachable_contact(value: object) -> bool:
+    """Accept a verified observation or its already-validated persisted binding."""
+
+    business_email = getattr(value, "business_email", True)
+    provider = getattr(value, "provider", None)
+    display_name = getattr(value, "display_name", True)
+    apollo_verified = (
+        provider in {None, "apollo"}
+        and getattr(value, "verification_state", None) == "PROVIDER_VERIFIED"
+        and getattr(value, "verification_provider", None) == "apollo"
+        and getattr(value, "provider_email_status", None) == "verified"
     )
+    website_verified = (
+        provider in {None, "company_website"}
+        and getattr(value, "verification_state", None) == "DELIVERABILITY_VERIFIED"
+        and getattr(value, "verification_provider", None) == "mx_smtp"
+        and getattr(value, "provider_email_status", None) == "smtp_accepted"
+        and display_name
+    )
+    return bool(business_email and (apollo_verified or website_verified))
 
 
 class ContactRunStart(ContactDiscoveryContract):
