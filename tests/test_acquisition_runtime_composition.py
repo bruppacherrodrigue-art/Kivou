@@ -183,6 +183,20 @@ def test_supplier_without_domain_or_apollo_binding_is_not_eligible() -> None:
     assert runtime_composition._supplier_binding_is_usable(binding) is False
 
 
+def test_supplier_with_apollo_binding_but_no_verified_domain_is_not_eligible() -> None:
+    binding = type(
+        "Binding",
+        (),
+        {
+            "status": BindingStatus.RESOLVED,
+            "apollo_organization_id": "apollo-org-42",
+            "domain": None,
+        },
+    )()
+
+    assert runtime_composition._supplier_binding_is_usable(binding) is False
+
+
 def test_builder_refuses_supplier_limits_wider_than_one_candidate() -> None:
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     provider = NoNetworkProvider()

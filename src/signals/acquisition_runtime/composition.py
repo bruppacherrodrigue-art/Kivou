@@ -59,9 +59,9 @@ RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION = PROFILE_VERSION
 
 
 def _supplier_binding_is_usable(binding) -> bool:
-    """Apollo is optional; a verified web domain is enough for level two."""
+    """A verified web domain is required; Apollo remains an optional attempt."""
 
-    return bool(binding.domain or binding.apollo_organization_id)
+    return bool(binding.domain)
 
 
 def runtime_qa_contact_profile_descriptor() -> dict[str, object]:
