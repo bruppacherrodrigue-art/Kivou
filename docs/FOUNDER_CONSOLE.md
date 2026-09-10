@@ -347,8 +347,10 @@ sudo certbot certonly --webroot -w /var/www/certbot -d control.kivou.eu
 ```
 
 Remove only the temporary vhost, then deploy the explicit production SHA. The
-deployment candidate installs `ops/nginx/kivou-founder-control.conf`, validates
-it with `nginx -t` and reloads nginx only after validation succeeds:
+deployment's nginx transaction installs `ops/nginx/kivou-founder-control.conf`,
+validates it with `nginx -t` and reloads nginx only after validation succeeds.
+If nginx validation or reload fails, it restores the prior available and
+enabled nginx state:
 
 ```bash
 sudo rm -- /etc/nginx/sites-enabled/kivou-founder-bootstrap.conf
@@ -374,10 +376,20 @@ npm test -- --run
 npm run build:founder
 ```
 
-Deployment is performed by `ops/bin/kivou-deploy.sh`. It copies
-`frontend/dist-founder/` atomically to `/srv/kivou-founder/frontend/` and
-installs the versioned systemd and nginx files through a candidate, validation
-and rollback procedure.
+Deployment is performed by `ops/bin/kivou-deploy.sh`. In production it builds
+`frontend/dist-founder/`, atomically switches `/srv/kivou-founder/frontend` to
+that build and preserves the former target as
+`/srv/kivou-founder/frontend.previous`. The `.previous` link is a recovery
+reference, not an automatic frontend rollback.
+
+The script then installs the versioned `kivou-founder-api.service`, reloads
+systemd, enables and restarts the unit, and performs bounded local health
+checks. It does not automatically roll back the frontend or unit if this phase
+fails.
+
+Separately, the script installs the nginx site, validates the candidate with
+`nginx -t`, and reloads nginx. That nginx transaction snapshots and restores
+the prior available and enabled site state if validation or reload fails.
 
 Backend gate:
 
