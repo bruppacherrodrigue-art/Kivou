@@ -757,7 +757,7 @@ def test_founder_https_uses_production_tls_and_server_wide_basic_auth() -> None:
     )
 
 
-def test_founder_https_preserves_frontend_health_and_security_contracts() -> None:
+def test_founder_https_preserves_frontend_and_security_contracts() -> None:
     https = _only_founder_server("listen 443 ssl http2;")
     direct = _direct_server_directives(https.body)
     locations = _location_blocks(https.body)
@@ -773,32 +773,11 @@ def test_founder_https_preserves_frontend_health_and_security_contracts() -> Non
     ):
         assert direct.count(expected) == 1
 
-    health = _only_location(https, "= /healthz")
-    health_directives = _directives(health.body)
-    shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
-    assert _directives_starting_with(health.body, "proxy_pass ") == (
-        "proxy_pass http://127.0.0.1:8011;",
-    )
-    for expected in (
-        "proxy_set_header X-Kivou-Founder-User $remote_user;",
-        (
-            "proxy_set_header X-Kivou-Founder-Origin-Secret "
-            "$kivou_founder_origin_secret;"
-        ),
-    ):
-        assert health_directives.count(expected) == 1
-        assert health_directives.index(shared_params) < health_directives.index(expected)
-    assert not any(
-        directive.startswith((
-            "proxy_set_header Host ",
-            "proxy_set_header X-Forwarded-Proto ",
-        ))
-        for directive in health_directives
-    )
-
-    assert frozenset(
+    selectors = frozenset(block.selector for block in locations)
+    assert "= /healthz" not in selectors
+    assert tuple(
         block.selector for block in locations if "proxy_pass" in block.body
-    ) == {"= /healthz", "^~ /api/founder/"}
+    ) == ("^~ /api/founder/",)
     assert _directives(_only_location(https, "/").body) == (
         "try_files $uri $uri/ /index.html;",
     )
