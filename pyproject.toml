@@ -44,7 +44,7 @@ dev = [
     "filelock>=3.16",
     "pytest>=8",
     "pytest-xdist>=3.8",
-    "ruff>=0.16.5",
+    "ruff>=0.16.6",
     # Pilote PostgreSQL : présent en dev pour que le dialecte de PRODUCTION soit
     # exerçable par les tests sans qu'aucun serveur ne tourne.
     "psycopg[binary]>=3.3.4",
