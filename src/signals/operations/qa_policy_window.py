@@ -162,8 +162,18 @@ class RuntimeQaPolicyWindowController:
             if current.control_revision > head.control_revision:
                 continue
             if current.control_revision != head.control_revision:
-                raise RuntimeQaPolicyWindowError("runtime QA policy durable head is not effective")
-            authority = self._close_authority(runtime_config, current=current)
+                authority = self._close_authority(runtime_config, current=head)
+                if not self._is_expected_expired_window(
+                    head,
+                    authority=authority,
+                    at=at,
+                ):
+                    raise RuntimeQaPolicyWindowError(
+                        "runtime QA policy durable head is not effective"
+                    )
+                current = head
+            else:
+                authority = self._close_authority(runtime_config, current=current)
             self._require_chf(current)
             if self._same_closed_window(current, authority=authority):
                 return current

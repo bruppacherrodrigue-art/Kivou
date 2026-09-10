@@ -536,6 +536,48 @@ def test_unclosed_window_expires_back_to_the_previous_hard_stop(tmp_path) -> Non
     assert restored.kill_switch is True
 
 
+def test_expired_dynamic_window_can_be_closed_from_its_persisted_binding(
+    tmp_path, monkeypatch
+) -> None:
+    engine = _engine(tmp_path)
+    _seed_public_opportunity(
+        engine,
+        opportunity_key="opportunity-dynamic-expired-001",
+        country="FR",
+    )
+    monkeypatch.setattr(
+        "signals.operations.qa_policy_window.select_production_opportunity_key",
+        lambda *_args, **_kwargs: "opportunity-dynamic-expired-001",
+    )
+    controller = _controller(engine)
+    runtime_config = _dynamic_runtime_config()
+    opened = controller.open(
+        at=NOW,
+        expires_at=NOW + dt.timedelta(minutes=1),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_CYCLE",
+        runtime_config=runtime_config,
+    )
+    monkeypatch.setattr(
+        "signals.operations.qa_policy_window.select_production_opportunity_key",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("close must not select another opportunity")
+        ),
+    )
+
+    closed = controller.close(
+        at=NOW + dt.timedelta(minutes=2),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_CYCLE_COMPLETE",
+        runtime_config=runtime_config,
+    )
+
+    assert closed.control_revision == opened.control_revision + 1
+    assert closed.qa_signal_ref == opened.qa_signal_ref
+    assert closed.autonomy_mode is AutonomyMode.SHADOW
+    assert closed.read_only is True
+
+
 def test_expired_window_can_be_reopened_with_the_next_persisted_revision(
     tmp_path,
 ) -> None:
