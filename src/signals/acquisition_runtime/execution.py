@@ -679,6 +679,7 @@ def build_runtime_execution_composition(
             pages=CompanyWebsiteClient(),
             extractor=contact_extractor,
             deliverability=EmailMxVerifier(),
+            directory=supplier_directory,
         )
     suppression_keyring = webhook_configuration.suppression_keyring
     link_builder = AttributionLinkBuilder(

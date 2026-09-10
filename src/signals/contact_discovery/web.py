@@ -7,7 +7,7 @@ import hashlib
 import logging
 import re
 from html.parser import HTMLParser
-from typing import Protocol
+from typing import Literal, Protocol
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from signals.companies.france import ANNUAIRE_BASE_URL, MAX_RESPONSE_BYTES
 from signals.company_research.identity import ascii_text
 from signals.contact_discovery.contracts import ContactObservation, DecisionMakerSearchProfile
-from signals.contact_discovery.providers import PublishedContactExtractor
+from signals.contact_discovery.providers import PublishedContactExtractor, coherent_email_domain
 from signals.supplier_directory.store import SupplierDirectoryStore
 
 logger = logging.getLogger(__name__)
@@ -26,13 +26,36 @@ _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _TEXT_EMAIL = re.compile(
     r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63})(?![A-Za-z0-9-])"
 )
-_OPERATIONAL_TITLES = ("gerant", "president", "directeur general", "directrice generale")
+_OPERATIONAL_TITLES = (
+    "gerant",
+    "cogerant",
+    "president",
+    "president du conseil",
+    "directeur general",
+    "directrice generale",
+    "associe gerant",
+    "personne physique dirigeante",
+)
+_EXCLUDED_TITLES = ("commissaire aux comptes", "representant")
+_FORM_DOMAIN_BLOCKLIST = (
+    "118712.fr",
+    "cataloxy.org",
+    "hoodspot.fr",
+    "industrie.usinenouvelle.com",
+    "kompass.com",
+    "lagazettefrance.fr",
+    "pagesjaunes.fr",
+    "societe.com",
+    "verif.com",
+)
 
 
 class OfficialDirector(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
     name: str = Field(min_length=3, max_length=256)
     title: str = Field(min_length=2, max_length=256)
+    entity_type: Literal["personne physique", "personne morale"] = "personne physique"
+    first_name: str | None = Field(default=None, max_length=128)
 
 
 class WebsiteEvidence(BaseModel):
@@ -40,6 +63,7 @@ class WebsiteEvidence(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
     text: str = Field(max_length=40_000)
     published_emails: tuple[EmailStr, ...] = Field(max_length=32)
+    has_contact_form: bool = False
 
 
 class OfficialDirectorSource(Protocol):
@@ -78,7 +102,13 @@ class AnnuaireDirectorClient:
         try:
             response = self._client.get(
                 f"{ANNUAIRE_BASE_URL}/search",
-                params={"q": siren, "page": 1, "per_page": 1},
+                params={
+                    "q": siren,
+                    "page": 1,
+                    "per_page": 1,
+                    "minimal": "true",
+                    "include": "dirigeants",
+                },
                 headers={"accept": "application/json", "user-agent": "Kivou/1.0"},
             )
             if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
@@ -93,13 +123,27 @@ class AnnuaireDirectorClient:
             for leader in leaders[:20]:
                 if not isinstance(leader, dict):
                     continue
-                name = " ".join(
-                    str(leader.get(key) or "").strip() for key in ("prenoms", "nom")
-                ).strip()
+                first_name = str(leader.get("prenoms") or "").strip() or None
+                physical_name = " ".join(
+                    value for value in (first_name, str(leader.get("nom") or "").strip()) if value
+                )
+                corporate_name = str(leader.get("denomination") or "").strip()
+                entity_type = str(leader.get("type_dirigeant") or "personne physique").casefold()
+                is_corporate = "morale" in entity_type
+                name = corporate_name if is_corporate else physical_name
                 title = str(leader.get("qualite") or leader.get("type_dirigeant") or "Dirigeant")
                 normalized_title = " ".join(ascii_text(title).casefold().split())
-                if name and any(value in normalized_title for value in _OPERATIONAL_TITLES):
-                    output.append(OfficialDirector(name=name, title=title))
+                operational = any(value in normalized_title for value in _OPERATIONAL_TITLES)
+                excluded = any(value in normalized_title for value in _EXCLUDED_TITLES)
+                if name and operational and not excluded:
+                    output.append(
+                        OfficialDirector(
+                            name=name,
+                            title=title,
+                            entity_type="personne morale" if is_corporate else "personne physique",
+                            first_name=None if is_corporate else first_name,
+                        )
+                    )
             result = tuple(output)
             if self._directory is not None and result:
                 self._directory.record_directors(
@@ -118,8 +162,11 @@ class _PageParser(HTMLParser):
         self.text: list[str] = []
         self.emails: set[str] = set()
         self.links: list[str] = []
+        self.has_form = False
 
     def handle_starttag(self, tag, attrs):
+        if tag == "form":
+            self.has_form = True
         values = dict(attrs)
         href = values.get("href")
         if tag == "a" and isinstance(href, str):
@@ -164,6 +211,7 @@ class CompanyWebsiteClient:
                 url=str(response.url),
                 text=text,
                 published_emails=ordered_emails,
+                has_contact_form=parser.has_form,
             ), parser.links
         except (httpx.HTTPError, UnicodeError, ValueError):
             return None, []
@@ -189,12 +237,24 @@ class CompanyWebsiteClient:
         return tuple(evidence)
 
 
+def _form_domain_is_usable(domain: str) -> bool:
+    normalized = domain.casefold().removeprefix("www.")
+    return not (
+        normalized.endswith(".gouv.fr")
+        or normalized.startswith("mairie-")
+        or any(
+            normalized == item or normalized.endswith(f".{item}") for item in _FORM_DOMAIN_BLOCKLIST
+        )
+    )
+
+
 class PublishedWebsiteContactProvider:
-    def __init__(self, *, directors, pages, extractor, deliverability) -> None:
+    def __init__(self, *, directors, pages, extractor, deliverability, directory=None) -> None:
         self._directors: OfficialDirectorSource = directors
         self._pages: WebsitePageSource = pages
         self._extractor: PublishedContactExtractor = extractor
         self._deliverability: DeliverabilitySource = deliverability
+        self._directory: SupplierDirectoryStore | None = directory
 
     def find(
         self, profile: DecisionMakerSearchProfile, *, observed_at: dt.datetime
@@ -203,55 +263,72 @@ class PublishedWebsiteContactProvider:
             return None
         directors = self._directors.find(profile.supplier_siren)
         evidence = self._pages.fetch(profile.organization_domain)
-        if not directors:
-            logger.info(
-                "website_contact_rejected",
-                extra={"siren": profile.supplier_siren, "reason": "pas de dirigeant opérationnel"},
-            )
-            return None
         if not evidence or not any(page.published_emails for page in evidence):
+            form = next((page for page in evidence if page.has_contact_form), None)
+            form_recorded = False
+            if (
+                form is not None
+                and self._directory is not None
+                and _form_domain_is_usable(profile.organization_domain)
+            ):
+                form_recorded = self._directory.record_contact_form(
+                    profile.supplier_siren,
+                    url=form.url,
+                    observed_at=observed_at,
+                )
             logger.info(
                 "website_contact_rejected",
-                extra={"siren": profile.supplier_siren, "reason": "pas d'adresse publiée"},
+                extra={
+                    "siren": profile.supplier_siren,
+                    "reason": "contact par formulaire"
+                    if form_recorded
+                    else "pas d'adresse publiée",
+                },
             )
             return None
-        extraction = self._extractor.extract(
-            company_name=profile.organization_name or profile.supplier_siren,
-            directors=directors,
-            evidence=evidence,
+        candidates = tuple(
+            str(email)
+            for page in evidence
+            for email in page.published_emails
+            if coherent_email_domain(str(email), evidence)
         )
-        if extraction is None:
-            logger.info(
-                "website_contact_rejected",
-                extra={"siren": profile.supplier_siren, "reason": "adresse non retenue"},
-            )
-            return None
-        if not self._deliverability.verify(str(extraction.email)):
+        email = next(
+            (
+                candidate
+                for candidate in dict.fromkeys(candidates)
+                if self._deliverability.verify(candidate)
+            ),
+            None,
+        )
+        if email is None:
             logger.info(
                 "website_contact_rejected",
                 extra={"siren": profile.supplier_siren, "reason": "mx invalide"},
             )
             return None
-        digest = hashlib.sha256(
-            f"{profile.supplier_siren}\0{extraction.dirigeant}\0{extraction.email}".encode()
-        ).hexdigest()
-        director = next(
-            item
-            for item in directors
-            if " ".join(item.name.casefold().split())
-            == " ".join(extraction.dirigeant.casefold().split())
+        physical_directors = tuple(
+            item for item in directors if item.entity_type == "personne physique"
         )
+        director = physical_directors[0] if physical_directors else None
+        display_name = (
+            director.name if director else (profile.organization_name or profile.supplier_siren)
+        )
+        title = director.title if director else "Entreprise"
+        digest = hashlib.sha256(
+            f"{profile.supplier_siren}\0{display_name}\0{email}".encode()
+        ).hexdigest()
         return ContactObservation(
             supplier_ref=profile.supplier_ref,
             provider="company_website",
             provider_person_id=f"web-{digest[:24]}",
             provider_organization_id=profile.supplier_siren,
-            display_name=director.name,
-            title=director.title,
-            normalized_title="dirigeant",
+            first_name=director.first_name if director else None,
+            display_name=display_name,
+            title=title,
+            normalized_title="dirigeant" if director else "entreprise",
             role_profile_version=profile.profile_version,
-            role_tier=1,
-            business_email=str(extraction.email),
+            role_tier=1 if director else 4,
+            business_email=email,
             provider_email_status="mx_accepted",
             verification_state="DELIVERABILITY_VERIFIED",
             verification_provider="dns_mx",

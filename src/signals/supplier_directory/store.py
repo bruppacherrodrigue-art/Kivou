@@ -38,7 +38,7 @@ class SupplierDirectoryRecord(BaseModel):
     apollo_organization_id: str | None = None
     apollo_status: Literal["resolved", "unresolved"] | None = None
     apollo_observed_at: dt.datetime | None = None
-    directors: tuple[dict[str, str], ...] = Field(default=())
+    directors: tuple[dict[str, object], ...] = Field(default=())
     directors_observed_at: dt.datetime | None = None
     professional_email: str | None = None
     email_source: Literal["apollo", "site", "manual"] | None = None
@@ -46,6 +46,8 @@ class SupplierDirectoryRecord(BaseModel):
     email_contact_name: str | None = None
     email_contact_title: str | None = None
     email_observed_at: dt.datetime | None = None
+    contact_form_url: str | None = None
+    contact_form_observed_at: dt.datetime | None = None
     suppressed_at: dt.datetime | None = None
     created_at: dt.datetime
     updated_at: dt.datetime
@@ -71,6 +73,7 @@ class SupplierDirectoryRecord(BaseModel):
         "apollo_observed_at",
         "directors_observed_at",
         "email_observed_at",
+        "contact_form_observed_at",
         "suppressed_at",
         "created_at",
         "updated_at",
@@ -222,13 +225,19 @@ class SupplierDirectoryStore:
         self,
         siren: str,
         *,
-        directors: tuple[Mapping[str, str], ...],
+        directors: tuple[Mapping[str, object], ...],
         observed_at: dt.datetime,
     ) -> None:
-        bounded = [
-            {"name": str(item["name"])[:256], "title": str(item["title"])[:256]}
-            for item in directors[:20]
-        ]
+        bounded = []
+        for item in directors[:20]:
+            value = {
+                "name": str(item["name"])[:256],
+                "title": str(item["title"])[:256],
+                "entity_type": str(item.get("entity_type") or "personne physique")[:32],
+            }
+            if item.get("first_name"):
+                value["first_name"] = str(item["first_name"])[:128]
+            bounded.append(value)
         self._update(
             siren,
             {"directors": bounded, "directors_observed_at": observed_at},
@@ -259,6 +268,22 @@ class SupplierDirectoryStore:
             },
             observed_at,
             skip_if_suppressed=True,
+        )
+
+    def record_contact_form(
+        self,
+        siren: str,
+        *,
+        url: str,
+        observed_at: dt.datetime,
+    ) -> bool:
+        return self._update(
+            siren,
+            {
+                "contact_form_url": url[:2048],
+                "contact_form_observed_at": observed_at,
+            },
+            observed_at,
         )
 
     def fresh_domain(self, siren: str, *, at: dt.datetime) -> SupplierDirectoryRecord | None:

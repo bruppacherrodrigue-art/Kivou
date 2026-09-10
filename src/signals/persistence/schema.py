@@ -130,7 +130,10 @@ procedure_documents = sa.Table(
     sa.Column("expires_at", sa.DateTime(timezone=True), index=True),
     _created_at(),
     sa.UniqueConstraint(
-        "source_system", "source_notice_id", "source_url", "content_hash",
+        "source_system",
+        "source_notice_id",
+        "source_url",
+        "content_hash",
         name="uq_procedure_documents_source_version",
     ),
 )
@@ -338,8 +341,20 @@ for_you_sentence = sa.Table(
     "for_you_sentence",
     METADATA,
     sa.Column("for_you_id", sa.String(64), primary_key=True),
-    sa.Column("signal_key", sa.String(64), sa.ForeignKey("materialized_signal.signal_key", ondelete="CASCADE"), nullable=False, index=True),
-    sa.Column("target_icp_id", sa.String(128), sa.ForeignKey("target_icp.target_icp_id", ondelete="CASCADE"), nullable=False, index=True),
+    sa.Column(
+        "signal_key",
+        sa.String(64),
+        sa.ForeignKey("materialized_signal.signal_key", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
+    sa.Column(
+        "target_icp_id",
+        sa.String(128),
+        sa.ForeignKey("target_icp.target_icp_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
     sa.Column("signal_fingerprint", sa.String(64), nullable=False),
     sa.Column("profile_fingerprint", sa.String(64), nullable=False),
     sa.Column("policy_version", sa.String(64), nullable=False),
@@ -360,11 +375,23 @@ for_you_sentence = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("completed_at", sa.DateTime(timezone=True)),
-    sa.UniqueConstraint("signal_key", "target_icp_id", "signal_fingerprint", "profile_fingerprint", "policy_version", name="uq_for_you_pair_version"),
+    sa.UniqueConstraint(
+        "signal_key",
+        "target_icp_id",
+        "signal_fingerprint",
+        "profile_fingerprint",
+        "policy_version",
+        name="uq_for_you_pair_version",
+    ),
     sa.CheckConstraint("state IN ('pending', 'running', 'completed')", name="ck_for_you_state"),
     sa.CheckConstraint("provenance IN ('fallback', 'generated')", name="ck_for_you_provenance"),
-    sa.CheckConstraint("model_fit IS NULL OR model_fit IN ('strong', 'weak', 'none')", name="ck_for_you_model_fit"),
-    sa.CheckConstraint("validation_reason IS NULL OR validation_reason IN ('provider_unavailable', 'invalid_shape', 'invalid_content', 'too_many_words', 'exclamation', 'superlative', 'invented_number', 'invented_date', 'invented_name_or_place')", name="ck_for_you_validation_reason"),
+    sa.CheckConstraint(
+        "model_fit IS NULL OR model_fit IN ('strong', 'weak', 'none')", name="ck_for_you_model_fit"
+    ),
+    sa.CheckConstraint(
+        "validation_reason IS NULL OR validation_reason IN ('provider_unavailable', 'invalid_shape', 'invalid_content', 'too_many_words', 'exclamation', 'superlative', 'invented_number', 'invented_date', 'invented_name_or_place')",
+        name="ck_for_you_validation_reason",
+    ),
 )
 
 
@@ -488,8 +515,7 @@ card_presentation_artifact = sa.Table(
         name="ck_card_presentation_created_published_order",
     ),
     sa.CheckConstraint(
-        "superseded_at IS NULL OR "
-        "(published_at IS NOT NULL AND published_at <= superseded_at)",
+        "superseded_at IS NULL OR (published_at IS NOT NULL AND published_at <= superseded_at)",
         name="ck_card_presentation_published_superseded_order",
     ),
     sa.Index(
@@ -798,8 +824,13 @@ sirene_apollo_binding = sa.Table(
     sa.Column("status", sa.String(16), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint("status IN ('resolved', 'unresolved', 'legacy')", name="ck_sirene_apollo_binding_status"),
-    sa.CheckConstraint("confidence_score IS NULL OR confidence_score >= 0 AND confidence_score <= 1", name="ck_sirene_apollo_binding_confidence"),
+    sa.CheckConstraint(
+        "status IN ('resolved', 'unresolved', 'legacy')", name="ck_sirene_apollo_binding_status"
+    ),
+    sa.CheckConstraint(
+        "confidence_score IS NULL OR confidence_score >= 0 AND confidence_score <= 1",
+        name="ck_sirene_apollo_binding_confidence",
+    ),
 )
 
 
@@ -834,11 +865,15 @@ supplier_directory = sa.Table(
     sa.Column("email_contact_name", sa.Text),
     sa.Column("email_contact_title", sa.Text),
     sa.Column("email_observed_at", sa.DateTime(timezone=True)),
+    sa.Column("contact_form_url", sa.Text),
+    sa.Column("contact_form_observed_at", sa.DateTime(timezone=True)),
     sa.Column("suppressed_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("length(siren) = 9", name="ck_supplier_directory_siren"),
-    sa.CheckConstraint("employees IS NULL OR employees >= 0", name="ck_supplier_directory_employees"),
+    sa.CheckConstraint(
+        "employees IS NULL OR employees >= 0", name="ck_supplier_directory_employees"
+    ),
     sa.CheckConstraint(
         "email_source IS NULL OR email_source IN ('apollo', 'site', 'manual')",
         name="ck_supplier_directory_email_source",
@@ -1156,9 +1191,7 @@ acquisition_company_profile = sa.Table(
     sa.Column("prebuild_fingerprint", sa.String(64), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint(
-        "provider IN ('apollo', 'sirene')", name="ck_company_profile_provider"
-    ),
+    sa.CheckConstraint("provider IN ('apollo', 'sirene')", name="ck_company_profile_provider"),
     sa.CheckConstraint(
         "supplier_identity_status IN ('PROVIDER_IDENTIFIED', 'SIRENE_IDENTIFIED', "
         "'LEGACY_APOLLO', 'DOMAIN_CONFLICT')",
@@ -1453,7 +1486,13 @@ acquisition_shadow_mail = sa.Table(
     "acquisition_shadow_mail",
     METADATA,
     sa.Column("shadow_mail_id", sa.String(64), primary_key=True),
-    sa.Column("cycle_ref", sa.String(64), sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"), nullable=False, index=True),
+    sa.Column(
+        "cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
     sa.Column("opportunity_key", sa.String(256), nullable=False, index=True),
     sa.Column("procedure_award_key", sa.String(64), nullable=False),
     sa.Column("supplier_ref", sa.String(64)),
@@ -2717,8 +2756,7 @@ acquisition_runtime_stage = sa.Table(
         name="ck_acquisition_runtime_stage_retry",
     ),
     sa.CheckConstraint(
-        "replay_same_attempt IS FALSE OR "
-        "(status = 'WAITING' AND retry_at IS NOT NULL)",
+        "replay_same_attempt IS FALSE OR (status = 'WAITING' AND retry_at IS NOT NULL)",
         name="ck_acquisition_runtime_stage_replay",
     ),
     sa.Index("ix_acquisition_runtime_stage_status", "status", "updated_at"),
@@ -2775,8 +2813,7 @@ acquisition_runtime_stage_attempt = sa.Table(
         name="ck_acquisition_runtime_attempt_retry",
     ),
     sa.CheckConstraint(
-        "replay_same_attempt IS FALSE OR "
-        "(status = 'WAITING' AND retry_at IS NOT NULL)",
+        "replay_same_attempt IS FALSE OR (status = 'WAITING' AND retry_at IS NOT NULL)",
         name="ck_acquisition_runtime_attempt_replay",
     ),
     sa.Index(
