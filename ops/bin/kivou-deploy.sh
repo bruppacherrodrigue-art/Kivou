@@ -178,6 +178,9 @@ sync_systemd_units() {
   units=("$unit_dir"/*.service "$unit_dir"/*.timer)
   shopt -u nullglob
   for unit in "${units[@]}"; do
+    if [[ "$KIVOU_ENVIRONMENT" == "staging" && "$(basename "$unit")" == "$KIVOU_FOUNDER_SYSTEMD_UNIT" ]]; then
+      continue
+    fi
     install -o root -g root -m 0644 "$unit" "/etc/systemd/system/$(basename "$unit")"
     unit_count=$((unit_count + 1))
   done
