@@ -6,6 +6,7 @@ import shlex
 import subprocess
 import sys
 import tomllib
+from types import SimpleNamespace
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BENCHMARK_MODULES = (
@@ -53,15 +54,35 @@ def test_local_pytest_defaults_to_parallel_fast_suite() -> None:
     assert shlex.split(pytest_options["addopts"]) == ["-n", "auto", "-m", "not slow"]
     assert any(marker.startswith("slow:") for marker in pytest_options["markers"])
     assert "archive" in pytest_options["norecursedirs"]
+    assert pytest_options["tmp_path_retention_policy"] == "none"
 
 
-def test_local_pytest_uses_available_memory_backed_temp_root(tmp_path: pathlib.Path) -> None:
+def test_local_pytest_uses_available_memory_backed_temp_root(
+    tmp_path: pathlib.Path, monkeypatch
+) -> None:
     from conftest import configure_local_pytest_temproot
 
     environment: dict[str, str] = {}
+    monkeypatch.setattr("conftest.shutil.disk_usage", lambda _: SimpleNamespace(free=5 * 1024**3))
 
-    assert configure_local_pytest_temproot(environment, candidate=tmp_path)
-    assert environment["PYTEST_DEBUG_TEMPROOT"] == str(tmp_path)
+    assert configure_local_pytest_temproot(environment, candidate=tmp_path, process_id=123)
+    expected = tmp_path / "kivou-pytest-123"
+    assert environment["PYTEST_DEBUG_TEMPROOT"] == str(expected)
+    assert environment["KIVOU_LOCAL_PYTEST_TEMPROOT"] == str(expected)
+    assert environment["KIVOU_LOCAL_PYTEST_TEMPROOT_OWNER"] == "123"
+    assert expected.is_dir()
+
+
+def test_local_pytest_rejects_a_small_memory_backed_temp_root(
+    tmp_path: pathlib.Path, monkeypatch
+) -> None:
+    from conftest import configure_local_pytest_temproot
+
+    environment: dict[str, str] = {}
+    monkeypatch.setattr("conftest.shutil.disk_usage", lambda _: SimpleNamespace(free=1024**3))
+
+    assert not configure_local_pytest_temproot(environment, candidate=tmp_path)
+    assert "PYTEST_DEBUG_TEMPROOT" not in environment
 
 
 def test_ci_and_explicit_temp_roots_are_not_overridden(tmp_path: pathlib.Path) -> None:
@@ -74,6 +95,24 @@ def test_ci_and_explicit_temp_roots_are_not_overridden(tmp_path: pathlib.Path) -
     assert not configure_local_pytest_temproot(explicit_environment, candidate=tmp_path)
     assert "PYTEST_DEBUG_TEMPROOT" not in ci_environment
     assert explicit_environment["PYTEST_DEBUG_TEMPROOT"] == "/operator-choice"
+
+
+def test_local_memory_backed_temp_root_is_removed_even_after_permission_tests(
+    tmp_path: pathlib.Path,
+) -> None:
+    from conftest import remove_local_pytest_temproot
+
+    root = tmp_path / "kivou-pytest-cleanup"
+    locked = root / "locked"
+    locked.mkdir(parents=True)
+    artifact = locked / "artifact"
+    artifact.write_text("temporary", encoding="utf-8")
+    artifact.chmod(0)
+    locked.chmod(0)
+
+    remove_local_pytest_temproot(root)
+
+    assert not root.exists()
 
 
 def test_real_default_collection_excludes_slow_and_all_archive_trees() -> None:
