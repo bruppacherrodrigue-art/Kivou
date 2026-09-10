@@ -4,6 +4,7 @@ import datetime as dt
 from decimal import Decimal
 
 import httpx
+import pytest
 import sqlalchemy as sa
 from alembic import command
 
@@ -17,6 +18,7 @@ from signals.company_research.contracts import (
     ApolloOrganizationObservation,
     CompanyResearchProviderError,
 )
+from signals.company_research.profile import build_company_research_profile
 from signals.persistence.database import alembic_config, create_database_engine
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 
@@ -86,9 +88,7 @@ def test_resolver_persists_siren_to_apollo_binding_and_reuses_it(tmp_path) -> No
 
 def test_resolver_persists_unresolved_binding_without_apollo_id(tmp_path) -> None:
     engine = _engine(tmp_path)
-    result = SireneApolloResolver(engine, provider=Provider(missing=True)).resolve(
-        _identity()
-    )
+    result = SireneApolloResolver(engine, provider=Provider(missing=True)).resolve(_identity())
 
     assert result.status is BindingStatus.UNRESOLVED
     assert result.apollo_organization_id is None
@@ -122,13 +122,10 @@ def test_migration_marks_apollo_first_suppliers_legacy_without_binding(tmp_path)
     with engine.connect() as connection:
         status = connection.scalar(
             sa.text(
-                "SELECT identity_status FROM acquisition_supplier "
-                "WHERE supplier_ref='sup_legacy'"
+                "SELECT identity_status FROM acquisition_supplier WHERE supplier_ref='sup_legacy'"
             )
         )
-        binding_count = connection.scalar(
-            sa.text("SELECT count(*) FROM sirene_apollo_binding")
-        )
+        binding_count = connection.scalar(sa.text("SELECT count(*) FROM sirene_apollo_binding"))
 
     assert status == "LEGACY_APOLLO"
     assert binding_count == 0
@@ -140,7 +137,18 @@ def test_apollo_resolution_is_name_city_then_one_exact_organization_get() -> Non
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         if request.method == "POST":
-            return httpx.Response(200, json={"organizations": [{"id": "apollo-org-42"}]})
+            return httpx.Response(
+                200,
+                json={
+                    "organizations": [
+                        {
+                            "id": "apollo-org-42",
+                            "name": "Beton Alpes Groupe",
+                            "city": "Lyon",
+                        }
+                    ]
+                },
+            )
         return httpx.Response(
             200,
             json={
@@ -158,9 +166,7 @@ def test_apollo_resolution_is_name_city_then_one_exact_organization_get() -> Non
         client=httpx.Client(transport=httpx.MockTransport(handler)),
         clock=lambda: NOW,
     )
-    result = SireneApolloResolver(
-        _memory_engine(), provider=client
-    ).resolve(_identity())
+    result = SireneApolloResolver(_memory_engine(), provider=client).resolve(_identity())
 
     assert result.apollo_organization_id == "apollo-org-42"
     assert [(request.method, request.url.path) for request in requests] == [
@@ -169,9 +175,115 @@ def test_apollo_resolution_is_name_city_then_one_exact_organization_get() -> Non
     ]
     query = dict(requests[0].url.params.multi_items())
     assert query == {
-        "q_organization_name": "BETON ALPES",
+        "q_organization_name": "Beton Alpes",
         "organization_locations[]": "Lyon",
     }
+
+
+def test_apollo_resolution_rejects_first_result_and_accepts_strict_name_city_match() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "organizations": [
+                        {"id": "wrong", "name": "Alpes Habitat", "city": "Lyon"},
+                        {
+                            "id": "right",
+                            "name": "Beton Du Bourbonnais",
+                            "city": "Saint-Victor",
+                        },
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "organization": {
+                    "id": "right",
+                    "name": "Beton Du Bourbonnais",
+                    "country": "France",
+                    "estimated_num_employees": 12,
+                }
+            },
+        )
+
+    client = ApolloCompanyResearchClient(
+        api_key="test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        clock=lambda: NOW,
+    )
+    result = client.fetch_organization(
+        build_company_research_profile(
+            "123456789",
+            siren="123456789",
+            organization_name="SARL BÉTON DU BOURBONNAIS",
+            organization_city="ST-VICTOR",
+        )
+    )
+
+    assert result.provider_organization_id == "right"
+    assert result.resolution_confidence_score == Decimal("0.80")
+    query = dict(requests[0].url.params.multi_items())
+    assert query["q_organization_name"] == "Beton Du Bourbonnais"
+    assert query["organization_locations[]"] == "Saint-Victor"
+
+
+def test_apollo_resolution_requires_significant_name_words_and_city_or_domain() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(
+                200,
+                json={
+                    "organizations": [
+                        {
+                            "id": "wrong-name",
+                            "name": "Alpes Construction",
+                            "city": "Lyon",
+                            "primary_domain": "beton-alpes.fr",
+                        },
+                        {
+                            "id": "wrong-place",
+                            "name": "Beton Alpes",
+                            "city": "Paris",
+                            "primary_domain": "unrelated.example",
+                        },
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "organization": {
+                    "id": "wrong-place",
+                    "name": "Beton Alpes",
+                    "city": "Paris",
+                    "primary_domain": "unrelated.example",
+                }
+            },
+        )
+
+    client = ApolloCompanyResearchClient(
+        api_key="test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        clock=lambda: NOW,
+    )
+
+    with pytest.raises(CompanyResearchProviderError) as caught:
+        client.fetch_organization(
+            build_company_research_profile(
+                "123456789",
+                siren="123456789",
+                organization_name="SAS BETON ALPES",
+                organization_city="Lyon",
+                organization_domain="beton-alpes.fr",
+            )
+        )
+
+    assert caught.value.category == "not_found"
 
 
 def _memory_engine():
