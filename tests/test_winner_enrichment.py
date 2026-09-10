@@ -246,6 +246,33 @@ def test_postgresql_workers_skip_a_live_claim_without_waiting_or_double_processi
         assert row.status in {"completed", "partial"}
 
 
+def test_worker_can_be_bounded_to_exact_candidate_signal_keys(engine) -> None:
+    with engine.begin() as connection:
+        first = _seed(connection, "33112-02")
+        second = _seed(connection, "29997-02")
+        result = run_winner_enrichment_batch(
+            connection,
+            now=NOW,
+            worker_ref="winner-selection",
+            limit=45,
+            signal_keys=(second.signal_key,),
+        )
+        first_job = connection.execute(
+            sa.select(winner_enrichment_job).where(
+                winner_enrichment_job.c.signal_key == first.signal_key
+            )
+        ).one()
+        second_job = connection.execute(
+            sa.select(winner_enrichment_job).where(
+                winner_enrichment_job.c.signal_key == second.signal_key
+            )
+        ).one()
+
+    assert result.processed == 1
+    assert first_job.status == "pending"
+    assert second_job.status in {"completed", "partial"}
+
+
 def test_batch_rejects_unbounded_or_unsafe_operator_inputs(engine) -> None:
     with engine.begin() as connection:
         _seed(connection)

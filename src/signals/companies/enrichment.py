@@ -115,6 +115,7 @@ def _claim(
     worker_ref: str,
     limit: int,
     retry_failed: bool,
+    signal_keys: tuple[str, ...] | None = None,
 ) -> tuple[str, ...]:
     eligible = winner_enrichment_job.c.status == "pending"
     if retry_failed:
@@ -124,6 +125,17 @@ def _claim(
                 winner_enrichment_job.c.status == "failed",
                 winner_enrichment_job.c.attempt_count < MAX_ENRICHMENT_ATTEMPTS,
             ),
+        )
+    if signal_keys is not None:
+        if not signal_keys:
+            return ()
+        if len(signal_keys) > MAX_ENRICHMENT_BATCH:
+            raise ValueError(
+                f"at most {MAX_ENRICHMENT_BATCH} signal keys can be enriched"
+            )
+        eligible = sa.and_(
+            eligible,
+            winner_enrichment_job.c.signal_key.in_(tuple(sorted(set(signal_keys)))),
         )
     select_keys = (
         sa.select(winner_enrichment_job.c.signal_key)
@@ -260,6 +272,7 @@ def run_winner_enrichment_batch(
     limit: int = 100,
     retry_failed: bool = False,
     official_company_provider: FrenchOfficialCompanyClient | None = None,
+    signal_keys: tuple[str, ...] | None = None,
 ) -> WinnerEnrichmentBatch:
     """Project a bounded batch from database facts; never start automatically."""
 
@@ -273,6 +286,7 @@ def run_winner_enrichment_batch(
         worker_ref=worker_ref,
         limit=limit,
         retry_failed=retry_failed,
+        signal_keys=signal_keys,
     )
     counts = {"completed": 0, "partial": 0, "failed": 0}
     for signal_key in claimed:
