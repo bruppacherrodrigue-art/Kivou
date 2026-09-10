@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pathlib
+import subprocess
+import sys
 
 import sqlalchemy as sa
 from alembic.script import ScriptDirectory
@@ -64,3 +66,29 @@ def test_xdist_workers_resolve_the_same_session_template_path(tmp_path: pathlib.
     assert shared_migrated_sqlite_template_path(session_root / "popen-gw11") == (
         session_root / "kivou-migrated-head.db"
     )
+
+
+def test_test_configuration_imports_without_posix_fcntl() -> None:
+    script = """
+import builtins
+import runpy
+
+real_import = builtins.__import__
+
+def import_without_fcntl(name, *args, **kwargs):
+    if name == "fcntl":
+        raise ModuleNotFoundError("simulated non-POSIX platform")
+    return real_import(name, *args, **kwargs)
+
+builtins.__import__ = import_without_fcntl
+runpy.run_path("tests/conftest.py")
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

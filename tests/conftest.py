@@ -8,7 +8,6 @@ vrai contrat d'entrée, et pas sur une structure inventée pour l'occasion.
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import os
 import pathlib
 import re
@@ -17,6 +16,7 @@ import warnings
 from typing import Any
 
 import pytest
+from filelock import FileLock
 
 _FULL_BENCHMARK_SUITES = frozenset(
     {
@@ -107,8 +107,7 @@ def migrated_sqlite_template(tmp_path_factory: pytest.TempPathFactory) -> pathli
     template = shared_migrated_sqlite_template_path(tmp_path_factory.getbasetemp())
     template.parent.mkdir(parents=True, exist_ok=True)
     lock = template.with_suffix(".lock")
-    with lock.open("w") as lock_stream:
-        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+    with FileLock(lock):
         if not template.exists():
             partial = template.with_name(f".{template.name}.{os.getpid()}.part")
             engine = create_database_engine(f"sqlite+pysqlite:///{partial}")

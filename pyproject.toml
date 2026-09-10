@@ -41,6 +41,7 @@ postgres = ["psycopg[binary]>=3.3.4"]
 
 [dependency-groups]
 dev = [
+    "filelock>=3.16",
     "pytest>=8",
     "pytest-xdist>=3.8",
     "ruff>=0.16.5",
