@@ -209,11 +209,26 @@ def _site_text() -> str:
     return (NGINX_DIR / "kivou-staging.conf").read_text()
 
 
+def _founder_site_text() -> str:
+    return (NGINX_DIR / "kivou-founder-control.conf").read_text()
+
+
+def _only_founder_server(listen_directive: str) -> ServerBlock:
+    matching = [
+        block
+        for block in _server_blocks(_founder_site_text())
+        if listen_directive in _direct_server_directives(block.body)
+    ]
+    assert len(matching) == 1, (
+        f"expected one founder nginx server with {listen_directive!r}, "
+        f"got {len(matching)}"
+    )
+    return matching[0]
+
+
 def _founder_fail_closed_selectors() -> tuple[str, ...]:
     """Les `location` de la console fondateur dont le corps est un 404 sec."""
-    servers = _server_blocks((NGINX_DIR / "kivou-founder-control.conf").read_text())
-    assert len(servers) == 1, f"expected one founder server, got {len(servers)}"
-    body = servers[0].body
+    body = _only_founder_server("listen 443 ssl http2;").body
     # `_location_blocks` ne voit que la forme multi-ligne ; la console
     # fondateur écrit aussi ses refus sur une seule ligne.
     inline = tuple(
@@ -669,6 +684,146 @@ def test_founder_console_fails_closed_on_every_public_customer_prefix() -> None:
         sample = _sample_path(route_path)
         assert any(_matches(selector, sample) for selector in selectors), route_path
     assert {"^~ /api/", "^~ /internal/", "^~ /app/"} <= frozenset(selectors)
+
+
+def test_founder_console_has_exactly_one_public_http_and_https_server() -> None:
+    site = _founder_site_text()
+    servers = _server_blocks(site)
+
+    assert len(servers) == 2
+    assert {
+        tuple(
+            directive
+            for directive in _direct_server_directives(server.body)
+            if directive.startswith("listen ")
+        )
+        for server in servers
+    } == {
+        ("listen 80;", "listen [::]:80;"),
+        ("listen 443 ssl http2;", "listen [::]:443 ssl http2;"),
+    }
+    for server in servers:
+        assert _direct_server_directives(server.body).count(
+            "server_name control.kivou.eu;"
+        ) == 1
+
+    lowered = site.lower()
+    assert "127.0.0.1:8081" not in site
+    assert "listen 8081" not in site
+    assert "cloudflare" not in lowered
+    assert "cf-access" not in lowered
+
+
+def test_founder_http_serves_only_acme_and_redirects_to_canonical_https() -> None:
+    http = _only_founder_server("listen 80;")
+
+    assert frozenset(block.selector for block in _location_blocks(http.body)) == {
+        "/.well-known/acme-challenge/",
+        "/",
+    }
+    assert _directives(
+        _only_location(http, "/.well-known/acme-challenge/").body
+    ) == ("root /var/www/certbot;",)
+    assert _directives(_only_location(http, "/").body) == (
+        "return 301 https://control.kivou.eu$request_uri;",
+    )
+    assert "auth_basic" not in http.body
+
+
+def test_founder_https_uses_production_tls_and_server_wide_basic_auth() -> None:
+    https = _only_founder_server("listen 443 ssl http2;")
+    direct = _direct_server_directives(https.body)
+
+    for expected in (
+        "ssl_certificate /etc/letsencrypt/live/control.kivou.eu/fullchain.pem;",
+        "ssl_certificate_key /etc/letsencrypt/live/control.kivou.eu/privkey.pem;",
+        "ssl_trusted_certificate /etc/letsencrypt/live/control.kivou.eu/chain.pem;",
+        "ssl_protocols TLSv1.2 TLSv1.3;",
+        "ssl_prefer_server_ciphers off;",
+        "ssl_session_cache shared:SSL:10m;",
+        "ssl_session_timeout 1d;",
+        "ssl_stapling on;",
+        "ssl_stapling_verify on;",
+        'auth_basic "Kivou Founder Control";',
+        "auth_basic_user_file /etc/kivou/founder.htpasswd;",
+    ):
+        assert direct.count(expected) == 1
+
+    assert _directives_starting_with(https.body, "auth_basic ") == (
+        'auth_basic "Kivou Founder Control";',
+    )
+    assert _directives_starting_with(https.body, "auth_basic_user_file ") == (
+        "auth_basic_user_file /etc/kivou/founder.htpasswd;",
+    )
+
+
+def test_founder_https_preserves_frontend_health_and_security_contracts() -> None:
+    https = _only_founder_server("listen 443 ssl http2;")
+    direct = _direct_server_directives(https.body)
+    locations = _location_blocks(https.body)
+
+    for expected in (
+        "include /etc/kivou/founder-origin-secret.conf;",
+        "root /srv/kivou-founder/frontend;",
+        "index index.html;",
+        "client_max_body_size 64k;",
+        "include /etc/nginx/kivou-security-headers.conf;",
+        'add_header X-Robots-Tag "noindex, nofollow, noarchive" always;',
+        'add_header Cache-Control "no-store" always;',
+    ):
+        assert direct.count(expected) == 1
+
+    health = _only_location(https, "= /healthz")
+    assert _directives_starting_with(health.body, "proxy_pass ") == (
+        "proxy_pass http://127.0.0.1:8011;",
+    )
+    assert "include /etc/nginx/kivou-proxy-params.conf;" in _directives(health.body)
+
+    assert frozenset(
+        block.selector for block in locations if "proxy_pass" in block.body
+    ) == {"= /healthz", "^~ /api/founder/"}
+    assert _directives(_only_location(https, "/").body) == (
+        "try_files $uri $uri/ /index.html;",
+    )
+
+
+def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> None:
+    https = _only_founder_server("listen 443 ssl http2;")
+    api = _only_location(https, "^~ /api/founder/")
+    directives = _directives(api.body)
+    shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
+    founder_user = "proxy_set_header X-Kivou-Founder-User $remote_user;"
+    origin_secret = (
+        "proxy_set_header X-Kivou-Founder-Origin-Secret "
+        "$kivou_founder_origin_secret;"
+    )
+
+    assert _directives_starting_with(api.body, "proxy_pass ") == (
+        "proxy_pass http://127.0.0.1:8011;",
+    )
+    assert directives.count("limit_req zone=kivou_api burst=20 nodelay;") == 1
+    assert directives.count(shared_params) == 1
+    assert directives.count(founder_user) == 1
+    assert directives.count(origin_secret) == 1
+    assert directives.index(shared_params) < directives.index(founder_user)
+    assert directives.index(shared_params) < directives.index(origin_secret)
+
+    lowered = api.body.lower()
+    assert "cf-access" not in lowered
+    assert "cloudflare" not in lowered
+
+
+def test_founder_https_never_proxies_customer_or_internal_routes() -> None:
+    https = _only_founder_server("listen 443 ssl http2;")
+    proxy_locations = tuple(
+        block for block in _location_blocks(https.body) if "proxy_pass" in block.body
+    )
+
+    for _, route_path in PUBLIC_ASGI_ROUTES | PRIVATE_ASGI_ROUTES:
+        sample = _sample_path(route_path)
+        assert not any(
+            _matches(block.selector, sample) for block in proxy_locations
+        ), route_path
 
 
 def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:
