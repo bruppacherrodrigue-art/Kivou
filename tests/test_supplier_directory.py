@@ -272,6 +272,51 @@ def test_directory_rejects_email_outside_the_validated_company_domain(tmp_path) 
     assert store.get("331364729").professional_email is None
 
 
+def test_directory_does_not_reuse_email_after_validated_domain_changes(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ESCOLLE BETON",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city="SAINT-EGREVE",
+        employees=19,
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="escolle-beton.fr",
+        website_url="https://escolle-beton.fr",
+        source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
+        observed_at=NOW,
+    )
+    assert store.record_email(
+        "331364729",
+        email="contact@escolle-beton.fr",
+        source="site",
+        verification_status="mx_verified",
+        contact_name="ESCOLLE BETON",
+        contact_title="Entreprise",
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="escolle.fr",
+        website_url="https://escolle.fr",
+        source="serper",
+        validation_method="registration_number",
+        validation_evidence_url="https://escolle.fr/mentions-legales",
+        observed_at=NOW + dt.timedelta(hours=1),
+    )
+
+    assert store.fresh_email(
+        "331364729", at=NOW + dt.timedelta(hours=1)
+    ) is None
+
+
 def test_resolver_avoids_serper_and_apollo_for_fresh_directory_binding(tmp_path, caplog) -> None:
     caplog.set_level(logging.INFO)
     store = _store(tmp_path)
