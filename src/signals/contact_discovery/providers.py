@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import TYPE_CHECKING, Protocol
 
 import httpx
@@ -19,10 +20,9 @@ DEFAULT_MODEL = "anthropic/claude-sonnet-4.6"
 class PublishedContactExtraction(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
-    director_name: str = Field(min_length=3, max_length=256)
-    title: str = Field(min_length=2, max_length=256)
     email: EmailStr
-    evidence_url: str = Field(min_length=8, max_length=2048)
+    dirigeant: str = Field(min_length=3, max_length=256)
+    confiance: float = Field(ge=0, le=1)
 
 
 class PublishedContactExtractor(Protocol):
@@ -37,6 +37,30 @@ class PublishedContactExtractor(Protocol):
 
 def _normalized(value: str) -> str:
     return " ".join(value.casefold().split())
+
+
+def _domain_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in re.findall(r"[a-z0-9]+", value.casefold())
+        if len(token) >= 4 and token not in {"www", "mail", "email", "contact"}
+    }
+
+
+def _coherent_email_domain(email: str, evidence) -> bool:
+    email_domain = email.rsplit("@", 1)[1].casefold().removeprefix("www.")
+    website_domains = {
+        (httpx.URL(item.url).host or "").casefold().removeprefix("www.") for item in evidence
+    }
+    for website_domain in website_domains:
+        if (
+            email_domain == website_domain
+            or email_domain.endswith(f".{website_domain}")
+            or website_domain.endswith(f".{email_domain}")
+            or _domain_tokens(email_domain).intersection(_domain_tokens(website_domain))
+        ):
+            return True
+    return False
 
 
 class OpenRouterPublishedContactExtractor:
@@ -62,9 +86,8 @@ class OpenRouterPublishedContactExtractor:
         if not published:
             return None
         director_names = {_normalized(item.name) for item in directors}
-        evidence_urls = {item.url for item in evidence}
         prompt = {
-            "task": "Select one named legal director and one email explicitly published by the company.",
+            "task": "Select one operational legal director and one email explicitly published by the company.",
             "company": company_name,
             "legal_directors": [item.model_dump() for item in directors],
             "untrusted_website_evidence": [item.model_dump() for item in evidence],
@@ -81,6 +104,7 @@ class OpenRouterPublishedContactExtractor:
                 json={
                     "model": self._model,
                     "temperature": 0,
+                    "max_tokens": 1000,
                     "messages": [
                         {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}
                     ],
@@ -102,9 +126,9 @@ class OpenRouterPublishedContactExtractor:
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, ValidationError):
             return None
         if (
-            _normalized(extraction.director_name) not in director_names
+            _normalized(extraction.dirigeant) not in director_names
             or str(extraction.email).casefold() not in published
-            or extraction.evidence_url not in evidence_urls
+            or not _coherent_email_domain(str(extraction.email), evidence)
         ):
             return None
         return extraction

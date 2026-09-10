@@ -7,6 +7,7 @@ import hashlib
 import json
 
 from signals.companies.sirene import SireneCompanySearch, SireneSearchCriteria
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import (
     SireneOrganizationCandidate,
     SupplierSearchPage,
@@ -18,8 +19,14 @@ from signals.supplier_discovery.families import load_supplier_family_catalog
 class SireneOrganizationSearchProvider:
     """Return named, active SIRENE companies; it never calls Apollo organizations."""
 
-    def __init__(self, search: SireneCompanySearch | None = None) -> None:
+    def __init__(
+        self,
+        search: SireneCompanySearch | None = None,
+        *,
+        directory: SupplierDirectoryStore | None = None,
+    ) -> None:
         self._search = search or SireneCompanySearch()
+        self._directory = directory
 
     def search_page(
         self,
@@ -69,6 +76,17 @@ class SireneOrganizationSearchProvider:
             )
         candidates = []
         for family_key, company in companies:
+            if self._directory is not None:
+                self._directory.upsert_identity(
+                    siren=company.siren,
+                    legal_name=company.legal_name,
+                    naf_code=company.naf_code,
+                    family_key=family_key,
+                    department=company.department,
+                    city=company.city,
+                    employees=company.employees,
+                    observed_at=company.observed_at,
+                )
             canonical = {
                 "provider": "sirene",
                 "provider_organization_id": company.siren,

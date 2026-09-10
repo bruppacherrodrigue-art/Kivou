@@ -28,7 +28,7 @@ from signals.campaigns.contracts import CampaignDeploymentConfig
 from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvider
 from signals.campaigns.service import CampaignService, MailboxReadinessSource
 from signals.campaigns.worker import CampaignWorker
-from signals.company_research.binding import BindingStatus, SireneApolloResolver
+from signals.company_research.binding import SireneApolloResolver
 from signals.company_research.domain import CompanyDomainResolver
 from signals.company_research.service import CompanyResearchService
 from signals.compliance.contracts import SenderComplianceConfig
@@ -49,12 +49,19 @@ from signals.contact_discovery.web import PublishedWebsiteContactProvider
 from signals.conversion.link import AttributionLinkBuilder
 from signals.decision_engine.service import DecisionEngineService
 from signals.personalization.service import PersonalizationService
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import SupplierTargetingConfig
 from signals.supplier_discovery.service import SupplierDiscoveryService
 from signals.supplier_discovery.sirene_provider import SireneOrganizationSearchProvider
 
 RUNTIME_QA_CONTACT_PROFILE_VERSION = RUNTIME_QA_PROFILE_VERSION
 RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION = PROFILE_VERSION
+
+
+def _supplier_binding_is_usable(binding) -> bool:
+    """A verified web domain is required; Apollo remains an optional attempt."""
+
+    return bool(binding.domain)
 
 
 def runtime_qa_contact_profile_descriptor() -> dict[str, object]:
@@ -137,20 +144,24 @@ def build_acquisition_domain_composition(
             raise ValueError("runtime supplier discovery is capped at one candidate")
     elif targeting.max_pages != 1 or targeting.per_page > 25 or targeting.candidate_cap > 25:
         raise ValueError("production supplier discovery is capped at 25 candidates")
+    supplier_directory = SupplierDirectoryStore(engine, clock=clock)
     organization_provider = SireneOrganizationSearchProvider(
-        FakeSireneCompanySearch() if runtime_config.deployment.providers.mode == "fake" else None
+        FakeSireneCompanySearch() if runtime_config.deployment.providers.mode == "fake" else None,
+        directory=supplier_directory,
     )
     organization_resolver = SireneApolloResolver(
         engine,
         provider=apollo.company_research,
         domain_resolver=company_domain_resolver,
+        directory=supplier_directory,
+        clock=clock,
     )
 
     def resolve_supplier(candidate) -> bool:
         if candidate.provider != "sirene":
             raise ValueError("runtime supplier identity must come from SIRENE")
         binding = organization_resolver.resolve(candidate)
-        return binding.status is BindingStatus.RESOLVED
+        return _supplier_binding_is_usable(binding)
 
     supplier_service = SupplierDiscoveryService(
         engine,
@@ -161,6 +172,7 @@ def build_acquisition_domain_composition(
     contact_service = ContactDiscoveryService(
         engine,
         provider=apollo.contact_discovery,
+        directory_store=supplier_directory,
         profile_builder=build_runtime_qa_contact_profile,
         fallback_provider=website_contact_provider,
         profile_upgrade_requeue=(
@@ -172,6 +184,7 @@ def build_acquisition_domain_composition(
     company_service = CompanyResearchService(
         engine,
         provider=apollo.company_research,
+        directory_store=supplier_directory,
         clock=clock,
     )
     decision_service = DecisionEngineService(engine, clock=clock)

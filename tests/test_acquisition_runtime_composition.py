@@ -27,6 +27,7 @@ from signals.acquisition_runtime.transport import StagingQaRecipientOverride
 from signals.campaigns.contracts import CampaignDeploymentConfig
 from signals.campaigns.service import CampaignService
 from signals.campaigns.worker import CampaignWorker
+from signals.company_research.binding import BindingStatus
 from signals.company_research.service import CompanyResearchService
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.compliance.service import ComplianceService
@@ -71,9 +72,7 @@ def _runtime_config() -> AcquisitionRuntimeConfig:
         deployment=AcquisitionRuntimeDeployment(
             qa_only=True,
             allowed_opportunity_keys=("signal-qa-001",),
-            qa_scope=RuntimeQaScope(
-                country="CH", language="fr", wedge="construction"
-            ),
+            qa_scope=RuntimeQaScope(country="CH", language="fr", wedge="construction"),
             qa_recipient_identity_hmac=binding,
             qa_recipient_key_version="runtime-qa-v1",
             qa_provider_mutations_capable=True,
@@ -150,11 +149,52 @@ def test_builder_composes_existing_services_and_closed_stage_handlers_without_io
     assert isinstance(composition.campaign_service, CampaignService)
     assert isinstance(composition.campaign_worker, CampaignWorker)
     assert (
-        compliance_kwargs["expected_contact_profile_version"]
-        == RUNTIME_QA_CONTACT_PROFILE_VERSION
+        compliance_kwargs["expected_contact_profile_version"] == RUNTIME_QA_CONTACT_PROFILE_VERSION
     )
     assert set(composition.handlers) == set(AcquisitionRuntimeStage)
     assert QA_RECIPIENT not in repr(composition)
+
+
+def test_supplier_with_domain_remains_eligible_when_apollo_is_unresolved() -> None:
+    binding = type(
+        "Binding",
+        (),
+        {
+            "status": BindingStatus.UNRESOLVED,
+            "apollo_organization_id": None,
+            "domain": "beton-alpes.fr",
+        },
+    )()
+
+    assert runtime_composition._supplier_binding_is_usable(binding) is True
+
+
+def test_supplier_without_domain_or_apollo_binding_is_not_eligible() -> None:
+    binding = type(
+        "Binding",
+        (),
+        {
+            "status": BindingStatus.UNRESOLVED,
+            "apollo_organization_id": None,
+            "domain": None,
+        },
+    )()
+
+    assert runtime_composition._supplier_binding_is_usable(binding) is False
+
+
+def test_supplier_with_apollo_binding_but_no_verified_domain_is_not_eligible() -> None:
+    binding = type(
+        "Binding",
+        (),
+        {
+            "status": BindingStatus.RESOLVED,
+            "apollo_organization_id": "apollo-org-42",
+            "domain": None,
+        },
+    )()
+
+    assert runtime_composition._supplier_binding_is_usable(binding) is False
 
 
 def test_builder_refuses_supplier_limits_wider_than_one_candidate() -> None:
@@ -213,11 +253,11 @@ def _production_runtime_config() -> AcquisitionRuntimeConfig:
         deployment=AcquisitionRuntimeDeployment(
             schema_version=ACQUISITION_PRODUCTION_SCHEMA_VERSION,
             qa_scope=RuntimeQaScope(
-                    country="FR",
-                    language="fr",
-                    wedge="construction",
-                    vertical="general_building",
-                    region="Auvergne-Rhône-Alpes",
+                country="FR",
+                language="fr",
+                wedge="construction",
+                vertical="general_building",
+                region="Auvergne-Rhône-Alpes",
             ),
             limits=AcquisitionRuntimeLimits(
                 maximum_cycle_cost=Decimal("10"),

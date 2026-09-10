@@ -43,4 +43,18 @@ class EmailDeliverabilityVerifier:
             return False
 
 
-__all__ = ["EmailDeliverabilityVerifier"]
+class EmailMxVerifier:
+    """Verify that a published professional address has a routable MX domain."""
+
+    def __init__(self, *, resolver=None) -> None:
+        self._resolver = resolver or dns.resolver.Resolver()
+
+    def verify(self, email: str) -> bool:
+        try:
+            local, domain = email.rsplit("@", 1)
+            return bool(local and domain and tuple(self._resolver.resolve(domain, "MX")))
+        except (OSError, ValueError, dns.exception.DNSException):
+            return False
+
+
+__all__ = ["EmailDeliverabilityVerifier", "EmailMxVerifier"]

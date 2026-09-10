@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
+import logging
 from collections.abc import Callable
 
 import sqlalchemy as sa
@@ -16,8 +18,9 @@ from signals.acquisition.contracts import (
     OpportunityConcurrencyConflict,
 )
 from signals.acquisition.store import AcquisitionStore
-from signals.company_research.binding import BindingStatus, SireneApolloBindingStore
+from signals.company_research.binding import SireneApolloBindingStore
 from signals.company_research.contracts import (
+    ApolloOrganizationObservation,
     CompanyResearchAuthorizationInput,
     CompanyResearchEvaluationRequiresFreshAttempt,
     CompanyResearchNotActionable,
@@ -42,8 +45,11 @@ from signals.persistence.schema import acquisition_supplier
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import SupplierRecord
 from signals.supplier_discovery.store import SupplierDiscoveryStore
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> dt.datetime:
@@ -65,6 +71,7 @@ class CompanyResearchService:
         acquisition_store: AcquisitionStore | None = None,
         supplier_store: SupplierDiscoveryStore | None = None,
         binding_store: SireneApolloBindingStore | None = None,
+        directory_store: SupplierDirectoryStore | None = None,
         clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
         self._engine = engine
@@ -74,6 +81,7 @@ class CompanyResearchService:
         self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
         self._bindings = binding_store or SireneApolloBindingStore(engine, clock=clock)
+        self._directory = directory_store
         self._policy_store = PolicyStore(engine)
         self._clock = clock
 
@@ -111,7 +119,7 @@ class CompanyResearchService:
         contact = self._companies.get_contact_binding(opportunity.contact_ref)
         self._require_bindings(opportunity, supplier, contact, binding)
         profile = build_company_research_profile(
-            binding.apollo_organization_id,
+            binding.apollo_organization_id or f"siren-{supplier.provider_organization_id}",
             siren=supplier.provider_organization_id,
         )
         action_fingerprint = policy_action_fingerprint(
@@ -223,25 +231,44 @@ class CompanyResearchService:
     ) -> CompanyResearchServiceResult:
         binding = binding or self._required_binding(supplier, run.acquisition_opportunity_id)
         profile = build_company_research_profile(
-            binding.apollo_organization_id,
+            binding.apollo_organization_id or f"siren-{supplier.provider_organization_id}",
             siren=supplier.provider_organization_id,
         )
-        try:
-            observation = self._provider.fetch_organization(profile)
-            if observation.provider_organization_id != binding.apollo_organization_id:
-                raise CompanyResearchProviderError("provider_identity_mismatch")
-            if observation.provider_observed_at < run.started_at:
-                raise CompanyResearchProviderError(
-                    "malformed_response", detail="provider_observation_precedes_run"
+        provider_called = binding.apollo_organization_id is not None
+        if provider_called:
+            try:
+                observation = self._provider.fetch_organization(profile)
+                if observation.provider_organization_id != binding.apollo_organization_id:
+                    raise CompanyResearchProviderError("provider_identity_mismatch")
+                if observation.provider_observed_at < run.started_at:
+                    raise CompanyResearchProviderError(
+                        "malformed_response", detail="provider_observation_precedes_run"
+                    )
+            except CompanyResearchProviderError as error:
+                finished = self._finish_provider_failure(run, error)
+                return CompanyResearchServiceResult(
+                    decision=decision, run=finished, provider_called=True
                 )
-        except CompanyResearchProviderError as error:
-            finished = self._finish_provider_failure(run, error)
-            return CompanyResearchServiceResult(
-                decision=decision, run=finished, provider_called=True
+        else:
+            logger.info(
+                "supplier_directory_provider_call_avoided",
+                extra={"provider": "apollo_company", "siren": supplier.provider_organization_id},
             )
+            observation = self._directory_observation(supplier.provider_organization_id)
+            if observation is None:
+                finished = self._finish_provider_failure(
+                    run,
+                    CompanyResearchProviderError("not_found", detail="directory_missing"),
+                    provider_calls=0,
+                )
+                return CompanyResearchServiceResult(
+                    decision=decision, run=finished, provider_called=False
+                )
 
         try:
-            persisted, finished = self._commit_success(run, observation)
+            persisted, finished = self._commit_success(
+                run, observation, provider_calls=int(provider_called)
+            )
         except (
             CompanyResearchObservationConflict,
             CompanyResearchNotActionable,
@@ -251,16 +278,16 @@ class CompanyResearchService:
         ) as error:
             finished = self._finish_persistence_failure(run, error)
             return CompanyResearchServiceResult(
-                decision=decision, run=finished, provider_called=True
+                decision=decision, run=finished, provider_called=provider_called
             )
         return CompanyResearchServiceResult(
             decision=decision,
             run=finished,
             profile=persisted,
-            provider_called=True,
+            provider_called=provider_called,
         )
 
-    def _commit_success(self, run, observation):
+    def _commit_success(self, run, observation, *, provider_calls: int = 1):
         with self._engine.begin() as connection:
             current = self._acquisition.get_opportunity_in_transaction(
                 connection, run.acquisition_opportunity_id, for_update=True
@@ -272,7 +299,9 @@ class CompanyResearchService:
                 connection, run.contact_ref
             )
             self._require_bindings(current, supplier, contact, binding)
-            if binding.apollo_organization_id != observation.provider_organization_id:
+            if binding.apollo_organization_id is not None and (
+                binding.apollo_organization_id != observation.provider_organization_id
+            ):
                 raise CompanyResearchObservationConflict("research binding changed")
             prebuild = build_acquisition_prospect_prebuild(
                 acquisition_opportunity_id=current.acquisition_opportunity_id,
@@ -317,16 +346,56 @@ class CompanyResearchService:
                 run.company_research_run_id,
                 status=status,
                 completed_at=self._now(),
-                provider_calls=1,
+                provider_calls=provider_calls,
             )
         return upserted.profile, finished
 
-    def _finish_provider_failure(self, run, error):
+    def _directory_observation(self, siren: str):
+        if self._directory is None:
+            return None
+        record = self._directory.get(siren)
+        if record is None or not record.domain:
+            return None
+        observed_at = max(
+            value
+            for value in (
+                record.legal_name_observed_at,
+                record.naf_observed_at,
+                record.domain_observed_at,
+                record.employees_observed_at,
+            )
+            if value is not None
+        )
+        canonical = {
+            "siren": siren,
+            "legal_name": record.legal_name,
+            "naf_code": record.naf_code,
+            "domain": record.domain,
+            "employees": record.employees,
+            "observed_at": observed_at.isoformat(),
+        }
+        return ApolloOrganizationObservation(
+            provider="sirene",
+            provider_organization_id=f"siren-{siren}",
+            provider_company_name=record.legal_name,
+            provider_primary_domain=record.domain,
+            provider_website_url=record.website_url,
+            provider_country="FR",
+            provider_industry=record.naf_code,
+            provider_employee_count=record.employees,
+            provider_keywords=record.family_keys,
+            provider_observed_at=observed_at,
+            provider_source_fingerprint=hashlib.sha256(
+                json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
+        )
+
+    def _finish_provider_failure(self, run, error, *, provider_calls: int = 1):
         return self._companies.finish_run(
             run.company_research_run_id,
             status=CompanyResearchRunStatus.FAILED,
             completed_at=self._now(),
-            provider_calls=1,
+            provider_calls=provider_calls,
             error_category=error.category,
             error_detail=error.detail,
             retry_after=error.retry_after,
@@ -372,8 +441,7 @@ class CompanyResearchService:
     def _require_bindings(opportunity, supplier, contact, binding) -> None:
         if not (
             supplier.provider == "sirene"
-            and binding.status is BindingStatus.RESOLVED
-            and binding.apollo_organization_id
+            and (binding.apollo_organization_id or binding.domain)
             and opportunity.supplier_ref == supplier.supplier_ref
             and opportunity.contact_ref == contact.contact_ref
             and contact.supplier_ref == supplier.supplier_ref
@@ -385,11 +453,7 @@ class CompanyResearchService:
         if supplier.provider != "sirene":
             raise CompanyResearchNotActionable(opportunity_id)
         binding = self._bindings.get(supplier.provider_organization_id)
-        if (
-            binding is None
-            or binding.status is not BindingStatus.RESOLVED
-            or binding.apollo_organization_id is None
-        ):
+        if binding is None or not (binding.apollo_organization_id or binding.domain):
             raise CompanyResearchNotActionable(opportunity_id)
         return binding
 

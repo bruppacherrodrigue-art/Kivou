@@ -96,7 +96,7 @@ from signals.company_research.domain import (
     SerperDomainSearchClient,
 )
 from signals.compliance.contracts import SenderComplianceConfig
-from signals.contact_discovery.deliverability import EmailDeliverabilityVerifier
+from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.contact_discovery.providers import published_contact_extractor_from_environment
 from signals.contact_discovery.web import (
     AnnuaireDirectorClient,
@@ -113,6 +113,7 @@ from signals.supervisor.contracts import SupervisorLimits
 from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.pin import load_hermes_pin
 from signals.supervisor.runtime import HealthState, SupervisorSettings
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import SupplierTargetingConfig
 
 _PUBLIC_APP_URL = "KIVOU_PUBLIC_APP_URL"
@@ -655,6 +656,7 @@ def build_runtime_execution_composition(
             )
     company_domain_resolver = None
     website_contact_provider = None
+    supplier_directory = SupplierDirectoryStore(engine, clock=clock)
     if runtime_config.deployment.providers.mode == "live" and apollo is None:
         if client is None:
             raise RuntimeExecutionConfigurationError("PROVIDER_CLIENT_NOT_CONFIGURED")
@@ -671,10 +673,12 @@ def build_runtime_execution_composition(
             clock=clock,
         )
         website_contact_provider = PublishedWebsiteContactProvider(
-            directors=AnnuaireDirectorClient(client=client),
+            directors=AnnuaireDirectorClient(
+                client=client, directory=supplier_directory, clock=clock
+            ),
             pages=CompanyWebsiteClient(),
             extractor=contact_extractor,
-            deliverability=EmailDeliverabilityVerifier(),
+            deliverability=EmailMxVerifier(),
         )
     suppression_keyring = webhook_configuration.suppression_keyring
     link_builder = AttributionLinkBuilder(

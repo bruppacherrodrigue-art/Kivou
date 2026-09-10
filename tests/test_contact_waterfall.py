@@ -8,6 +8,8 @@ from signals.contact_discovery.deliverability import EmailDeliverabilityVerifier
 from signals.contact_discovery.profile import build_decision_maker_profile
 from signals.contact_discovery.providers import OpenRouterPublishedContactExtractor
 from signals.contact_discovery.web import (
+    AnnuaireDirectorClient,
+    CompanyWebsiteClient,
     OfficialDirector,
     PublishedWebsiteContactProvider,
     WebsiteEvidence,
@@ -32,6 +34,10 @@ def _profile():
 def test_model_extraction_is_strict_and_must_select_published_email() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/chat/completions"
+        payload = __import__("json").loads(request.content)
+        assert payload["max_tokens"] == 1000
+        schema = payload["response_format"]["json_schema"]["schema"]
+        assert set(schema["required"]) == {"email", "dirigeant", "confiance"}
         return httpx.Response(
             200,
             json={
@@ -39,9 +45,8 @@ def test_model_extraction_is_strict_and_must_select_published_email() -> None:
                     {
                         "message": {
                             "content": (
-                                '{"director_name":"Alice Martin","title":"Gérante",'
-                                '"email":"alice@beton-alpes.fr",'
-                                '"evidence_url":"https://beton-alpes.fr/contact"}'
+                                '{"email":"alice@beton-alpes.fr",'
+                                '"dirigeant":"Alice Martin","confiance":0.98}'
                             )
                         }
                     }
@@ -66,7 +71,7 @@ def test_model_extraction_is_strict_and_must_select_published_email() -> None:
     )
 
     assert result is not None
-    assert result.director_name == "Alice Martin"
+    assert result.dirigeant == "Alice Martin"
     assert result.email == "alice@beton-alpes.fr"
 
 
@@ -80,9 +85,8 @@ def test_model_extraction_rejects_invented_email() -> None:
                         {
                             "message": {
                                 "content": (
-                                    '{"director_name":"Alice Martin","title":"Gérante",'
-                                    '"email":"invented@beton-alpes.fr",'
-                                    '"evidence_url":"https://beton-alpes.fr/contact"}'
+                                    '{"email":"invented@beton-alpes.fr",'
+                                    '"dirigeant":"Alice Martin","confiance":0.50}'
                                 )
                             }
                         }
@@ -126,10 +130,9 @@ def test_website_level_accepts_generic_mailbox_only_with_named_director() -> Non
             from signals.contact_discovery.providers import PublishedContactExtraction
 
             return PublishedContactExtraction(
-                director_name="Alice Martin",
-                title="Gérante",
                 email="contact@beton-alpes.fr",
-                evidence_url="https://beton-alpes.fr/contact",
+                dirigeant="Alice Martin",
+                confiance=0.95,
             )
 
     class Deliverability:
@@ -149,6 +152,101 @@ def test_website_level_accepts_generic_mailbox_only_with_named_director() -> Non
     assert contact.display_name == "Alice Martin"
     assert contact.business_email == "contact@beton-alpes.fr"
     assert contact.verification_state == "DELIVERABILITY_VERIFIED"
+
+
+def test_website_extracts_text_email_after_mailto_addresses() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text=(
+                '<a href="mailto:direction@beton-alpes.fr">Direction</a>'
+                "<p>Écrivez aussi à contact@beton-alpes.fr.</p>"
+            ),
+        )
+
+    pages = CompanyWebsiteClient(
+        client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    ).fetch("beton-alpes.fr")
+
+    assert pages[0].published_emails == (
+        "direction@beton-alpes.fr",
+        "contact@beton-alpes.fr",
+    )
+
+
+def test_registry_keeps_operational_directors_and_rejects_auditors() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "dirigeants": [
+                                {"prenoms": "Alice", "nom": "Martin", "qualite": "Gérante"},
+                                {"prenoms": "Paul", "nom": "Durand", "qualite": "Président de SAS"},
+                                {
+                                    "prenoms": "Léa",
+                                    "nom": "Bernard",
+                                    "qualite": "Directrice Générale",
+                                },
+                                {
+                                    "prenoms": "Marc",
+                                    "nom": "Audit",
+                                    "qualite": "Commissaire aux comptes suppléant",
+                                },
+                            ]
+                        }
+                    ]
+                },
+            )
+        )
+    )
+
+    directors = AnnuaireDirectorClient(client=client).find("123456789")
+
+    assert [(item.name, item.title) for item in directors] == [
+        ("Alice Martin", "Gérante"),
+        ("Paul Durand", "Président de SAS"),
+        ("Léa Bernard", "Directrice Générale"),
+    ]
+
+
+def test_model_rejects_published_email_from_unrelated_domain() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"email":"mairie@certines.fr",'
+                                    '"dirigeant":"Alice Martin","confiance":0.95}'
+                                )
+                            }
+                        }
+                    ]
+                },
+            )
+        )
+    )
+
+    result = OpenRouterPublishedContactExtractor(api_key="test", client=client).extract(
+        company_name="JACQUET",
+        directors=(OfficialDirector(name="Alice Martin", title="Gérante"),),
+        evidence=(
+            WebsiteEvidence(
+                url="https://jacquet.fr/contact",
+                text="Contact mairie@certines.fr",
+                published_emails=("mairie@certines.fr",),
+            ),
+        ),
+    )
+
+    assert result is None
 
 
 def test_deliverability_stops_after_rcpt_and_never_sends_data() -> None:

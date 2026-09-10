@@ -106,3 +106,74 @@ def test_serper_returns_none_when_no_result_contains_significant_name_words() ->
     ).resolve(_identity())
 
     assert resolution is None
+
+
+def test_serper_rejects_public_directory_and_municipal_false_matches() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                json={
+                    "organic": [
+                        {
+                            "title": "Jacquet — mairie de Certines",
+                            "link": "https://certines.grandbourg.fr/1909-contact.htm",
+                        },
+                        {
+                            "title": "Jacquet",
+                            "link": "https://jacquet.gouv.fr/contact",
+                        },
+                        {
+                            "title": "Jacquet",
+                            "link": "https://mairie-certines.fr/jacquet",
+                        },
+                        {
+                            "title": "Jacquet",
+                            "link": "https://infogreffe.fr/entreprise/jacquet",
+                        },
+                    ]
+                },
+            )
+        )
+    )
+    resolution = CompanyDomainResolver(
+        official=lambda identity: None,
+        serper=SerperDomainSearchClient(api_key="secret", client=client),
+        clock=lambda: NOW,
+    ).resolve(
+        _identity(
+            provider_organization_id="302280755",
+            display_name="JACQUET",
+            normalized_name="jacquet",
+            location="CERTINES",
+        )
+    )
+
+    assert resolution is None
+
+
+def test_serper_accepts_one_significant_company_word_in_domain_or_title() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                json={
+                    "organic": [
+                        {
+                            "title": "Escolle — centrale régionale",
+                            "link": "https://escolle-industrie.fr/contact",
+                        }
+                    ]
+                },
+            )
+        )
+    )
+
+    resolution = CompanyDomainResolver(
+        official=lambda identity: None,
+        serper=SerperDomainSearchClient(api_key="secret", client=client),
+        clock=lambda: NOW,
+    ).resolve(_identity())
+
+    assert resolution is not None
+    assert resolution.domain == "escolle-industrie.fr"

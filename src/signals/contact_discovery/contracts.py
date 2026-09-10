@@ -235,8 +235,8 @@ class ContactObservation(ContactDiscoveryContract):
                 raise ValueError("generic Apollo mailbox is not a decision-maker email")
         elif not (
             self.display_name
-            and self.verification_provider == "mx_smtp"
-            and self.provider_email_status == "smtp_accepted"
+            and self.verification_provider == "dns_mx"
+            and self.provider_email_status == "mx_accepted"
             and self.verification_state == "DELIVERABILITY_VERIFIED"
         ):
             raise ValueError("website contact must name a deliverability-verified director")
@@ -266,8 +266,8 @@ def is_attachable_contact(value: object) -> bool:
     website_verified = (
         provider in {None, "company_website"}
         and getattr(value, "verification_state", None) == "DELIVERABILITY_VERIFIED"
-        and getattr(value, "verification_provider", None) == "mx_smtp"
-        and getattr(value, "provider_email_status", None) == "smtp_accepted"
+        and getattr(value, "verification_provider", None) == "dns_mx"
+        and getattr(value, "provider_email_status", None) == "mx_accepted"
         and display_name
     )
     return bool(business_email and (apollo_verified or website_verified))
