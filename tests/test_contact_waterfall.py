@@ -6,7 +6,10 @@ import httpx
 
 from signals.contact_discovery.deliverability import EmailDeliverabilityVerifier
 from signals.contact_discovery.profile import build_decision_maker_profile
-from signals.contact_discovery.providers import OpenRouterPublishedContactExtractor
+from signals.contact_discovery.providers import (
+    OpenRouterPublishedContactExtractor,
+    coherent_email_domain,
+)
 from signals.contact_discovery.web import (
     AnnuaireDirectorClient,
     CompanyWebsiteClient,
@@ -404,6 +407,18 @@ def test_model_rejects_published_email_from_unrelated_domain() -> None:
     )
 
     assert result is None
+
+
+def test_email_domain_must_exactly_match_validated_website_domain() -> None:
+    evidence = (
+        WebsiteEvidence(
+            url="https://beton-alpes.fr/contact",
+            text="Adresse publiée contact@beton-alpes.com",
+            published_emails=("contact@beton-alpes.com",),
+        ),
+    )
+
+    assert coherent_email_domain("contact@beton-alpes.com", evidence) is False
 
 
 def test_deliverability_stops_after_rcpt_and_never_sends_data() -> None:

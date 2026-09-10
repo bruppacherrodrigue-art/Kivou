@@ -177,6 +177,8 @@ class SireneApolloResolver:
                 domain=cached_domain.domain,
                 website_url=cached_domain.website_url or f"https://{cached_domain.domain}",
                 source=cached_domain.domain_source or "serper",
+                validation_method=cached_domain.domain_validation_method,
+                validation_evidence_url=cached_domain.domain_validation_evidence_url,
                 observed_at=cached_domain.domain_observed_at or now,
             )
         else:
@@ -191,6 +193,8 @@ class SireneApolloResolver:
                     domain=domain_resolution.domain,
                     website_url=domain_resolution.website_url,
                     source=domain_resolution.source,
+                    validation_method=domain_resolution.validation_method,
+                    validation_evidence_url=domain_resolution.validation_evidence_url,
                     observed_at=domain_resolution.observed_at,
                 )
         domain = (

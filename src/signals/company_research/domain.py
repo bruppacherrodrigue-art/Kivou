@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import re
 from collections.abc import Callable
+from html.parser import HTMLParser
 from typing import Literal, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,6 +22,7 @@ from signals.company_research.identity import (
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 
 SERPER_SEARCH_URL = "https://google.serper.dev/search"
+logger = logging.getLogger(__name__)
 _DOMAIN = re.compile(
     r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
     r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
@@ -32,6 +35,8 @@ _DIRECTORY_DOMAINS = frozenset(
         "annuaire-entreprises.data.gouv.fr",
         "cataloxy.org",
         "companieshouse.com",
+        "data.inpi.fr",
+        "doctrine.fr",
         "e-pro.fr",
         "europages.fr",
         "facebook.com",
@@ -47,6 +52,8 @@ _DIRECTORY_DOMAINS = frozenset(
         "monartisan.info",
         "pagesjaunes.fr",
         "pappers.fr",
+        "bilansgratuits.fr",
+        "societeinfo.com",
         "societe.com",
         "usinenouvelle.com",
         "verif.com",
@@ -54,6 +61,23 @@ _DIRECTORY_DOMAINS = frozenset(
 )
 
 _PUBLIC_TITLE_WORDS = frozenset({"mairie", "commune", "municipalite"})
+_GENERIC_COMPANY_WORDS = frozenset(
+    {
+        "batiment",
+        "beton",
+        "construction",
+        "constructions",
+        "entreprise",
+        "etablissement",
+        "etablissements",
+        "groupe",
+        "industrie",
+        "societe",
+        "travaux",
+    }
+)
+_LEGAL_PATH_WORDS = ("mention", "legal", "juridique", "impressum")
+_REGISTRATION_NUMBER = re.compile(r"(?<!\d)(?:\d[ .-]?){8,13}\d(?!\d)")
 
 
 class DomainResolution(BaseModel):
@@ -63,11 +87,19 @@ class DomainResolution(BaseModel):
     website_url: str = Field(min_length=8, max_length=2048)
     source: Literal["annuaire_entreprises", "serper"]
     query: str | None = Field(default=None, max_length=1024)
+    validation_method: Literal["name_word", "registration_number"] | None = None
+    validation_evidence_url: str | None = Field(default=None, max_length=2048)
     observed_at: dt.datetime
 
 
 class DomainSource(Protocol):
     def __call__(self, identity: SireneOrganizationCandidate) -> DomainResolution | None: ...
+
+
+class RegistrationSource(Protocol):
+    def __call__(
+        self, resolution: DomainResolution, identity: SireneOrganizationCandidate
+    ) -> str | None: ...
 
 
 def _domain_from_url(value: object) -> tuple[str, str] | None:
@@ -96,7 +128,7 @@ def _public_or_municipal(domain: str, title: str) -> bool:
         domain == "gouv.fr"
         or domain.endswith(".gouv.fr")
         or any(
-            label.startswith(("mairie-", "ville-")) or label == "mairie"
+            label.startswith(("commune-", "mairie-", "ville-")) or label in {"commune", "mairie"}
             for label in labels
         )
         or bool(title_words.intersection(_PUBLIC_TITLE_WORDS))
@@ -108,6 +140,100 @@ def rejected_supplier_domain(domain: str, title: str = "") -> bool:
 
     normalized = domain.casefold().removeprefix("www.")
     return _directory(normalized) or _public_or_municipal(normalized, title)
+
+
+def _domain_contains_company_word(domain: str, company_name: str) -> bool:
+    domain_words = set(re.findall(r"[a-z0-9]+", domain.casefold()))
+    company_words = {
+        word
+        for word in significant_name_words(company_name)
+        if len(word) >= 4 and word not in _GENERIC_COMPANY_WORDS
+    }
+    return bool(domain_words.intersection(company_words))
+
+
+def _contains_registration_number(text: str, siren: str) -> bool:
+    for raw in _REGISTRATION_NUMBER.findall(text):
+        digits = "".join(character for character in raw if character.isdigit())
+        if digits == siren or (len(digits) == 14 and digits.startswith(siren)):
+            return True
+    return False
+
+
+class _RegistrationPageParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._footer_depth = 0
+        self.all_text: list[str] = []
+        self.footer_text: list[str] = []
+        self.legal_links: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "footer":
+            self._footer_depth += 1
+        if tag == "a":
+            href = dict(attrs).get("href")
+            if isinstance(href, str) and any(word in href.casefold() for word in _LEGAL_PATH_WORDS):
+                self.legal_links.append(href)
+
+    def handle_endtag(self, tag):
+        if tag == "footer" and self._footer_depth:
+            self._footer_depth -= 1
+
+    def handle_data(self, data):
+        self.all_text.append(data)
+        if self._footer_depth:
+            self.footer_text.append(data)
+
+
+class CompanyWebsiteRegistrationClient:
+    """Confirm one SIREN/SIRET only from the company footer or legal page."""
+
+    def __init__(self, *, client: httpx.Client | None = None) -> None:
+        self._client = client or httpx.Client(timeout=10.0, follow_redirects=True)
+
+    def _get(self, url: str, domain: str) -> tuple[str, str, str, tuple[str, ...]] | None:
+        try:
+            response = self._client.get(url, headers={"user-agent": "Kivou/1.0"})
+            final_domain = (response.url.host or "").casefold().removeprefix("www.")
+            if (
+                response.status_code != 200
+                or final_domain != domain
+                or len(response.content) > 1_000_000
+                or "html" not in response.headers.get("content-type", "text/html")
+            ):
+                return None
+            parser = _RegistrationPageParser()
+            parser.feed(response.text)
+            return (
+                str(response.url),
+                " ".join(parser.all_text),
+                " ".join(parser.footer_text),
+                tuple(parser.legal_links[:3]),
+            )
+        except (httpx.HTTPError, UnicodeError, ValueError):
+            return None
+
+    def __call__(
+        self, resolution: DomainResolution, identity: SireneOrganizationCandidate
+    ) -> str | None:
+        home_url = f"https://{resolution.domain}/"
+        home = self._get(home_url, resolution.domain)
+        if home is None:
+            return None
+        final_url, _home_text, footer_text, links = home
+        siren = identity.provider_organization_id
+        if _contains_registration_number(footer_text, siren):
+            return final_url
+        for link in links:
+            legal_url = urljoin(final_url, link)
+            legal = self._get(legal_url, resolution.domain)
+            if legal is None:
+                continue
+            evidence_url, legal_text, _legal_footer, _ = legal
+            if _contains_registration_number(legal_text, siren):
+                return evidence_url
+        return None
 
 
 class AnnuaireWebsiteClient:
@@ -151,6 +277,10 @@ class SerperDomainSearchClient:
         self._client = client or httpx.Client(timeout=15.0, follow_redirects=False)
 
     def __call__(self, identity: SireneOrganizationCandidate) -> DomainResolution | None:
+        candidates = self.candidates(identity)
+        return candidates[0] if candidates else None
+
+    def candidates(self, identity: SireneOrganizationCandidate) -> tuple[DomainResolution, ...]:
         name = normalized_organization_name(identity.display_name)
         city = normalized_city(identity.location or "")
         query = " ".join(part for part in (name, city) if part)
@@ -160,13 +290,14 @@ class SerperDomainSearchClient:
             headers={"x-api-key": self._api_key, "content-type": "application/json"},
         )
         if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
-            return None
+            return ()
         payload = response.json()
         organic = payload.get("organic") if isinstance(payload, dict) else None
         if not isinstance(organic, list) or len(organic) > 10:
-            return None
+            return ()
         expected_words = significant_name_words(name)
         expected_anchor = expected_words[0] if expected_words else None
+        candidates: list[DomainResolution] = []
         for item in organic:
             if not isinstance(item, dict):
                 continue
@@ -180,14 +311,16 @@ class SerperDomainSearchClient:
             title_words = set(significant_name_words(title))
             url_words = set(significant_name_words(website_url.replace(".", " ")))
             if expected_anchor and expected_anchor in title_words | url_words:
-                return DomainResolution(
-                    domain=domain,
-                    website_url=website_url,
-                    source="serper",
-                    query=query,
-                    observed_at=identity.provider_observed_at,
+                candidates.append(
+                    DomainResolution(
+                        domain=domain,
+                        website_url=website_url,
+                        source="serper",
+                        query=query,
+                        observed_at=identity.provider_observed_at,
+                    )
                 )
-        return None
+        return tuple(candidates)
 
 
 class CompanyDomainResolver:
@@ -196,23 +329,61 @@ class CompanyDomainResolver:
         *,
         official: DomainSource,
         serper: DomainSource,
+        registration: RegistrationSource | None = None,
         clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
     ) -> None:
         self._official = official
         self._serper = serper
+        self._registration = registration or (lambda _resolution, _identity: None)
         self._clock = clock
 
     def resolve(self, identity: SireneOrganizationCandidate) -> DomainResolution | None:
         for source in (self._official, self._serper):
-            resolution = source(identity)
-            if resolution is not None:
-                return resolution.model_copy(update={"observed_at": self._clock()})
+            candidate_method = getattr(source, "candidates", None)
+            if callable(candidate_method):
+                candidates = candidate_method(identity)
+            else:
+                resolution = source(identity)
+                candidates = () if resolution is None else (resolution,)
+            for resolution in candidates:
+                if rejected_supplier_domain(resolution.domain):
+                    self._log(identity, resolution, accepted=False, criterion="blocklist")
+                    continue
+                if _domain_contains_company_word(resolution.domain, identity.display_name):
+                    self._log(identity, resolution, accepted=True, criterion="name_word")
+                    return resolution.model_copy(
+                        update={"observed_at": self._clock(), "validation_method": "name_word"}
+                    )
+                evidence_url = self._registration(resolution, identity)
+                if evidence_url is not None:
+                    self._log(identity, resolution, accepted=True, criterion="registration_number")
+                    return resolution.model_copy(
+                        update={
+                            "observed_at": self._clock(),
+                            "validation_method": "registration_number",
+                            "validation_evidence_url": evidence_url,
+                        }
+                    )
+                self._log(identity, resolution, accepted=False, criterion="identity_unconfirmed")
         return None
+
+    @staticmethod
+    def _log(identity, resolution, *, accepted: bool, criterion: str) -> None:
+        logger.info(
+            "supplier_domain_validation",
+            extra={
+                "supplier_siren": identity.provider_organization_id,
+                "supplier_domain": resolution.domain,
+                "domain_validation_accepted": accepted,
+                "domain_validation_criterion": criterion,
+            },
+        )
 
 
 __all__ = [
     "AnnuaireWebsiteClient",
     "CompanyDomainResolver",
+    "CompanyWebsiteRegistrationClient",
     "DomainResolution",
     "SerperDomainSearchClient",
     "rejected_supplier_domain",

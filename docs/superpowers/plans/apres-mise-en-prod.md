@@ -39,3 +39,13 @@ du dump PostgreSQL, avec restauration testée séparément. La répétition Alem
 sur copie jetable devra prouver que le dump SQL source ne transporte déjà plus
 les binaires ; le répertoire d'archives ne sera jamais recopié dans la base de
 répétition.
+
+## Maintenance de la suite de tests
+
+La montée de Vitest `3.2.7` vers `4.1.11` est reportée après le lancement. Il
+s'agit d'un changement majeur qui doit être vérifié sur les 679 tests frontend,
+indépendamment du correctif compatible `js-yaml 4.3.2`.
+
+La branche `wip/pytest-tmpfs-hardening` reste conservée telle quelle. Son
+intégration, qui ajoute le tmpfs local borné et son nettoyage, aura lieu après
+le lancement.
