@@ -55,6 +55,27 @@ def test_local_pytest_defaults_to_parallel_fast_suite() -> None:
     assert "archive" in pytest_options["norecursedirs"]
 
 
+def test_local_pytest_uses_available_memory_backed_temp_root(tmp_path: pathlib.Path) -> None:
+    from conftest import configure_local_pytest_temproot
+
+    environment: dict[str, str] = {}
+
+    assert configure_local_pytest_temproot(environment, candidate=tmp_path)
+    assert environment["PYTEST_DEBUG_TEMPROOT"] == str(tmp_path)
+
+
+def test_ci_and_explicit_temp_roots_are_not_overridden(tmp_path: pathlib.Path) -> None:
+    from conftest import configure_local_pytest_temproot
+
+    ci_environment = {"CI": "true"}
+    explicit_environment = {"PYTEST_DEBUG_TEMPROOT": "/operator-choice"}
+
+    assert not configure_local_pytest_temproot(ci_environment, candidate=tmp_path)
+    assert not configure_local_pytest_temproot(explicit_environment, candidate=tmp_path)
+    assert "PYTEST_DEBUG_TEMPROOT" not in ci_environment
+    assert explicit_environment["PYTEST_DEBUG_TEMPROOT"] == "/operator-choice"
+
+
 def test_real_default_collection_excludes_slow_and_all_archive_trees() -> None:
     result = _collect()
 

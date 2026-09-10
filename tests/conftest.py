@@ -18,6 +18,24 @@ from typing import Any
 import pytest
 from filelock import FileLock
 
+
+def configure_local_pytest_temproot(
+    environment: dict[str, str] | os._Environ[str] = os.environ,
+    *,
+    candidate: pathlib.Path = pathlib.Path("/dev/shm"),
+) -> bool:
+    """Use Linux tmpfs for local SQLite-heavy tests when it is safe to do so."""
+
+    if environment.get("CI") or environment.get("PYTEST_DEBUG_TEMPROOT"):
+        return False
+    if not candidate.is_dir() or not os.access(candidate, os.W_OK | os.X_OK):
+        return False
+    environment["PYTEST_DEBUG_TEMPROOT"] = str(candidate)
+    return True
+
+
+configure_local_pytest_temproot()
+
 _FULL_BENCHMARK_SUITES = frozenset(
     {
         "test_contract100_benchmark.py",
