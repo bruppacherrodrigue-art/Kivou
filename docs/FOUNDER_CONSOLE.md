@@ -212,6 +212,8 @@ Rodrigue creates this record at the current registrar:
 | --- | --- | --- |
 | `control.kivou.eu` | `A` | `179.237.105.52` |
 
+This is a direct DNS handoff, with no DNS proxy (`sans proxy DNS`).
+
 Wait until public DNS resolves `control.kivou.eu` to `179.237.105.52` before
 requesting the certificate. Ports 80 and 443 must reach nginx directly.
 
@@ -365,6 +367,8 @@ test "$(curl -sS --user rodrigue -o /dev/null -w '%{http_code}' \
 test "$(curl -sS -o /dev/null -w '%{http_code}' \
   https://kivou.eu/api/founder/overview)" = 404
 
+# Inspect the installed certificate hostname and expiry, then test renewal.
+sudo certbot certificates
 sudo certbot renew --dry-run
 ```
 
