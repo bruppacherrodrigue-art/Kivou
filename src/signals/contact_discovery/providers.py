@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from signals.contact_discovery.web import OfficialDirector, WebsiteEvidence
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "anthropic/claude-haiku-4.5"
+DEFAULT_MODEL = "anthropic/claude-sonnet-4.6"
 
 
 class PublishedContactExtraction(BaseModel):
