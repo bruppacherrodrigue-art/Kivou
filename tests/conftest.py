@@ -8,11 +8,118 @@ vrai contrat d'entrée, et pas sur une structure inventée pour l'occasion.
 from __future__ import annotations
 
 import contextlib
+import pathlib
 import re
+import shutil
 import warnings
 from typing import Any
 
 import pytest
+
+_FULL_BENCHMARK_SUITES = frozenset(
+    {
+        "test_contract100_benchmark.py",
+        "test_document100_benchmark.py",
+        "test_winner100_benchmark.py",
+    }
+)
+
+# These modules exercise historical upgrade/downgrade transitions, revision
+# topology, or dialect-specific migration SQL.  Keep the list exact: an
+# ordinary application test mentioning "migration" must remain in the fast
+# suite unless it deliberately joins this exhaustive CI gate.
+EXHAUSTIVE_MIGRATION_SUITES = frozenset(
+    {
+        "test_accounts_migration_and_ownership.py",
+        "test_acquisition_migration.py",
+        "test_acquisition_runtime_authorization_migration.py",
+        "test_acquisition_runtime_migration.py",
+        "test_alert_recipient_context_migration.py",
+        "test_campaign_factory_migration.py",
+        "test_card_presentation_migration.py",
+        "test_company_engagement_migration.py",
+        "test_company_research_migration.py",
+        "test_compliance_migration.py",
+        "test_contact_discovery_migration.py",
+        "test_contact_waterfall_migration.py",
+        "test_contract_award_text_capacity_migration.py",
+        "test_conversion_tracking_migration.py",
+        "test_decision_engine_migration.py",
+        "test_for_you_sentence_migration.py",
+        "test_ingestion_migration.py",
+        "test_learning_migration.py",
+        "test_persistence_migrations.py",
+        "test_personalization_migration.py",
+        "test_portal_capture_migration.py",
+        "test_reliability_operations_migration.py",
+        "test_response_intelligence_migration.py",
+        "test_saas_company_migration.py",
+        "test_signal_notes_migration.py",
+        "test_supplier_directory_migration.py",
+        "test_supplier_discovery_migration.py",
+        "test_transactional_email_migration.py",
+        "test_winner_enrichment_migration.py",
+    }
+)
+
+
+def is_slow_suite_path(path: pathlib.Path) -> bool:
+    """Route only full corpus gates and exhaustive migration modules to CI."""
+
+    return path.name in _FULL_BENCHMARK_SUITES or path.name in EXHAUSTIVE_MIGRATION_SUITES
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    for item in items:
+        if is_slow_suite_path(pathlib.Path(str(item.path))):
+            item.add_marker(pytest.mark.slow)
+
+
+def copy_migrated_sqlite_template(
+    template: pathlib.Path, destination: pathlib.Path
+) -> pathlib.Path:
+    """Copy the immutable HEAD-schema template to a fresh test-owned database."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(template, destination)
+    return destination
+
+
+@pytest.fixture(scope="session")
+def migrated_sqlite_template(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
+    """Build one clean SQLite database at Alembic HEAD per pytest worker session."""
+
+    from signals.persistence.database import create_database_engine, migrate_to_latest
+
+    template = tmp_path_factory.mktemp("migrated-sqlite") / "head.db"
+    engine = create_database_engine(f"sqlite+pysqlite:///{template}")
+    try:
+        migrate_to_latest(engine)
+    finally:
+        engine.dispose()
+    return template
+
+
+@pytest.fixture
+def migrated_sqlite_path(
+    migrated_sqlite_template: pathlib.Path, tmp_path: pathlib.Path
+) -> pathlib.Path:
+    """Give one test an isolated copy of the worker's migrated template."""
+
+    return copy_migrated_sqlite_template(migrated_sqlite_template, tmp_path / "kivou-head.db")
+
+
+@pytest.fixture
+def migrated_sqlite_engine(migrated_sqlite_path: pathlib.Path):
+    """Open and dispose a per-test engine backed by an isolated HEAD-schema copy."""
+
+    from signals.persistence.database import create_database_engine
+
+    engine = create_database_engine(f"sqlite+pysqlite:///{migrated_sqlite_path}")
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
 def make_blind(**overrides: Any) -> dict[str, Any]:

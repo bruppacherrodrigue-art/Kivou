@@ -11,7 +11,6 @@ qu'on ne peut pas tester est une expiration qu'on ne peut pas promettre.
 from __future__ import annotations
 
 import datetime as dt
-import pathlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -31,7 +30,6 @@ from signals.accounts.passwords import (
 from signals.accounts.schema import account, auth_session, auth_user, password_reset
 from signals.accounts.tokens import token_hash
 from signals.api import SESSION_COOKIE_NAME, ApiConfig, create_app
-from signals.persistence.database import create_database_engine, migrate_to_latest
 
 #: Origine synthétique pour la validation CSRF (CLOSEOUT §3).
 ORIGIN = "https://kivou.test"
@@ -77,10 +75,8 @@ def delivery() -> RecordingDelivery:
 
 
 @pytest.fixture
-def engine(tmp_path: pathlib.Path):
-    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
-    migrate_to_latest(engine)
-    return engine
+def engine(migrated_sqlite_engine):
+    return migrated_sqlite_engine
 
 
 @pytest.fixture

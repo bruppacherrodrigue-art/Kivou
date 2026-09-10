@@ -42,6 +42,7 @@ postgres = ["psycopg[binary]>=3.3.4"]
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-xdist>=3.8",
     "ruff>=0.16.5",
     # Pilote PostgreSQL : présent en dev pour que le dialecte de PRODUCTION soit
     # exerçable par les tests sans qu'aucun serveur ne tourne.
@@ -69,6 +70,11 @@ exclude = ["archive"]
 ignore = ["FURB157"]
 
 [tool.pytest.ini_options]
+addopts = "-n auto -m 'not slow'"
+markers = [
+    "slow: benchmark complet ou vérification exhaustive de migration, joué en CI",
+]
+norecursedirs = ["archive"]
 testpaths = ["tests"]
 filterwarnings = [
     # Starlette annonce sa future migration vers httpx2 dans son client de test.

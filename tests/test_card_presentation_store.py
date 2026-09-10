@@ -65,12 +65,8 @@ class PersistedCase:
 
 
 @pytest.fixture
-def engine(tmp_path) -> sa.Engine:
-    database = create_database_engine(
-        f"sqlite+pysqlite:///{tmp_path / 'card-presentation-store.db'}"
-    )
-    migrate_to_latest(database)
-    return database
+def engine(migrated_sqlite_engine: sa.Engine) -> sa.Engine:
+    return migrated_sqlite_engine
 
 
 @pytest.fixture
