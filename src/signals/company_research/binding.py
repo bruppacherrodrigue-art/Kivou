@@ -197,9 +197,7 @@ class SireneApolloResolver:
                     validation_evidence_url=domain_resolution.validation_evidence_url,
                     observed_at=domain_resolution.observed_at,
                 )
-        domain = (
-            domain_resolution.domain if domain_resolution is not None else identity.primary_domain
-        )
+        domain = domain_resolution.domain if domain_resolution is not None else None
         cached_apollo = (
             self._directory.fresh_apollo(identity.provider_organization_id, at=now)
             if self._directory is not None
@@ -213,7 +211,16 @@ class SireneApolloResolver:
                     "siren": identity.provider_organization_id,
                 },
             )
-            if domain_resolution is not None and existing.domain != domain_resolution.domain:
+            if domain_resolution is None and existing.domain is not None:
+                existing = self._store.put(
+                    siren=identity.provider_organization_id,
+                    apollo_organization_id=existing.apollo_organization_id,
+                    resolution_method=existing.resolution_method,
+                    confidence_score=existing.confidence_score,
+                    status=existing.status,
+                    domain_resolution=None,
+                )
+            elif domain_resolution is not None and existing.domain != domain_resolution.domain:
                 existing = self._store.put(
                     siren=identity.provider_organization_id,
                     apollo_organization_id=existing.apollo_organization_id,
