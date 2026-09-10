@@ -249,10 +249,7 @@ rollback_founder_nginx() {
 fail_founder_nginx_transaction() {
   local reason=$1 rollback_dir=$2 available_existed=$3 enabled_existed=$4
   if ! rollback_founder_nginx "$rollback_dir" "$available_existed" "$enabled_existed"; then
-    if ! rm -rf -- "$rollback_dir"; then
-      KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="$KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE et nettoyage des sauvegardes"
-    fi
-    fail "ROLLBACK NGINX FOUNDER INCOMPLET : $KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE ; intervention manuelle requise"
+    fail "ROLLBACK NGINX FOUNDER INCOMPLET : $KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE ; sauvegardes conservées : $rollback_dir ; intervention manuelle requise"
   fi
   rm -rf -- "$rollback_dir" || fail "ROLLBACK NGINX FOUNDER INCOMPLET : nettoyage ; intervention manuelle requise"
   fail "$reason ; configuration précédente restaurée"

@@ -127,6 +127,13 @@ def _active_production_environment(
     _fake_bin(fake_bin, "nginx", recorder + nginx_body)
     _fake_bin(
         fake_bin,
+        "cp",
+        recorder
+        + 'if [[ "${KIVOU_TEST_FAIL_NGINX_RESTORE:-0}" == "1" && "$1" == "-a" && "$4" == "$KIVOU_FOUNDER_NGINX_AVAILABLE" ]]; then exit 26; fi\n'
+        + 'exec /usr/bin/cp "$@"\n',
+    )
+    _fake_bin(
+        fake_bin,
         "install",
         recorder
         + 'if [[ "$1" == "-d" && "${@: -1}" == "$(dirname "$KIVOU_FOUNDER_FRONTEND_LINK")" ]]; then exec /usr/bin/install "$@"; fi\n'
@@ -482,6 +489,46 @@ def test_nginx_candidate_mutation_failure_restores_prior_site(
     assert commands.count("systemctl reload nginx") == 1
 
 
+def test_nginx_restore_failure_preserves_and_reports_backups(
+    tmp_path: pathlib.Path,
+) -> None:
+    env, _, _, _, _ = _active_production_environment(tmp_path)
+    rollback_parent = tmp_path / "rollback"
+    rollback_parent.mkdir()
+    env["TMPDIR"] = str(rollback_parent)
+    env["KIVOU_TEST_FAIL_NGINX_INSTALL"] = "1"
+    env["KIVOU_TEST_FAIL_NGINX_RESTORE"] = "1"
+    available = pathlib.Path(env["KIVOU_FOUNDER_NGINX_AVAILABLE"])
+    enabled = pathlib.Path(env["KIVOU_FOUNDER_NGINX_ENABLED"])
+    prior_target = tmp_path / "prior-founder-site.conf"
+    prior_target.write_text("prior target\n", encoding="utf-8")
+    available.write_text("prior available\n", encoding="utf-8")
+    enabled.symlink_to(prior_target)
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    marker = "sauvegardes conservées : "
+    assert marker in result.stderr
+    reported_path = result.stderr.split(marker, 1)[1].split(" ;", 1)[0]
+    rollback_dir = pathlib.Path(reported_path)
+    assert rollback_dir.parent == rollback_parent
+    assert rollback_dir.is_dir()
+    assert (rollback_dir / "available").read_text(encoding="utf-8") == (
+        "prior available\n"
+    )
+    assert (rollback_dir / "enabled").is_symlink()
+    assert os.readlink(rollback_dir / "enabled") == str(prior_target)
+    assert "intervention manuelle requise" in result.stderr
+
+
 def test_nginx_reload_failure_restores_and_revalidates_prior_founder_site(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -529,6 +576,9 @@ def test_nginx_rollback_reload_failure_requires_manual_intervention(
         tmp_path,
         systemctl_body='if [[ "$*" == "reload nginx" ]]; then exit 24; fi\n',
     )
+    rollback_parent = tmp_path / "rollback"
+    rollback_parent.mkdir()
+    env["TMPDIR"] = str(rollback_parent)
     available = pathlib.Path(env["KIVOU_FOUNDER_NGINX_AVAILABLE"])
     enabled = pathlib.Path(env["KIVOU_FOUNDER_NGINX_ENABLED"])
     prior_target = tmp_path / "prior-founder-site.conf"
@@ -552,6 +602,11 @@ def test_nginx_rollback_reload_failure_requires_manual_intervention(
     assert not pathlib.Path(f"{enabled}.next").exists()
     assert "ROLLBACK NGINX FOUNDER INCOMPLET" in result.stderr
     assert "intervention manuelle requise" in result.stderr
+    reported_path = result.stderr.split("sauvegardes conservées : ", 1)[1].split(
+        " ;", 1
+    )[0]
+    assert pathlib.Path(reported_path).parent == rollback_parent
+    assert pathlib.Path(reported_path).is_dir()
     commands = log.read_text(encoding="utf-8")
     assert commands.count("nginx -t") == 2
     assert commands.count("systemctl reload nginx") == 2
