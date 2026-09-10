@@ -780,8 +780,6 @@ def test_founder_https_preserves_frontend_health_and_security_contracts() -> Non
         "proxy_pass http://127.0.0.1:8011;",
     )
     for expected in (
-        "proxy_set_header Host $host;",
-        "proxy_set_header X-Forwarded-Proto https;",
         "proxy_set_header X-Kivou-Founder-User $remote_user;",
         (
             "proxy_set_header X-Kivou-Founder-Origin-Secret "
@@ -790,6 +788,13 @@ def test_founder_https_preserves_frontend_health_and_security_contracts() -> Non
     ):
         assert health_directives.count(expected) == 1
         assert health_directives.index(shared_params) < health_directives.index(expected)
+    assert not any(
+        directive.startswith((
+            "proxy_set_header Host ",
+            "proxy_set_header X-Forwarded-Proto ",
+        ))
+        for directive in health_directives
+    )
 
     assert frozenset(
         block.selector for block in locations if "proxy_pass" in block.body
@@ -819,10 +824,30 @@ def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> N
     assert directives.count(origin_secret) == 1
     assert directives.index(shared_params) < directives.index(founder_user)
     assert directives.index(shared_params) < directives.index(origin_secret)
+    assert not any(
+        directive.startswith((
+            "proxy_set_header Host ",
+            "proxy_set_header X-Forwarded-Proto ",
+        ))
+        for directive in directives
+    )
 
     lowered = api.body.lower()
     assert "cf-access" not in lowered
     assert "cloudflare" not in lowered
+
+
+def test_shared_proxy_params_own_standard_headers_not_founder_trust() -> None:
+    shared = (NGINX_DIR / "kivou-proxy-params.conf").read_text()
+
+    assert re.search(r"^proxy_set_header\s+Host\s+\$host;$", shared, re.MULTILINE)
+    assert re.search(
+        r"^proxy_set_header\s+X-Forwarded-Proto\s+\$scheme;$",
+        shared,
+        re.MULTILINE,
+    )
+    assert "X-Kivou-Founder-User" not in shared
+    assert "X-Kivou-Founder-Origin-Secret" not in shared
 
 
 def test_founder_https_never_proxies_customer_or_internal_routes() -> None:
