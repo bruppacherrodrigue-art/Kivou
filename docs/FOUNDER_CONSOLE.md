@@ -204,7 +204,7 @@ PY
 
 A non-PostgreSQL URL is refused by the production Founder entrypoint.
 
-## DNS and TLS setup
+## DNS handoff
 
 Rodrigue creates this record at the current registrar:
 
@@ -217,43 +217,6 @@ This is a direct DNS handoff, with no DNS proxy (`sans proxy DNS`).
 Wait until public DNS resolves `control.kivou.eu` to `179.237.105.52` before
 requesting the certificate. Ports 80 and 443 must reach nginx directly.
 
-The versioned nginx vhost references certificate files that do not exist on a
-first installation. Bootstrap safely in this order:
-
-1. install nginx and Certbot, and create the ACME webroot:
-
-   ```bash
-   sudo install -d -o root -g www-data -m 0755 /var/www/certbot
-   ```
-
-2. enable a temporary port-80-only server for `control.kivou.eu` that serves
-   `/.well-known/acme-challenge/` from `/var/www/certbot` and redirects every
-   other request to HTTPS;
-3. validate that temporary configuration with `sudo nginx -t`, reload nginx,
-   and confirm the ACME webroot is reachable through the public hostname:
-
-   ```bash
-   sudo install -d -o root -g www-data -m 0755 \
-     /var/www/certbot/.well-known/acme-challenge
-   printf 'ready\n' \
-     | sudo tee /var/www/certbot/.well-known/acme-challenge/bootstrap-check >/dev/null
-   curl --fail \
-     http://control.kivou.eu/.well-known/acme-challenge/bootstrap-check
-   sudo rm /var/www/certbot/.well-known/acme-challenge/bootstrap-check
-   ```
-
-4. obtain the first certificate without allowing Certbot to rewrite nginx:
-
-   ```bash
-   sudo certbot certonly --webroot -w /var/www/certbot -d control.kivou.eu
-   ```
-
-5. replace the temporary server with the complete validated
-   `ops/nginx/kivou-founder-control.conf`, run `sudo nginx -t`, then reload
-   nginx.
-
-Never activate the complete HTTPS vhost before the certificate files exist.
-
 ## Basic Auth credential
 
 Install `apache2-utils` if `htpasswd` is not already present. Generate one
@@ -262,6 +225,7 @@ agreed secure channel, feed it to `htpasswd` over standard input, then unset it:
 
 ```bash
 sudo apt-get install apache2-utils
+sudo install -d -o root -g root -m 0755 /etc/kivou
 sudo -v
 FOUNDER_BASIC_PASSWORD="$(openssl rand -base64 32)"
 printf 'Founder password (transfer once now): %s\n' "$FOUNDER_BASIC_PASSWORD"
@@ -277,24 +241,38 @@ password file.
 
 Do not paste the cleartext password into a command, file, shell history, ticket
 or repository. The generated value must not be recorded after the one-time
-transfer.
+transfer. Create this file before installing or testing the complete HTTPS
+vhost.
 
-## Origin secret
+## Founder environment and origin secret
 
-Generate one random value:
+From the root of the checked-out Kivou release, install the complete versioned
+example first, then edit every placeholder locally:
 
 ```bash
-openssl rand -hex 32
+sudo install -o root -g kivou -m 0640 \
+  ops/examples/founder-console.env.example /etc/kivou/founder.env
+sudoedit /etc/kivou/founder.env
 ```
 
-Put it in `/etc/kivou/founder.env`:
+The resulting file remains complete and contains all of these settings:
 
 ```dotenv
+KIVOU_FOUNDER_HOSTNAME=control.kivou.eu
+KIVOU_FOUNDER_ENVIRONMENT=PRODUCTION
+KIVOU_FOUNDER_ALLOWED_EMAIL=rodrigue.bruppacher@gmail.com
 KIVOU_FOUNDER_ALLOWED_USER=rodrigue
-KIVOU_FOUNDER_ORIGIN_SECRET=<same-random-value>
+KIVOU_FOUNDER_ORIGIN_SECRET=<random-value-from-openssl-rand-hex-32>
+KIVOU_FOUNDER_DATABASE_URL=postgresql+psycopg://kivou_founder_ro:REPLACE@127.0.0.1:5432/kivou
 ```
 
-Create `/etc/kivou/founder-origin-secret.conf` as root:
+Generate the origin secret with `openssl rand -hex 32`. Put that same generated
+value in `KIVOU_FOUNDER_ORIGIN_SECRET` and create
+`/etc/kivou/founder-origin-secret.conf` as root:
+
+```bash
+sudoedit /etc/kivou/founder-origin-secret.conf
+```
 
 ```nginx
 set $kivou_founder_origin_secret "<same-random-value>";
@@ -309,7 +287,79 @@ sudo chown root:www-data /etc/kivou/founder-origin-secret.conf
 sudo chmod 0640 /etc/kivou/founder-origin-secret.conf
 ```
 
-Never commit the generated value.
+Never commit the generated value. Both the complete environment file and the
+origin-secret include must exist with these permissions before the complete
+HTTPS vhost is installed or tested.
+
+## First-certificate bootstrap
+
+The versioned nginx vhost references certificate files that do not exist on a
+first installation. With DNS already resolving, and the environment,
+origin-secret include and password file already installed, bootstrap safely in
+this order.
+
+Install nginx and Certbot if needed, then create the webroot and an exact
+temporary HTTP-only vhost:
+
+```bash
+sudo install -d -o root -g www-data -m 0755 /var/www/certbot
+sudo install -d -o root -g www-data -m 0755 \
+  /var/www/certbot/.well-known/acme-challenge
+sudo tee /etc/nginx/sites-available/kivou-founder-bootstrap.conf >/dev/null <<'NGINX'
+server {
+    listen 80;
+    listen [::]:80;
+    server_name control.kivou.eu;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        default_type text/plain;
+    }
+
+    location / {
+        return 301 https://control.kivou.eu$request_uri;
+    }
+}
+NGINX
+sudo ln -s /etc/nginx/sites-available/kivou-founder-bootstrap.conf \
+  /etc/nginx/sites-enabled/kivou-founder-bootstrap.conf
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Confirm the public challenge path returns both a successful status and the
+exact expected body. A redirect or an unexpected body fails this check:
+
+```bash
+printf 'ready\n' \
+  | sudo tee /var/www/certbot/.well-known/acme-challenge/bootstrap-check >/dev/null
+ACME_RESPONSE="$(curl --fail --silent --show-error --write-out '\n%{http_code}' \
+  http://control.kivou.eu/.well-known/acme-challenge/bootstrap-check)"
+test "$ACME_RESPONSE" = "$(printf 'ready\n200')"
+unset ACME_RESPONSE
+sudo rm -- /var/www/certbot/.well-known/acme-challenge/bootstrap-check
+```
+
+Obtain the first certificate without allowing Certbot to rewrite nginx:
+
+```bash
+sudo certbot certonly --webroot -w /var/www/certbot -d control.kivou.eu
+```
+
+Remove only the temporary vhost, then deploy the explicit production SHA. The
+deployment candidate installs `ops/nginx/kivou-founder-control.conf`, validates
+it with `nginx -t` and reloads nginx only after validation succeeds:
+
+```bash
+sudo rm -- /etc/nginx/sites-enabled/kivou-founder-bootstrap.conf
+sudo rm -- /etc/nginx/sites-available/kivou-founder-bootstrap.conf
+KIVOU_RELEASE_SHA="$(git rev-parse HEAD)"
+sudo /srv/kivou/source/ops/bin/kivou-deploy.sh production "$KIVOU_RELEASE_SHA"
+unset KIVOU_RELEASE_SHA
+```
+
+Never activate the complete HTTPS vhost before the certificate, complete
+environment, origin-secret include and htpasswd file all exist.
 
 ## Build and deploy contract
 
