@@ -36,7 +36,7 @@ MIXED_MODULE_MIGRATION_TESTS = (
 
 def _collect(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q", *args],
+        [sys.executable, "-m", "pytest", "--collect-only", "-q", "-n", "0", *args],
         cwd=ROOT,
         capture_output=True,
         text=True,
