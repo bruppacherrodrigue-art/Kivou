@@ -767,7 +767,7 @@ def test_founder_https_preserves_frontend_and_security_contracts() -> None:
         "root /srv/kivou-founder/frontend;",
         "index index.html;",
         "client_max_body_size 64k;",
-        "include /etc/nginx/kivou-security-headers.conf;",
+        "include /etc/nginx/kivou-production-security-headers.conf;",
         'add_header X-Robots-Tag "noindex, nofollow, noarchive" always;',
         'add_header Cache-Control "no-store" always;',
     ):
@@ -781,6 +781,15 @@ def test_founder_https_preserves_frontend_and_security_contracts() -> None:
     assert _directives(_only_location(https, "/").body) == (
         "try_files $uri $uri/ /index.html;",
     )
+
+
+def test_founder_uses_only_production_security_header_fragments() -> None:
+    site = _founder_site_text()
+
+    assert "include /etc/nginx/kivou-security-headers.conf;" not in site
+    assert site.count(
+        "include /etc/nginx/kivou-production-security-headers.conf;"
+    ) == 3
 
 
 def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> None:
