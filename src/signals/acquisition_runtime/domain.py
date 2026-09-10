@@ -22,6 +22,7 @@ from signals.acquisition_runtime.actions import (
 )
 from signals.acquisition_runtime.contracts import RuntimeQaScope, RuntimeStageSnapshot
 from signals.acquisition_runtime.registry import AcquisitionActionContext
+from signals.acquisition_runtime.selection import resolved_holder_name_for_opportunity
 from signals.acquisition_runtime.shadow_mail import ShadowMailInput, render_shadow_mail
 from signals.acquisition_runtime.shadow_store import write_shadow_mail
 from signals.campaigns.contracts import (
@@ -1196,7 +1197,9 @@ class AcquisitionDomainActions:
         if supplier is None or contact is None or not for_you:
             return
         title = public.award.title or public.award.description or "Signal marché public"
-        holder = public.award.awardee_organizations()[0].legal_name
+        holder = resolved_holder_name_for_opportunity(
+            self._engine, context.cycle.opportunity_key
+        ) or public.award.awardee_organizations()[0].legal_name
         amount = public.award.value
         amount_text = (
             f"{amount.amount:,.2f} {amount.currency}".replace(",", " ")

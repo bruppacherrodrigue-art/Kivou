@@ -62,7 +62,11 @@ from signals.acquisition_runtime.runtime_policy import (
     RuntimePolicyConfigurationError,
     SqlRuntimePolicyReadinessSource,
 )
-from signals.acquisition_runtime.selection import select_production_opportunity_key
+from signals.acquisition_runtime.selection import (
+    MAX_DYNAMIC_HOLDER_ENRICHMENT,
+    select_production_opportunity_key,
+    unresolved_dynamic_holder_signal_keys,
+)
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.acquisition_runtime.supervisor import (
     KIVOU_STAGE_COSTS,
@@ -84,6 +88,8 @@ from signals.campaigns.runtime_webhook import (
     InstantlyWebhookRuntimeConfiguration,
     load_instantly_webhook_runtime_config,
 )
+from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.companies.france import FrenchOfficialCompanyClient
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
@@ -824,6 +830,35 @@ def execute_runtime_run_once(
     assert webhook_configuration is not None
     engine = create_database_engine()
     try:
+        selection = runtime_config.deployment.selection
+        if (
+            runtime_config.environment == "PRODUCTION"
+            and selection is not None
+            and selection.mode == "dynamic"
+            and selection.vertical is not None
+            and selection.region is not None
+        ):
+            observed_at = dt.datetime.now(dt.UTC)
+            signal_keys = unresolved_dynamic_holder_signal_keys(
+                engine,
+                country=runtime_config.deployment.qa_scope.country,
+                observed_at=observed_at,
+                vertical=selection.vertical,
+                region=selection.region,
+            )
+            if signal_keys:
+                with engine.begin() as connection:
+                    run_winner_enrichment_batch(
+                        connection,
+                        now=observed_at,
+                        worker_ref="acquisition-holder-resolution",
+                        limit=MAX_DYNAMIC_HOLDER_ENRICHMENT,
+                        retry_failed=True,
+                        official_company_provider=FrenchOfficialCompanyClient(
+                            clock=lambda: observed_at
+                        ),
+                        signal_keys=signal_keys,
+                    )
         with httpx.Client(timeout=10.0, follow_redirects=False) as client:
             apollo = (
                 build_fake_apollo_components()

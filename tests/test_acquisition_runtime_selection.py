@@ -3,10 +3,18 @@ from __future__ import annotations
 
 import datetime as dt
 
+import httpx
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
-from signals.acquisition_runtime.selection import select_production_opportunity_key
+from signals.acquisition_runtime.selection import (
+    resolved_holder_name_for_opportunity,
+    select_production_opportunity_key,
+    unresolved_dynamic_holder_signal_keys,
+)
+from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.companies.france import FrenchOfficialCompanyClient
+from signals.companies.schema import saas_company, winner_enrichment_job
 from signals.persistence.schema import (
     METADATA,
     acquisition_runtime_cycle,
@@ -21,6 +29,7 @@ NOW = dt.datetime(2026, 8, 31, 12, tzinfo=dt.UTC)
 
 
 def _engine(tmp_path) -> sa.Engine:
+    tmp_path.mkdir(parents=True, exist_ok=True)
     engine = sa.create_engine(
         f"sqlite+pysqlite:///{tmp_path / 'selection.sqlite'}",
         future=True,
@@ -36,6 +45,8 @@ def _engine(tmp_path) -> sa.Engine:
             target_icp,
             opportunity_representation,
             acquisition_runtime_cycle,
+            saas_company,
+            winner_enrichment_job,
         ],
     )
     return engine
@@ -100,6 +111,133 @@ def _seed_cycle(
         )
 
 
+def _seed_dynamic_siret_holder(engine, *, resolved_name: str | None) -> None:
+    identity_fingerprint = "d" * 64
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(target_icp).values(
+                target_icp_id="icp-dynamic",
+                account_id="account-dynamic",
+                label="Bâtiment AURA",
+                status="active",
+                matching_revision=1,
+                customer_input={},
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(source_event).values(
+                event_key="event-dynamic",
+                source_system="BOAMP",
+                source_notice_id="notice-dynamic",
+                source_country="FR",
+                event_type="AWARD",
+                published_on=NOW.date(),
+                procedure_buyers=[],
+                created_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(contract_award).values(
+                award_key="award-dynamic",
+                event_key="event-dynamic",
+                title="Construction d'un équipement public",
+                amount=100_000,
+                currency="EUR",
+                winner_status="identified",
+                awardee_parties=[],
+                contract_signatories=[],
+                cpv_additional=[],
+                place_of_performance={"subdivision_code": "FRK26"},
+                created_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(opportunity_representation).values(
+                award_key="award-dynamic",
+                opportunity_key="opportunity-dynamic",
+                created_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(materialized_signal).values(
+                signal_key="signal-dynamic",
+                opportunity_key="opportunity-dynamic",
+                materialization_award_key="award-dynamic",
+                target_icp_id="icp-dynamic",
+                target_icp_revision=1,
+                revision=1,
+                content_fingerprint="c" * 64,
+                materialized_recency_status="recent_award",
+                materialized_award_clock_status="known",
+                materialized_notification_clock_status="unknown",
+                materialized_publication_clock_status="known",
+                materialized_as_of=NOW.date(),
+                recency_policy_version="test-v1",
+                winner_name="12345678901234",
+                winner_country="FR",
+                winner_identifier_scheme="SIRET",
+                winner_identifier_value="12345678901234",
+                company_identity_fingerprint=identity_fingerprint,
+                inferred_trade_domain="general_building",
+                plausible_needs=[],
+                icp_matched_needs=[],
+                engine_versions={},
+                materialized_at=NOW,
+                created_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(for_you_sentence).values(
+                for_you_id="for-you-dynamic",
+                signal_key="signal-dynamic",
+                target_icp_id="icp-dynamic",
+                signal_fingerprint="c" * 64,
+                profile_fingerprint="p" * 64,
+                policy_version="test-v1",
+                sentence="Dans votre zone et votre secteur.",
+                fallback_sentence="Dans votre zone et votre secteur.",
+                provenance="generated",
+                state="completed",
+                input_snapshot={},
+                model_fit="strong",
+                created_at=NOW,
+                updated_at=NOW,
+                completed_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(winner_enrichment_job).values(
+                signal_key="signal-dynamic",
+                status="pending",
+                attempt_count=0,
+                queued_at=NOW,
+                updated_at=NOW,
+            )
+        )
+        if resolved_name is not None:
+            connection.execute(
+                sa.insert(saas_company).values(
+                    company_key="company-dynamic",
+                    identity_fingerprint=identity_fingerprint,
+                    identity_method="official_identifier",
+                    identity_validation={},
+                    source_award_key="award-dynamic",
+                    origin_signal_key="signal-dynamic",
+                    official_name=resolved_name,
+                    official_country="FR",
+                    official_identifiers=[
+                        {"scheme": "SIRET", "value": "12345678901234"}
+                    ],
+                    official_source="official_register",
+                    official_observed_at=NOW,
+                    created_at=NOW,
+                    updated_at=NOW,
+                )
+            )
+
+
 def test_no_eligible_opportunity_returns_none(tmp_path) -> None:
     assert (
         select_production_opportunity_key(
@@ -135,6 +273,110 @@ def test_dynamic_selection_accepts_centre_val_de_loire_for_staging_stock(
             region="Centre-Val de Loire",
             observed_at=NOW,
         )
+        is None
+    )
+
+
+def test_dynamic_selection_requires_a_resolved_name_for_a_siret_only_holder(
+    tmp_path,
+) -> None:
+    unresolved = _engine(tmp_path / "unresolved")
+    _seed_dynamic_siret_holder(unresolved, resolved_name=None)
+
+    assert (
+        select_production_opportunity_key(
+            unresolved,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            observed_at=NOW,
+        )
+        is None
+    )
+    assert unresolved_dynamic_holder_signal_keys(
+        unresolved,
+        country="FR",
+        vertical="general_building",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    ) == ("signal-dynamic",)
+
+    def official_company(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["q"] == "12345678901234"
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "nom_raison_sociale": "ENTREPRISE OFFICIELLE",
+                        "siege": {
+                            "siret": "12345678901234",
+                            "adresse": "1 rue du Test 69000 Lyon",
+                        },
+                        "matching_etablissements": [],
+                    }
+                ]
+            },
+        )
+
+    with unresolved.begin() as connection:
+        result = run_winner_enrichment_batch(
+            connection,
+            now=NOW,
+            worker_ref="acquisition-holder-resolution",
+            limit=45,
+            retry_failed=True,
+            official_company_provider=FrenchOfficialCompanyClient(
+                transport=httpx.MockTransport(official_company),
+                clock=lambda: NOW,
+            ),
+            signal_keys=("signal-dynamic",),
+        )
+
+    assert result.processed == result.partial == 1
+    assert (
+        select_production_opportunity_key(
+            unresolved,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            observed_at=NOW,
+        )
+        == "opportunity-dynamic"
+    )
+    assert (
+        unresolved_dynamic_holder_signal_keys(
+            unresolved,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            observed_at=NOW,
+        )
+        == ()
+    )
+    assert (
+        resolved_holder_name_for_opportunity(unresolved, "opportunity-dynamic")
+        == "ENTREPRISE OFFICIELLE"
+    )
+    with unresolved.begin() as connection:
+        connection.execute(
+            sa.update(saas_company).values(
+                official_name="12345678901234",
+                official_source="public_notice",
+            )
+        )
+    assert (
+        select_production_opportunity_key(
+            unresolved,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            observed_at=NOW,
+        )
+        is None
+    )
+    assert (
+        resolved_holder_name_for_opportunity(unresolved, "opportunity-dynamic")
         is None
     )
 
