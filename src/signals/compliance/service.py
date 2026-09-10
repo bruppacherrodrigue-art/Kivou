@@ -272,6 +272,10 @@ class ComplianceService:
 
     def _require_bindings(self, opportunity, artifact, supplier, contact, profile) -> None:
         snapshot = artifact["input_snapshot"]
+        recognized_identity_statuses = {
+            SupplierIdentityStatus.PROVIDER_IDENTIFIED,
+            SupplierIdentityStatus.SIRENE_IDENTIFIED,
+        }
         if not (
             artifact["supplier_ref"] == opportunity.supplier_ref == supplier.supplier_ref
             and artifact["contact_ref"] == opportunity.contact_ref == contact.contact_ref
@@ -290,8 +294,8 @@ class ComplianceService:
             and profile.contact_role_profile_version == self._expected_contact_profile_version
             and contact.role_profile_version == profile.contact_role_profile_version
             and contact.role_tier == profile.contact_role_tier
-            and supplier.identity_status is SupplierIdentityStatus.PROVIDER_IDENTIFIED
-            and profile.supplier_identity_status is SupplierIdentityStatus.PROVIDER_IDENTIFIED
+            and supplier.identity_status in recognized_identity_statuses
+            and profile.supplier_identity_status is supplier.identity_status
         ):
             raise ComplianceBindingConflict(opportunity.acquisition_opportunity_id)
 
