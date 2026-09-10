@@ -93,6 +93,7 @@ from signals.companies.france import FrenchOfficialCompanyClient
 from signals.company_research.domain import (
     AnnuaireWebsiteClient,
     CompanyDomainResolver,
+    CompanyWebsiteRegistrationClient,
     SerperDomainSearchClient,
 )
 from signals.compliance.contracts import SenderComplianceConfig
@@ -670,6 +671,7 @@ def build_runtime_execution_composition(
         company_domain_resolver = CompanyDomainResolver(
             official=AnnuaireWebsiteClient(client=client),
             serper=SerperDomainSearchClient(api_key=serper_key, client=client),
+            registration=CompanyWebsiteRegistrationClient(),
             clock=clock,
         )
         website_contact_provider = PublishedWebsiteContactProvider(
@@ -904,7 +906,7 @@ def execute_runtime_run_once(
                 connectivity_config=connectivity_config,
                 links=links,
                 webhook_configuration=webhook_configuration,
-                apollo=apollo,
+                apollo=None,
                 instantly_provider=instantly,
                 hermes_runtime=hermes,
                 allow_qa_provider_mutations=allow_qa_provider_mutations,

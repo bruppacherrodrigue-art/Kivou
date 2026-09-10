@@ -34,6 +34,8 @@ class SupplierDirectoryRecord(BaseModel):
     domain: str | None = None
     website_url: str | None = None
     domain_source: str | None = None
+    domain_validation_method: Literal["name_word", "registration_number"] | None = None
+    domain_validation_evidence_url: str | None = None
     domain_observed_at: dt.datetime | None = None
     apollo_organization_id: str | None = None
     apollo_status: Literal["resolved", "unresolved"] | None = None
@@ -48,6 +50,8 @@ class SupplierDirectoryRecord(BaseModel):
     email_observed_at: dt.datetime | None = None
     contact_form_url: str | None = None
     contact_form_observed_at: dt.datetime | None = None
+    reverification_required_at: dt.datetime | None = None
+    reverification_reason: str | None = None
     suppressed_at: dt.datetime | None = None
     created_at: dt.datetime
     updated_at: dt.datetime
@@ -74,6 +78,7 @@ class SupplierDirectoryRecord(BaseModel):
         "directors_observed_at",
         "email_observed_at",
         "contact_form_observed_at",
+        "reverification_required_at",
         "suppressed_at",
         "created_at",
         "updated_at",
@@ -190,6 +195,8 @@ class SupplierDirectoryStore:
         domain: str,
         website_url: str,
         source: str,
+        validation_method: Literal["name_word", "registration_number"],
+        validation_evidence_url: str | None,
         observed_at: dt.datetime,
     ) -> None:
         self._update(
@@ -198,7 +205,11 @@ class SupplierDirectoryStore:
                 "domain": domain,
                 "website_url": website_url,
                 "domain_source": source,
+                "domain_validation_method": validation_method,
+                "domain_validation_evidence_url": validation_evidence_url,
                 "domain_observed_at": observed_at,
+                "reverification_required_at": None,
+                "reverification_reason": None,
             },
             observed_at,
         )
@@ -256,19 +267,32 @@ class SupplierDirectoryStore:
         contact_title: str,
         observed_at: dt.datetime,
     ) -> bool:
-        return self._update(
-            siren,
-            {
-                "professional_email": email.casefold(),
-                "email_source": source,
-                "email_verification_status": verification_status,
-                "email_contact_name": contact_name,
-                "email_contact_title": contact_title,
-                "email_observed_at": observed_at,
-            },
-            observed_at,
-            skip_if_suppressed=True,
-        )
+        _require_aware(observed_at)
+        normalized_email = email.casefold()
+        if "@" not in normalized_email:
+            return False
+        email_domain = normalized_email.rsplit("@", 1)[1]
+        values = {
+            "professional_email": email.casefold(),
+            "email_source": source,
+            "email_verification_status": verification_status,
+            "email_contact_name": contact_name,
+            "email_contact_title": contact_title,
+            "email_observed_at": observed_at,
+        }
+        with self._engine.begin() as connection:
+            result = connection.execute(
+                sa.update(supplier_directory)
+                .where(
+                    supplier_directory.c.siren == siren,
+                    sa.func.lower(supplier_directory.c.domain) == email_domain,
+                    supplier_directory.c.domain_validation_method.is_not(None),
+                    supplier_directory.c.reverification_required_at.is_(None),
+                    supplier_directory.c.suppressed_at.is_(None),
+                )
+                .values(**values, updated_at=observed_at)
+            )
+        return result.rowcount == 1
 
     def record_contact_form(
         self,
@@ -290,8 +314,39 @@ class SupplierDirectoryStore:
         record = self.get(siren)
         return (
             record
-            if record is not None and record.domain and _fresh(record.domain_observed_at, at)
+            if record is not None
+            and record.domain
+            and record.domain_validation_method
+            and record.reverification_required_at is None
+            and _fresh(record.domain_observed_at, at)
             else None
+        )
+
+    def mark_for_reverification(self, siren: str, *, reason: str, observed_at: dt.datetime) -> bool:
+        return self._update(
+            siren,
+            {
+                "domain": None,
+                "website_url": None,
+                "domain_source": None,
+                "domain_validation_method": None,
+                "domain_validation_evidence_url": None,
+                "domain_observed_at": None,
+                "apollo_organization_id": None,
+                "apollo_status": None,
+                "apollo_observed_at": None,
+                "professional_email": None,
+                "email_source": None,
+                "email_verification_status": None,
+                "email_contact_name": None,
+                "email_contact_title": None,
+                "email_observed_at": None,
+                "contact_form_url": None,
+                "contact_form_observed_at": None,
+                "reverification_required_at": observed_at,
+                "reverification_reason": reason[:128],
+            },
+            observed_at,
         )
 
     def fresh_apollo(self, siren: str, *, at: dt.datetime) -> SupplierDirectoryRecord | None:

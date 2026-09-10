@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 
 import httpx
+import pytest
 
+import signals.company_research.domain as domain_module
 from signals.company_research.domain import (
     AnnuaireWebsiteClient,
     CompanyDomainResolver,
+    DomainResolution,
     SerperDomainSearchClient,
     rejected_supplier_domain,
 )
@@ -175,6 +179,96 @@ def test_observed_french_directories_and_trade_press_are_rejected() -> None:
     )
 
     assert all(rejected_supplier_domain(domain) for domain in domains)
+
+
+@pytest.mark.parametrize(
+    "domain",
+    (
+        "societeinfo.com",
+        "doctrine.fr",
+        "pappers.fr",
+        "societe.com",
+        "verif.com",
+        "infogreffe.fr",
+        "kompass.com",
+        "pagesjaunes.fr",
+        "manageo.fr",
+        "annuaire-entreprises.data.gouv.fr",
+        "data.inpi.fr",
+        "bilansgratuits.fr",
+        "mairie-certines.fr",
+        "commune-certines.fr",
+        "ville-saint-etienne.fr",
+        "entreprises.gouv.fr",
+    ),
+)
+def test_domain_validation_rejects_every_forbidden_registry_and_public_domain(domain) -> None:
+    assert rejected_supplier_domain(domain)
+
+
+def test_domain_resolver_accepts_unmatched_domain_only_when_legal_page_contains_siren() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/":
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/html"},
+                text='<footer><a href="/mentions-legales">Mentions légales</a></footer>',
+            )
+        assert request.url.path == "/mentions-legales"
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="SIREN : 331 364 729",
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    resolution = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="centrale-grenoble.fr",
+            website_url="https://centrale-grenoble.fr",
+            source="annuaire_entreprises",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=domain_module.CompanyWebsiteRegistrationClient(client=client),
+        clock=lambda: NOW,
+    ).resolve(_identity())
+
+    assert resolution is not None
+    assert resolution.validation_method == "registration_number"
+    assert resolution.validation_evidence_url == "https://centrale-grenoble.fr/mentions-legales"
+
+
+def test_domain_resolver_rejects_unmatched_domain_without_registration_number(caplog) -> None:
+    caplog.set_level(logging.INFO)
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                headers={"content-type": "text/html"},
+                text="Entreprise de construction régionale",
+            )
+        ),
+        follow_redirects=True,
+    )
+
+    resolution = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="centrale-grenoble.fr",
+            website_url="https://centrale-grenoble.fr",
+            source="annuaire_entreprises",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=domain_module.CompanyWebsiteRegistrationClient(client=client),
+        clock=lambda: NOW,
+    ).resolve(_identity())
+
+    assert resolution is None
+    decision = next(
+        record for record in caplog.records if record.message == "supplier_domain_validation"
+    )
+    assert decision.domain_validation_criterion == "identity_unconfirmed"
 
 
 def test_serper_accepts_one_significant_company_word_in_domain_or_title() -> None:

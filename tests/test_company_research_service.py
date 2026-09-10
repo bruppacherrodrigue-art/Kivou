@@ -289,6 +289,7 @@ def test_unresolved_apollo_binding_uses_sirene_directory_without_provider_call(
         website_url="https://acme.example",
         source="serper",
         query="Acme Lyon",
+        validation_method="name_word",
         observed_at=NOW,
     )
     directory.record_domain(
@@ -296,6 +297,8 @@ def test_unresolved_apollo_binding_uses_sirene_directory_without_provider_call(
         domain=domain.domain,
         website_url=domain.website_url,
         source=domain.source,
+        validation_method="name_word",
+        validation_evidence_url=None,
         observed_at=NOW,
     )
     SireneApolloBindingStore(engine, clock=lambda: NOW).put(

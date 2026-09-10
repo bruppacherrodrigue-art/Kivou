@@ -853,6 +853,8 @@ supplier_directory = sa.Table(
     sa.Column("domain", sa.String(253), index=True),
     sa.Column("website_url", sa.Text),
     sa.Column("domain_source", sa.String(32)),
+    sa.Column("domain_validation_method", sa.String(32)),
+    sa.Column("domain_validation_evidence_url", sa.Text),
     sa.Column("domain_observed_at", sa.DateTime(timezone=True)),
     sa.Column("apollo_organization_id", sa.String(128)),
     sa.Column("apollo_status", sa.String(16)),
@@ -867,6 +869,8 @@ supplier_directory = sa.Table(
     sa.Column("email_observed_at", sa.DateTime(timezone=True)),
     sa.Column("contact_form_url", sa.Text),
     sa.Column("contact_form_observed_at", sa.DateTime(timezone=True)),
+    sa.Column("reverification_required_at", sa.DateTime(timezone=True)),
+    sa.Column("reverification_reason", sa.String(128)),
     sa.Column("suppressed_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -881,6 +885,11 @@ supplier_directory = sa.Table(
     sa.CheckConstraint(
         "apollo_status IS NULL OR apollo_status IN ('resolved', 'unresolved')",
         name="ck_supplier_directory_apollo_status",
+    ),
+    sa.CheckConstraint(
+        "domain_validation_method IS NULL OR "
+        "domain_validation_method IN ('name_word', 'registration_number')",
+        name="ck_supplier_directory_domain_validation_method",
     ),
 )
 

@@ -106,6 +106,7 @@ def test_resolver_persists_domain_journal_when_apollo_is_unresolved(tmp_path) ->
                 website_url="https://beton-alpes.fr",
                 source="serper",
                 query="Beton Alpes Lyon",
+                validation_method="name_word",
                 observed_at=NOW,
             )
 

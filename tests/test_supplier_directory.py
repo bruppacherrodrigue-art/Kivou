@@ -86,6 +86,8 @@ def test_directory_reuses_fresh_domain_and_expires_it_after_90_days(tmp_path) ->
         domain="escolle-beton.fr",
         website_url="https://escolle-beton.fr",
         source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
         observed_at=NOW,
     )
 
@@ -136,6 +138,8 @@ def test_directory_suppression_clears_only_personal_contact_fields(tmp_path) -> 
         domain="escolle-beton.fr",
         website_url="https://escolle-beton.fr",
         source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
         observed_at=NOW,
     )
     store.record_email(
@@ -186,6 +190,88 @@ def test_directory_does_not_restore_contact_after_suppression(tmp_path) -> None:
     assert restored is False
 
 
+def test_directory_marks_untrusted_contact_data_for_reverification(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ESCOLLE BETON",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city="SAINT-EGREVE",
+        employees=19,
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="societeinfo.com",
+        website_url="https://societeinfo.com/escolle",
+        source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
+        observed_at=NOW,
+    )
+    store.record_email(
+        "331364729",
+        email="contact@societeinfo.com",
+        source="site",
+        verification_status="mx_verified",
+        contact_name="ESCOLLE BETON",
+        contact_title="Entreprise",
+        observed_at=NOW,
+    )
+    store.record_contact_form("331364729", url="https://societeinfo.com/contact", observed_at=NOW)
+
+    assert store.mark_for_reverification(
+        "331364729", reason="third_party_domain", observed_at=NOW + dt.timedelta(hours=1)
+    )
+    record = store.get("331364729")
+
+    assert record is not None
+    assert record.domain is None
+    assert record.professional_email is None
+    assert record.contact_form_url is None
+    assert record.apollo_organization_id is None
+    assert record.reverification_required_at == NOW + dt.timedelta(hours=1)
+    assert record.reverification_reason == "third_party_domain"
+
+
+def test_directory_rejects_email_outside_the_validated_company_domain(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ESCOLLE BETON",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city="SAINT-EGREVE",
+        employees=19,
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="escolle-beton.fr",
+        website_url="https://escolle-beton.fr",
+        source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
+        observed_at=NOW,
+    )
+
+    recorded = store.record_email(
+        "331364729",
+        email="contact@societeinfo.com",
+        source="site",
+        verification_status="mx_verified",
+        contact_name="ESCOLLE BETON",
+        contact_title="Entreprise",
+        observed_at=NOW,
+    )
+
+    assert recorded is False
+    assert store.get("331364729").professional_email is None
+
+
 def test_resolver_avoids_serper_and_apollo_for_fresh_directory_binding(tmp_path, caplog) -> None:
     caplog.set_level(logging.INFO)
     store = _store(tmp_path)
@@ -205,6 +291,7 @@ def test_resolver_avoids_serper_and_apollo_for_fresh_directory_binding(tmp_path,
         website_url="https://escolle-beton.fr",
         source="serper",
         query="Escolle Beton Saint-Egreve",
+        validation_method="name_word",
         observed_at=NOW,
     )
     store.record_domain(
@@ -212,6 +299,8 @@ def test_resolver_avoids_serper_and_apollo_for_fresh_directory_binding(tmp_path,
         domain=domain.domain,
         website_url=domain.website_url,
         source=domain.source,
+        validation_method="name_word",
+        validation_evidence_url=None,
         observed_at=NOW,
     )
     store.record_apollo("331364729", organization_id=None, status="unresolved", observed_at=NOW)
@@ -265,6 +354,15 @@ def test_suppression_request_clears_directory_and_blocks_campaign_identity(tmp_p
         department="38",
         city="SAINT-EGREVE",
         employees=19,
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="escolle-beton.fr",
+        website_url="https://escolle-beton.fr",
+        source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
         observed_at=NOW,
     )
     store.record_email(

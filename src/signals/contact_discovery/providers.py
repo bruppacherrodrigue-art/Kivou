@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from typing import TYPE_CHECKING, Protocol
 
 import httpx
@@ -39,28 +38,12 @@ def _normalized(value: str) -> str:
     return " ".join(value.casefold().split())
 
 
-def _domain_tokens(value: str) -> set[str]:
-    return {
-        token
-        for token in re.findall(r"[a-z0-9]+", value.casefold())
-        if len(token) >= 4 and token not in {"www", "mail", "email", "contact"}
-    }
-
-
 def coherent_email_domain(email: str, evidence) -> bool:
     email_domain = email.rsplit("@", 1)[1].casefold().removeprefix("www.")
     website_domains = {
         (httpx.URL(item.url).host or "").casefold().removeprefix("www.") for item in evidence
     }
-    for website_domain in website_domains:
-        if (
-            email_domain == website_domain
-            or email_domain.endswith(f".{website_domain}")
-            or website_domain.endswith(f".{email_domain}")
-            or _domain_tokens(email_domain).intersection(_domain_tokens(website_domain))
-        ):
-            return True
-    return False
+    return email_domain in website_domains
 
 
 class OpenRouterPublishedContactExtractor:
