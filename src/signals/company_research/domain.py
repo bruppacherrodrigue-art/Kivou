@@ -27,9 +27,12 @@ _DOMAIN = re.compile(
 _DIRECTORY_DOMAINS = frozenset(
     {
         "118712.fr",
+        "acpresse.fr",
+        "annuaire-entreprises-rge.fr",
         "annuaire-entreprises.data.gouv.fr",
         "cataloxy.org",
         "companieshouse.com",
+        "e-pro.fr",
         "europages.fr",
         "facebook.com",
         "france-artisan.fr",
@@ -37,6 +40,7 @@ _DIRECTORY_DOMAINS = frozenset(
         "infogreffe.fr",
         "kompass.com",
         "lagazettefrance.fr",
+        "lefigaro.fr",
         "linkedin.com",
         "manageo.fr",
         "mappy.com",
