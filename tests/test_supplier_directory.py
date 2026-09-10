@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from decimal import Decimal
 
 import sqlalchemy as sa
 from alembic import command
@@ -386,6 +387,81 @@ def test_resolver_avoids_serper_and_apollo_for_fresh_directory_binding(tmp_path,
 
     assert binding.status is BindingStatus.UNRESOLVED
     assert "provider_call_avoided" in caplog.text
+
+
+def test_resolver_clears_cached_binding_domain_when_revalidation_fails(tmp_path) -> None:
+    store = _store(tmp_path)
+    engine = store._engine
+    identity = SireneOrganizationCandidate(
+        provider_organization_id="331364729",
+        display_name="ESCOLLE BETON",
+        normalized_name="escolle beton",
+        location="SAINT-EGREVE",
+        industry="ready_mix_concrete:23.63Z",
+        provider_observed_at=NOW,
+        source_fingerprint="a" * 64,
+    )
+    store.upsert_identity(
+        siren="331364729",
+        legal_name=identity.display_name,
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city=identity.location,
+        employees=19,
+        observed_at=NOW,
+    )
+    domain = DomainResolution(
+        domain="stale.example",
+        website_url="https://stale.example",
+        source="serper",
+        query="Escolle Beton Saint-Egreve",
+        validation_method="name_word",
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain=domain.domain,
+        website_url=domain.website_url,
+        source=domain.source,
+        validation_method=domain.validation_method,
+        validation_evidence_url=None,
+        observed_at=NOW,
+    )
+    store.record_apollo(
+        "331364729",
+        organization_id="apollo-42",
+        status="resolved",
+        observed_at=NOW + dt.timedelta(days=100),
+    )
+    SireneApolloBindingStore(engine, clock=lambda: NOW).put(
+        siren="331364729",
+        apollo_organization_id="apollo-42",
+        resolution_method="domain",
+        confidence_score=Decimal("0.95"),
+        status=BindingStatus.RESOLVED,
+        domain_resolution=domain,
+    )
+
+    class NoDomain:
+        def resolve(self, _identity):
+            return None
+
+    class NoApollo:
+        def fetch_organization(self, _profile):
+            raise AssertionError("fresh Apollo binding should be reused")
+
+    binding = SireneApolloResolver(
+        engine,
+        provider=NoApollo(),
+        domain_resolver=NoDomain(),
+        directory=store,
+        clock=lambda: NOW + dt.timedelta(days=100),
+    ).resolve(identity)
+
+    assert binding.apollo_organization_id == "apollo-42"
+    assert binding.domain is None
+    assert SireneApolloBindingStore(engine).get("331364729").domain is None
 
 
 def test_suppression_request_clears_directory_and_blocks_campaign_identity(tmp_path) -> None:
