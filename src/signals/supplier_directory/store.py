@@ -360,6 +360,11 @@ class SupplierDirectoryStore:
             if record is not None
             and record.suppressed_at is None
             and record.professional_email
+            and record.domain
+            and record.domain_validation_method
+            and record.reverification_required_at is None
+            and record.professional_email.rsplit("@", 1)[-1].casefold()
+            == record.domain.casefold()
             and _fresh(record.email_observed_at, at)
             else None
         )
