@@ -41,6 +41,18 @@ KIVOU_SYSTEMD_UNIT=${KIVOU_SYSTEMD_UNIT:-kivou-api.service}
 KIVOU_READINESS_PORT=${KIVOU_READINESS_PORT:-8000}
 KIVOU_SERVICE_USER=${KIVOU_SERVICE_USER:-kivou}
 KIVOU_PLAYWRIGHT_BROWSERS_DIR=${KIVOU_PLAYWRIGHT_BROWSERS_DIR:-/srv/kivou/playwright}
+KIVOU_FOUNDER_FRONTEND_LINK=${KIVOU_FOUNDER_FRONTEND_LINK:-/srv/kivou-founder/frontend}
+KIVOU_FOUNDER_SYSTEMD_UNIT=${KIVOU_FOUNDER_SYSTEMD_UNIT:-kivou-founder-api.service}
+KIVOU_FOUNDER_SYSTEMD_UNIT_PATH=${KIVOU_FOUNDER_SYSTEMD_UNIT_PATH:-/etc/systemd/system/kivou-founder-api.service}
+KIVOU_FOUNDER_NGINX_AVAILABLE=${KIVOU_FOUNDER_NGINX_AVAILABLE:-/etc/nginx/sites-available/kivou-founder-control.conf}
+KIVOU_FOUNDER_NGINX_ENABLED=${KIVOU_FOUNDER_NGINX_ENABLED:-/etc/nginx/sites-enabled/kivou-founder-control.conf}
+KIVOU_FOUNDER_ENV_FILE=${KIVOU_FOUNDER_ENV_FILE:-/etc/kivou/founder.env}
+KIVOU_FOUNDER_ORIGIN_SECRET_FILE=${KIVOU_FOUNDER_ORIGIN_SECRET_FILE:-/etc/kivou/founder-origin-secret.conf}
+KIVOU_FOUNDER_HTPASSWD_FILE=${KIVOU_FOUNDER_HTPASSWD_FILE:-/etc/kivou/founder.htpasswd}
+KIVOU_FOUNDER_CERT_FULLCHAIN_FILE=${KIVOU_FOUNDER_CERT_FULLCHAIN_FILE:-/etc/letsencrypt/live/control.kivou.eu/fullchain.pem}
+KIVOU_FOUNDER_CERT_PRIVATE_KEY_FILE=${KIVOU_FOUNDER_CERT_PRIVATE_KEY_FILE:-/etc/letsencrypt/live/control.kivou.eu/privkey.pem}
+KIVOU_FOUNDER_CERT_CHAIN_FILE=${KIVOU_FOUNDER_CERT_CHAIN_FILE:-/etc/letsencrypt/live/control.kivou.eu/chain.pem}
+KIVOU_FOUNDER_HEALTH_URL=${KIVOU_FOUNDER_HEALTH_URL:-http://127.0.0.1:8011/healthz}
 KIVOU_RELEASE_DIR="$KIVOU_RELEASES_DIR/$KIVOU_ENVIRONMENT-$KIVOU_SHA"
 if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
   KIVOU_RUNTIME_HOST_CONFIG=${KIVOU_RUNTIME_HOST_CONFIG:-/etc/kivou/acquisition-production.json}
@@ -92,6 +104,64 @@ print("configuration runtime : structure et champs obligatoires conformes")
 PY
 }
 
+check_founder_prerequisites() {
+  local path
+  for path in \
+    "$KIVOU_FOUNDER_ENV_FILE" \
+    "$KIVOU_FOUNDER_ORIGIN_SECRET_FILE" \
+    "$KIVOU_FOUNDER_HTPASSWD_FILE" \
+    "$KIVOU_FOUNDER_CERT_FULLCHAIN_FILE" \
+    "$KIVOU_FOUNDER_CERT_PRIVATE_KEY_FILE" \
+    "$KIVOU_FOUNDER_CERT_CHAIN_FILE"; do
+    [[ -f "$path" && -r "$path" ]] || fail "prérequis Founder absent ou illisible : $path"
+  done
+
+  if ! python3 - "$KIVOU_FOUNDER_ENV_FILE" <<'PY'
+import sys
+
+required = {
+    "KIVOU_FOUNDER_HOSTNAME",
+    "KIVOU_FOUNDER_ENVIRONMENT",
+    "KIVOU_FOUNDER_ALLOWED_EMAIL",
+    "KIVOU_FOUNDER_ALLOWED_USER",
+    "KIVOU_FOUNDER_ORIGIN_SECRET",
+    "KIVOU_FOUNDER_DATABASE_URL",
+}
+values = {}
+with open(sys.argv[1], encoding="utf-8") as stream:
+    for raw_line in stream:
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip("'\"")
+
+if any(not values.get(key) for key in required):
+    raise SystemExit(1)
+PY
+  then
+    fail "environnement Founder incomplet : $KIVOU_FOUNDER_ENV_FILE"
+  fi
+}
+
+preserve_previous() {
+  local link=$1
+  local current
+  current=$(readlink -f "$link" 2>/dev/null || true)
+  [[ -z "$current" ]] || ln -sfn "$current" "$link.previous"
+}
+
+activate() {
+  local target=$1
+  local link=$2
+  local temporary="${link}.next"
+  mkdir -p "$(dirname "$link")"
+  ln -sfn "$target" "$temporary"
+  mv -Tf "$temporary" "$link"
+}
+
 sync_systemd_units() {
   local release_dir=$1
   local unit_dir="$release_dir/ops/systemd"
@@ -116,17 +186,90 @@ sync_systemd_units() {
   log "unités systemd synchronisées : $unit_count ($KIVOU_ENVIRONMENT)"
 }
 
+restore_founder_nginx_path() {
+  local path=$1 backup=$2 existed=$3
+  rm -f -- "$path"
+  if [[ "$existed" -eq 1 ]]; then
+    cp -a -- "$backup" "$path"
+  fi
+}
+
+sync_founder_nginx() {
+  local source="$KIVOU_RELEASE_DIR/ops/nginx/kivou-founder-control.conf"
+  local rollback_dir available_existed=0 enabled_existed=0
+  [[ -f "$source" && -r "$source" ]] || fail "vhost Founder introuvable : $source"
+  rollback_dir=$(mktemp -d)
+  if [[ -e "$KIVOU_FOUNDER_NGINX_AVAILABLE" || -L "$KIVOU_FOUNDER_NGINX_AVAILABLE" ]]; then
+    cp -a -- "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available"
+    available_existed=1
+  fi
+  if [[ -e "$KIVOU_FOUNDER_NGINX_ENABLED" || -L "$KIVOU_FOUNDER_NGINX_ENABLED" ]]; then
+    cp -a -- "$KIVOU_FOUNDER_NGINX_ENABLED" "$rollback_dir/enabled"
+    enabled_existed=1
+  fi
+
+  mkdir -p "$(dirname "$KIVOU_FOUNDER_NGINX_AVAILABLE")" "$(dirname "$KIVOU_FOUNDER_NGINX_ENABLED")"
+  install -o root -g root -m 0644 "$source" "$KIVOU_FOUNDER_NGINX_AVAILABLE"
+  ln -sfn "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$KIVOU_FOUNDER_NGINX_ENABLED.next"
+  mv -Tf "$KIVOU_FOUNDER_NGINX_ENABLED.next" "$KIVOU_FOUNDER_NGINX_ENABLED"
+
+  if ! nginx -t; then
+    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available" "$available_existed"
+    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_ENABLED" "$rollback_dir/enabled" "$enabled_existed"
+    rm -rf -- "$rollback_dir"
+    fail "validation nginx Founder échouée ; configuration précédente restaurée"
+  fi
+  if ! systemctl reload nginx; then
+    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available" "$available_existed"
+    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_ENABLED" "$rollback_dir/enabled" "$enabled_existed"
+    if nginx -t; then
+      systemctl reload nginx || true
+    fi
+    rm -rf -- "$rollback_dir"
+    fail "rechargement nginx Founder échoué ; configuration précédente restaurée"
+  fi
+  rm -rf -- "$rollback_dir"
+}
+
+sync_founder_surface() {
+  local frontend_target="$KIVOU_RELEASE_DIR/frontend/dist-founder"
+  local unit_source="$KIVOU_RELEASE_DIR/ops/systemd/kivou-founder-api.service"
+  [[ -d "$frontend_target" ]] || fail "build frontend Founder introuvable : $frontend_target"
+  [[ -f "$unit_source" && -r "$unit_source" ]] || fail "unité systemd Founder introuvable : $unit_source"
+
+  if [[ "$(readlink -f "$KIVOU_FOUNDER_FRONTEND_LINK" 2>/dev/null || true)" != "$frontend_target" ]]; then
+    preserve_previous "$KIVOU_FOUNDER_FRONTEND_LINK"
+    activate "$frontend_target" "$KIVOU_FOUNDER_FRONTEND_LINK"
+  fi
+  install -o root -g root -m 0644 "$unit_source" "$KIVOU_FOUNDER_SYSTEMD_UNIT_PATH"
+  systemctl daemon-reload
+  systemctl enable "$KIVOU_FOUNDER_SYSTEMD_UNIT"
+  systemctl restart "$KIVOU_FOUNDER_SYSTEMD_UNIT"
+  curl --fail --silent --show-error --max-time 10 "$KIVOU_FOUNDER_HEALTH_URL" >/dev/null
+  sync_founder_nginx
+  log "surface Founder synchronisée"
+}
+
 for dependency in git uv npm createdb dropdb pg_restore runuser systemctl install; do
   command -v "$dependency" >/dev/null 2>&1 || fail "$dependency introuvable"
 done
 command -v python3 >/dev/null 2>&1 || fail "python3 introuvable"
 [[ -x "$KIVOU_BACKUP_SCRIPT" ]] || fail "helper de sauvegarde introuvable"
 [[ -x "$KIVOU_READINESS_SCRIPT" ]] || fail "helper de readiness introuvable"
+if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
+  for dependency in curl nginx; do
+    command -v "$dependency" >/dev/null 2>&1 || fail "$dependency introuvable"
+  done
+  check_founder_prerequisites
+fi
 
 if [[ "$(readlink -f "$KIVOU_BACKEND_LINK" 2>/dev/null || true)" == "$KIVOU_RELEASE_DIR" ]] \
   && [[ "$(readlink -f "$KIVOU_FRONTEND_LINK" 2>/dev/null || true)" == "$KIVOU_RELEASE_DIR/frontend/dist" ]]; then
   sync_systemd_units "$KIVOU_RELEASE_DIR"
   "$KIVOU_READINESS_SCRIPT" "$KIVOU_SYSTEMD_UNIT" "$KIVOU_READINESS_PORT"
+  if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
+    sync_founder_surface
+  fi
   log "release déjà active : $KIVOU_SHA"
   exit 0
 fi
@@ -151,6 +294,9 @@ PLAYWRIGHT_BROWSERS_PATH="$KIVOU_PLAYWRIGHT_BROWSERS_DIR" \
 chmod -R a+rX "$KIVOU_PLAYWRIGHT_BROWSERS_DIR"
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" ci
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" run build
+if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
+  npm --prefix "$KIVOU_RELEASE_DIR/frontend" run build:founder
+fi
 chmod -R a+rX "$KIVOU_RELEASE_DIR"
 
 marker=$(mktemp)
@@ -207,20 +353,6 @@ KIVOU_DATABASE_URL="$KIVOU_DATABASE_URL" uv run --project "$KIVOU_RELEASE_DIR" p
 # tous les fichiers de la release au moment de la bascule.
 chmod -R a+rX "$KIVOU_RELEASE_DIR"
 
-preserve_previous() {
-  local link=$1
-  local current
-  current=$(readlink -f "$link" 2>/dev/null || true)
-  [[ -z "$current" ]] || ln -sfn "$current" "$link.previous"
-}
-activate() {
-  local target=$1
-  local link=$2
-  local temporary="${link}.next"
-  mkdir -p "$(dirname "$link")"
-  ln -sfn "$target" "$temporary"
-  mv -Tf "$temporary" "$link"
-}
 preserve_previous "$KIVOU_BACKEND_LINK"
 preserve_previous "$KIVOU_FRONTEND_LINK"
 activate "$KIVOU_RELEASE_DIR" "$KIVOU_BACKEND_LINK"
@@ -228,6 +360,9 @@ activate "$KIVOU_RELEASE_DIR/frontend/dist" "$KIVOU_FRONTEND_LINK"
 sync_systemd_units "$KIVOU_RELEASE_DIR"
 systemctl restart "$KIVOU_SYSTEMD_UNIT"
 "$KIVOU_READINESS_SCRIPT" "$KIVOU_SYSTEMD_UNIT" "$KIVOU_READINESS_PORT"
+if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
+  sync_founder_surface
+fi
 trap - EXIT
 cleanup
 log "release active : $KIVOU_SHA ($KIVOU_ENVIRONMENT)"

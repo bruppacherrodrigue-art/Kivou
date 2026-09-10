@@ -49,7 +49,21 @@
 - [ ] State the DNS handoff exactly as `control.kivou.eu` / `A` / `179.237.105.52` and keep the unit, port, read-only role, frontend directory and deploy script unchanged.
 - [ ] Run `rg -n -i "cloudflare|cloudflared|tunnel|cf-access|127\.0\.0\.1:8081" docs/FOUNDER_CONSOLE.md ops/examples ops/nginx/kivou-founder-control.conf src/signals/founder_api tests/founder_api/test_access.py tests/founder_api/test_read_models.py` and expect no retired-boundary matches.
 
-### Task 4: Final verification
+### Task 4: Make production deployment fulfill the Founder contract
+
+**Files:**
+- Modify: `tests/test_ops_deploy_script.py`
+- Modify: `ops/bin/kivou-deploy.sh`
+
+- [x] Add failing execution tests for production-only Founder synchronization, early prerequisite refusal, nginx validation rollback, nginx reload rollback and the already-active release path.
+- [x] Build `frontend/dist-founder` only for production and activate it atomically at the configurable Founder frontend link while preserving `.previous`.
+- [x] Validate the complete Founder environment, origin-secret include, htpasswd and certificate files before any live Founder mutation; keep every host path overridable for tests.
+- [x] Install, enable and restart the versioned Founder unit after activation, then verify its configurable loopback health URL without credentials.
+- [x] Install and enable the versioned Founder nginx site, validate before reload, and restore the exact prior available/enabled file state if validation or reload fails.
+- [x] Run the same Founder synchronization for an already-active production release while leaving the staging and customer deployment paths unchanged.
+- [x] Run `uv run pytest -q tests/test_ops_deploy_script.py`, `bash -n ops/bin/kivou-deploy.sh`, `uv run ruff check tests/test_ops_deploy_script.py` and `git diff --check`.
+
+### Task 5: Final verification
 
 **Files:**
 - Review all modified files
