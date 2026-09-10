@@ -174,7 +174,9 @@ class ComplianceInput(ComplianceContract):
     personalization_proposal_fingerprint: Fingerprint
     personalization_policy_action_fingerprint: Fingerprint
     language: Literal["fr", "en"]
-    supplier_identity_status: Literal["PROVIDER_IDENTIFIED", "DOMAIN_CONFLICT"]
+    supplier_identity_status: Literal[
+        "PROVIDER_IDENTIFIED", "SIRENE_IDENTIFIED", "DOMAIN_CONFLICT"
+    ]
     contact_verification_state: Literal["PROVIDER_VERIFIED"]
     contact_verification_provider: Literal["apollo"]
     contact_provider_email_status: Literal["verified"]

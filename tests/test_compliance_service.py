@@ -236,6 +236,46 @@ def test_fr_tier_one_records_allowed_and_advances_to_schedule(prepared) -> None:
     assert current.next_action == "schedule_campaign"
 
 
+def test_sirene_identified_supplier_records_allowed_and_advances(prepared) -> None:
+    engine, acquisition, opportunity_id, country = ready_context(prepared)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_supplier).values(identity_status="SIRENE_IDENTIFIED")
+        )
+        connection.execute(
+            sa.update(acquisition_company_profile).values(
+                supplier_identity_status="SIRENE_IDENTIFIED"
+            )
+        )
+
+    assessment = service(engine).assess(
+        opportunity_id,
+        compliance_authorization(country=country),
+        budget_usage=BudgetUsage(),
+    )
+
+    assert assessment["state"] == "ALLOWED"
+    current = acquisition.get_opportunity(opportunity_id)
+    assert current.next_action == "schedule_campaign"
+
+
+def test_mismatched_recognized_supplier_identity_fails_before_policy(prepared) -> None:
+    engine, _, opportunity_id, country = ready_context(prepared)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_supplier).values(identity_status="SIRENE_IDENTIFIED")
+        )
+
+    with pytest.raises(ComplianceBindingConflict):
+        service(engine).assess(
+            opportunity_id,
+            compliance_authorization(country=country),
+            budget_usage=BudgetUsage(),
+        )
+
+    assert _count_terminal_events(engine, "compliance-eval-1") == 0
+
+
 def test_wrong_workflow_action_fails_before_clock_and_policy(prepared) -> None:
     engine, _, opportunity_id = prepared
     clock = CountingClock(COMPLIANCE_ASSESSED_AT)
