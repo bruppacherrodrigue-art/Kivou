@@ -242,6 +242,30 @@ def test_pr7_selection_and_provider_contract_is_explicit() -> None:
     assert deployment.providers.mode == "fake"
 
 
+def test_dynamic_region_accepts_a_bounded_name_with_spaces() -> None:
+    raw = _document(
+        qa_scope={
+            "country": "FR",
+            "language": "fr",
+            "wedge": "general_building",
+            "vertical": "general_building",
+            "region": "Centre-Val de Loire",
+        },
+        selection={
+            "mode": "dynamic",
+            "vertical": "general_building",
+            "region": "Centre-Val de Loire",
+        },
+        providers={"mode": "fake"},
+    )
+
+    deployment = AcquisitionRuntimeDeployment.model_validate(raw)
+
+    assert deployment.qa_scope.region == "Centre-Val de Loire"
+    assert deployment.selection is not None
+    assert deployment.selection.region == "Centre-Val de Loire"
+
+
 def test_production_rejects_fake_providers() -> None:
     raw = _document(
         schema_version="acquisition-production-v1",

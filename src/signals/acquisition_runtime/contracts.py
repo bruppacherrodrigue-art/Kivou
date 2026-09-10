@@ -47,6 +47,15 @@ BoundedRuntimeText = Annotated[
         pattern=r"^[^\s\x00-\x1f]+$",
     ),
 ]
+RegionName = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=256,
+        pattern=r"^[^\x00-\x1f\x7f]+$",
+    ),
+]
 CommitFingerprint = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 
 
@@ -247,14 +256,14 @@ class RuntimeQaScope(_FrozenModel):
     language: Literal["fr", "en"]
     wedge: OpaqueRef
     vertical: OpaqueRef | None = None
-    region: BoundedRuntimeText | None = None
+    region: RegionName | None = None
 
 
 class RuntimeSelection(_FrozenModel):
     mode: Literal["fixed", "dynamic"] = "fixed"
     allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(default=(), max_length=8)
     vertical: OpaqueRef | None = None
-    region: BoundedRuntimeText | None = None
+    region: RegionName | None = None
     window_days: Literal[30] = 30
     minimum_amount: Decimal = Field(default=Decimal("50000"), ge=Decimal("50000"))
     require_named_holder: Literal[True] = True
