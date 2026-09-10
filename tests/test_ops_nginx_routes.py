@@ -774,10 +774,22 @@ def test_founder_https_preserves_frontend_health_and_security_contracts() -> Non
         assert direct.count(expected) == 1
 
     health = _only_location(https, "= /healthz")
+    health_directives = _directives(health.body)
+    shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
     assert _directives_starting_with(health.body, "proxy_pass ") == (
         "proxy_pass http://127.0.0.1:8011;",
     )
-    assert "include /etc/nginx/kivou-proxy-params.conf;" in _directives(health.body)
+    for expected in (
+        "proxy_set_header Host $host;",
+        "proxy_set_header X-Forwarded-Proto https;",
+        "proxy_set_header X-Kivou-Founder-User $remote_user;",
+        (
+            "proxy_set_header X-Kivou-Founder-Origin-Secret "
+            "$kivou_founder_origin_secret;"
+        ),
+    ):
+        assert health_directives.count(expected) == 1
+        assert health_directives.index(shared_params) < health_directives.index(expected)
 
     assert frozenset(
         block.selector for block in locations if "proxy_pass" in block.body
