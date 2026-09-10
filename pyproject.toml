@@ -76,7 +76,6 @@ markers = [
     "slow: benchmark complet ou vérification exhaustive de migration, joué en CI",
 ]
 norecursedirs = ["archive"]
-tmp_path_retention_policy = "none"
 testpaths = ["tests"]
 filterwarnings = [
     # Starlette annonce sa future migration vers httpx2 dans son client de test.

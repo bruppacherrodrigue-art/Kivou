@@ -12,21 +12,17 @@ import os
 import pathlib
 import re
 import shutil
-import stat
 import warnings
 from typing import Any
 
 import pytest
 from filelock import FileLock
 
-_MINIMUM_TMPFS_FREE_BYTES = 4 * 1024**3
-
 
 def configure_local_pytest_temproot(
     environment: dict[str, str] | os._Environ[str] = os.environ,
     *,
     candidate: pathlib.Path = pathlib.Path("/dev/shm"),
-    process_id: int | None = None,
 ) -> bool:
     """Use Linux tmpfs for local SQLite-heavy tests when it is safe to do so."""
 
@@ -34,50 +30,11 @@ def configure_local_pytest_temproot(
         return False
     if not candidate.is_dir() or not os.access(candidate, os.W_OK | os.X_OK):
         return False
-    if shutil.disk_usage(candidate).free < _MINIMUM_TMPFS_FREE_BYTES:
-        return False
-    owner = process_id or os.getpid()
-    run_root = candidate / f"kivou-pytest-{owner}"
-    run_root.mkdir(mode=0o700)
-    environment["PYTEST_DEBUG_TEMPROOT"] = str(run_root)
-    environment["KIVOU_LOCAL_PYTEST_TEMPROOT"] = str(run_root)
-    environment["KIVOU_LOCAL_PYTEST_TEMPROOT_OWNER"] = str(owner)
+    environment["PYTEST_DEBUG_TEMPROOT"] = str(candidate)
     return True
 
 
 configure_local_pytest_temproot()
-
-
-def remove_local_pytest_temproot(root: pathlib.Path) -> None:
-    """Remove a dedicated run root, including artifacts made read-only by tests."""
-
-    if not root.exists():
-        return
-    root.chmod(stat.S_IRWXU)
-    for directory, directories, files in os.walk(root):
-        pathlib.Path(directory).chmod(stat.S_IRWXU)
-        for name in (*directories, *files):
-            path = pathlib.Path(directory) / name
-            if not path.is_symlink():
-                path.chmod(stat.S_IRWXU)
-    shutil.rmtree(root)
-
-
-def cleanup_configured_local_pytest_temproot(
-    config: pytest.Config, *, process_id: int | None = None
-) -> None:
-    if hasattr(config, "workerinput"):
-        return
-    configured = os.environ.pop("KIVOU_LOCAL_PYTEST_TEMPROOT", None)
-    if configured is None:
-        return
-    owner = os.environ.pop("KIVOU_LOCAL_PYTEST_TEMPROOT_OWNER", None)
-    if owner != str(process_id or os.getpid()):
-        return
-    root = pathlib.Path(configured)
-    if root.parent == pathlib.Path("/dev/shm") and root.name.startswith("kivou-pytest-"):
-        remove_local_pytest_temproot(root)
-        os.environ.pop("PYTEST_DEBUG_TEMPROOT", None)
 
 _FULL_BENCHMARK_SUITES = frozenset(
     {
@@ -462,7 +419,6 @@ def pytest_sessionfinish(session, exitstatus):
     précisément le troc « échec franc contre dérive silencieuse » que ce
     correctif défait.
     """
-    cleanup_configured_local_pytest_temproot(session.config)
     if not _CLEANUP_FAILURES:
         return
     session.exitstatus = 1

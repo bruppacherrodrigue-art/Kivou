@@ -4,7 +4,7 @@
 
 **Goal:** Keep the default local suite below eight minutes without changing CI coverage.
 
-**Architecture:** Pytest runs the fast suite through xdist locally and uses a dedicated Linux tmpfs run root only when at least 4 GiB are free; the controller removes it, including read-only test artifacts, at session end. Full benchmarks, an explicit allowlist of exhaustive migration modules, and exhaustive transitions embedded in mixed modules carry the `slow` marker; the existing four-way CI shard helper clears local addopts and therefore still collects and runs every test. Repeated application fixtures copy one run-shared, session-scoped SQLite database already migrated to HEAD, preserving per-test isolation without replaying the full Alembic chain. CI and operator-selected temporary roots are not overridden.
+**Architecture:** Pytest runs the fast suite through xdist locally and keeps its SQLite temporary files in Linux tmpfs when available. Full benchmarks, an explicit allowlist of exhaustive migration modules, and exhaustive transitions embedded in mixed modules carry the `slow` marker; the existing four-way CI shard helper clears local addopts and therefore still collects and runs every test. Repeated application fixtures copy one run-shared, session-scoped SQLite database already migrated to HEAD, preserving per-test isolation without replaying the full Alembic chain. CI and operator-selected temporary roots are not overridden.
 
 **Tech Stack:** pytest, pytest-xdist, Bash, GitHub Actions.
 
@@ -45,13 +45,12 @@
 
 ### Verification evidence
 
-- Default collection: 5,550 selected / 5,900 total; 350 slow tests deselected.
-- CI-style collection (`-o addopts=`): 5,900 tests collected.
+- Default collection: 5,548 selected / 5,898 total; 350 slow tests deselected.
+- CI-style collection (`-o addopts=`): 5,898 tests collected.
 - Targeted configuration, benchmark-smoke, template, and shard tests: 18 passed.
 - Adopted-fixture regression batches: 311 passed / 1 skipped, then 150 passed.
 - Serial baseline: stopped after 61m26 at 29% (`real 3686.75`); the observed
   rate projected a complete run around 3h32.
 - First parallel run on disk: still running at the 10-minute timeout.
-- Final local fast suite with guarded, self-cleaning Linux tmpfs: 5,525 passed,
-  24 skipped, 1 xfailed in 4m33.65 (`real 279.85`), under the eight-minute target;
-  `/dev/shm` returned to 0 bytes used by the run.
+- Final local fast suite on Linux tmpfs at `e972542`: 5,523 passed, 24 skipped,
+  1 xfailed in 4m26.65 (`real 271.41`), under the eight-minute target.
