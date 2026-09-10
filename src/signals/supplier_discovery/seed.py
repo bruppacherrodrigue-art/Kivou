@@ -22,7 +22,11 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchProfile,
     SupplierTargetingConfig,
 )
-from signals.supplier_discovery.families import department_and_neighbours, families_for_signal
+from signals.supplier_discovery.families import (
+    department_and_neighbours,
+    department_from_subdivision,
+    families_for_signal,
+)
 from signals.supplier_discovery.profile import (
     build_supplier_search_profile,
 )
@@ -177,11 +181,7 @@ def build_profile_from_seed(
     families = families_for_signal(vertical, cpv_codes=cpv_codes, object_text=object_text)
     place = award.place_of_performance
     subdivision = place.subdivision_code if place else None
-    department = (
-        subdivision.removeprefix("FR-")
-        if subdivision and subdivision.startswith("FR-")
-        else None
-    )
+    department = department_from_subdivision(subdivision)
     return build_supplier_search_profile(
         signal_ref=seed.signal_ref,
         representative_award_key=seed.representative_award_key,

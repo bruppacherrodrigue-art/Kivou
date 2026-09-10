@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from signals.supplier_discovery.families import (
     department_and_neighbours,
+    department_from_subdivision,
     families_for_signal,
     load_supplier_family_catalog,
 )
@@ -48,3 +49,10 @@ def test_family_queries_are_derived_from_signal_cpv_and_object() -> None:
 
 def test_aura_search_uses_signal_department_and_adjacent_departments() -> None:
     assert department_and_neighbours("69") == ("69", "01", "38", "42", "71")
+
+
+def test_nuts_subdivisions_resolve_to_the_signal_department() -> None:
+    assert department_from_subdivision("FRK26") == "69"
+    assert department_from_subdivision("FRB05") == "41"
+    assert department_from_subdivision("FR-45") == "45"
+    assert department_from_subdivision("FRB") is None

@@ -128,6 +128,37 @@ _AURA_NEIGHBOURS: dict[str, tuple[str, ...]] = {
     "74": ("01", "73"),
 }
 
+_NUTS_DEPARTMENTS: dict[str, str] = {
+    "FRK11": "01",
+    "FRK12": "03",
+    "FRK13": "07",
+    "FRK14": "15",
+    "FRK21": "26",
+    "FRK22": "38",
+    "FRK23": "42",
+    "FRK24": "43",
+    "FRK25": "63",
+    "FRK26": "69",
+    "FRK27": "73",
+    "FRK28": "74",
+    "FRB01": "18",
+    "FRB02": "28",
+    "FRB03": "36",
+    "FRB04": "37",
+    "FRB05": "41",
+    "FRB06": "45",
+}
+
+
+def department_from_subdivision(subdivision: str | None) -> str | None:
+    """Resolve supported ISO/NUTS subdivisions to one French department."""
+
+    if subdivision is None:
+        return None
+    if subdivision.startswith("FR-") and len(subdivision) == 5:
+        return subdivision.removeprefix("FR-")
+    return _NUTS_DEPARTMENTS.get(subdivision)
+
 
 def department_and_neighbours(department: str) -> tuple[str, ...]:
     """Return the signal department followed by its versioned adjacent set."""
@@ -138,6 +169,7 @@ def department_and_neighbours(department: str) -> tuple[str, ...]:
 __all__ = [
     "SupplierFamily",
     "department_and_neighbours",
+    "department_from_subdivision",
     "families_for_signal",
     "load_supplier_family_catalog",
 ]
