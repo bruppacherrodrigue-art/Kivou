@@ -26,17 +26,25 @@ _DOMAIN = re.compile(
 )
 _DIRECTORY_DOMAINS = frozenset(
     {
+        "118712.fr",
         "annuaire-entreprises.data.gouv.fr",
+        "cataloxy.org",
         "companieshouse.com",
         "europages.fr",
         "facebook.com",
+        "france-artisan.fr",
+        "hoodspot.fr",
         "infogreffe.fr",
         "kompass.com",
+        "lagazettefrance.fr",
         "linkedin.com",
         "manageo.fr",
+        "mappy.com",
+        "monartisan.info",
         "pagesjaunes.fr",
         "pappers.fr",
         "societe.com",
+        "usinenouvelle.com",
         "verif.com",
     }
 )
@@ -83,9 +91,19 @@ def _public_or_municipal(domain: str, title: str) -> bool:
     return (
         domain == "gouv.fr"
         or domain.endswith(".gouv.fr")
-        or any(label.startswith("mairie-") or label == "mairie" for label in labels)
+        or any(
+            label.startswith(("mairie-", "ville-")) or label == "mairie"
+            for label in labels
+        )
         or bool(title_words.intersection(_PUBLIC_TITLE_WORDS))
     )
+
+
+def rejected_supplier_domain(domain: str, title: str = "") -> bool:
+    """Return whether a domain is a directory or public/municipal surface."""
+
+    normalized = domain.casefold().removeprefix("www.")
+    return _directory(normalized) or _public_or_municipal(normalized, title)
 
 
 class AnnuaireWebsiteClient:
@@ -153,7 +171,7 @@ class SerperDomainSearchClient:
                 continue
             domain, website_url = parsed
             title = str(item.get("title") or "")
-            if _directory(domain) or _public_or_municipal(domain, title):
+            if rejected_supplier_domain(domain, title):
                 continue
             title_words = set(significant_name_words(title))
             url_words = set(significant_name_words(website_url.replace(".", " ")))
@@ -193,4 +211,5 @@ __all__ = [
     "CompanyDomainResolver",
     "DomainResolution",
     "SerperDomainSearchClient",
+    "rejected_supplier_domain",
 ]
