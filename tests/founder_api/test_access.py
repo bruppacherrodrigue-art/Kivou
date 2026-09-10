@@ -151,6 +151,20 @@ def test_founder_config_rejects_unsafe_username() -> None:
         raise AssertionError("an unsafe Founder username must be rejected")
 
 
+def test_founder_config_rejects_another_valid_username() -> None:
+    try:
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user="alice",
+            origin_secret=ORIGIN_SECRET,
+        )
+    except ValueError as error:
+        assert FOUNDER_ALLOWED_USER_ENV in str(error)
+        assert ALLOWED_USER in str(error)
+    else:
+        raise AssertionError("a different Founder username must be rejected")
+
+
 def test_founder_config_requires_allowed_user_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("KIVOU_FOUNDER_ALLOWED_EMAIL", ALLOWED_EMAIL)
     monkeypatch.setenv("KIVOU_FOUNDER_ORIGIN_SECRET", ORIGIN_SECRET)

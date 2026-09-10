@@ -14,6 +14,7 @@ FOUNDER_HOSTNAME_ENV = "KIVOU_FOUNDER_HOSTNAME"
 FOUNDER_ENVIRONMENT_ENV = "KIVOU_FOUNDER_ENVIRONMENT"
 
 DEFAULT_FOUNDER_HOSTNAME = "control.kivou.eu"
+FOUNDER_ALLOWED_USER = "rodrigue"
 FOUNDER_ENVIRONMENT: Literal["PRODUCTION"] = "PRODUCTION"
 _EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _USER_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
@@ -40,6 +41,10 @@ class FounderApiConfig:
             raise ValueError(
                 f"{FOUNDER_ALLOWED_USER_ENV} doit être un identifiant ASCII minuscule "
                 "de 1 à 32 caractères"
+            )
+        if user != FOUNDER_ALLOWED_USER:
+            raise ValueError(
+                f"{FOUNDER_ALLOWED_USER_ENV} doit être exactement {FOUNDER_ALLOWED_USER}"
             )
         if len(self.origin_secret.encode()) < 32:
             raise ValueError(f"{FOUNDER_ORIGIN_SECRET_ENV} doit contenir au moins 32 octets")
@@ -88,6 +93,7 @@ class FounderApiConfig:
 __all__ = [
     "DEFAULT_FOUNDER_HOSTNAME",
     "FOUNDER_ALLOWED_EMAIL_ENV",
+    "FOUNDER_ALLOWED_USER",
     "FOUNDER_ALLOWED_USER_ENV",
     "FOUNDER_ENVIRONMENT",
     "FOUNDER_ENVIRONMENT_ENV",
