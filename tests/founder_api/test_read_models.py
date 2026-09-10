@@ -10,8 +10,7 @@ from sqlalchemy.pool import StaticPool
 from signals.accounts.schema import account
 from signals.engagement.schema import signal_feedback
 from signals.founder_api.access import (
-    ACCESS_ASSERTION_HEADER,
-    ACCESS_EMAIL_HEADER,
+    FOUNDER_USER_HEADER,
     ORIGIN_SECRET_HEADER,
 )
 from signals.founder_api.app import create_founder_app
@@ -36,6 +35,7 @@ from signals.operations.store import OperationsStore
 from signals.persistence.schema import METADATA, procedure_documents
 
 ALLOWED_EMAIL = "rodrigue.bruppacher@gmail.com"
+ALLOWED_USER = "rodrigue"
 ORIGIN_SECRET = "s" * 40
 NOW = dt.datetime(2026, 8, 29, 18, 30, tzinfo=dt.UTC)
 
@@ -53,8 +53,7 @@ def _engine() -> sa.Engine:
 
 def _headers() -> dict[str, str]:
     return {
-        ACCESS_EMAIL_HEADER: ALLOWED_EMAIL,
-        ACCESS_ASSERTION_HEADER: "signed-by-cloudflare-access",
+        FOUNDER_USER_HEADER: ALLOWED_USER,
         ORIGIN_SECRET_HEADER: ORIGIN_SECRET,
     }
 
@@ -187,6 +186,7 @@ def test_overview_route_is_authenticated_bounded_and_read_only() -> None:
     app = create_founder_app(
         FounderApiConfig(
             allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
             origin_secret=ORIGIN_SECRET,
         ),
         now_override=lambda: NOW,
@@ -213,6 +213,7 @@ def test_overview_fails_closed_when_read_models_are_absent() -> None:
     app = create_founder_app(
         FounderApiConfig(
             allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
             origin_secret=ORIGIN_SECRET,
         ),
         now_override=lambda: NOW,
@@ -243,7 +244,11 @@ def test_review_required_document_blocks_are_only_exposed_by_authenticated_found
             )
         )
     app = create_founder_app(
-        FounderApiConfig(allowed_email=ALLOWED_EMAIL, origin_secret=ORIGIN_SECRET),
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
+            origin_secret=ORIGIN_SECRET,
+        ),
         read_service=FounderReadService(engine),
     )
 

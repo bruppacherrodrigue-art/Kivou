@@ -1,4 +1,4 @@
-"""Defense-in-depth boundary behind Cloudflare Access and Cloudflare Tunnel."""
+"""Defense-in-depth boundary behind the Founder reverse proxy."""
 
 from __future__ import annotations
 
@@ -10,8 +10,7 @@ from fastapi import Depends, HTTPException, Request, status
 
 from signals.founder_api.config import FounderApiConfig
 
-ACCESS_EMAIL_HEADER = "Cf-Access-Authenticated-User-Email"
-ACCESS_ASSERTION_HEADER = "Cf-Access-Jwt-Assertion"
+FOUNDER_USER_HEADER = "X-Kivou-Founder-User"
 ORIGIN_SECRET_HEADER = "X-Kivou-Founder-Origin-Secret"
 
 
@@ -23,9 +22,8 @@ class FounderIdentity:
 def require_founder_identity(request: Request) -> FounderIdentity:
     """Accept only the configured operator through the trusted local proxy.
 
-    Cloudflare Access performs the user authentication. The API additionally
-    requires a secret injected by the localhost-only nginx vhost, so a caller
-    cannot reach the process directly and merely forge Cloudflare headers.
+    The API requires both the authenticated username and a secret injected by
+    the localhost-only nginx vhost, so direct callers fail closed.
     """
 
     config: FounderApiConfig = request.app.state.config
@@ -38,26 +36,24 @@ def require_founder_identity(request: Request) -> FounderIdentity:
             detail="accès Founder refusé",
         )
 
-    assertion = request.headers.get(ACCESS_ASSERTION_HEADER, "")
-    email = request.headers.get(ACCESS_EMAIL_HEADER, "").strip().lower()
-    if not assertion or not email:
+    user = request.headers.get(FOUNDER_USER_HEADER, "")
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="authentification Cloudflare Access requise",
+            detail="authentification Founder requise",
         )
-    if not hmac.compare_digest(email.encode(), config.allowed_email.encode()):
+    if not hmac.compare_digest(user.encode(), config.allowed_user.encode()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="accès Founder refusé",
         )
-    return FounderIdentity(email=email)
+    return FounderIdentity(email=config.allowed_email)
 
 
 FounderIdentityDependency = Annotated[FounderIdentity, Depends(require_founder_identity)]
 
 __all__ = [
-    "ACCESS_ASSERTION_HEADER",
-    "ACCESS_EMAIL_HEADER",
+    "FOUNDER_USER_HEADER",
     "ORIGIN_SECRET_HEADER",
     "FounderIdentity",
     "FounderIdentityDependency",

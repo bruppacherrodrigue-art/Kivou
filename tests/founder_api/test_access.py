@@ -5,14 +5,14 @@ import datetime as dt
 from fastapi.testclient import TestClient
 
 from signals.founder_api.access import (
-    ACCESS_ASSERTION_HEADER,
-    ACCESS_EMAIL_HEADER,
+    FOUNDER_USER_HEADER,
     ORIGIN_SECRET_HEADER,
 )
 from signals.founder_api.app import create_founder_app
-from signals.founder_api.config import FounderApiConfig
+from signals.founder_api.config import FOUNDER_ALLOWED_USER_ENV, FounderApiConfig
 
 ALLOWED_EMAIL = "rodrigue.bruppacher@gmail.com"
+ALLOWED_USER = "rodrigue"
 ORIGIN_SECRET = "s" * 40
 NOW = dt.datetime(2026, 8, 29, 18, 30, tzinfo=dt.UTC)
 
@@ -22,6 +22,7 @@ def _client() -> TestClient:
         create_founder_app(
             FounderApiConfig(
                 allowed_email=ALLOWED_EMAIL,
+                allowed_user=ALLOWED_USER,
                 origin_secret=ORIGIN_SECRET,
             ),
             now_override=lambda: NOW,
@@ -31,13 +32,11 @@ def _client() -> TestClient:
 
 def _headers(
     *,
-    email: str = ALLOWED_EMAIL,
+    user: str = ALLOWED_USER,
     secret: str = ORIGIN_SECRET,
-    assertion: str = "signed-by-cloudflare-access",
 ) -> dict[str, str]:
     return {
-        ACCESS_EMAIL_HEADER: email,
-        ACCESS_ASSERTION_HEADER: assertion,
+        FOUNDER_USER_HEADER: user,
         ORIGIN_SECRET_HEADER: secret,
     }
 
@@ -50,20 +49,27 @@ def test_healthz_contains_no_internal_detail() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_founder_session_fails_closed_without_trusted_proxy_secret() -> None:
+def test_founder_session_fails_closed_without_origin_secret() -> None:
     with _client() as client:
         response = client.get(
             "/api/founder/session",
-            headers={
-                ACCESS_EMAIL_HEADER: ALLOWED_EMAIL,
-                ACCESS_ASSERTION_HEADER: "signed-by-cloudflare-access",
-            },
+            headers={FOUNDER_USER_HEADER: ALLOWED_USER},
         )
 
     assert response.status_code == 403
 
 
-def test_founder_session_requires_cloudflare_access_identity() -> None:
+def test_founder_session_rejects_wrong_origin_secret() -> None:
+    with _client() as client:
+        response = client.get(
+            "/api/founder/session",
+            headers=_headers(secret="x" * 40),
+        )
+
+    assert response.status_code == 403
+
+
+def test_founder_session_requires_founder_username() -> None:
     with _client() as client:
         response = client.get(
             "/api/founder/session",
@@ -73,11 +79,21 @@ def test_founder_session_requires_cloudflare_access_identity() -> None:
     assert response.status_code == 401
 
 
-def test_founder_session_rejects_every_other_email() -> None:
+def test_founder_session_rejects_every_other_username() -> None:
     with _client() as client:
         response = client.get(
             "/api/founder/session",
-            headers=_headers(email="someone.else@example.com"),
+            headers=_headers(user="someoneelse"),
+        )
+
+    assert response.status_code == 403
+
+
+def test_founder_session_requires_exact_username() -> None:
+    with _client() as client:
+        response = client.get(
+            "/api/founder/session",
+            headers=_headers(user="Rodrigue"),
         )
 
     assert response.status_code == 403
@@ -102,6 +118,7 @@ def test_founder_config_refuses_non_production_identity() -> None:
     try:
         FounderApiConfig(
             allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
             origin_secret=ORIGIN_SECRET,
             environment="STAGING",  # type: ignore[arg-type]
         )
@@ -109,3 +126,54 @@ def test_founder_config_refuses_non_production_identity() -> None:
         assert "PRODUCTION" in str(error)
     else:
         raise AssertionError("a Founder Console non-production identity must be rejected")
+
+
+def test_founder_config_normalizes_a_valid_short_username() -> None:
+    config = FounderApiConfig(
+        allowed_email=ALLOWED_EMAIL,
+        allowed_user="  rodrigue  ",
+        origin_secret=ORIGIN_SECRET,
+    )
+
+    assert config.allowed_user == ALLOWED_USER
+
+
+def test_founder_config_rejects_unsafe_username() -> None:
+    try:
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user="rodrigue@example.com",
+            origin_secret=ORIGIN_SECRET,
+        )
+    except ValueError as error:
+        assert FOUNDER_ALLOWED_USER_ENV in str(error)
+    else:
+        raise AssertionError("an unsafe Founder username must be rejected")
+
+
+def test_founder_config_rejects_another_valid_username() -> None:
+    try:
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user="alice",
+            origin_secret=ORIGIN_SECRET,
+        )
+    except ValueError as error:
+        assert FOUNDER_ALLOWED_USER_ENV in str(error)
+        assert ALLOWED_USER in str(error)
+    else:
+        raise AssertionError("a different Founder username must be rejected")
+
+
+def test_founder_config_requires_allowed_user_from_environment(monkeypatch) -> None:
+    monkeypatch.setenv("KIVOU_FOUNDER_ALLOWED_EMAIL", ALLOWED_EMAIL)
+    monkeypatch.setenv("KIVOU_FOUNDER_ORIGIN_SECRET", ORIGIN_SECRET)
+    monkeypatch.setenv("KIVOU_FOUNDER_ENVIRONMENT", "PRODUCTION")
+    monkeypatch.delenv(FOUNDER_ALLOWED_USER_ENV, raising=False)
+
+    try:
+        FounderApiConfig.from_environment()
+    except RuntimeError as error:
+        assert FOUNDER_ALLOWED_USER_ENV in str(error)
+    else:
+        raise AssertionError("the Founder username environment setting must be required")
