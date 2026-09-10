@@ -4,7 +4,7 @@
 
 **Goal:** Keep the default local suite below eight minutes without changing CI coverage.
 
-**Architecture:** Pytest runs the fast suite through xdist locally. Full benchmarks, an explicit allowlist of exhaustive migration modules, and exhaustive transitions embedded in mixed modules carry the `slow` marker; the existing four-way CI shard helper clears local addopts and therefore still collects and runs every test. Repeated application fixtures copy one run-shared, session-scoped SQLite database already migrated to HEAD, preserving per-test isolation without replaying the full Alembic chain.
+**Architecture:** Pytest runs the fast suite through xdist locally and keeps its SQLite temporary files in Linux tmpfs when available. Full benchmarks, an explicit allowlist of exhaustive migration modules, and exhaustive transitions embedded in mixed modules carry the `slow` marker; the existing four-way CI shard helper clears local addopts and therefore still collects and runs every test. Repeated application fixtures copy one run-shared, session-scoped SQLite database already migrated to HEAD, preserving per-test isolation without replaying the full Alembic chain. CI and operator-selected temporary roots are not overridden.
 
 **Tech Stack:** pytest, pytest-xdist, Bash, GitHub Actions.
 
@@ -40,13 +40,17 @@
 - [x] Prove the template reaches HEAD, is session scoped, and copied databases do not leak writes.
 - [x] Adopt the copy fixture in ten high-frequency application modules that require only a clean HEAD schema.
 - [x] Leave migration-transition and PostgreSQL-specific paths unchanged.
-- [ ] Run the default suite with `--durations=30` and record wall time.
+- [x] Run the default suite with `--durations=30` and record wall time.
 - [x] Run collection including slow tests and verify CI still sees the complete suite.
 
 ### Verification evidence
 
-- Default collection: 5,554 selected / 5,893 total; 339 slow tests deselected.
-- CI-style collection (`-o addopts=`): 5,893 tests collected.
-- Targeted configuration, benchmark-smoke, and template tests: 12 passed.
+- Default collection: 5,548 selected / 5,898 total; 350 slow tests deselected.
+- CI-style collection (`-o addopts=`): 5,898 tests collected.
+- Targeted configuration, benchmark-smoke, template, and shard tests: 18 passed.
 - Adopted-fixture regression batches: 311 passed / 1 skipped, then 150 passed.
-- Timing report remains intentionally pending until the separate uncontended baseline finishes. Record both `--durations=30` outputs and wall times here; do not compare runs made under CPU contention.
+- Serial baseline: stopped after 61m26 at 29% (`real 3686.75`); the observed
+  rate projected a complete run around 3h32.
+- First parallel run on disk: still running at the 10-minute timeout.
+- Final local fast suite on Linux tmpfs: 5,523 passed, 24 skipped, 1 xfailed
+  in 5m48.55 (`real 350.11`), under the eight-minute target.
