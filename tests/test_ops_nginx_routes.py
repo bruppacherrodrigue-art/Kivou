@@ -863,6 +863,19 @@ def test_founder_https_never_proxies_customer_or_internal_routes() -> None:
         ), route_path
 
 
+def test_production_customer_host_fails_closed_on_founder_api() -> None:
+    production = (NGINX_DIR / "kivou-production.conf").read_text()
+    matching = [
+        server
+        for server in _server_blocks(production)
+        if "listen 443 ssl http2;" in _direct_server_directives(server.body)
+    ]
+    assert len(matching) == 1
+
+    founder_api = _only_location(matching[0], "^~ /api/founder/")
+    assert _directives(founder_api.body) == ("return 404;",)
+
+
 def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:
     limits = (NGINX_DIR / "kivou-limits.conf").read_text()
     body = _log_format_body(limits, "kivou_safe_json")
