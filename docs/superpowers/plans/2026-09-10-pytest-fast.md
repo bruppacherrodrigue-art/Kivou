@@ -4,7 +4,7 @@
 
 **Goal:** Keep the default local suite below eight minutes without changing CI coverage.
 
-**Architecture:** Pytest runs the fast suite through xdist locally. Full benchmarks and an explicit allowlist of exhaustive migration modules carry the `slow` marker; the existing four-way CI shard helper clears local addopts and therefore still collects and runs every test. Repeated application fixtures copy a worker-local, session-scoped SQLite database already migrated to HEAD, preserving per-test isolation without replaying the full Alembic chain.
+**Architecture:** Pytest runs the fast suite through xdist locally. Full benchmarks, an explicit allowlist of exhaustive migration modules, and exhaustive transitions embedded in mixed modules carry the `slow` marker; the existing four-way CI shard helper clears local addopts and therefore still collects and runs every test. Repeated application fixtures copy one run-shared, session-scoped SQLite database already migrated to HEAD, preserving per-test isolation without replaying the full Alembic chain.
 
 **Tech Stack:** pytest, pytest-xdist, Bash, GitHub Actions.
 
@@ -24,7 +24,7 @@
 
 - [x] Add failing configuration contract tests.
 - [x] Add pytest-xdist and local `-n auto -m "not slow"` defaults.
-- [x] Mark full benchmark modules and an exact allowlist of exhaustive migration modules as slow at collection.
+- [x] Mark full benchmark modules, an exact allowlist of exhaustive migration modules, and exhaustive transitions in mixed modules as slow.
 - [x] Clear local addopts in both CI shard pytest invocations.
 - [x] Execute collection-level contract tests proving default exclusion, CI inclusion, archive exclusion, and deterministic four-way coverage.
 
@@ -36,7 +36,7 @@
 - [x] Resolve a real Luxembourg winner through `CompanyResolver` and recorded offline VIES.
 - [x] Validate a real award/event and run `ContractUnderstandingEngine`.
 - [x] Build `TenderDocument` objects for a real record and call `coverage_for`.
-- [x] Create one migrated SQLite template per worker session and copy it per test.
+- [x] Create one migrated SQLite template shared by every worker in the test session and copy it per test.
 - [x] Prove the template reaches HEAD, is session scoped, and copied databases do not leak writes.
 - [x] Adopt the copy fixture in ten high-frequency application modules that require only a clean HEAD schema.
 - [x] Leave migration-transition and PostgreSQL-specific paths unchanged.

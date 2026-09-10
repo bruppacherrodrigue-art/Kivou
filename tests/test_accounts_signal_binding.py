@@ -141,6 +141,7 @@ def legacy_engine(tmp_path: pathlib.Path):
     return engine
 
 
+@pytest.mark.slow
 def test_a_pre_account_signal_survives_the_migration(legacy_engine):
     with legacy_engine.connect() as connection:
         signals = list_signals(connection)
@@ -148,6 +149,7 @@ def test_a_pre_account_signal_survives_the_migration(legacy_engine):
     assert signals[0].target_icp_id == RESEARCH_ICP_ID
 
 
+@pytest.mark.slow
 def test_a_pre_account_signal_is_unbound(legacy_engine):
     with legacy_engine.connect() as connection:
         signals = list_signals(connection)
@@ -158,12 +160,14 @@ def test_a_pre_account_signal_is_unbound(legacy_engine):
     assert not binding.is_bound
 
 
+@pytest.mark.slow
 def test_a_pre_account_signal_resolves_to_no_account(legacy_engine):
     with legacy_engine.connect() as connection:
         signals = list_signals(connection)
         assert account_for_materialized_signal(connection, signal_key=signals[0].signal_key) is None
 
 
+@pytest.mark.slow
 def test_no_account_can_claim_a_pre_account_signal(legacy_engine):
     """Un identifiant de recherche ne devient pas client parce qu'il y ressemble."""
     with legacy_engine.begin() as connection:
@@ -172,6 +176,7 @@ def test_no_account_can_claim_a_pre_account_signal(legacy_engine):
         assert not signal_is_owned_by(connection, signal_key=signal_key, account_id=account_id)
 
 
+@pytest.mark.slow
 def test_creating_an_icp_whose_label_matches_the_research_profile_binds_nothing(legacy_engine):
     """Aucune liaison par similarité de ciblage : seul l'identifiant compte."""
     with legacy_engine.begin() as connection:

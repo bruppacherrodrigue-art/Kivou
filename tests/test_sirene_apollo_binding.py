@@ -129,6 +129,7 @@ def test_binding_store_rejects_no_implicit_legacy_lookup(tmp_path) -> None:
     assert store.get("999999999") is None
 
 
+@pytest.mark.slow
 def test_migration_marks_apollo_first_suppliers_legacy_without_binding(tmp_path) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'legacy.db'}")
     config = alembic_config(engine)

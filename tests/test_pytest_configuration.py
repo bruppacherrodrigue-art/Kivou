@@ -19,6 +19,19 @@ ARCHIVE_TREES = (
     "archive/phase_a_btp",
     "archive/learning",
 )
+MIXED_MODULE_MIGRATION_TESTS = (
+    "tests/test_accounts_signal_binding.py::test_a_pre_account_signal_survives_the_migration",
+    "tests/test_accounts_signal_binding.py::test_a_pre_account_signal_is_unbound",
+    "tests/test_accounts_signal_binding.py::test_a_pre_account_signal_resolves_to_no_account",
+    "tests/test_accounts_signal_binding.py::test_no_account_can_claim_a_pre_account_signal",
+    "tests/test_accounts_signal_binding.py::test_creating_an_icp_whose_label_matches_the_research_profile_binds_nothing",
+    "tests/test_billing_entitlements.py::test_an_empty_database_reaches_the_billing_schema_through_every_migration",
+    "tests/test_billing_entitlements.py::test_a_populated_spec012_database_upgrades_without_losing_anything",
+    "tests/test_policy_persistence.py::test_migration_is_linear_and_adds_exactly_two_tables",
+    "tests/test_policy_persistence.py::test_postgresql_offline_migration_contains_only_policy_tables",
+    "tests/test_sirene_apollo_binding.py::test_migration_marks_apollo_first_suppliers_legacy_without_binding",
+    "tests/test_target_icp_revision.py::test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history",
+)
 
 
 def _collect(*args: str) -> subprocess.CompletedProcess[str]:
@@ -56,6 +69,16 @@ def test_real_ci_style_collection_includes_every_full_benchmark() -> None:
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert all(module in result.stdout for module in BENCHMARK_MODULES)
+
+
+def test_migration_transitions_in_mixed_modules_are_local_slow_but_collected_in_ci() -> None:
+    local = _collect(*MIXED_MODULE_MIGRATION_TESTS)
+    ci = _collect("-o", "addopts=", *MIXED_MODULE_MIGRATION_TESTS)
+
+    assert local.returncode == 5, local.stdout + local.stderr
+    assert not any(node in local.stdout for node in MIXED_MODULE_MIGRATION_TESTS)
+    assert ci.returncode == 0, ci.stdout + ci.stderr
+    assert all(node in ci.stdout for node in MIXED_MODULE_MIGRATION_TESTS)
 
 
 def test_exhaustive_migration_routing_is_an_explicit_complete_allowlist() -> None:

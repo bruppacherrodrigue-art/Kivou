@@ -369,6 +369,7 @@ def test_automatic_tax_is_off_unless_explicitly_enabled(monkeypatch):
 # ─── §34 — le chemin de migration ────────────────────────────────────────────
 
 
+@pytest.mark.slow
 def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
     tmp_path: pathlib.Path,
 ):
@@ -387,6 +388,7 @@ def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
     assert current_revision(engine) == "0049_supplier_contact_form"
 
 
+@pytest.mark.slow
 def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path: pathlib.Path):
     """Le seul test qui protège un déploiement déjà en service."""
     import sys

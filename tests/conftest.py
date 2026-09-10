@@ -8,6 +8,8 @@ vrai contrat d'entrée, et pas sur une structure inventée pour l'occasion.
 from __future__ import annotations
 
 import contextlib
+import fcntl
+import os
 import pathlib
 import re
 import shutil
@@ -85,18 +87,36 @@ def copy_migrated_sqlite_template(
     return destination
 
 
+def shared_migrated_sqlite_template_path(worker_basetemp: pathlib.Path) -> pathlib.Path:
+    """Return one template path shared by every xdist worker in this run."""
+
+    session_root = (
+        worker_basetemp.parent
+        if worker_basetemp.name.startswith("popen-gw")
+        else worker_basetemp
+    )
+    return session_root / "kivou-migrated-head.db"
+
+
 @pytest.fixture(scope="session")
 def migrated_sqlite_template(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
-    """Build one clean SQLite database at Alembic HEAD per pytest worker session."""
+    """Build one clean SQLite database at Alembic HEAD for the whole pytest run."""
 
     from signals.persistence.database import create_database_engine, migrate_to_latest
 
-    template = tmp_path_factory.mktemp("migrated-sqlite") / "head.db"
-    engine = create_database_engine(f"sqlite+pysqlite:///{template}")
-    try:
-        migrate_to_latest(engine)
-    finally:
-        engine.dispose()
+    template = shared_migrated_sqlite_template_path(tmp_path_factory.getbasetemp())
+    template.parent.mkdir(parents=True, exist_ok=True)
+    lock = template.with_suffix(".lock")
+    with lock.open("w") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        if not template.exists():
+            partial = template.with_name(f".{template.name}.{os.getpid()}.part")
+            engine = create_database_engine(f"sqlite+pysqlite:///{partial}")
+            try:
+                migrate_to_latest(engine)
+            finally:
+                engine.dispose()
+            partial.replace(template)
     return template
 
 

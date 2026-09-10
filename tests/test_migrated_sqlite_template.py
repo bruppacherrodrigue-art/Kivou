@@ -43,7 +43,7 @@ def test_isolated_copies_do_not_mutate_each_other_or_the_template(
         template_engine.dispose()
 
 
-def test_template_fixture_is_session_scoped_and_cached_once_per_worker(
+def test_template_fixture_is_session_scoped_and_cached_once_per_run(
     migrated_sqlite_template: pathlib.Path,
     request,
 ) -> None:
@@ -51,3 +51,16 @@ def test_template_fixture_is_session_scoped_and_cached_once_per_worker(
 
     assert fixture_function._fixture_function_marker.scope == "session"
     assert request.getfixturevalue("migrated_sqlite_template") is migrated_sqlite_template
+
+
+def test_xdist_workers_resolve_the_same_session_template_path(tmp_path: pathlib.Path) -> None:
+    from conftest import shared_migrated_sqlite_template_path
+
+    session_root = tmp_path / "pytest-42"
+
+    assert shared_migrated_sqlite_template_path(session_root / "popen-gw0") == (
+        session_root / "kivou-migrated-head.db"
+    )
+    assert shared_migrated_sqlite_template_path(session_root / "popen-gw11") == (
+        session_root / "kivou-migrated-head.db"
+    )
