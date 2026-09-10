@@ -333,7 +333,7 @@ exact expected body. A redirect or an unexpected body fails this check:
 ```bash
 printf 'ready\n' \
   | sudo tee /var/www/certbot/.well-known/acme-challenge/bootstrap-check >/dev/null
-ACME_RESPONSE="$(curl --fail --silent --show-error --write-out '\n%{http_code}' \
+ACME_RESPONSE="$(curl --fail --silent --show-error --write-out '%{http_code}' \
   http://control.kivou.eu/.well-known/acme-challenge/bootstrap-check)"
 test "$ACME_RESPONSE" = "$(printf 'ready\n200')"
 unset ACME_RESPONSE
