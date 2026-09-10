@@ -189,19 +189,6 @@ Expected production URL:
 KIVOU_FOUNDER_DATABASE_URL=postgresql+psycopg://kivou_founder_ro:REPLACE@127.0.0.1:5432/kivou
 ```
 
-Verification before service start:
-
-```bash
-sudo -u kivou /srv/kivou/app/.venv/bin/python - <<'PY'
-from signals.founder_api.database import create_founder_database_engine
-
-engine = create_founder_database_engine()
-with engine.connect() as connection:
-    assert connection.exec_driver_sql("SHOW transaction_read_only").scalar_one() == "on"
-    print("Founder database session: read-only")
-PY
-```
-
 A non-PostgreSQL URL is refused by the production Founder entrypoint.
 
 ## DNS handoff
@@ -290,6 +277,33 @@ sudo chmod 0640 /etc/kivou/founder-origin-secret.conf
 Never commit the generated value. Both the complete environment file and the
 origin-secret include must exist with these permissions before the complete
 HTTPS vhost is installed or tested.
+
+Verify the database session before starting the Founder service. This transient
+unit runs as `kivou` from the deployed application directory and loads
+`/etc/kivou/founder.env` with the same `EnvironmentFile=` semantics as the
+systemd service. The database URL is never placed in a command argument or
+printed:
+
+```bash
+sudo -v
+sudo systemd-run --wait --pipe --collect \
+  --property=Type=exec \
+  --property=User=kivou \
+  --property=WorkingDirectory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/founder.env \
+  /srv/kivou/app/.venv/bin/python - <<'PY'
+from signals.founder_api.database import create_founder_database_engine
+
+engine = create_founder_database_engine()
+with engine.connect() as connection:
+    assert connection.exec_driver_sql("SHOW transaction_read_only").scalar_one() == "on"
+    print("Founder database session: read-only")
+PY
+```
+
+Do not source the environment file as shell code. `--pipe` forwards the here-doc
+to Python, `--wait` returns the assertion's exit status, and `--collect` removes
+the completed transient unit.
 
 ## First-certificate bootstrap
 
