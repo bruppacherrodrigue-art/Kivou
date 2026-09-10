@@ -97,7 +97,7 @@ from signals.company_research.domain import (
 )
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.contact_discovery.deliverability import EmailDeliverabilityVerifier
-from signals.contact_discovery.providers import OpenRouterPublishedContactExtractor
+from signals.contact_discovery.providers import published_contact_extractor_from_environment
 from signals.contact_discovery.web import (
     AnnuaireDirectorClient,
     CompanyWebsiteClient,
@@ -659,10 +659,11 @@ def build_runtime_execution_composition(
         if client is None:
             raise RuntimeExecutionConfigurationError("PROVIDER_CLIENT_NOT_CONFIGURED")
         serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
-        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
         if not serper_key:
             raise RuntimeExecutionConfigurationError("SERPER_NOT_CONFIGURED")
-        if not openrouter_key:
+        try:
+            contact_extractor = published_contact_extractor_from_environment(client=client)
+        except ValueError:
             raise RuntimeExecutionConfigurationError("CONTACT_MODEL_NOT_CONFIGURED")
         company_domain_resolver = CompanyDomainResolver(
             official=AnnuaireWebsiteClient(client=client),
@@ -672,10 +673,7 @@ def build_runtime_execution_composition(
         website_contact_provider = PublishedWebsiteContactProvider(
             directors=AnnuaireDirectorClient(client=client),
             pages=CompanyWebsiteClient(),
-            extractor=OpenRouterPublishedContactExtractor(
-                api_key=openrouter_key,
-                client=client,
-            ),
+            extractor=contact_extractor,
             deliverability=EmailDeliverabilityVerifier(),
         )
     suppression_keyring = webhook_configuration.suppression_keyring

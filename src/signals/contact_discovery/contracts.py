@@ -251,6 +251,27 @@ class ContactRecord(ContactObservation):
     _record_times = field_validator("created_at", "updated_at")(_aware_optional)
 
 
+def is_attachable_contact(value: ContactObservation) -> bool:
+    return bool(
+        value.business_email
+        and (
+            (
+                value.provider == "apollo"
+                and value.verification_state == "PROVIDER_VERIFIED"
+                and value.verification_provider == "apollo"
+                and value.provider_email_status == "verified"
+            )
+            or (
+                value.provider == "company_website"
+                and value.verification_state == "DELIVERABILITY_VERIFIED"
+                and value.verification_provider == "mx_smtp"
+                and value.provider_email_status == "smtp_accepted"
+                and value.display_name
+            )
+        )
+    )
+
+
 class ContactRunStart(ContactDiscoveryContract):
     contact_discovery_run_id: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)

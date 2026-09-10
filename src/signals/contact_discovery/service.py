@@ -30,6 +30,7 @@ from signals.contact_discovery.contracts import (
     ContactRunStart,
     ContactRunStatus,
     DecisionMakerSearchProfile,
+    is_attachable_contact,
 )
 from signals.contact_discovery.identity import contact_ref_for
 from signals.contact_discovery.profile import build_decision_maker_profile
@@ -403,22 +404,8 @@ class ContactDiscoveryService:
             self._require_post_policy(current, run)
             upserted = self._contacts.upsert_contact_in_transaction(connection, observation)
             persisted = upserted.contact
-            verified = (
-                persisted.provider == "apollo"
-                and persisted.verification_state == "PROVIDER_VERIFIED"
-                and persisted.verification_provider == "apollo"
-                and persisted.provider_email_status == "verified"
-            ) or (
-                persisted.provider == "company_website"
-                and persisted.verification_state == "DELIVERABILITY_VERIFIED"
-                and persisted.verification_provider == "mx_smtp"
-                and persisted.provider_email_status == "smtp_accepted"
-                and persisted.display_name
-            )
             if not (
-                persisted.supplier_ref == current.supplier_ref
-                and verified
-                and persisted.business_email
+                persisted.supplier_ref == current.supplier_ref and is_attachable_contact(persisted)
             ):
                 raise RuntimeError("persisted contact is not attachable")
             selected = self._acquisition.append_in_transaction(

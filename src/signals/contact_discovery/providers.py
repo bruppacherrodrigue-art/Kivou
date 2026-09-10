@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import TYPE_CHECKING, Protocol
 
 import httpx
@@ -109,8 +110,18 @@ class OpenRouterPublishedContactExtractor:
         return extraction
 
 
+def published_contact_extractor_from_environment(
+    *, client: httpx.Client | None = None
+) -> PublishedContactExtractor:
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise ValueError("contact extraction model is not configured")
+    return OpenRouterPublishedContactExtractor(api_key=key, client=client)
+
+
 __all__ = [
     "OpenRouterPublishedContactExtractor",
     "PublishedContactExtraction",
     "PublishedContactExtractor",
+    "published_contact_extractor_from_environment",
 ]

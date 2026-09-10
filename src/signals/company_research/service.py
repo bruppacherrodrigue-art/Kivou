@@ -37,6 +37,7 @@ from signals.company_research.profile import (
 )
 from signals.company_research.provider import CompanyResearchProvider
 from signals.company_research.store import CompanyResearchStore
+from signals.contact_discovery.contracts import is_attachable_contact
 from signals.persistence.schema import acquisition_supplier
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
@@ -369,16 +370,6 @@ class CompanyResearchService:
 
     @staticmethod
     def _require_bindings(opportunity, supplier, contact, binding) -> None:
-        contact_verified = (
-            contact.verification_state == "PROVIDER_VERIFIED"
-            and contact.verification_provider == "apollo"
-            and contact.provider_email_status == "verified"
-        ) or (
-            contact.verification_state == "DELIVERABILITY_VERIFIED"
-            and contact.verification_provider == "mx_smtp"
-            and contact.provider_email_status == "smtp_accepted"
-            and contact.display_name
-        )
         if not (
             supplier.provider == "sirene"
             and binding.status is BindingStatus.RESOLVED
@@ -386,7 +377,7 @@ class CompanyResearchService:
             and opportunity.supplier_ref == supplier.supplier_ref
             and opportunity.contact_ref == contact.contact_ref
             and contact.supplier_ref == supplier.supplier_ref
-            and contact_verified
+            and is_attachable_contact(contact)
         ):
             raise CompanyResearchNotActionable(opportunity.acquisition_opportunity_id)
 
