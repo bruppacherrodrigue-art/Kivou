@@ -10,7 +10,7 @@ def test_supplier_directory_migration_has_dated_business_and_contact_fields(tmp_
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'directory-migration.db'}")
     config = alembic_config(engine)
     command.upgrade(config, "0047_contact_waterfall")
-    command.upgrade(config, "0048_supplier_directory")
+    command.upgrade(config, "0049_supplier_contact_form")
 
     columns = {column["name"] for column in sa.inspect(engine).get_columns("supplier_directory")}
     assert {
@@ -35,6 +35,8 @@ def test_supplier_directory_migration_has_dated_business_and_contact_fields(tmp_
         "email_source",
         "email_verification_status",
         "email_observed_at",
+        "contact_form_url",
+        "contact_form_observed_at",
         "suppressed_at",
     } <= columns
-    assert current_revision(engine) == "0048_supplier_directory"
+    assert current_revision(engine) == "0049_supplier_contact_form"

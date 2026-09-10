@@ -113,7 +113,7 @@ def test_model_extraction_rejects_invented_email() -> None:
 def test_website_level_accepts_generic_mailbox_only_with_named_director() -> None:
     class Directors:
         def find(self, _siren):
-            return (OfficialDirector(name="Alice Martin", title="Gérante"),)
+            return (OfficialDirector(name="Alice Martin", title="Gérante", first_name="Alice"),)
 
     class Pages:
         def fetch(self, _domain):
@@ -149,6 +149,7 @@ def test_website_level_accepts_generic_mailbox_only_with_named_director() -> Non
 
     assert contact is not None
     assert contact.provider == "company_website"
+    assert contact.first_name == "Alice"
     assert contact.display_name == "Alice Martin"
     assert contact.business_email == "contact@beton-alpes.fr"
     assert contact.verification_state == "DELIVERABILITY_VERIFIED"
@@ -162,6 +163,7 @@ def test_website_extracts_text_email_after_mailto_addresses() -> None:
             text=(
                 '<a href="mailto:direction@beton-alpes.fr">Direction</a>'
                 "<p>Écrivez aussi à contact@beton-alpes.fr.</p>"
+                '<form action="/contact"><input name="message"></form>'
             ),
         )
 
@@ -173,44 +175,161 @@ def test_website_extracts_text_email_after_mailto_addresses() -> None:
         "direction@beton-alpes.fr",
         "contact@beton-alpes.fr",
     )
+    assert pages[0].has_contact_form is True
 
 
 def test_registry_keeps_operational_directors_and_rejects_auditors() -> None:
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda _request: httpx.Response(
-                200,
-                json={
-                    "results": [
-                        {
-                            "dirigeants": [
-                                {"prenoms": "Alice", "nom": "Martin", "qualite": "Gérante"},
-                                {"prenoms": "Paul", "nom": "Durand", "qualite": "Président de SAS"},
-                                {
-                                    "prenoms": "Léa",
-                                    "nom": "Bernard",
-                                    "qualite": "Directrice Générale",
-                                },
-                                {
-                                    "prenoms": "Marc",
-                                    "nom": "Audit",
-                                    "qualite": "Commissaire aux comptes suppléant",
-                                },
-                            ]
-                        }
-                    ]
-                },
-            )
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "dirigeants": [
+                            {
+                                "prenoms": "Alice",
+                                "nom": "Martin",
+                                "qualite": "Gérante",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "prenoms": "Zoé",
+                                "nom": "Petit",
+                                "qualite": "Cogérante",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "denomination": "HOLDING ALPES",
+                                "qualite": "Président de SAS",
+                                "type_dirigeant": "personne morale",
+                            },
+                            {
+                                "prenoms": "Léa",
+                                "nom": "Bernard",
+                                "qualite": "Directrice Générale Déléguée",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "prenoms": "Lou",
+                                "nom": "Robert",
+                                "qualite": "Présidente du conseil",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "prenoms": "Sam",
+                                "nom": "Richard",
+                                "qualite": "Personne physique dirigeante",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "prenoms": "Noé",
+                                "nom": "Roux",
+                                "qualite": "Associé gérant",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "prenoms": "Marc",
+                                "nom": "Audit",
+                                "qualite": "Commissaire aux comptes suppléant",
+                                "type_dirigeant": "personne physique",
+                            },
+                            {
+                                "prenoms": "Jean",
+                                "nom": "Sans Pouvoir",
+                                "qualite": "Représentant",
+                                "type_dirigeant": "personne physique",
+                            },
+                        ]
+                    }
+                ]
+            },
         )
-    )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
 
     directors = AnnuaireDirectorClient(client=client).find("123456789")
 
-    assert [(item.name, item.title) for item in directors] == [
-        ("Alice Martin", "Gérante"),
-        ("Paul Durand", "Président de SAS"),
-        ("Léa Bernard", "Directrice Générale"),
+    assert requests[0].url.params["minimal"] == "true"
+    assert requests[0].url.params["include"] == "dirigeants"
+    assert [(item.name, item.title, item.entity_type) for item in directors] == [
+        ("Alice Martin", "Gérante", "personne physique"),
+        ("Zoé Petit", "Cogérante", "personne physique"),
+        ("HOLDING ALPES", "Président de SAS", "personne morale"),
+        ("Léa Bernard", "Directrice Générale Déléguée", "personne physique"),
+        ("Lou Robert", "Présidente du conseil", "personne physique"),
+        ("Sam Richard", "Personne physique dirigeante", "personne physique"),
+        ("Noé Roux", "Associé gérant", "personne physique"),
     ]
+
+
+def test_website_accepts_verified_email_without_named_director() -> None:
+    class Directors:
+        def find(self, _siren):
+            return ()
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://beton-alpes.fr/contact",
+                    text="Contactez BETON ALPES à contact@beton-alpes.fr",
+                    published_emails=("contact@beton-alpes.fr",),
+                ),
+            )
+
+    class NoModel:
+        def extract(self, **_kwargs):
+            raise AssertionError("a published address does not require the model")
+
+    class Deliverability:
+        def verify(self, _email):
+            return True
+
+    contact = PublishedWebsiteContactProvider(
+        directors=Directors(), pages=Pages(), extractor=NoModel(), deliverability=Deliverability()
+    ).find(_profile(), observed_at=NOW)
+
+    assert contact is not None
+    assert contact.first_name is None
+    assert contact.display_name == "BETON ALPES"
+    assert contact.business_email == "contact@beton-alpes.fr"
+
+
+def test_website_records_contact_form_without_published_email() -> None:
+    recorded = []
+
+    class Directors:
+        def find(self, _siren):
+            return ()
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://beton-alpes.fr/contact",
+                    text="Formulaire de contact",
+                    published_emails=(),
+                    has_contact_form=True,
+                ),
+            )
+
+    class Directory:
+        def record_contact_form(self, siren, *, url, observed_at):
+            recorded.append((siren, url, observed_at))
+
+    contact = PublishedWebsiteContactProvider(
+        directors=Directors(),
+        pages=Pages(),
+        extractor=object(),
+        deliverability=object(),
+        directory=Directory(),
+    ).find(_profile(), observed_at=NOW)
+
+    assert contact is None
+    assert recorded == [("123456789", "https://beton-alpes.fr/contact", NOW)]
 
 
 def test_model_rejects_published_email_from_unrelated_domain() -> None:

@@ -47,7 +47,7 @@ def _domain_tokens(value: str) -> set[str]:
     }
 
 
-def _coherent_email_domain(email: str, evidence) -> bool:
+def coherent_email_domain(email: str, evidence) -> bool:
     email_domain = email.rsplit("@", 1)[1].casefold().removeprefix("www.")
     website_domains = {
         (httpx.URL(item.url).host or "").casefold().removeprefix("www.") for item in evidence
@@ -128,7 +128,7 @@ class OpenRouterPublishedContactExtractor:
         if (
             _normalized(extraction.dirigeant) not in director_names
             or str(extraction.email).casefold() not in published
-            or not _coherent_email_domain(str(extraction.email), evidence)
+            or not coherent_email_domain(str(extraction.email), evidence)
         ):
             return None
         return extraction
@@ -147,5 +147,6 @@ __all__ = [
     "OpenRouterPublishedContactExtractor",
     "PublishedContactExtraction",
     "PublishedContactExtractor",
+    "coherent_email_domain",
     "published_contact_extractor_from_environment",
 ]

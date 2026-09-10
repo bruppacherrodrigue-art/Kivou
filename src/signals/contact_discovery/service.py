@@ -521,6 +521,11 @@ class ContactDiscoveryService:
             provider=provider,
             provider_person_id=f"directory-{digest[:24]}",
             provider_organization_id=provider_organization_id,
+            first_name=(
+                record.email_contact_name.split()[0]
+                if record.email_contact_title != "Entreprise"
+                else None
+            ),
             display_name=record.email_contact_name,
             title=record.email_contact_title,
             normalized_title=(

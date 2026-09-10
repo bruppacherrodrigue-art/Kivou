@@ -93,6 +93,27 @@ def test_directory_reuses_fresh_domain_and_expires_it_after_90_days(tmp_path) ->
     assert store.fresh_domain("331364729", at=NOW + dt.timedelta(days=91)) is None
 
 
+def test_directory_records_dated_contact_form(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ESCOLLE BETON",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city="SAINT-EGREVE",
+        employees=19,
+        observed_at=NOW,
+    )
+
+    store.record_contact_form("331364729", url="https://escolle-beton.fr/contact", observed_at=NOW)
+
+    record = store.get("331364729")
+    assert record is not None
+    assert record.contact_form_url == "https://escolle-beton.fr/contact"
+    assert record.contact_form_observed_at == NOW
+
+
 def test_directory_suppression_clears_only_personal_contact_fields(tmp_path) -> None:
     store = _store(tmp_path)
     store.upsert_identity(
