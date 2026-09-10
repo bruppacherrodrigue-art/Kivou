@@ -9,6 +9,7 @@ from signals.company_research.domain import (
     AnnuaireWebsiteClient,
     CompanyDomainResolver,
     SerperDomainSearchClient,
+    rejected_supplier_domain,
 )
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 
@@ -163,6 +164,17 @@ def test_serper_rejects_public_directory_and_municipal_false_matches() -> None:
     )
 
     assert resolution is None
+
+
+def test_observed_french_directories_and_trade_press_are_rejected() -> None:
+    domains = (
+        "annuaire-entreprises-rge.fr",
+        "entreprises.lefigaro.fr",
+        "grossiste.e-pro.fr",
+        "acpresse.fr",
+    )
+
+    assert all(rejected_supplier_domain(domain) for domain in domains)
 
 
 def test_serper_accepts_one_significant_company_word_in_domain_or_title() -> None:
