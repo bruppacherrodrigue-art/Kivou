@@ -327,9 +327,15 @@ def test_to_follow_up_lists_companies_contacted_a_week_or_more_ago(client, icp, 
     assert payload["to_follow_up_truncated"] is False
 
 
-def test_week_counts_relevant_contacted_and_replied_within_the_window(client, icp, engine):
+def test_week_counts_relevant_contacted_and_replied_within_the_window(client, engine):
     new_keys = _seed_new_signals(client, engine)
     with engine.begin() as connection:
+        icp = connection.scalar(
+            sa.select(target_icp.c.target_icp_id)
+            .where(target_icp.c.status == "active")
+            .order_by(target_icp.c.target_icp_id)
+            .limit(1)
+        )
         key_a = materialize_simap(connection, "29997-02", target_icp_id=icp).signal_key
         key_b = materialize_simap(connection, "33112-02", target_icp_id=icp).signal_key
         key_c = materialize_simap(connection, "34794-02", target_icp_id=icp).signal_key
@@ -350,10 +356,9 @@ def test_week_counts_relevant_contacted_and_replied_within_the_window(client, ic
 
     payload = _dashboard(client)
 
-    # `29997-02` reste dans les fixtures pour tester le statut de contact, mais
-    # son identité incomplète l'exclut de la matérialisation visible.
+    # Les trois avis historiques sont publiés dans la fenêtre hebdomadaire.
     assert payload["week"] == {
-        "new": len(new_keys) + 2,
+        "new": len(new_keys) + 3,
         "saved": 2,
         "contacted": 1,
         "replied": 1,

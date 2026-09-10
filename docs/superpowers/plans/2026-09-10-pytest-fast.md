@@ -52,5 +52,5 @@
 - Serial baseline: stopped after 61m26 at 29% (`real 3686.75`); the observed
   rate projected a complete run around 3h32.
 - First parallel run on disk: still running at the 10-minute timeout.
-- Final local fast suite on Linux tmpfs: 5,523 passed, 24 skipped, 1 xfailed
-  in 5m48.55 (`real 350.11`), under the eight-minute target.
+- Final local fast suite on Linux tmpfs at `e972542`: 5,523 passed, 24 skipped,
+  1 xfailed in 4m26.65 (`real 271.41`), under the eight-minute target.
