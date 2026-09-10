@@ -89,7 +89,7 @@ from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.database import create_database_engine
-from signals.policy.contracts import PolicyControlSnapshot, Scope
+from signals.policy.contracts import AutonomyMode, PolicyControlSnapshot, Scope
 from signals.policy.store import PolicyStore
 from signals.supervisor.contracts import SupervisorLimits
 from signals.supervisor.hermes import HermesSupervisorAdapter
@@ -104,6 +104,29 @@ _APOLLO_LOCATION_BY_QA_COUNTRY = {
     "CH": "Switzerland",
     "FR": "France",
 }
+
+
+def _qa_bound_opportunity_key(
+    runtime_config: AcquisitionRuntimeConfig,
+    control: PolicyControlSnapshot,
+) -> str | None:
+    """Keep a dynamic staging QA run on the signal bound by its open window."""
+
+    if (
+        runtime_config.environment != "STAGING"
+        or runtime_config.deployment.is_production
+        or control.autonomy_mode is not AutonomyMode.ASSISTED
+        or control.shadow_target_mode is not None
+        or control.read_only
+        or control.kill_switch
+        or control.expires_at is None
+    ):
+        return None
+    prefix = "procurement-opportunity:"
+    if control.qa_signal_ref is None or not control.qa_signal_ref.startswith(prefix):
+        return None
+    key = control.qa_signal_ref.removeprefix(prefix)
+    return key or None
 
 
 class RuntimeExecutionConfigurationError(RuntimeError):
@@ -559,25 +582,28 @@ def build_runtime_execution_composition(
     selection = runtime_config.deployment.selection
     if selection is None:
         raise RuntimeExecutionConfigurationError("SELECTION_NOT_CONFIGURED")
+    control = PolicyStore(engine).get_effective_control(observed_at)
     if selection.mode == "dynamic":
-        selected = select_production_opportunity_key(
-            engine,
-            country=runtime_config.deployment.qa_scope.country,
-            # Keep legacy isolated test databases usable when their QA scope
-            # deliberately disables the projection filter; deployed dynamic
-            # documents carry both values.
-            vertical=(
-                selection.vertical
-                if runtime_config.deployment.qa_scope.vertical is not None
-                else None
-            ),
-            region=(
-                selection.region
-                if runtime_config.deployment.qa_scope.region is not None
-                else None
-            ),
-            observed_at=observed_at,
-        )
+        selected = _qa_bound_opportunity_key(runtime_config, control)
+        if selected is None:
+            selected = select_production_opportunity_key(
+                engine,
+                country=runtime_config.deployment.qa_scope.country,
+                # Keep legacy isolated test databases usable when their QA scope
+                # deliberately disables the projection filter; deployed dynamic
+                # documents carry both values.
+                vertical=(
+                    selection.vertical
+                    if runtime_config.deployment.qa_scope.vertical is not None
+                    else None
+                ),
+                region=(
+                    selection.region
+                    if runtime_config.deployment.qa_scope.region is not None
+                    else None
+                ),
+                observed_at=observed_at,
+            )
         if selected is None:
             raise RuntimeExecutionConfigurationError("NO_ELIGIBLE_OPPORTUNITY")
         opportunity_keys: tuple[str, ...] = (selected,)
@@ -597,7 +623,6 @@ def build_runtime_execution_composition(
         != connectivity_config.deployment.instantly_workspace_ref
     ):
         raise RuntimeExecutionConfigurationError("WEBHOOK_INGRESS_NOT_CONFIGURED")
-    control = PolicyStore(engine).get_effective_control(observed_at)
     scope = _exact_scope(control, runtime_config.deployment.qa_scope)
     sender_config, campaign_deployment = _campaign_configuration(
         connectivity_config,

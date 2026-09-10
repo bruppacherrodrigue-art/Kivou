@@ -24,12 +24,15 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeLimits,
     AcquisitionRuntimeStage,
     RuntimeDependencyState,
+    RuntimeProviders,
     RuntimeQaScope,
+    RuntimeSelection,
     RuntimeStageDependency,
 )
 from signals.acquisition_runtime.execution import (
     RuntimeExecutionConfigurationError,
     RuntimeLinkConfiguration,
+    _qa_bound_opportunity_key,
     build_runtime_execution_composition,
 )
 from signals.campaigns.runtime_webhook import InstantlyWebhookRuntimeConfiguration
@@ -50,6 +53,7 @@ from signals.persistence.schema import (
     policy_evaluation,
     source_event,
 )
+from signals.policy.contracts import AutonomyMode
 from signals.policy.store import PolicyStore
 from signals.responses.contracts import ContentFingerprintKeyring
 from signals.supervisor.contracts import ProposedAction, SupervisorPlan
@@ -245,6 +249,29 @@ def _staging_runtime_config() -> AcquisitionRuntimeConfig:
     )
 
 
+def _dynamic_staging_runtime_config() -> AcquisitionRuntimeConfig:
+    fixed = _staging_runtime_config()
+    deployment = fixed.deployment.model_copy(
+        update={
+            "allowed_opportunity_keys": (),
+            "qa_scope": RuntimeQaScope(
+                country="FR",
+                language="fr",
+                wedge="general_building",
+                vertical="general_building",
+                region="Centre-Val de Loire",
+            ),
+            "selection": RuntimeSelection(
+                mode="dynamic",
+                vertical="general_building",
+                region="Centre-Val de Loire",
+            ),
+            "providers": RuntimeProviders(mode="fake"),
+        }
+    )
+    return fixed.model_copy(update={"deployment": deployment})
+
+
 def _connectivity_config(
     tmp_path,
     *,
@@ -385,6 +412,33 @@ def test_staging_composition_is_unchanged(staging_arguments) -> None:
     composition = build_runtime_execution_composition(**staging_arguments)
     assert composition.capability.environment == "STAGING"
     assert composition.capability.qa_only is True
+
+
+def test_dynamic_staging_reuses_the_signal_bound_to_the_active_qa_window() -> None:
+    key = "opportunity-qa-bound-001"
+    active_window = control(
+        2,
+        autonomy_mode=AutonomyMode.ASSISTED,
+        read_only=False,
+        qa_signal_ref=f"procurement-opportunity:{key}",
+        expires_at=NOW + dt.timedelta(minutes=30),
+    )
+
+    assert _qa_bound_opportunity_key(
+        _dynamic_staging_runtime_config(), active_window
+    ) == key
+
+
+def test_production_never_uses_a_qa_window_binding_for_selection() -> None:
+    active_window = control(
+        2,
+        autonomy_mode=AutonomyMode.ASSISTED,
+        read_only=False,
+        qa_signal_ref="procurement-opportunity:opportunity-qa-bound-001",
+        expires_at=NOW + dt.timedelta(minutes=30),
+    )
+
+    assert _qa_bound_opportunity_key(_production_runtime_config(), active_window) is None
 
 
 def test_production_composition_refuses_the_qa_mutation_flag_on_its_own(
