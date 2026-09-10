@@ -42,6 +42,9 @@ KIVOU_READINESS_PORT=${KIVOU_READINESS_PORT:-8000}
 KIVOU_SERVICE_USER=${KIVOU_SERVICE_USER:-kivou}
 KIVOU_PLAYWRIGHT_BROWSERS_DIR=${KIVOU_PLAYWRIGHT_BROWSERS_DIR:-/srv/kivou/playwright}
 KIVOU_FOUNDER_FRONTEND_LINK=${KIVOU_FOUNDER_FRONTEND_LINK:-/srv/kivou-founder/frontend}
+KIVOU_FOUNDER_FRONTEND_OWNER=${KIVOU_FOUNDER_FRONTEND_OWNER:-root}
+KIVOU_FOUNDER_FRONTEND_GROUP=${KIVOU_FOUNDER_FRONTEND_GROUP:-www-data}
+KIVOU_FOUNDER_NGINX_WORKER_USER=${KIVOU_FOUNDER_NGINX_WORKER_USER:-www-data}
 KIVOU_FOUNDER_SYSTEMD_UNIT=${KIVOU_FOUNDER_SYSTEMD_UNIT:-kivou-founder-api.service}
 KIVOU_FOUNDER_SYSTEMD_UNIT_PATH=${KIVOU_FOUNDER_SYSTEMD_UNIT_PATH:-/etc/systemd/system/kivou-founder-api.service}
 KIVOU_FOUNDER_NGINX_AVAILABLE=${KIVOU_FOUNDER_NGINX_AVAILABLE:-/etc/nginx/sites-available/kivou-founder-control.conf}
@@ -53,6 +56,9 @@ KIVOU_FOUNDER_CERT_FULLCHAIN_FILE=${KIVOU_FOUNDER_CERT_FULLCHAIN_FILE:-/etc/lets
 KIVOU_FOUNDER_CERT_PRIVATE_KEY_FILE=${KIVOU_FOUNDER_CERT_PRIVATE_KEY_FILE:-/etc/letsencrypt/live/control.kivou.eu/privkey.pem}
 KIVOU_FOUNDER_CERT_CHAIN_FILE=${KIVOU_FOUNDER_CERT_CHAIN_FILE:-/etc/letsencrypt/live/control.kivou.eu/chain.pem}
 KIVOU_FOUNDER_HEALTH_URL=${KIVOU_FOUNDER_HEALTH_URL:-http://127.0.0.1:8011/healthz}
+KIVOU_FOUNDER_HEALTH_ATTEMPTS=${KIVOU_FOUNDER_HEALTH_ATTEMPTS:-15}
+KIVOU_FOUNDER_HEALTH_DELAY_SECONDS=${KIVOU_FOUNDER_HEALTH_DELAY_SECONDS:-1}
+KIVOU_FOUNDER_HEALTH_MAX_TIME=${KIVOU_FOUNDER_HEALTH_MAX_TIME:-10}
 KIVOU_RELEASE_DIR="$KIVOU_RELEASES_DIR/$KIVOU_ENVIRONMENT-$KIVOU_SHA"
 if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
   KIVOU_RUNTIME_HOST_CONFIG=${KIVOU_RUNTIME_HOST_CONFIG:-/etc/kivou/acquisition-production.json}
@@ -115,8 +121,13 @@ check_founder_prerequisites() {
     "$KIVOU_FOUNDER_CERT_CHAIN_FILE"; do
     [[ -f "$path" && -r "$path" ]] || fail "prérequis Founder absent ou illisible : $path"
   done
+  runuser --user "$KIVOU_SERVICE_USER" -- test -r "$KIVOU_FOUNDER_ENV_FILE" \
+    || fail "environnement illisible par l'utilisateur du service Founder"
+  runuser --user "$KIVOU_FOUNDER_NGINX_WORKER_USER" -- test -r "$KIVOU_FOUNDER_HTPASSWD_FILE" \
+    || fail "htpasswd Founder illisible par l'utilisateur nginx"
 
-  if ! python3 - "$KIVOU_FOUNDER_ENV_FILE" <<'PY'
+  if ! python3 - "$KIVOU_FOUNDER_ENV_FILE" "$KIVOU_FOUNDER_ORIGIN_SECRET_FILE" <<'PY'
+import re
 import sys
 
 required = {
@@ -127,7 +138,7 @@ required = {
     "KIVOU_FOUNDER_ORIGIN_SECRET",
     "KIVOU_FOUNDER_DATABASE_URL",
 }
-values = {}
+values: dict[str, str] = {}
 with open(sys.argv[1], encoding="utf-8") as stream:
     for raw_line in stream:
         line = raw_line.strip()
@@ -140,9 +151,31 @@ with open(sys.argv[1], encoding="utf-8") as stream:
 
 if any(not values.get(key) for key in required):
     raise SystemExit(1)
+if values["KIVOU_FOUNDER_HOSTNAME"] != "control.kivou.eu":
+    raise SystemExit(1)
+if values["KIVOU_FOUNDER_ENVIRONMENT"] != "PRODUCTION":
+    raise SystemExit(1)
+if values["KIVOU_FOUNDER_ALLOWED_USER"] != "rodrigue":
+    raise SystemExit(1)
+if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", values["KIVOU_FOUNDER_ALLOWED_EMAIL"]):
+    raise SystemExit(1)
+if not re.match(r"^postgresql(?:\+psycopg)?://", values["KIVOU_FOUNDER_DATABASE_URL"]):
+    raise SystemExit(1)
+secret = values["KIVOU_FOUNDER_ORIGIN_SECRET"]
+if len(secret.encode("utf-8")) < 32:
+    raise SystemExit(1)
+
+with open(sys.argv[2], encoding="utf-8") as stream:
+    include = stream.read()
+match = re.fullmatch(
+    r'''\s*set\s+\$kivou_founder_origin_secret\s+(?:"([^"]+)"|'([^']+)')\s*;\s*''',
+    include,
+)
+if not match or (match.group(1) or match.group(2)) != secret:
+    raise SystemExit(1)
 PY
   then
-    fail "environnement Founder incomplet : $KIVOU_FOUNDER_ENV_FILE"
+    fail "prérequis Founder invalide : environnement Founder incomplet ou incohérent"
   fi
 }
 
@@ -191,16 +224,62 @@ sync_systemd_units() {
 
 restore_founder_nginx_path() {
   local path=$1 backup=$2 existed=$3
-  rm -f -- "$path"
+  rm -f -- "$path" || return 1
   if [[ "$existed" -eq 1 ]]; then
-    cp -a -- "$backup" "$path"
+    cp -a -- "$backup" "$path" || return 1
   fi
+}
+
+rollback_founder_nginx() {
+  local rollback_dir=$1 available_existed=$2 enabled_existed=$3
+  KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="nettoyage du candidat"
+  rm -f -- "$KIVOU_FOUNDER_NGINX_ENABLED.next" || return 1
+  KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="restauration du site disponible"
+  restore_founder_nginx_path \
+    "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available" "$available_existed" || return 1
+  KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="restauration du site activé"
+  restore_founder_nginx_path \
+    "$KIVOU_FOUNDER_NGINX_ENABLED" "$rollback_dir/enabled" "$enabled_existed" || return 1
+  KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="revalidation de la configuration précédente"
+  nginx -t || return 1
+  KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="rechargement de la configuration précédente"
+  systemctl reload nginx || return 1
+}
+
+fail_founder_nginx_transaction() {
+  local reason=$1 rollback_dir=$2 available_existed=$3 enabled_existed=$4
+  if ! rollback_founder_nginx "$rollback_dir" "$available_existed" "$enabled_existed"; then
+    if ! rm -rf -- "$rollback_dir"; then
+      KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="$KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE et nettoyage des sauvegardes"
+    fi
+    fail "ROLLBACK NGINX FOUNDER INCOMPLET : $KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE ; intervention manuelle requise"
+  fi
+  rm -rf -- "$rollback_dir" || fail "ROLLBACK NGINX FOUNDER INCOMPLET : nettoyage ; intervention manuelle requise"
+  fail "$reason ; configuration précédente restaurée"
+}
+
+check_founder_health() {
+  local attempt
+  [[ "$KIVOU_FOUNDER_HEALTH_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || fail "nombre de tentatives readiness Founder invalide"
+  [[ "$KIVOU_FOUNDER_HEALTH_DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "délai readiness Founder invalide"
+  [[ "$KIVOU_FOUNDER_HEALTH_MAX_TIME" =~ ^[1-9][0-9]*$ ]] || fail "timeout readiness Founder invalide"
+  for ((attempt = 1; attempt <= KIVOU_FOUNDER_HEALTH_ATTEMPTS; attempt++)); do
+    if curl --fail --silent --show-error --max-time "$KIVOU_FOUNDER_HEALTH_MAX_TIME" \
+      "$KIVOU_FOUNDER_HEALTH_URL" >/dev/null; then
+      return
+    fi
+    if (( attempt < KIVOU_FOUNDER_HEALTH_ATTEMPTS )); then
+      sleep "$KIVOU_FOUNDER_HEALTH_DELAY_SECONDS"
+    fi
+  done
+  fail "readiness Founder épuisée après $KIVOU_FOUNDER_HEALTH_ATTEMPTS tentatives"
 }
 
 sync_founder_nginx() {
   local source="$KIVOU_RELEASE_DIR/ops/nginx/kivou-founder-control.conf"
   local rollback_dir available_existed=0 enabled_existed=0
   [[ -f "$source" && -r "$source" ]] || fail "vhost Founder introuvable : $source"
+  mkdir -p "$(dirname "$KIVOU_FOUNDER_NGINX_AVAILABLE")" "$(dirname "$KIVOU_FOUNDER_NGINX_ENABLED")"
   rollback_dir=$(mktemp -d)
   if [[ -e "$KIVOU_FOUNDER_NGINX_AVAILABLE" || -L "$KIVOU_FOUNDER_NGINX_AVAILABLE" ]]; then
     cp -a -- "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available"
@@ -211,25 +290,26 @@ sync_founder_nginx() {
     enabled_existed=1
   fi
 
-  mkdir -p "$(dirname "$KIVOU_FOUNDER_NGINX_AVAILABLE")" "$(dirname "$KIVOU_FOUNDER_NGINX_ENABLED")"
-  install -o root -g root -m 0644 "$source" "$KIVOU_FOUNDER_NGINX_AVAILABLE"
-  ln -sfn "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$KIVOU_FOUNDER_NGINX_ENABLED.next"
-  mv -Tf "$KIVOU_FOUNDER_NGINX_ENABLED.next" "$KIVOU_FOUNDER_NGINX_ENABLED"
+  if ! install -o root -g root -m 0644 "$source" "$KIVOU_FOUNDER_NGINX_AVAILABLE"; then
+    fail_founder_nginx_transaction \
+      "installation du vhost Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+  fi
+  if ! ln -sfn "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$KIVOU_FOUNDER_NGINX_ENABLED.next"; then
+    fail_founder_nginx_transaction \
+      "préparation du lien nginx Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+  fi
+  if ! mv -Tf "$KIVOU_FOUNDER_NGINX_ENABLED.next" "$KIVOU_FOUNDER_NGINX_ENABLED"; then
+    fail_founder_nginx_transaction \
+      "activation du lien nginx Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+  fi
 
   if ! nginx -t; then
-    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available" "$available_existed"
-    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_ENABLED" "$rollback_dir/enabled" "$enabled_existed"
-    rm -rf -- "$rollback_dir"
-    fail "validation nginx Founder échouée ; configuration précédente restaurée"
+    fail_founder_nginx_transaction \
+      "validation nginx Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
   fi
   if ! systemctl reload nginx; then
-    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available" "$available_existed"
-    restore_founder_nginx_path "$KIVOU_FOUNDER_NGINX_ENABLED" "$rollback_dir/enabled" "$enabled_existed"
-    if nginx -t; then
-      systemctl reload nginx || true
-    fi
-    rm -rf -- "$rollback_dir"
-    fail "rechargement nginx Founder échoué ; configuration précédente restaurée"
+    fail_founder_nginx_transaction \
+      "rechargement nginx Founder échoué" "$rollback_dir" "$available_existed" "$enabled_existed"
   fi
   rm -rf -- "$rollback_dir"
 }
@@ -240,6 +320,8 @@ sync_founder_surface() {
   [[ -d "$frontend_target" ]] || fail "build frontend Founder introuvable : $frontend_target"
   [[ -f "$unit_source" && -r "$unit_source" ]] || fail "unité systemd Founder introuvable : $unit_source"
 
+  install -d -o "$KIVOU_FOUNDER_FRONTEND_OWNER" -g "$KIVOU_FOUNDER_FRONTEND_GROUP" -m 0755 \
+    "$(dirname "$KIVOU_FOUNDER_FRONTEND_LINK")"
   if [[ "$(readlink -f "$KIVOU_FOUNDER_FRONTEND_LINK" 2>/dev/null || true)" != "$frontend_target" ]]; then
     preserve_previous "$KIVOU_FOUNDER_FRONTEND_LINK"
     activate "$frontend_target" "$KIVOU_FOUNDER_FRONTEND_LINK"
@@ -248,7 +330,7 @@ sync_founder_surface() {
   systemctl daemon-reload
   systemctl enable "$KIVOU_FOUNDER_SYSTEMD_UNIT"
   systemctl restart "$KIVOU_FOUNDER_SYSTEMD_UNIT"
-  curl --fail --silent --show-error --max-time 10 "$KIVOU_FOUNDER_HEALTH_URL" >/dev/null
+  check_founder_health
   sync_founder_nginx
   log "surface Founder synchronisée"
 }

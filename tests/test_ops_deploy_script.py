@@ -29,6 +29,7 @@ def _fake_bin(directory: pathlib.Path, name: str, body: str) -> None:
 def _active_production_environment(
     tmp_path: pathlib.Path,
     *,
+    curl_body: str = "exit 0\n",
     nginx_body: str = "exit 0\n",
     systemctl_body: str = "exit 0\n",
 ) -> tuple[dict[str, str], pathlib.Path, pathlib.Path, pathlib.Path, pathlib.Path]:
@@ -77,13 +78,14 @@ def _active_production_environment(
     )
     backup.chmod(0o755)
 
+    founder_secret = "a" * 64
     founder_env = tmp_path / "founder.env"
     founder_env.write_text(
         "KIVOU_FOUNDER_HOSTNAME=control.kivou.eu\n"
         "KIVOU_FOUNDER_ENVIRONMENT=PRODUCTION\n"
         "KIVOU_FOUNDER_ALLOWED_EMAIL=founder@example.com\n"
         "KIVOU_FOUNDER_ALLOWED_USER=rodrigue\n"
-        "KIVOU_FOUNDER_ORIGIN_SECRET=secret\n"
+        f"KIVOU_FOUNDER_ORIGIN_SECRET={founder_secret}\n"
         "KIVOU_FOUNDER_DATABASE_URL=postgresql://readonly@example/kivou\n",
         encoding="utf-8",
     )
@@ -91,9 +93,12 @@ def _active_production_environment(
     htpasswd = tmp_path / "founder.htpasswd"
     cert_dir = tmp_path / "certs"
     cert_dir.mkdir()
+    origin_secret.write_text(
+        f'set $kivou_founder_origin_secret "{founder_secret}";\n',
+        encoding="utf-8",
+    )
+    htpasswd.write_text("rodrigue:$2y$test-only-hash\n", encoding="utf-8")
     for path in (
-        origin_secret,
-        htpasswd,
         cert_dir / "fullchain.pem",
         cert_dir / "privkey.pem",
         cert_dir / "chain.pem",
@@ -109,18 +114,26 @@ def _active_production_environment(
         recorder
         + 'if [[ "$*" == *"rev-parse HEAD"* ]]; then printf "%s\\n" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; fi\n',
     )
-    _fake_bin(fake_bin, "runuser", recorder + 'shift 3\nexec "$@"\n')
+    _fake_bin(
+        fake_bin,
+        "runuser",
+        recorder
+        + 'if [[ "${KIVOU_TEST_DENY_READ_AS_USER:-}" == "$2" && "$4" == "test" && "$5" == "-r" ]]; then exit 77; fi\n'
+        + 'shift 3\nexec "$@"\n',
+    )
     _fake_bin(fake_bin, "stat", "printf 'kivou:kivou\\n'\n")
     _fake_bin(fake_bin, "systemctl", recorder + systemctl_body)
-    _fake_bin(fake_bin, "curl", recorder)
+    _fake_bin(fake_bin, "curl", recorder + curl_body)
     _fake_bin(fake_bin, "nginx", recorder + nginx_body)
     _fake_bin(
         fake_bin,
         "install",
         recorder
+        + 'if [[ "$1" == "-d" && "${@: -1}" == "$(dirname "$KIVOU_FOUNDER_FRONTEND_LINK")" ]]; then exec /usr/bin/install "$@"; fi\n'
         + 'if [[ "$1" == "-d" ]]; then shift; while [[ "$1" == -* ]]; do shift 2; done; mkdir -p -- "$1"; exit 0; fi\n'
         + 'while [[ $# -gt 0 ]]; do case "$1" in -o|-g|-m) shift 2;; *) break;; esac; done\n'
         + 'case "$2" in /etc/systemd/system/*) exit 0;; esac\n'
+        + 'if [[ "${KIVOU_TEST_FAIL_NGINX_INSTALL:-0}" == "1" && "$2" == "$KIVOU_FOUNDER_NGINX_AVAILABLE" ]]; then printf "partial candidate\\n" > "$2"; exit 25; fi\n'
         + 'cp -- "$1" "$2"\n',
     )
 
@@ -142,6 +155,9 @@ def _active_production_environment(
         "KIVOU_BACKEND_LINK": str(live_backend),
         "KIVOU_FRONTEND_LINK": str(live_frontend),
         "KIVOU_FOUNDER_FRONTEND_LINK": str(founder_frontend),
+        "KIVOU_FOUNDER_FRONTEND_OWNER": str(os.getuid()),
+        "KIVOU_FOUNDER_FRONTEND_GROUP": str(os.getgid()),
+        "KIVOU_FOUNDER_NGINX_WORKER_USER": str(os.getuid()),
         "KIVOU_DATABASE_URL": "postgresql://kivou@localhost/kivou",
         "KIVOU_MIGRATION_ADMIN_URL": "postgresql://deploy@localhost/postgres",
         "KIVOU_BACKUP_SCRIPT": str(backup),
@@ -160,6 +176,75 @@ def _active_production_environment(
         "KIVOU_FOUNDER_HEALTH_URL": "http://127.0.0.1:18011/healthz",
     }
     return env, log, release, founder_frontend, old_founder
+
+
+def test_founder_frontend_parent_is_nginx_traversable(tmp_path: pathlib.Path) -> None:
+    env, _, _, founder_frontend, _ = _active_production_environment(tmp_path)
+    founder_parent = founder_frontend.parent
+    founder_parent.chmod(0o700)
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert founder_parent.stat().st_mode & 0o777 == 0o755
+    assert founder_parent.stat().st_uid == os.getuid()
+    assert founder_parent.stat().st_gid == os.getgid()
+
+
+def test_founder_health_retries_until_ready(tmp_path: pathlib.Path) -> None:
+    counter = tmp_path / "curl-count"
+    env, log, _, _, _ = _active_production_environment(
+        tmp_path,
+        curl_body=(
+            'count=0; [[ ! -f "$KIVOU_TEST_CURL_COUNT" ]] || read -r count < "$KIVOU_TEST_CURL_COUNT"\n'
+            'count=$((count + 1)); printf "%s\\n" "$count" > "$KIVOU_TEST_CURL_COUNT"\n'
+            'if (( count < 3 )); then exit 22; fi\n'
+        ),
+    )
+    env["KIVOU_TEST_CURL_COUNT"] = str(counter)
+    env["KIVOU_FOUNDER_HEALTH_ATTEMPTS"] = "5"
+    env["KIVOU_FOUNDER_HEALTH_DELAY_SECONDS"] = "0"
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert log.read_text(encoding="utf-8").count("curl --fail") == 3
+
+
+def test_founder_health_retry_exhaustion_is_bounded(tmp_path: pathlib.Path) -> None:
+    env, log, _, _, _ = _active_production_environment(
+        tmp_path,
+        curl_body="exit 22\n",
+    )
+    env["KIVOU_FOUNDER_HEALTH_ATTEMPTS"] = "3"
+    env["KIVOU_FOUNDER_HEALTH_DELAY_SECONDS"] = "0"
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "readiness Founder" in result.stderr
+    assert log.read_text(encoding="utf-8").count("curl --fail") == 3
 
 
 def test_fresh_production_release_builds_and_activates_founder(
@@ -223,6 +308,14 @@ def test_active_production_release_synchronizes_founder_surface(tmp_path: pathli
         env["KIVOU_FOUNDER_NGINX_AVAILABLE"]
     )
     commands = log.read_text(encoding="utf-8")
+    assert (
+        f"runuser --user kivou -- test -r {env['KIVOU_FOUNDER_ENV_FILE']}" in commands
+    )
+    assert (
+        "runuser --user "
+        f"{env['KIVOU_FOUNDER_NGINX_WORKER_USER']} -- test -r "
+        f"{env['KIVOU_FOUNDER_HTPASSWD_FILE']}"
+    ) in commands
     assert "systemctl enable kivou-founder-api.service" in commands
     assert "systemctl restart kivou-founder-api.service" in commands
     assert "curl --fail --silent --show-error --max-time 10 http://127.0.0.1:18011/healthz" in commands
@@ -275,8 +368,63 @@ def test_incomplete_founder_environment_fails_before_mutation(
     assert "systemctl" not in log.read_text(encoding="utf-8")
 
 
+def test_mismatched_founder_origin_secret_fails_without_logging_values(
+    tmp_path: pathlib.Path,
+) -> None:
+    env, log, _, founder_frontend, old_founder = _active_production_environment(tmp_path)
+    mismatched_secret = "b" * 64
+    pathlib.Path(env["KIVOU_FOUNDER_ORIGIN_SECRET_FILE"]).write_text(
+        f'set $kivou_founder_origin_secret "{mismatched_secret}";\n',
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "prérequis Founder invalide" in result.stderr
+    assert "a" * 64 not in result.stderr
+    assert mismatched_secret not in result.stderr
+    assert founder_frontend.resolve() == old_founder
+    assert "systemctl" not in log.read_text(encoding="utf-8")
+
+
+def test_founder_env_must_be_readable_by_service_user(tmp_path: pathlib.Path) -> None:
+    env, log, _, founder_frontend, old_founder = _active_production_environment(tmp_path)
+    env["KIVOU_TEST_DENY_READ_AS_USER"] = "kivou"
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "illisible par l'utilisateur du service Founder" in result.stderr
+    assert founder_frontend.resolve() == old_founder
+    assert "systemctl" not in log.read_text(encoding="utf-8")
+
+
 def test_nginx_validation_failure_restores_prior_founder_site(tmp_path: pathlib.Path) -> None:
-    env, log, _, _, _ = _active_production_environment(tmp_path, nginx_body="exit 23\n")
+    counter = tmp_path / "nginx-count"
+    env, log, _, _, _ = _active_production_environment(
+        tmp_path,
+        nginx_body=(
+            'count=0; [[ ! -f "$KIVOU_TEST_NGINX_COUNT" ]] || read -r count < "$KIVOU_TEST_NGINX_COUNT"\n'
+            'count=$((count + 1)); printf "%s\\n" "$count" > "$KIVOU_TEST_NGINX_COUNT"\n'
+            'if (( count == 1 )); then exit 23; fi\n'
+        ),
+    )
+    env["KIVOU_TEST_NGINX_COUNT"] = str(counter)
     available = pathlib.Path(env["KIVOU_FOUNDER_NGINX_AVAILABLE"])
     enabled = pathlib.Path(env["KIVOU_FOUNDER_NGINX_ENABLED"])
     prior_target = tmp_path / "prior-founder-site.conf"
@@ -298,11 +446,83 @@ def test_nginx_validation_failure_restores_prior_founder_site(tmp_path: pathlib.
     assert enabled.is_symlink()
     assert os.readlink(enabled) == str(prior_target)
     commands = log.read_text(encoding="utf-8")
-    assert "nginx -t" in commands
-    assert "systemctl reload nginx" not in commands
+    assert commands.count("nginx -t") == 2
+    assert commands.count("systemctl reload nginx") == 1
+    assert "intervention manuelle" not in result.stderr
+
+
+def test_nginx_candidate_mutation_failure_restores_prior_site(
+    tmp_path: pathlib.Path,
+) -> None:
+    env, log, _, _, _ = _active_production_environment(tmp_path)
+    env["KIVOU_TEST_FAIL_NGINX_INSTALL"] = "1"
+    available = pathlib.Path(env["KIVOU_FOUNDER_NGINX_AVAILABLE"])
+    enabled = pathlib.Path(env["KIVOU_FOUNDER_NGINX_ENABLED"])
+    prior_target = tmp_path / "prior-founder-site.conf"
+    prior_target.write_text("prior target\n", encoding="utf-8")
+    available.write_text("prior available\n", encoding="utf-8")
+    enabled.symlink_to(prior_target)
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert available.read_text(encoding="utf-8") == "prior available\n"
+    assert enabled.is_symlink()
+    assert os.readlink(enabled) == str(prior_target)
+    assert not pathlib.Path(f"{enabled}.next").exists()
+    commands = log.read_text(encoding="utf-8")
+    assert commands.count("nginx -t") == 1
+    assert commands.count("systemctl reload nginx") == 1
 
 
 def test_nginx_reload_failure_restores_and_revalidates_prior_founder_site(
+    tmp_path: pathlib.Path,
+) -> None:
+    counter = tmp_path / "reload-count"
+    env, log, _, _, _ = _active_production_environment(
+        tmp_path,
+        systemctl_body=(
+            'if [[ "$*" == "reload nginx" ]]; then '
+            'count=0; [[ ! -f "$KIVOU_TEST_RELOAD_COUNT" ]] || read -r count < "$KIVOU_TEST_RELOAD_COUNT"; '
+            'count=$((count + 1)); printf "%s\\n" "$count" > "$KIVOU_TEST_RELOAD_COUNT"; '
+            'if (( count == 1 )); then exit 24; fi; fi\n'
+        ),
+    )
+    env["KIVOU_TEST_RELOAD_COUNT"] = str(counter)
+    available = pathlib.Path(env["KIVOU_FOUNDER_NGINX_AVAILABLE"])
+    enabled = pathlib.Path(env["KIVOU_FOUNDER_NGINX_ENABLED"])
+    prior_target = tmp_path / "prior-founder-site.conf"
+    prior_target.write_text("prior target\n", encoding="utf-8")
+    available.write_text("prior available\n", encoding="utf-8")
+    enabled.symlink_to(prior_target)
+
+    result = subprocess.run(
+        [str(SCRIPT), "production", "a" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert available.read_text(encoding="utf-8") == "prior available\n"
+    assert enabled.is_symlink()
+    assert os.readlink(enabled) == str(prior_target)
+    commands = log.read_text(encoding="utf-8")
+    assert commands.count("nginx -t") == 2
+    assert commands.count("systemctl reload nginx") == 2
+    assert "intervention manuelle" not in result.stderr
+
+
+def test_nginx_rollback_reload_failure_requires_manual_intervention(
     tmp_path: pathlib.Path,
 ) -> None:
     env, log, _, _, _ = _active_production_environment(
@@ -329,6 +549,9 @@ def test_nginx_reload_failure_restores_and_revalidates_prior_founder_site(
     assert available.read_text(encoding="utf-8") == "prior available\n"
     assert enabled.is_symlink()
     assert os.readlink(enabled) == str(prior_target)
+    assert not pathlib.Path(f"{enabled}.next").exists()
+    assert "ROLLBACK NGINX FOUNDER INCOMPLET" in result.stderr
+    assert "intervention manuelle requise" in result.stderr
     commands = log.read_text(encoding="utf-8")
     assert commands.count("nginx -t") == 2
     assert commands.count("systemctl reload nginx") == 2
