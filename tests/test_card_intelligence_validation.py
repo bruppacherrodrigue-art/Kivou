@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
-import pathlib
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -40,7 +39,6 @@ from signals.card_intelligence.input import (
     build_presentation_input,
 )
 from signals.card_intelligence.validation import validate_payload
-from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import (
     contract_award,
     evidence,
@@ -396,10 +394,8 @@ def test_fallback_keeps_buyer_and_awardee_in_their_source_roles(source):
 
 
 @pytest.fixture
-def engine(tmp_path: pathlib.Path):
-    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
-    migrate_to_latest(engine)
-    return engine
+def engine(migrated_sqlite_engine):
+    return migrated_sqlite_engine
 
 
 @dataclass(frozen=True)

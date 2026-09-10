@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-import pathlib
 
 import pytest
 import sqlalchemy as sa
@@ -38,7 +37,6 @@ from feed_helpers import (
 
 from signals.api import ApiConfig, create_app
 from signals.billing.schema import discovery_signal_grant
-from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import contract_award, materialized_signal
 
 READ_ON = dt.date(2026, 8, 25)
@@ -67,10 +65,8 @@ def clock() -> Clock:
 
 
 @pytest.fixture
-def engine(tmp_path: pathlib.Path):
-    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
-    migrate_to_latest(engine)
-    return engine
+def engine(migrated_sqlite_engine):
+    return migrated_sqlite_engine
 
 
 @pytest.fixture

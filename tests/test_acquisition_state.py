@@ -134,7 +134,7 @@ def test_created_event_builds_the_initial_projection() -> None:
             AcquisitionState.SEND: {AcquisitionState.QUEUED},
             AcquisitionState.QUEUED: {AcquisitionState.SENT},
         }.items()
-        for target in targets
+        for target in sorted(targets, key=lambda state: state.value)
     ],
 )
 def test_approved_pre_send_transition_matrix(

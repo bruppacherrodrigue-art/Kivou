@@ -102,6 +102,7 @@ def _client(engine: sa.Engine, *, email: str = "customer@kivou.ch") -> TestClien
     return client
 
 
+@pytest.mark.slow
 def test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history(engine):
     _persist_ted(engine, "566039-2026.xml")
     client = _client(engine, email="migration@kivou.ch")

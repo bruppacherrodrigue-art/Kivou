@@ -12,7 +12,7 @@ trap 'rm -f "$collection"' EXIT
 if [[ -n "${KIVOU_PYTEST_COLLECTION_FILE:-}" ]]; then
   cp "$KIVOU_PYTEST_COLLECTION_FILE" "$collection"
 else
-  uv run pytest --collect-only -q | sed -n '/::/p' > "$collection"
+  uv run pytest -o addopts= --collect-only -q | sed -n '/::/p' > "$collection"
 fi
 
 selected=()
@@ -25,7 +25,7 @@ done < "$collection"
 [[ ${#selected[@]} -gt 0 ]] || { printf 'empty shard %s/%s\n' "$shard" "$total" >&2; exit 1; }
 
 if [[ -n "${KIVOU_PYTEST_RUNNER:-}" ]]; then
-  "$KIVOU_PYTEST_RUNNER" -q "${selected[@]}"
+  "$KIVOU_PYTEST_RUNNER" -o addopts= -q "${selected[@]}"
 else
-  uv run pytest -q "${selected[@]}"
+  uv run pytest -o addopts= -q "${selected[@]}"
 fi

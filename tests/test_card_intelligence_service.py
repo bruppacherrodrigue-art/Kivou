@@ -32,7 +32,6 @@ from signals.card_intelligence.service import (
     run_offline_candidate_pipeline,
 )
 from signals.card_intelligence.validation import validate_payload
-from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import (
     card_presentation_artifact,
     contract_award,
@@ -53,12 +52,8 @@ class PersistedCase:
 
 
 @pytest.fixture
-def engine(tmp_path) -> sa.Engine:
-    database = create_database_engine(
-        f"sqlite+pysqlite:///{tmp_path / 'card-intelligence-service.db'}"
-    )
-    migrate_to_latest(database)
-    return database
+def engine(migrated_sqlite_engine: sa.Engine) -> sa.Engine:
+    return migrated_sqlite_engine
 
 
 @pytest.fixture

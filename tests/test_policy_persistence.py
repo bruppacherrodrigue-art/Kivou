@@ -67,6 +67,7 @@ def engine(tmp_path):
     return value
 
 
+@pytest.mark.slow
 def test_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'migration.db'}")
     config = alembic_config(engine)
@@ -84,6 +85,7 @@ def test_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
     assert current_revision(engine) == HEAD
 
 
+@pytest.mark.slow
 def test_postgresql_offline_migration_contains_only_policy_tables(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
     config.set_main_option(

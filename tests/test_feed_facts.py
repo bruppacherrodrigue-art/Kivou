@@ -13,7 +13,6 @@ jamais l'hypothèse ; le contrat de réponse doit le dire.
 from __future__ import annotations
 
 import datetime as dt
-import pathlib
 
 import pytest
 import sqlalchemy as sa
@@ -30,7 +29,6 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
-from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import for_you_sentence
 
 #: §8 — aucun de ces mots n'a le droit d'apparaître dans une réponse client.
@@ -68,10 +66,8 @@ class Clock:
 
 
 @pytest.fixture
-def engine(tmp_path: pathlib.Path):
-    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
-    migrate_to_latest(engine)
-    return engine
+def engine(migrated_sqlite_engine):
+    return migrated_sqlite_engine
 
 
 def app_for(engine, locale: str = "fr") -> TestClient:
