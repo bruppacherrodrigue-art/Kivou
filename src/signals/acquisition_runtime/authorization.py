@@ -234,9 +234,7 @@ class AcquisitionRuntimeApprovalStore:
             raise ValueError("runtime approval limit must be between 1 and 100")
         statement = sa.select(acquisition_runtime_approval)
         if status is not None:
-            statement = statement.where(
-                acquisition_runtime_approval.c.state == status.value
-            )
+            statement = statement.where(acquisition_runtime_approval.c.state == status.value)
         if status is RuntimeApprovalStatus.PENDING:
             if at is None:
                 raise ValueError("pending runtime approvals require an observation time")
@@ -250,10 +248,7 @@ class AcquisitionRuntimeApprovalStore:
             acquisition_runtime_approval.c.approval_id.desc(),
         ).limit(limit)
         with self.engine.connect() as connection:
-            return tuple(
-                _snapshot(row)
-                for row in connection.execute(statement).mappings().all()
-            )
+            return tuple(_snapshot(row) for row in connection.execute(statement).mappings().all())
 
 
 def _approval_id(request_ref: str) -> str:

@@ -188,8 +188,7 @@ class CompanyResearchStore:
                     sa.update(company_research_run)
                     .where(
                         company_research_run.c.company_research_run_id == run_id,
-                        company_research_run.c.status
-                        == CompanyResearchRunStatus.STARTED.value,
+                        company_research_run.c.status == CompanyResearchRunStatus.STARTED.value,
                         company_research_run.c.recovery_provider_calls == 0,
                     )
                     .values(recovery_provider_calls=1)

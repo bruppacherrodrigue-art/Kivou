@@ -50,7 +50,7 @@ REQUEUE_UNRESOLVED_SIRET_REVISION = "0033_requeue_unresolved_siret"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_UNRESOLVED_SIRET_REVISION, et écraser ce lien ferait passer un test faux.
 COMPANY_ENGAGEMENT_REVISION = "0034_company_engagement"
-CURRENT_HEAD = "0046_sirene_apollo_binding"
+CURRENT_HEAD = "0047_contact_waterfall"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -139,7 +139,10 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == "0045_pr7_shadow_mail"
+    assert script.get_revision(CURRENT_HEAD).down_revision == "0046_sirene_apollo_binding"
+    assert script.get_revision("0046_sirene_apollo_binding").down_revision == (
+        "0045_pr7_shadow_mail"
+    )
     assert (
         script.get_revision(REQUEUE_UNRESOLVED_SIRET_REVISION).down_revision
         == REQUEUE_SIRET_PLACEHOLDERS_REVISION
@@ -160,14 +163,8 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(PRODUCTION_OBSERVATION_REVISION).down_revision
         == CARD_PRESENTATION_REVISION
     )
-    assert (
-        script.get_revision(CARD_PRESENTATION_REVISION).down_revision
-        == SIGNAL_NOTES_REVISION
-    )
-    assert (
-        script.get_revision(SIGNAL_NOTES_REVISION).down_revision
-        == ACQUISITION_RUNTIME_REVISION
-    )
+    assert script.get_revision(CARD_PRESENTATION_REVISION).down_revision == SIGNAL_NOTES_REVISION
+    assert script.get_revision(SIGNAL_NOTES_REVISION).down_revision == ACQUISITION_RUNTIME_REVISION
     assert (
         script.get_revision(ACQUISITION_RUNTIME_REVISION).down_revision
         == ALERT_RECIPIENT_CONTEXT_REVISION
@@ -176,10 +173,7 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(ALERT_RECIPIENT_CONTEXT_REVISION).down_revision
         == SCHEDULED_PLAN_REVISION
     )
-    assert (
-        script.get_revision(SCHEDULED_PLAN_REVISION).down_revision
-        == EMAIL_REVISION
-    )
+    assert script.get_revision(SCHEDULED_PLAN_REVISION).down_revision == EMAIL_REVISION
     assert script.get_revision(EMAIL_REVISION).down_revision == SAAS_COMPANY_REVISION
     assert script.get_revision(SAAS_COMPANY_REVISION).down_revision == RELIABILITY_REVISION
     assert script.get_revision(RELIABILITY_REVISION).down_revision == LEARNING_REVISION
@@ -213,9 +207,7 @@ def test_capacity_revision_is_a_short_linear_child_of_ingestion(tmp_path):
 
 
 def test_postgresql_target_type_is_unbounded_text():
-    assert contract_award.c.contract_reference.type.compile(
-        dialect=postgresql.dialect()
-    ) == "TEXT"
+    assert contract_award.c.contract_reference.type.compile(dialect=postgresql.dialect()) == "TEXT"
 
 
 def test_postgresql_migration_widens_only_contract_reference(capsys):

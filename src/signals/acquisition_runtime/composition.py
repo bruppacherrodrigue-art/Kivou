@@ -29,6 +29,7 @@ from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvid
 from signals.campaigns.service import CampaignService, MailboxReadinessSource
 from signals.campaigns.worker import CampaignWorker
 from signals.company_research.binding import BindingStatus, SireneApolloResolver
+from signals.company_research.domain import CompanyDomainResolver
 from signals.company_research.service import CompanyResearchService
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.compliance.service import ComplianceService
@@ -44,6 +45,7 @@ from signals.contact_discovery.profile import (
     decision_maker_profile_semantics,
 )
 from signals.contact_discovery.service import ContactDiscoveryService
+from signals.contact_discovery.web import PublishedWebsiteContactProvider
 from signals.conversion.link import AttributionLinkBuilder
 from signals.decision_engine.service import DecisionEngineService
 from signals.personalization.service import PersonalizationService
@@ -122,6 +124,8 @@ def build_acquisition_domain_composition(
     mailbox_readiness: MailboxReadinessSource,
     attribution_link_builder: AttributionLinkBuilder,
     clock: Callable[[], dt.datetime],
+    company_domain_resolver: CompanyDomainResolver | None = None,
+    website_contact_provider: PublishedWebsiteContactProvider | None = None,
 ) -> AcquisitionDomainComposition:
     """Wire existing domains; construction performs no provider operation."""
 
@@ -134,18 +138,19 @@ def build_acquisition_domain_composition(
     elif targeting.max_pages != 1 or targeting.per_page > 25 or targeting.candidate_cap > 25:
         raise ValueError("production supplier discovery is capped at 25 candidates")
     organization_provider = SireneOrganizationSearchProvider(
-        FakeSireneCompanySearch()
-        if runtime_config.deployment.providers.mode == "fake"
-        else None
+        FakeSireneCompanySearch() if runtime_config.deployment.providers.mode == "fake" else None
     )
     organization_resolver = SireneApolloResolver(
-        engine, provider=apollo.company_research
+        engine,
+        provider=apollo.company_research,
+        domain_resolver=company_domain_resolver,
     )
 
     def resolve_supplier(candidate) -> bool:
         if candidate.provider != "sirene":
             raise ValueError("runtime supplier identity must come from SIRENE")
-        return organization_resolver.resolve(candidate).status is BindingStatus.RESOLVED
+        binding = organization_resolver.resolve(candidate)
+        return binding.status is BindingStatus.RESOLVED
 
     supplier_service = SupplierDiscoveryService(
         engine,
@@ -157,6 +162,7 @@ def build_acquisition_domain_composition(
         engine,
         provider=apollo.contact_discovery,
         profile_builder=build_runtime_qa_contact_profile,
+        fallback_provider=website_contact_provider,
         profile_upgrade_requeue=(
             RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION,
             RUNTIME_QA_CONTACT_PROFILE_VERSION,
@@ -228,9 +234,7 @@ def build_acquisition_domain_composition(
             else None
         ),
         qa_transport_recipient_key_version=(
-            recipient_override.transport_key_version
-            if recipient_override is not None
-            else None
+            recipient_override.transport_key_version if recipient_override is not None else None
         ),
         qa_scope=runtime_config.deployment.qa_scope,
         targeting=targeting,

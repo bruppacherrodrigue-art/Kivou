@@ -204,7 +204,6 @@ class SupplierDiscoveryService:
         }
         opportunity_ids: list[str] = []
         family_counts: dict[str, int] = {}
-        organization_resolution_attempted = False
         expected_total_entries: int | None = None
         expected_total_pages: int | None = None
         expected_partial_results = False
@@ -322,14 +321,11 @@ class SupplierDiscoveryService:
             for returned_candidate in page.candidates:
                 returned_family = (
                     returned_candidate.industry.split(":", 1)[0]
-                    if returned_candidate.industry
-                    and ":" in returned_candidate.industry
+                    if returned_candidate.industry and ":" in returned_candidate.industry
                     else None
                 )
                 if returned_family:
-                    result_counts[returned_family] = (
-                        int(result_counts.get(returned_family, 0)) + 1
-                    )
+                    result_counts[returned_family] = int(result_counts.get(returned_family, 0)) + 1
 
             for candidate in page.candidates:
                 if int(counters["records_accepted"]) >= profile.candidate_cap:
@@ -355,16 +351,14 @@ class SupplierDiscoveryService:
                         int(reason_counts.get("excluded_supplier_domain", 0)) + 1
                     )
                     continue
-                if self._organization_resolver is not None:
-                    if organization_resolution_attempted:
-                        break
-                    organization_resolution_attempted = True
-                    if not self._organization_resolver(candidate):
-                        counters["records_rejected"] = int(counters["records_rejected"]) + 1
-                        reason_counts["apollo_organization_unresolved"] = (
-                            int(reason_counts.get("apollo_organization_unresolved", 0)) + 1
-                        )
-                        break
+                if self._organization_resolver is not None and not self._organization_resolver(
+                    candidate
+                ):
+                    counters["records_rejected"] = int(counters["records_rejected"]) + 1
+                    reason_counts["contact_identity_unresolved"] = (
+                        int(reason_counts.get("contact_identity_unresolved", 0)) + 1
+                    )
+                    continue
                 try:
                     opportunity_id, supplier_created, opportunity_created = self._persist_candidate(
                         profile, candidate
@@ -399,6 +393,8 @@ class SupplierDiscoveryService:
                     opportunity_created
                 )
                 opportunity_ids.append(opportunity_id)
+                if self._organization_resolver is not None:
+                    break
             if (
                 int(counters["records_accepted"]) >= profile.candidate_cap
                 or page_number >= page.total_pages

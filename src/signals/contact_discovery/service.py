@@ -18,7 +18,7 @@ from signals.acquisition.contracts import (
     OpportunityConcurrencyConflict,
 )
 from signals.acquisition.store import AcquisitionStore
-from signals.company_research.binding import BindingStatus, SireneApolloBindingStore
+from signals.company_research.binding import SireneApolloBindingStore
 from signals.contact_discovery.contracts import (
     ApolloContactProviderError,
     ContactAuthorizationInput,
@@ -30,12 +30,14 @@ from signals.contact_discovery.contracts import (
     ContactRunStart,
     ContactRunStatus,
     DecisionMakerSearchProfile,
+    is_attachable_contact,
 )
 from signals.contact_discovery.identity import contact_ref_for
 from signals.contact_discovery.profile import build_decision_maker_profile
 from signals.contact_discovery.provider import ContactDiscoveryProvider
 from signals.contact_discovery.ranking import classify_title, rank_candidates
 from signals.contact_discovery.store import ContactDiscoveryStore
+from signals.contact_discovery.web import PublishedWebsiteContactProvider
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
@@ -65,9 +67,8 @@ class ContactDiscoveryService:
         acquisition_store: AcquisitionStore | None = None,
         supplier_store: SupplierDiscoveryStore | None = None,
         binding_store: SireneApolloBindingStore | None = None,
-        profile_builder: Callable[..., DecisionMakerSearchProfile] = (
-            build_decision_maker_profile
-        ),
+        fallback_provider: PublishedWebsiteContactProvider | None = None,
+        profile_builder: Callable[..., DecisionMakerSearchProfile] = (build_decision_maker_profile),
         profile_upgrade_requeue: tuple[str, str] | None = None,
         clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
@@ -78,6 +79,7 @@ class ContactDiscoveryService:
         self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
         self._bindings = binding_store or SireneApolloBindingStore(engine, clock=clock)
+        self._fallback_provider = fallback_provider
         self._policy_store = PolicyStore(engine)
         self._profile_builder = profile_builder
         if profile_upgrade_requeue is not None:
@@ -125,22 +127,23 @@ class ContactDiscoveryService:
         if supplier.provider != "sirene":
             raise ContactDiscoveryNotActionable(opportunity.acquisition_opportunity_id)
         binding = self._bindings.get(supplier.provider_organization_id)
-        if (
-            binding is None
-            or binding.status is not BindingStatus.RESOLVED
-            or binding.apollo_organization_id is None
+        if binding is None or (
+            binding.apollo_organization_id is None
+            and (self._fallback_provider is None or binding.domain is None)
         ):
             raise ContactDiscoveryNotActionable(opportunity.acquisition_opportunity_id)
         profile = DecisionMakerSearchProfile.model_validate(
             self._profile_builder(
                 acquisition_opportunity_id=opportunity_id,
                 supplier_ref=supplier.supplier_ref,
-                provider_organization_id=binding.apollo_organization_id,
+                provider_organization_id=(
+                    binding.apollo_organization_id or f"siren-{supplier.provider_organization_id}"
+                ),
                 supplier_siren=supplier.provider_organization_id,
                 binding_resolution_method=binding.resolution_method,
                 organization_name=supplier.display_name,
                 organization_city=supplier.location,
-                organization_domain=supplier.primary_domain,
+                organization_domain=binding.domain or supplier.primary_domain,
             )
         )
         opportunity = self._requeue_profile_upgrade(
@@ -206,22 +209,17 @@ class ContactDiscoveryService:
                 decision=decision,
                 run=ownership.run,
             )
-        profile = DecisionMakerSearchProfile.model_validate(
-            ownership.run.search_profile
-        )
+        profile = DecisionMakerSearchProfile.model_validate(ownership.run.search_profile)
         return self._execute(ownership.run, profile, decision)
 
     def _durable_decision(self, run):
         profile = DecisionMakerSearchProfile.model_validate(run.search_profile)
         with self._engine.connect() as connection:
-            row = self._policy_store.evaluation_row(
-                connection, run.policy_evaluation_id
-            )
+            row = self._policy_store.evaluation_row(connection, run.policy_evaluation_id)
         if row is None or not (
             row["acquisition_opportunity_id"] == run.acquisition_opportunity_id
             and row["command"] == "find_decision_makers"
-            and row["target_ref"]
-            == self._expected_target(run.acquisition_opportunity_id)
+            and row["target_ref"] == self._expected_target(run.acquisition_opportunity_id)
             and row["action_fingerprint"] == run.provider_request_fingerprint
             and run.search_profile_fingerprint == profile.profile_fingerprint
         ):
@@ -232,6 +230,20 @@ class ContactDiscoveryService:
         return decision
 
     def _execute(self, run, profile, decision) -> ContactDiscoveryServiceResult:
+        if profile.provider_organization_id.startswith("siren-"):
+            counters: dict[str, object] = {
+                "people_search_requests": 0,
+                "provider_total_entries": 0,
+                "search_results_returned": 0,
+                "search_results_truncated": False,
+                "candidates_eligible": 0,
+                "candidates_rejected": 0,
+                "enrichment_attempts": 0,
+                "attempted_contact_refs": (),
+            }
+            return self._fallback_or_complete(
+                run, profile, decision, counters, ContactRunStatus.NO_CANDIDATE
+            )
         search_observed_at = self._now()
         try:
             page = self._provider.search_people(profile, observed_at=search_observed_at)
@@ -278,8 +290,8 @@ class ContactDiscoveryService:
             len(available) - len(ranked)
         )
         if not ranked:
-            return self._complete_without_contact(
-                run, decision, ContactRunStatus.NO_CANDIDATE, counters
+            return self._fallback_or_complete(
+                run, profile, decision, counters, ContactRunStatus.NO_CANDIDATE
             )
 
         attempted: list[str] = []
@@ -304,11 +316,7 @@ class ContactDiscoveryService:
             ):
                 counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
                 continue
-            classification = (
-                classify_title(enriched.title)
-                if enriched.title is not None
-                else None
-            )
+            classification = classify_title(enriched.title) if enriched.title is not None else None
             if enriched.title is not None and classification is None:
                 counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
                 continue
@@ -358,9 +366,35 @@ class ContactDiscoveryService:
                 provider_called=True,
             )
 
-        return self._complete_without_contact(
-            run, decision, ContactRunStatus.NO_VERIFIED_CONTACT, counters
+        return self._fallback_or_complete(
+            run, profile, decision, counters, ContactRunStatus.NO_VERIFIED_CONTACT
         )
+
+    def _fallback_or_complete(self, run, profile, decision, counters, terminal_status):
+        if self._fallback_provider is not None:
+            try:
+                observation = self._fallback_provider.find(profile, observed_at=self._now())
+            except Exception:  # noqa: BLE001 - website/model failure rejects one target
+                observation = None
+            if observation is not None:
+                try:
+                    contact, finished = self._commit_success(run, observation, counters)
+                except (
+                    OpportunityConcurrencyConflict,
+                    sa.exc.SQLAlchemyError,
+                    RuntimeError,
+                ) as exc:
+                    finished = self._finish_persistence_failure(run, exc, counters)
+                    return ContactDiscoveryServiceResult(
+                        decision=decision, run=finished, provider_called=True
+                    )
+                return ContactDiscoveryServiceResult(
+                    decision=decision,
+                    run=finished,
+                    contact=contact,
+                    provider_called=True,
+                )
+        return self._complete_without_contact(run, decision, terminal_status, counters)
 
     def _commit_success(self, run, observation, counters):
         with self._engine.begin() as connection:
@@ -371,11 +405,7 @@ class ContactDiscoveryService:
             upserted = self._contacts.upsert_contact_in_transaction(connection, observation)
             persisted = upserted.contact
             if not (
-                persisted.supplier_ref == current.supplier_ref
-                and persisted.verification_state == "PROVIDER_VERIFIED"
-                and persisted.verification_provider == "apollo"
-                and persisted.provider_email_status == "verified"
-                and persisted.business_email
+                persisted.supplier_ref == current.supplier_ref and is_attachable_contact(persisted)
             ):
                 raise RuntimeError("persisted contact is not attachable")
             selected = self._acquisition.append_in_transaction(
@@ -554,8 +584,7 @@ class ContactDiscoveryService:
                 and previous_profile.acquisition_opportunity_id
                 == current.acquisition_opportunity_id
                 and previous_profile.supplier_ref == current.supplier_ref
-                and previous_profile.provider_organization_id
-                == profile.provider_organization_id
+                and previous_profile.provider_organization_id == profile.provider_organization_id
                 and latest_run.search_profile_fingerprint
                 == previous_profile.profile_fingerprint
                 == _fingerprint(previous_profile_material)
@@ -566,9 +595,7 @@ class ContactDiscoveryService:
                 current.acquisition_opportunity_id,
             )
             if last_event.event_id != current.last_event_id:
-                raise OpportunityConcurrencyConflict(
-                    current.acquisition_opportunity_id
-                )
+                raise OpportunityConcurrencyConflict(current.acquisition_opportunity_id)
             if not (
                 last_event.event_type is EventType.NEXT_ACTION_SET
                 and last_event.idempotency_key
@@ -606,9 +633,7 @@ class ContactDiscoveryService:
             )
             if mutation.projection.next_action == "find_decision_makers":
                 return mutation.projection
-            raise OpportunityConcurrencyConflict(
-                current.acquisition_opportunity_id
-            )
+            raise OpportunityConcurrencyConflict(current.acquisition_opportunity_id)
 
     @classmethod
     def _require_post_policy(cls, opportunity, run) -> None:

@@ -32,12 +32,8 @@ OpaqueRef = Annotated[
     ),
 ]
 Fingerprint = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
-MachineCode = Annotated[
-    str, StringConstraints(pattern=r"^[A-Z0-9][A-Z0-9_:-]{0,99}$")
-]
-CommandName = Annotated[
-    str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")
-]
+MachineCode = Annotated[str, StringConstraints(pattern=r"^[A-Z0-9][A-Z0-9_:-]{0,99}$")]
+CommandName = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")]
 BoundedRuntimeText = Annotated[
     str,
     StringConstraints(
@@ -224,10 +220,7 @@ class RuntimeHealthObservation(_FrozenModel):
 
 def expected_runtime_registry_identity() -> str:
     canonical = json.dumps(
-        [
-            {"stage": stage.value, "command": stage.command}
-            for stage in AcquisitionRuntimeStage
-        ],
+        [{"stage": stage.value, "command": stage.command} for stage in AcquisitionRuntimeStage],
         separators=(",", ":"),
         sort_keys=True,
     )
@@ -287,14 +280,12 @@ class RuntimeProviders(_FrozenModel):
 
 
 class AcquisitionRuntimeDeployment(_FrozenModel):
-    schema_version: Literal[
-        "acquisition-runtime-v1", "acquisition-production-v1"
-    ] = ACQUISITION_RUNTIME_SCHEMA_VERSION
+    schema_version: Literal["acquisition-runtime-v1", "acquisition-production-v1"] = (
+        ACQUISITION_RUNTIME_SCHEMA_VERSION
+    )
     mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
     qa_only: bool = False
-    allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(
-        default=(), max_length=8
-    )
+    allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(default=(), max_length=8)
     qa_scope: RuntimeQaScope
     qa_recipient_identity_hmac: Fingerprint | None = Field(default=None, repr=False)
     qa_recipient_key_version: OpaqueRef | None = None
@@ -311,18 +302,14 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
         copied = dict(value)
         keys = copied.get("allowed_opportunity_keys", ())
         qa_scope = copied.get("qa_scope")
-        dynamic = (
-            copied.get("schema_version") == ACQUISITION_PRODUCTION_SCHEMA_VERSION
-        )
+        dynamic = copied.get("schema_version") == ACQUISITION_PRODUCTION_SCHEMA_VERSION
         selection: dict[str, object] = {
             "mode": "dynamic" if dynamic else "fixed",
             "allowed_opportunity_keys": keys,
         }
         if dynamic:
             if isinstance(qa_scope, dict):
-                selection.update(
-                    vertical=qa_scope.get("vertical"), region=qa_scope.get("region")
-                )
+                selection.update(vertical=qa_scope.get("vertical"), region=qa_scope.get("region"))
             else:
                 selection.update(
                     vertical=getattr(qa_scope, "vertical", None),
@@ -340,9 +327,7 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
         selection = self.selection
         if selection is None:
             raise ValueError("selection is required")
-        if len(self.allowed_opportunity_keys) != len(
-            set(self.allowed_opportunity_keys)
-        ):
+        if len(self.allowed_opportunity_keys) != len(set(self.allowed_opportunity_keys)):
             raise ValueError("runtime opportunity allowlist must be unique")
         qa_bindings = (
             self.qa_recipient_identity_hmac,
@@ -379,9 +364,7 @@ class AcquisitionRuntimeConfig(_FrozenModel):
 
     @model_validator(mode="after")
     def recipient_matches_environment(self) -> AcquisitionRuntimeConfig:
-        has_recipient = (
-            self.qa_recipient is not None or self.qa_recipient_hmac_key is not None
-        )
+        has_recipient = self.qa_recipient is not None or self.qa_recipient_hmac_key is not None
         if self.environment == "PRODUCTION" and has_recipient:
             raise ValueError("production runtime forbids a fallback recipient")
         if self.environment == "STAGING" and not (
@@ -398,9 +381,7 @@ class AcquisitionRuntimeConfig(_FrozenModel):
         if self.qa_recipient is None:
             raise ValueError("runtime has no QA recipient")
         return str(
-            TypeAdapter(EmailStr).validate_python(
-                self.qa_recipient.get_secret_value()
-            )
+            TypeAdapter(EmailStr).validate_python(self.qa_recipient.get_secret_value())
         ).casefold()
 
 
@@ -450,9 +431,7 @@ class RuntimeStageSnapshot(_FrozenModel):
         if self.replay_same_attempt and (
             self.status is not RuntimeStageStatus.WAITING or self.retry_at is None
         ):
-            raise ValueError(
-                "same-attempt replay requires one bounded waiting deadline"
-            )
+            raise ValueError("same-attempt replay requires one bounded waiting deadline")
         return self
 
     @property
@@ -521,9 +500,7 @@ class RuntimeActionResult(_FrozenModel):
         if self.replay_same_attempt and (
             self.status is not RuntimeStageStatus.WAITING or self.retry_at is None
         ):
-            raise ValueError(
-                "same-attempt replay requires one bounded waiting deadline"
-            )
+            raise ValueError("same-attempt replay requires one bounded waiting deadline")
         return self
 
 

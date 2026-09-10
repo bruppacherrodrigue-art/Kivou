@@ -154,20 +154,26 @@ class SqlRuntimePolicyReadinessSource(FailClosedRuntimePolicyReadiness):
         observed_at: dt.datetime,
     ) -> EvidenceReadiness:
         observed_at = require_aware(observed_at)
-        preceding = tuple(AcquisitionRuntimeStage)[: tuple(AcquisitionRuntimeStage).index(context.stage)]
+        preceding = tuple(AcquisitionRuntimeStage)[
+            : tuple(AcquisitionRuntimeStage).index(context.stage)
+        ]
         with self._engine.connect() as connection:
-            rows = connection.execute(
-                sa.select(
-                    acquisition_runtime_stage.c.stage,
-                    acquisition_runtime_stage.c.status,
-                    acquisition_runtime_stage.c.result_refs,
-                ).where(
-                    acquisition_runtime_stage.c.cycle_ref == context.cycle.cycle_ref,
-                    acquisition_runtime_stage.c.stage.in_(
-                        tuple(stage.value for stage in preceding)
-                    ),
+            rows = (
+                connection.execute(
+                    sa.select(
+                        acquisition_runtime_stage.c.stage,
+                        acquisition_runtime_stage.c.status,
+                        acquisition_runtime_stage.c.result_refs,
+                    ).where(
+                        acquisition_runtime_stage.c.cycle_ref == context.cycle.cycle_ref,
+                        acquisition_runtime_stage.c.stage.in_(
+                            tuple(stage.value for stage in preceding)
+                        ),
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
         by_stage = {row["stage"]: row for row in rows}
         durable = bool(preceding) and all(
             (row := by_stage.get(stage.value)) is not None
@@ -288,10 +294,7 @@ class LiveRuntimePolicyAuthorizationFactory:
     ) -> None:
         if not runtime_revision or len(runtime_revision) > 100:
             raise RuntimePolicyConfigurationError("RUNTIME_REVISION_INVALID")
-        if (
-            not qa_signal_ref.startswith("procurement-opportunity:")
-            or len(qa_signal_ref) > 256
-        ):
+        if not qa_signal_ref.startswith("procurement-opportunity:") or len(qa_signal_ref) > 256:
             raise RuntimePolicyConfigurationError("QA_SIGNAL_REF_INVALID")
         self._engine = engine
         self._policy = PolicyStore(engine)
@@ -595,34 +598,34 @@ class DurableRuntimeApprovalProvider:
     ) -> tuple[str, str] | None:
         if context.stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF:
             if explicit_action_fingerprint is None:
-                raise RuntimePolicyConfigurationError(
-                    "PROVIDER_APPROVAL_BINDING_MISSING"
-                )
+                raise RuntimePolicyConfigurationError("PROVIDER_APPROVAL_BINDING_MISSING")
             return (
                 f"acquisition-opportunity:{opportunity_id}",
                 explicit_action_fingerprint,
             )
         if explicit_action_fingerprint is not None:
-            raise RuntimePolicyConfigurationError(
-                "UNEXPECTED_APPROVAL_BINDING"
-            )
+            raise RuntimePolicyConfigurationError("UNEXPECTED_APPROVAL_BINDING")
         with self._engine.connect() as connection:
-            row = connection.execute(
-                sa.select(
-                    policy_evaluation.c.target_ref,
-                    policy_evaluation.c.action_fingerprint,
-                    policy_evaluation.c.status,
+            row = (
+                connection.execute(
+                    sa.select(
+                        policy_evaluation.c.target_ref,
+                        policy_evaluation.c.action_fingerprint,
+                        policy_evaluation.c.status,
+                    )
+                    .where(
+                        policy_evaluation.c.acquisition_opportunity_id == opportunity_id,
+                        policy_evaluation.c.command == context.stage.command,
+                    )
+                    .order_by(
+                        policy_evaluation.c.evaluated_at.desc(),
+                        policy_evaluation.c.evaluation_id.desc(),
+                    )
+                    .limit(1)
                 )
-                .where(
-                    policy_evaluation.c.acquisition_opportunity_id == opportunity_id,
-                    policy_evaluation.c.command == context.stage.command,
-                )
-                .order_by(
-                    policy_evaluation.c.evaluated_at.desc(),
-                    policy_evaluation.c.evaluation_id.desc(),
-                )
-                .limit(1)
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
         if row is None or row["status"] != PolicyStatus.APPROVAL_REQUIRED.value:
             return None
         return str(row["target_ref"]), str(row["action_fingerprint"])
@@ -640,45 +643,43 @@ class DurableRuntimeApprovalProvider:
     ) -> RowMapping | None:
         at = require_aware(context.at)
         with self._engine.connect() as connection:
-            rows = connection.execute(
-                sa.select(acquisition_runtime_approval)
-                .where(
-                    acquisition_runtime_approval.c.cycle_ref == context.cycle.cycle_ref,
-                    acquisition_runtime_approval.c.stage == context.stage.value,
-                    acquisition_runtime_approval.c.purpose == ApprovalPurpose.ACTION.value,
-                    acquisition_runtime_approval.c.command == context.stage.command,
-                    acquisition_runtime_approval.c.target_ref == target_ref,
-                    acquisition_runtime_approval.c.acquisition_opportunity_id
-                    == opportunity_id,
-                    acquisition_runtime_approval.c.action_fingerprint
-                    == action_fingerprint,
-                    acquisition_runtime_approval.c.policy_version
-                    == control.policy_version,
-                    acquisition_runtime_approval.c.policy_snapshot_id
-                    == control.policy_snapshot_id,
-                    acquisition_runtime_approval.c.control_revision
-                    == control.control_revision,
-                    acquisition_runtime_approval.c.scope_fingerprint
-                    == scope.fingerprint(),
-                    acquisition_runtime_approval.c.expires_at > at,
-                    sa.or_(
-                        acquisition_runtime_approval.c.state.in_(
-                            (
-                                RuntimeApprovalStatus.PENDING.value,
-                                RuntimeApprovalStatus.APPROVED.value,
-                            )
+            rows = (
+                connection.execute(
+                    sa.select(acquisition_runtime_approval)
+                    .where(
+                        acquisition_runtime_approval.c.cycle_ref == context.cycle.cycle_ref,
+                        acquisition_runtime_approval.c.stage == context.stage.value,
+                        acquisition_runtime_approval.c.purpose == ApprovalPurpose.ACTION.value,
+                        acquisition_runtime_approval.c.command == context.stage.command,
+                        acquisition_runtime_approval.c.target_ref == target_ref,
+                        acquisition_runtime_approval.c.acquisition_opportunity_id == opportunity_id,
+                        acquisition_runtime_approval.c.action_fingerprint == action_fingerprint,
+                        acquisition_runtime_approval.c.policy_version == control.policy_version,
+                        acquisition_runtime_approval.c.policy_snapshot_id
+                        == control.policy_snapshot_id,
+                        acquisition_runtime_approval.c.control_revision == control.control_revision,
+                        acquisition_runtime_approval.c.scope_fingerprint == scope.fingerprint(),
+                        acquisition_runtime_approval.c.expires_at > at,
+                        sa.or_(
+                            acquisition_runtime_approval.c.state.in_(
+                                (
+                                    RuntimeApprovalStatus.PENDING.value,
+                                    RuntimeApprovalStatus.APPROVED.value,
+                                )
+                            ),
+                            sa.and_(
+                                acquisition_runtime_approval.c.state
+                                == RuntimeApprovalStatus.CONSUMED.value,
+                                acquisition_runtime_approval.c.consumed_by_ref == consumer_ref,
+                            ),
                         ),
-                        sa.and_(
-                            acquisition_runtime_approval.c.state
-                            == RuntimeApprovalStatus.CONSUMED.value,
-                            acquisition_runtime_approval.c.consumed_by_ref
-                            == consumer_ref,
-                        ),
-                    ),
+                    )
+                    .order_by(acquisition_runtime_approval.c.requested_at.desc())
+                    .limit(1)
                 )
-                .order_by(acquisition_runtime_approval.c.requested_at.desc())
-                .limit(1)
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
         return rows[0] if rows else None
 
     def _new_binding(

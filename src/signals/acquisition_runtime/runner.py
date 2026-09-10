@@ -639,17 +639,13 @@ class AcquisitionRuntimeRunner:
                 reservation.total_cycle_cost,
             )
         remaining_before_current = (
-            self._maximum_cost
-            - reservation.total_cycle_cost
-            + reservation.reserved_cost
+            self._maximum_cost - reservation.total_cycle_cost + reservation.reserved_cost
         )
         proposal = reservation.proposal
         if proposal is None:
             proposal = self.supervisor.propose(
                 stage,
-                cycle.model_copy(
-                    update={"spent_cost": reservation.total_cycle_cost}
-                ),
+                cycle.model_copy(update={"spent_cost": reservation.total_cycle_cost}),
                 remaining_cost=remaining_before_current,
                 at=at,
             )
@@ -706,9 +702,7 @@ class AcquisitionRuntimeRunner:
             result.model_copy(update={"reserved_cost": proposal.estimated_cost}),
             max(
                 reservation.total_cycle_cost,
-                reservation.total_cycle_cost
-                - reservation.reserved_cost
-                + result.observed_cost,
+                reservation.total_cycle_cost - reservation.reserved_cost + result.observed_cost,
             ),
         )
 
@@ -772,11 +766,7 @@ class AcquisitionRuntimeRunner:
         result: RuntimeActionResult,
     ) -> None:
         status = result.status.value.casefold()
-        code = (
-            result.reason_codes[0]
-            if result.reason_codes
-            else "STAGE_SUCCEEDED"
-        )
+        code = result.reason_codes[0] if result.reason_codes else "STAGE_SUCCEEDED"
         self._event(
             action="stage",
             status=status,
@@ -793,9 +783,7 @@ class AcquisitionRuntimeRunner:
         code: str,
     ) -> None:
         normalized = (
-            "succeeded"
-            if status is RuntimeRunStatus.COMPLETED
-            else status.value.casefold()
+            "succeeded" if status is RuntimeRunStatus.COMPLETED else status.value.casefold()
         )
         self._event(
             action="cycle",

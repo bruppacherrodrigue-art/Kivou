@@ -314,12 +314,8 @@ class AcquisitionDomainTruth(Protocol):
     def provider_operations(
         self, campaign_ref: str, member_ref: str
     ) -> tuple[ProviderOperationTruth, ...]: ...
-    def response(
-        self, opportunity_id: str, campaign: CampaignTruth
-    ) -> ResponseTruth | None: ...
-    def conversion_refs(
-        self, opportunity_id: str, campaign: CampaignTruth
-    ) -> tuple[str, ...]: ...
+    def response(self, opportunity_id: str, campaign: CampaignTruth) -> ResponseTruth | None: ...
+    def conversion_refs(self, opportunity_id: str, campaign: CampaignTruth) -> tuple[str, ...]: ...
 
 
 class _SupplierService(Protocol):
@@ -687,17 +683,13 @@ class SqlAcquisitionDomainTruth:
                 state=ProviderOperationState(row["state"]),
                 desired_request_fingerprint=row["desired_request_fingerprint"],
                 retry_at=(
-                    _aware_time(row["retry_after"])
-                    if row["retry_after"] is not None
-                    else None
+                    _aware_time(row["retry_after"]) if row["retry_after"] is not None else None
                 ),
             )
             for row in rows
         )
 
-    def response(
-        self, opportunity_id: str, campaign: CampaignTruth
-    ) -> ResponseTruth | None:
+    def response(self, opportunity_id: str, campaign: CampaignTruth) -> ResponseTruth | None:
         with self.engine.connect() as connection:
             row = (
                 connection.execute(
@@ -708,10 +700,8 @@ class SqlAcquisitionDomainTruth:
                     .where(
                         acquisition_response_evaluation.c.acquisition_opportunity_id
                         == opportunity_id,
-                        acquisition_response_evaluation.c.campaign_ref
-                        == campaign.campaign_ref,
-                        acquisition_response_evaluation.c.member_ref
-                        == campaign.member_ref,
+                        acquisition_response_evaluation.c.campaign_ref == campaign.campaign_ref,
+                        acquisition_response_evaluation.c.member_ref == campaign.member_ref,
                         acquisition_response_evaluation.c.processing_state == "FINALIZED",
                     )
                     .order_by(
@@ -730,9 +720,7 @@ class SqlAcquisitionDomainTruth:
             classification=row["classification"],
         )
 
-    def conversion_refs(
-        self, opportunity_id: str, campaign: CampaignTruth
-    ) -> tuple[str, ...]:
+    def conversion_refs(self, opportunity_id: str, campaign: CampaignTruth) -> tuple[str, ...]:
         with self.engine.connect() as connection:
             journeys = (
                 connection.execute(
@@ -740,10 +728,8 @@ class SqlAcquisitionDomainTruth:
                     .where(
                         acquisition_conversion_journey.c.acquisition_opportunity_id
                         == opportunity_id,
-                        acquisition_conversion_journey.c.campaign_ref
-                        == campaign.campaign_ref,
-                        acquisition_conversion_journey.c.member_ref
-                        == campaign.member_ref,
+                        acquisition_conversion_journey.c.campaign_ref == campaign.campaign_ref,
+                        acquisition_conversion_journey.c.member_ref == campaign.member_ref,
                     )
                     .order_by(
                         acquisition_conversion_journey.c.created_at.desc(),
@@ -762,10 +748,8 @@ class SqlAcquisitionDomainTruth:
                 sa.select(acquisition_conversion_event.c.conversion_event_ref)
                 .where(
                     acquisition_conversion_event.c.journey_ref == journeys[0],
-                    acquisition_conversion_event.c.acquisition_opportunity_id
-                    == opportunity_id,
-                    acquisition_conversion_event.c.campaign_ref
-                    == campaign.campaign_ref,
+                    acquisition_conversion_event.c.acquisition_opportunity_id == opportunity_id,
+                    acquisition_conversion_event.c.campaign_ref == campaign.campaign_ref,
                     acquisition_conversion_event.c.member_ref == campaign.member_ref,
                 )
                 .order_by(
@@ -877,11 +861,9 @@ class AcquisitionDomainActions:
                 fresh_context = replace(context, at=observed_at)
                 result = self._supplier.resume_started(
                     identity.run_id,
-                    authorize_recovery=lambda: (
-                        self._authorizations.revalidate_provider_recovery(
-                            fresh_context,
-                            opportunity_id=None,
-                        )
+                    authorize_recovery=lambda: self._authorizations.revalidate_provider_recovery(
+                        fresh_context,
+                        opportunity_id=None,
                     ),
                 )
             if result is None:
@@ -950,11 +932,9 @@ class AcquisitionDomainActions:
                 fresh_context = replace(context, at=observed_at)
                 result = self._contact.resume_started(
                     identity.run_id,
-                    authorize_recovery=lambda: (
-                        self._authorizations.revalidate_provider_recovery(
-                            fresh_context,
-                            opportunity_id=opportunity.opportunity_id,
-                        )
+                    authorize_recovery=lambda: self._authorizations.revalidate_provider_recovery(
+                        fresh_context,
+                        opportunity_id=opportunity.opportunity_id,
                     ),
                 )
             if result is None:
@@ -1022,11 +1002,9 @@ class AcquisitionDomainActions:
                 fresh_context = replace(context, at=observed_at)
                 result = self._company.resume_started(
                     identity.run_id,
-                    authorize_recovery=lambda: (
-                        self._authorizations.revalidate_provider_recovery(
-                            fresh_context,
-                            opportunity_id=opportunity.opportunity_id,
-                        )
+                    authorize_recovery=lambda: self._authorizations.revalidate_provider_recovery(
+                        fresh_context,
+                        opportunity_id=opportunity.opportunity_id,
                     ),
                 )
             if result is None:
@@ -1147,32 +1125,39 @@ class AcquisitionDomainActions:
             self._record_shadow_mail(context, opportunity.opportunity_id)
         return _personalization_outcome(observed)
 
-    def _record_shadow_mail(
-        self, context: AcquisitionActionContext, opportunity_id: str
-    ) -> None:
+    def _record_shadow_mail(self, context: AcquisitionActionContext, opportunity_id: str) -> None:
         """Materialize the review mail after personalization, never transport it."""
         opportunity = self._truth.opportunity(context.cycle.opportunity_key)
         if opportunity is None or not opportunity.supplier_ref or not opportunity.contact_ref:
             return
         public = resolve_public_acquisition_context(self._engine, context.cycle.opportunity_key)
         with self._engine.connect() as connection:
-            supplier = connection.execute(
-                sa.select(acquisition_supplier).where(
-                    acquisition_supplier.c.supplier_ref == opportunity.supplier_ref
+            supplier = (
+                connection.execute(
+                    sa.select(acquisition_supplier).where(
+                        acquisition_supplier.c.supplier_ref == opportunity.supplier_ref
+                    )
                 )
-            ).mappings().one_or_none()
-            contact = connection.execute(
-                sa.select(acquisition_contact).where(
-                    acquisition_contact.c.contact_ref == opportunity.contact_ref
+                .mappings()
+                .one_or_none()
+            )
+            contact = (
+                connection.execute(
+                    sa.select(acquisition_contact).where(
+                        acquisition_contact.c.contact_ref == opportunity.contact_ref
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             for_you = connection.execute(
                 sa.text(
                     "SELECT sentence FROM for_you_sentence f "
                     "JOIN materialized_signal m ON m.signal_key=f.signal_key "
                     "WHERE m.opportunity_key=:key AND f.model_fit IS NOT NULL "
                     "AND f.model_fit <> 'none' ORDER BY f.updated_at DESC LIMIT 1"
-                ), {"key": context.cycle.opportunity_key}
+                ),
+                {"key": context.cycle.opportunity_key},
             ).scalar_one_or_none()
             sirene_query = connection.execute(
                 sa.select(supplier_discovery_run.c.search_profile)
@@ -1180,14 +1165,18 @@ class AcquisitionDomainActions:
                     supplier_discovery_run.c.signal_ref
                     == f"procurement-opportunity:{context.cycle.opportunity_key}"
                 )
-                .order_by(supplier_discovery_run.c.started_at.desc()).limit(1)
+                .order_by(supplier_discovery_run.c.started_at.desc())
+                .limit(1)
             ).scalar_one_or_none()
-            binding = connection.execute(
-                sa.select(sirene_apollo_binding).where(
-                    sirene_apollo_binding.c.siren
-                    == supplier["provider_organization_id"]
+            binding = (
+                connection.execute(
+                    sa.select(sirene_apollo_binding).where(
+                        sirene_apollo_binding.c.siren == supplier["provider_organization_id"]
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             contact_query = connection.execute(
                 sa.select(contact_discovery_run.c.search_profile)
                 .where(contact_discovery_run.c.selected_contact_ref == opportunity.contact_ref)
@@ -1197,13 +1186,15 @@ class AcquisitionDomainActions:
         if supplier is None or contact is None or not for_you:
             return
         title = public.award.title or public.award.description or "Signal marché public"
-        holder = resolved_holder_name_for_opportunity(
-            self._engine, context.cycle.opportunity_key
-        ) or public.award.awardee_organizations()[0].legal_name
+        holder = (
+            resolved_holder_name_for_opportunity(self._engine, context.cycle.opportunity_key)
+            or public.award.awardee_organizations()[0].legal_name
+        )
         amount = public.award.value
         amount_text = (
             f"{amount.amount:,.2f} {amount.currency}".replace(",", " ")
-            if amount is not None else "montant non publié"
+            if amount is not None
+            else "montant non publié"
         )
         place = str(public.award.place_of_performance or "lieu non publié")
         date = str(public.award.award_date or public.event.event_date or "date non publiée")
@@ -1216,25 +1207,41 @@ class AcquisitionDomainActions:
         family_label = family_labels.get(family_key)
         if family_label is None:
             return
-        rendered = render_shadow_mail(ShadowMailInput(
-            supplier_family=family_label,
-            object=title, holder=holder, amount=amount_text, place=place, date=date,
-            for_you=for_you,
-            attribution_url=f"/a/{context.cycle.opportunity_key}-{context.cycle.cycle_ref[:12]}",
-            source_url=public.event.provenance.source_url,
-            unsubscribe_url="/unsubscribe",
-        ))
+        rendered = render_shadow_mail(
+            ShadowMailInput(
+                supplier_family=family_label,
+                object=title,
+                holder=holder,
+                amount=amount_text,
+                place=place,
+                date=date,
+                for_you=for_you,
+                attribution_url=f"/a/{context.cycle.opportunity_key}-{context.cycle.cycle_ref[:12]}",
+                source_url=public.event.provenance.source_url,
+                unsubscribe_url="/unsubscribe",
+            )
+        )
         write_shadow_mail(
-            self._engine, cycle_ref=context.cycle.cycle_ref,
+            self._engine,
+            cycle_ref=context.cycle.cycle_ref,
             opportunity_key=context.cycle.opportunity_key,
             procedure_award_key=public.representative_award_key,
-            supplier_ref=opportunity.supplier_ref, contact_ref=opportunity.contact_ref,
-            company_name=supplier["display_name"], contact_role=contact["title"] or contact["normalized_title"],
-            email=contact["business_email"], signal_snapshot={
-                "object": title, "holder": holder, "amount": amount_text,
-                "place": place, "date": date, "for_you": for_you,
+            supplier_ref=opportunity.supplier_ref,
+            contact_ref=opportunity.contact_ref,
+            company_name=supplier["display_name"],
+            contact_role=contact["title"] or contact["normalized_title"],
+            email=contact["business_email"],
+            signal_snapshot={
+                "object": title,
+                "holder": holder,
+                "amount": amount_text,
+                "place": place,
+                "date": date,
+                "for_you": for_you,
                 "supplier_family": family_label,
-            }, subject=rendered.subject, body=rendered.body,
+            },
+            subject=rendered.subject,
+            body=rendered.body,
             apollo_query={
                 "sirene": sirene_query or {},
                 "organization_binding": (
@@ -1409,19 +1416,21 @@ class AcquisitionDomainActions:
                     )
                     return disposition.model_copy(update={"retry_at": retry})
         observed = self._truth.provider_operations(campaign.campaign_ref, campaign.member_ref)
-        if (
-            len(observed) != len(required)
-            or tuple(sorted(item.kind.value for item in observed))
-            != tuple(sorted(item.value for item in required))
-        ):
+        if len(observed) != len(required) or tuple(
+            sorted(item.kind.value for item in observed)
+        ) != tuple(sorted(item.value for item in required)):
             return _blocked("PROVIDER_OPERATION_SET_UNSAFE")
         if any(item.state is not ProviderOperationState.CONFIRMED for item in observed):
             return _waiting("PROVIDER_OPERATIONS_INCOMPLETE")
         rebound = self._truth.campaign(opportunity.opportunity_id)
-        if rebound is None or (
-            rebound.transport_recipient_identity,
-            rebound.transport_recipient_key_version,
-        ) != self._qa_transport_binding:
+        if (
+            rebound is None
+            or (
+                rebound.transport_recipient_identity,
+                rebound.transport_recipient_key_version,
+            )
+            != self._qa_transport_binding
+        ):
             return _blocked("QA_TRANSPORT_BINDING_MISMATCH")
         return _complete(*(("provider-operation", item.operation_ref) for item in observed))
 
@@ -1654,16 +1663,13 @@ def _retryable_run(run: object | None) -> bool:
     if getattr(run, "retry_after", None) is not None:
         return True
     category = str(getattr(run, "error_category", "") or "").casefold()
-    return (
-        category
-        in {
-            "network",
-            "network_error",
-            "rate_limited",
-            "server_error",
-            "timeout",
-        }
-    )
+    return category in {
+        "network",
+        "network_error",
+        "rate_limited",
+        "server_error",
+        "timeout",
+    }
 
 
 def _started_run_checkpoint(

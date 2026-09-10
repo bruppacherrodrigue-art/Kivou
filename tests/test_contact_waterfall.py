@@ -1,0 +1,191 @@
+from __future__ import annotations
+
+import datetime as dt
+
+import httpx
+
+from signals.contact_discovery.deliverability import EmailDeliverabilityVerifier
+from signals.contact_discovery.profile import build_decision_maker_profile
+from signals.contact_discovery.providers import OpenRouterPublishedContactExtractor
+from signals.contact_discovery.web import (
+    OfficialDirector,
+    PublishedWebsiteContactProvider,
+    WebsiteEvidence,
+)
+
+NOW = dt.datetime(2026, 9, 10, 12, tzinfo=dt.UTC)
+
+
+def _profile():
+    return build_decision_maker_profile(
+        acquisition_opportunity_id="opp-1",
+        supplier_ref="supplier-1",
+        provider_organization_id="siren-123456789",
+        supplier_siren="123456789",
+        binding_resolution_method="serper",
+        organization_name="BETON ALPES",
+        organization_city="Lyon",
+        organization_domain="beton-alpes.fr",
+    )
+
+
+def test_model_extraction_is_strict_and_must_select_published_email() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/chat/completions"
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"director_name":"Alice Martin","title":"Gérante",'
+                                '"email":"alice@beton-alpes.fr",'
+                                '"evidence_url":"https://beton-alpes.fr/contact"}'
+                            )
+                        }
+                    }
+                ]
+            },
+        )
+
+    extractor = OpenRouterPublishedContactExtractor(
+        api_key="test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    result = extractor.extract(
+        company_name="BETON ALPES",
+        directors=(OfficialDirector(name="Alice Martin", title="Gérante"),),
+        evidence=(
+            WebsiteEvidence(
+                url="https://beton-alpes.fr/contact",
+                text="Contactez notre équipe.",
+                published_emails=("alice@beton-alpes.fr",),
+            ),
+        ),
+    )
+
+    assert result is not None
+    assert result.director_name == "Alice Martin"
+    assert result.email == "alice@beton-alpes.fr"
+
+
+def test_model_extraction_rejects_invented_email() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "content": (
+                                    '{"director_name":"Alice Martin","title":"Gérante",'
+                                    '"email":"invented@beton-alpes.fr",'
+                                    '"evidence_url":"https://beton-alpes.fr/contact"}'
+                                )
+                            }
+                        }
+                    ]
+                },
+            )
+        )
+    )
+    result = OpenRouterPublishedContactExtractor(api_key="test", client=client).extract(
+        company_name="BETON ALPES",
+        directors=(OfficialDirector(name="Alice Martin", title="Gérante"),),
+        evidence=(
+            WebsiteEvidence(
+                url="https://beton-alpes.fr/contact",
+                text="Contact",
+                published_emails=("contact@beton-alpes.fr",),
+            ),
+        ),
+    )
+
+    assert result is None
+
+
+def test_website_level_accepts_generic_mailbox_only_with_named_director() -> None:
+    class Directors:
+        def find(self, _siren):
+            return (OfficialDirector(name="Alice Martin", title="Gérante"),)
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://beton-alpes.fr/contact",
+                    text="Alice Martin, gérante",
+                    published_emails=("contact@beton-alpes.fr",),
+                ),
+            )
+
+    class Extractor:
+        def extract(self, **_kwargs):
+            from signals.contact_discovery.providers import PublishedContactExtraction
+
+            return PublishedContactExtraction(
+                director_name="Alice Martin",
+                title="Gérante",
+                email="contact@beton-alpes.fr",
+                evidence_url="https://beton-alpes.fr/contact",
+            )
+
+    class Deliverability:
+        def verify(self, email):
+            assert email == "contact@beton-alpes.fr"
+            return True
+
+    contact = PublishedWebsiteContactProvider(
+        directors=Directors(),
+        pages=Pages(),
+        extractor=Extractor(),
+        deliverability=Deliverability(),
+    ).find(_profile(), observed_at=NOW)
+
+    assert contact is not None
+    assert contact.provider == "company_website"
+    assert contact.display_name == "Alice Martin"
+    assert contact.business_email == "contact@beton-alpes.fr"
+    assert contact.verification_state == "DELIVERABILITY_VERIFIED"
+
+
+def test_deliverability_stops_after_rcpt_and_never_sends_data() -> None:
+    events: list[str] = []
+
+    class Resolver:
+        def resolve(self, _domain, _record_type):
+            class Mx:
+                preference = 10
+                exchange = "mx.example.test."
+
+            return (Mx(),)
+
+    class Smtp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def ehlo(self):
+            events.append("ehlo")
+
+        def mail(self, _sender):
+            events.append("mail")
+            return 250, b"ok"
+
+        def rcpt(self, _recipient):
+            events.append("rcpt")
+            return 250, b"ok"
+
+        def data(self, *_args):
+            raise AssertionError("SMTP DATA must never be used for verification")
+
+    verifier = EmailDeliverabilityVerifier(
+        resolver=Resolver(), smtp_factory=lambda *_args, **_kwargs: Smtp()
+    )
+
+    assert verifier.verify("alice@example.test") is True
+    assert events == ["ehlo", "mail", "rcpt"]

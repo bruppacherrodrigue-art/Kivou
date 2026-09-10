@@ -59,10 +59,7 @@ class AcquisitionActionRegistry:
         self._handlers = dict(handlers)
         self.commands = tuple(stage.command for stage in AcquisitionRuntimeStage)
         canonical = json.dumps(
-            [
-                {"stage": stage.value, "command": stage.command}
-                for stage in AcquisitionRuntimeStage
-            ],
+            [{"stage": stage.value, "command": stage.command} for stage in AcquisitionRuntimeStage],
             separators=(",", ":"),
             sort_keys=True,
         )
@@ -90,10 +87,7 @@ class AcquisitionActionRegistry:
                 status=RuntimeStageStatus.BLOCKED,
                 reason_codes=("REGISTRY_TARGET_MISMATCH",),
             )
-        if (
-            stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF
-            and not allow_qa_provider_mutations
-        ):
+        if stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF and not allow_qa_provider_mutations:
             return RuntimeActionResult(
                 status=RuntimeStageStatus.WAITING,
                 reason_codes=("QA_PROVIDER_MUTATION_NOT_AUTHORIZED",),

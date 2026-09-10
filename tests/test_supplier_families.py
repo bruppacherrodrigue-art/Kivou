@@ -23,9 +23,22 @@ def test_catalog_covers_six_verticals_with_bounded_readable_families() -> None:
         assert all(f.label_fr and f.apollo_tags and f.priority > 0 for f in families)
     naf_codes = {code for families in catalog.values() for f in families for code in f.naf_codes}
     assert {
-        "43.99C", "23.63Z", "43.91A", "43.91B", "43.32A", "43.32B", "43.29A",
-        "43.21A", "43.22A", "43.22B", "43.31Z", "43.33Z", "43.34Z", "43.12A",
-        "43.12B", "42.11Z",
+        "43.99C",
+        "23.63Z",
+        "43.91A",
+        "43.91B",
+        "43.32A",
+        "43.32B",
+        "43.29A",
+        "43.21A",
+        "43.22A",
+        "43.22B",
+        "43.31Z",
+        "43.33Z",
+        "43.34Z",
+        "43.12A",
+        "43.12B",
+        "42.11Z",
     } <= naf_codes
 
 
@@ -35,6 +48,14 @@ def test_gross_oeuvre_maps_to_precise_supplier_families() -> None:
     assert {"ready_mix_concrete", "reinforcement_steel", "formwork", "scaffolding"} <= names
 
 
+def test_general_building_adds_structural_subcontractors_and_second_steel_naf() -> None:
+    families = {family.key: family for family in load_supplier_family_catalog()["general_building"]}
+
+    assert families["reinforcement_steel"].naf_codes == ("24.10Z", "25.11Z")
+    assert families["subcontracted_structural_work"].label_fr == "Sous-traitants gros œuvre"
+    assert families["subcontracted_structural_work"].naf_codes == ("43.99C",)
+
+
 def test_family_queries_are_derived_from_signal_cpv_and_object() -> None:
     families = families_for_signal(
         "general_building", cpv_codes=("45262300",), object_text="Lot 3 : Gros œuvre"
@@ -42,6 +63,7 @@ def test_family_queries_are_derived_from_signal_cpv_and_object() -> None:
     assert {family.key for family in families} == {
         "ready_mix_concrete",
         "reinforcement_steel",
+        "subcontracted_structural_work",
         "formwork",
     }
     assert all("construction" not in tag for family in families for tag in family.apollo_tags)

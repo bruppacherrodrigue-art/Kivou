@@ -55,10 +55,7 @@ class KivouDomainOutcome(BaseModel):
 
     @model_validator(mode="after")
     def require_machine_reason_for_non_complete(self) -> KivouDomainOutcome:
-        if (
-            self.disposition is not KivouDomainDisposition.COMPLETE
-            and not self.reason_codes
-        ):
+        if self.disposition is not KivouDomainDisposition.COMPLETE and not self.reason_codes:
             raise ValueError("non-complete domain outcome requires a machine reason")
         if self.retry_at is not None:
             if self.retry_at.tzinfo is None or self.retry_at.utcoffset() is None:
@@ -66,12 +63,9 @@ class KivouDomainOutcome(BaseModel):
             if self.disposition is not KivouDomainDisposition.WAITING:
                 raise ValueError("only a waiting domain outcome can carry retry_at")
         if self.replay_same_attempt and (
-            self.disposition is not KivouDomainDisposition.WAITING
-            or self.retry_at is None
+            self.disposition is not KivouDomainDisposition.WAITING or self.retry_at is None
         ):
-            raise ValueError(
-                "same-attempt replay requires one bounded waiting deadline"
-            )
+            raise ValueError("same-attempt replay requires one bounded waiting deadline")
         return self
 
     def to_runtime_result(self) -> RuntimeActionResult:
@@ -89,45 +83,27 @@ class KivouDomainOutcome(BaseModel):
 class KivouDomainActions(Protocol):
     """The closed set of existing domain operations composed by run-once."""
 
-    def resolve_signal_seed(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def resolve_signal_seed(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def discover_supplier(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def discover_supplier(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def discover_contact(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def discover_contact(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def research_company(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def research_company(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
     def decide(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
     def personalize(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def assess_compliance(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def assess_compliance(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def plan_campaign(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def plan_campaign(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def handoff_provider(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def handoff_provider(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def observe_response(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def observe_response(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
-    def reconcile_conversion(
-        self, context: AcquisitionActionContext
-    ) -> KivouDomainOutcome: ...
+    def reconcile_conversion(self, context: AcquisitionActionContext) -> KivouDomainOutcome: ...
 
 
 DomainAction = Callable[[AcquisitionActionContext], KivouDomainOutcome]
@@ -146,32 +122,16 @@ def build_kivou_stage_handlers(
     """Bind every stage explicitly; no dynamic imports or arbitrary dispatch."""
 
     return {
-        AcquisitionRuntimeStage.SIGNAL_SEED: _runtime_handler(
-            actions.resolve_signal_seed
-        ),
-        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY: _runtime_handler(
-            actions.discover_supplier
-        ),
-        AcquisitionRuntimeStage.CONTACT_DISCOVERY: _runtime_handler(
-            actions.discover_contact
-        ),
-        AcquisitionRuntimeStage.COMPANY_RESEARCH: _runtime_handler(
-            actions.research_company
-        ),
+        AcquisitionRuntimeStage.SIGNAL_SEED: _runtime_handler(actions.resolve_signal_seed),
+        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY: _runtime_handler(actions.discover_supplier),
+        AcquisitionRuntimeStage.CONTACT_DISCOVERY: _runtime_handler(actions.discover_contact),
+        AcquisitionRuntimeStage.COMPANY_RESEARCH: _runtime_handler(actions.research_company),
         AcquisitionRuntimeStage.DECISION: _runtime_handler(actions.decide),
-        AcquisitionRuntimeStage.PERSONALIZATION: _runtime_handler(
-            actions.personalize
-        ),
-        AcquisitionRuntimeStage.COMPLIANCE: _runtime_handler(
-            actions.assess_compliance
-        ),
+        AcquisitionRuntimeStage.PERSONALIZATION: _runtime_handler(actions.personalize),
+        AcquisitionRuntimeStage.COMPLIANCE: _runtime_handler(actions.assess_compliance),
         AcquisitionRuntimeStage.CAMPAIGN: _runtime_handler(actions.plan_campaign),
-        AcquisitionRuntimeStage.PROVIDER_HANDOFF: _runtime_handler(
-            actions.handoff_provider
-        ),
-        AcquisitionRuntimeStage.RESPONSE: _runtime_handler(
-            actions.observe_response
-        ),
+        AcquisitionRuntimeStage.PROVIDER_HANDOFF: _runtime_handler(actions.handoff_provider),
+        AcquisitionRuntimeStage.RESPONSE: _runtime_handler(actions.observe_response),
         AcquisitionRuntimeStage.ATTRIBUTION_CONVERSION: _runtime_handler(
             actions.reconcile_conversion
         ),

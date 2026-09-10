@@ -103,10 +103,7 @@ class ContactDiscoveryStore:
         row = (
             connection.execute(
                 sa.select(contact_discovery_run)
-                .where(
-                    contact_discovery_run.c.acquisition_opportunity_id
-                    == opportunity_id
-                )
+                .where(contact_discovery_run.c.acquisition_opportunity_id == opportunity_id)
                 .order_by(
                     contact_discovery_run.c.started_at.desc(),
                     contact_discovery_run.c.contact_discovery_run_id.desc(),
@@ -336,11 +333,7 @@ class ContactDiscoveryStore:
                     raise sa.exc.NoResultFound(contact_ref)
             else:
                 query = query.with_for_update()
-        row = (
-            connection.execute(query)
-            .mappings()
-            .one()
-        )
+        row = connection.execute(query).mappings().one()
         return _contact(row)
 
     def upsert_contact(self, observation: ContactObservation) -> ContactUpsertResult:
@@ -415,6 +408,10 @@ class ContactDiscoveryStore:
             connection,
             acquisition_contact,
             values,
-            index_elements=[acquisition_contact.c.provider, acquisition_contact.c.provider_person_id, acquisition_contact.c.supplier_ref,],
+            index_elements=[
+                acquisition_contact.c.provider,
+                acquisition_contact.c.provider_person_id,
+                acquisition_contact.c.supplier_ref,
+            ],
         )
         return inserted

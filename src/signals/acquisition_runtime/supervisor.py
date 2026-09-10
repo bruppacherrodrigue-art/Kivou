@@ -54,9 +54,7 @@ _STAGE_COSTS: dict[AcquisitionRuntimeStage, Decimal] = {
     AcquisitionRuntimeStage.RESPONSE: Decimal("0"),
     AcquisitionRuntimeStage.ATTRIBUTION_CONVERSION: Decimal("0"),
 }
-KIVOU_STAGE_COSTS: Mapping[AcquisitionRuntimeStage, Decimal] = MappingProxyType(
-    _STAGE_COSTS
-)
+KIVOU_STAGE_COSTS: Mapping[AcquisitionRuntimeStage, Decimal] = MappingProxyType(_STAGE_COSTS)
 _FINGERPRINT_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -176,10 +174,7 @@ class AcquisitionHermesSupervisor:
         health = self._supervisor.health()
         if health.state is not HealthState.AVAILABLE:
             raise SupervisorUnavailable("Hermes runtime is unavailable")
-        if (
-            health.hermes_version != self._pin.version
-            or health.source_commit != self._pin.commit
-        ):
+        if health.hermes_version != self._pin.version or health.source_commit != self._pin.commit:
             raise SupervisorVersionMismatch("Hermes runtime version mismatch")
         if health.executable_tools != ():
             raise SupervisorVersionMismatch("Hermes runtime exposed executable tools")
@@ -197,9 +192,7 @@ class AcquisitionHermesSupervisor:
         if plan.skill_version != PROFILE_VERSION:
             raise SupervisorVersionMismatch("Hermes supervisor skill mismatch")
         if len(plan.proposed_actions) != 1:
-            raise SupervisorValidationError(
-                "Hermes runtime plan must contain exactly one action"
-            )
+            raise SupervisorValidationError("Hermes runtime plan must contain exactly one action")
         action = plan.proposed_actions[0]
         if action.command != stage.command:
             raise SupervisorValidationError("Hermes runtime command mismatch")
@@ -207,10 +200,7 @@ class AcquisitionHermesSupervisor:
             raise SupervisorValidationError("Hermes runtime target mismatch")
         if plan.estimated_cost != action.estimated_cost:
             raise SupervisorValidationError("Hermes plan and action cost mismatch")
-        if (
-            plan.estimated_cost > maximum_model_cost
-            or action.estimated_cost > maximum_model_cost
-        ):
+        if plan.estimated_cost > maximum_model_cost or action.estimated_cost > maximum_model_cost:
             raise SupervisorValidationError("Hermes runtime cost exceeds Kivou budget")
         return action
 

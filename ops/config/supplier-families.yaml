@@ -12,20 +12,27 @@ verticals:
       label_fr: Armatures et ferraillage
       apollo_tags: [reinforcing steel, rebar, steel reinforcement]
       priority: 2
-      cpv_prefixes: [452624]
-      naf_codes: [24.10Z]
+      cpv_prefixes: [452623, 452624]
+      naf_codes: [24.10Z, 25.11Z]
       object_terms: [armatures, ferraillage]
+    - key: subcontracted_structural_work
+      label_fr: Sous-traitants gros œuvre
+      apollo_tags: [structural works contractor, concrete works contractor]
+      priority: 3
+      cpv_prefixes: [45262]
+      naf_codes: [43.99C]
+      object_terms: [gros œuvre, maçonnerie]
     - key: formwork
       label_fr: Coffrage
       apollo_tags: [formwork, concrete formwork]
-      priority: 3
+      priority: 4
       cpv_prefixes: [452623]
       naf_codes: [43.99C]
       object_terms: [coffrage]
     - key: scaffolding
       label_fr: Échafaudage
       apollo_tags: [scaffolding, scaffold hire]
-      priority: 4
+      priority: 5
       cpv_prefixes: [442123]
       naf_codes: [43.99C]
       object_terms: [échafaudage]

@@ -90,7 +90,19 @@ from signals.campaigns.runtime_webhook import (
 )
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.companies.france import FrenchOfficialCompanyClient
+from signals.company_research.domain import (
+    AnnuaireWebsiteClient,
+    CompanyDomainResolver,
+    SerperDomainSearchClient,
+)
 from signals.compliance.contracts import SenderComplianceConfig
+from signals.contact_discovery.deliverability import EmailDeliverabilityVerifier
+from signals.contact_discovery.providers import published_contact_extractor_from_environment
+from signals.contact_discovery.web import (
+    AnnuaireDirectorClient,
+    CompanyWebsiteClient,
+    PublishedWebsiteContactProvider,
+)
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
@@ -220,9 +232,7 @@ class ProductionRuntimeDependencyProbe:
             provider=instantly_provider,
             mailbox_readiness=InstantlyMailboxReadinessSource(
                 instantly_provider,
-                managed_airmail_sending_gaps=(
-                    _managed_airmail_sending_gaps(connectivity)
-                ),
+                managed_airmail_sending_gaps=(_managed_airmail_sending_gaps(connectivity)),
             ),
         )
         self._connectivity = connectivity
@@ -405,8 +415,7 @@ def _campaign_configuration(
             eligible_languages=(scope.language,),
             eligible_wedges=(scope.wedge,),
             domain_ref=(
-                "mailbox-domain:"
-                + hashlib.sha256(binding.mailbox_ref.encode("utf-8")).hexdigest()
+                "mailbox-domain:" + hashlib.sha256(binding.mailbox_ref.encode("utf-8")).hexdigest()
             ),
             timezone=timezone,
             kivou_daily_cap=1,
@@ -494,9 +503,7 @@ def _configuration_fingerprint(
             "webhook_fingerprint_key_versions": sorted(
                 webhook_configuration.fingerprint_keyring.keys
             ),
-            "suppression_key_versions": sorted(
-                webhook_configuration.suppression_keyring.keys
-            ),
+            "suppression_key_versions": sorted(webhook_configuration.suppression_keyring.keys),
             "response_source_key_versions": sorted(
                 webhook_configuration.response_source_keyring.keys
             ),
@@ -507,9 +514,7 @@ def _configuration_fingerprint(
             "campaign": campaign.model_dump(mode="json"),
             "supplier_targeting": supplier_targeting.model_dump(mode="json"),
             "contact_profile": runtime_qa_contact_profile_descriptor(),
-            "contact_profile_requeue": (
-                runtime_qa_contact_profile_requeue_descriptor()
-            ),
+            "contact_profile_requeue": (runtime_qa_contact_profile_requeue_descriptor()),
             "registry_identity": registry_identity,
         }
     )
@@ -578,9 +583,7 @@ def build_runtime_execution_composition(
     """Compose all real boundaries; construction itself performs no provider I/O."""
 
     if allow_qa_provider_mutations and runtime_config.deployment.is_production:
-        raise RuntimeExecutionConfigurationError(
-            "QA_PROVIDER_MUTATIONS_FORBIDDEN_IN_PRODUCTION"
-        )
+        raise RuntimeExecutionConfigurationError("QA_PROVIDER_MUTATIONS_FORBIDDEN_IN_PRODUCTION")
     now = clock()
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")
@@ -617,12 +620,8 @@ def build_runtime_execution_composition(
         if len(selection.allowed_opportunity_keys) != 1:
             raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
         opportunity_keys = selection.allowed_opportunity_keys
-    if runtime_config.deployment.limits.maximum_cycle_cost < sum(
-        KIVOU_STAGE_COSTS.values()
-    ):
-        raise RuntimeExecutionConfigurationError(
-            "RUNTIME_RECOVERY_COST_ENVELOPE_TOO_SMALL"
-        )
+    if runtime_config.deployment.limits.maximum_cycle_cost < sum(KIVOU_STAGE_COSTS.values()):
+        raise RuntimeExecutionConfigurationError("RUNTIME_RECOVERY_COST_ENVELOPE_TOO_SMALL")
     if (
         not webhook_configuration.response_ingress_ready
         or webhook_configuration.provider_workspace_ref
@@ -654,6 +653,29 @@ def build_runtime_execution_composition(
                 api_key=connectivity_config.apollo_api_key.get_secret_value(),
                 client=client,
             )
+    company_domain_resolver = None
+    website_contact_provider = None
+    if runtime_config.deployment.providers.mode == "live" and apollo is None:
+        if client is None:
+            raise RuntimeExecutionConfigurationError("PROVIDER_CLIENT_NOT_CONFIGURED")
+        serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
+        if not serper_key:
+            raise RuntimeExecutionConfigurationError("SERPER_NOT_CONFIGURED")
+        try:
+            contact_extractor = published_contact_extractor_from_environment(client=client)
+        except ValueError:
+            raise RuntimeExecutionConfigurationError("CONTACT_MODEL_NOT_CONFIGURED")
+        company_domain_resolver = CompanyDomainResolver(
+            official=AnnuaireWebsiteClient(client=client),
+            serper=SerperDomainSearchClient(api_key=serper_key, client=client),
+            clock=clock,
+        )
+        website_contact_provider = PublishedWebsiteContactProvider(
+            directors=AnnuaireDirectorClient(client=client),
+            pages=CompanyWebsiteClient(),
+            extractor=contact_extractor,
+            deliverability=EmailDeliverabilityVerifier(),
+        )
     suppression_keyring = webhook_configuration.suppression_keyring
     link_builder = AttributionLinkBuilder(
         public_site_url=links.public_app_url,
@@ -668,9 +690,7 @@ def build_runtime_execution_composition(
         else _APOLLO_LOCATION_BY_QA_COUNTRY.get(scope.country)
     )
     if supplier_location is None:
-        raise RuntimeExecutionConfigurationError(
-            "SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED"
-        )
+        raise RuntimeExecutionConfigurationError("SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED")
     candidate_cap = runtime_config.deployment.limits.maximum_suppliers
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
@@ -732,12 +752,12 @@ def build_runtime_execution_composition(
         campaign_deployment=campaign_deployment,
         mailbox_readiness=InstantlyMailboxReadinessSource(
             provider,
-            managed_airmail_sending_gaps=(
-                _managed_airmail_sending_gaps(connectivity_config)
-            ),
+            managed_airmail_sending_gaps=(_managed_airmail_sending_gaps(connectivity_config)),
         ),
         attribution_link_builder=link_builder,
         clock=clock,
+        company_domain_resolver=company_domain_resolver,
+        website_contact_provider=website_contact_provider,
     )
     registry = AcquisitionActionRegistry(domain.handlers)
     if registry.identity != empty_registry.identity:

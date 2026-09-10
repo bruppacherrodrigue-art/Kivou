@@ -40,9 +40,9 @@ class StagingQaRecipientOverride:
         self.binding_fingerprint = deployment.qa_recipient_identity_hmac
         self.key_version = deployment.qa_recipient_key_version
         self.transport_key_version = transport_keyring.current_key_version
-        self.transport_recipient_identity = transport_keyring.identities_for_email(
-            self._recipient
-        )[self.transport_key_version]
+        self.transport_recipient_identity = transport_keyring.identities_for_email(self._recipient)[
+            self.transport_key_version
+        ]
 
     def resolve(self, discovered_email: str) -> str:
         TypeAdapter(EmailStr).validate_python(discovered_email)

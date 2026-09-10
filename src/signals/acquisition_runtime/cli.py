@@ -65,9 +65,7 @@ def _parser() -> _SafeArgumentParser:
 def _default_execute(allow_qa_provider_mutations: bool) -> RuntimeRunResult:
     from signals.acquisition_runtime.composition import execute_runtime_run_once
 
-    return execute_runtime_run_once(
-        allow_qa_provider_mutations=allow_qa_provider_mutations
-    )
+    return execute_runtime_run_once(allow_qa_provider_mutations=allow_qa_provider_mutations)
 
 
 def _default_check_dependencies() -> tuple[RuntimeStageDependency, ...]:
@@ -85,10 +83,7 @@ def _all_dependencies_ready(
     return (
         len(expected_stages) == _EXPECTED_DEPENDENCY_COUNT
         and tuple(item.stage for item in dependencies) == expected_stages
-        and all(
-            item.status is RuntimeDependencyState.READY
-            for item in dependencies
-        )
+        and all(item.status is RuntimeDependencyState.READY for item in dependencies)
     )
 
 
@@ -134,6 +129,7 @@ def main(
             engine = create_database_engine()
             with engine.connect() as connection:
                 from signals.persistence.schema import acquisition_runtime_cycle
+
                 count = connection.execute(
                     sa.select(sa.func.count()).select_from(acquisition_runtime_cycle)
                 ).scalar_one()
@@ -153,8 +149,7 @@ def main(
             print("status=ABANDON_UNAVAILABLE")
             return 1
         print(
-            "status=ABANDONED cycle_ref="
-            f"{arguments.cycle_id} changed={'yes' if changed else 'no'}"
+            f"status=ABANDONED cycle_ref={arguments.cycle_id} changed={'yes' if changed else 'no'}"
         )
         return 0
     if arguments.command == "check-dependencies":
@@ -172,8 +167,7 @@ def main(
 
     assert arguments.command == "run-once"
     if bool(arguments.allow_qa_provider_mutations) and (
-        (os.environ.get("KIVOU_ACQUISITION_ENVIRONMENT") or "").strip().upper()
-        == "PRODUCTION"
+        (os.environ.get("KIVOU_ACQUISITION_ENVIRONMENT") or "").strip().upper() == "PRODUCTION"
     ):
         print("status=INVALID_ARGUMENTS", file=sys.stderr)
         return 2

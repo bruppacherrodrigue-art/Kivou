@@ -790,6 +790,11 @@ sirene_apollo_binding = sa.Table(
     sa.Column("resolved_at", sa.DateTime(timezone=True)),
     sa.Column("resolution_method", sa.String(64), nullable=False),
     sa.Column("confidence_score", sa.Numeric(5, 4)),
+    sa.Column("domain", sa.String(253)),
+    sa.Column("website_url", sa.Text),
+    sa.Column("domain_source", sa.String(32)),
+    sa.Column("domain_query", sa.String(1024)),
+    sa.Column("domain_observed_at", sa.DateTime(timezone=True)),
     sa.Column("status", sa.String(16), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -925,13 +930,22 @@ acquisition_contact = sa.Table(
         "supplier_ref",
         name="uq_acquisition_contact_provider_employment",
     ),
-    sa.CheckConstraint("provider = 'apollo'", name="ck_acquisition_contact_provider"),
     sa.CheckConstraint(
-        "verification_state = 'PROVIDER_VERIFIED'",
+        "provider IN ('apollo', 'company_website')",
+        name="ck_acquisition_contact_provider",
+    ),
+    sa.CheckConstraint(
+        "verification_state IN ('PROVIDER_VERIFIED', 'DELIVERABILITY_VERIFIED')",
         name="ck_acquisition_contact_verification_state",
     ),
     sa.CheckConstraint(
-        "verification_provider = 'apollo' AND provider_email_status = 'verified'",
+        "(provider = 'apollo' AND verification_provider = 'apollo' "
+        "AND provider_email_status = 'verified' "
+        "AND verification_state = 'PROVIDER_VERIFIED') OR "
+        "(provider = 'company_website' AND verification_provider = 'mx_smtp' "
+        "AND provider_email_status = 'smtp_accepted' "
+        "AND verification_state = 'DELIVERABILITY_VERIFIED' "
+        "AND display_name IS NOT NULL)",
         name="ck_acquisition_contact_verification_source",
     ),
     sa.CheckConstraint(
