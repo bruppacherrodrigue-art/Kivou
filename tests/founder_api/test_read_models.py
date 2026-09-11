@@ -20,6 +20,7 @@ from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.database import (
     FOUNDER_DATABASE_URL_ENV,
     FOUNDER_WRITE_DATABASE_URL_ENV,
+    _verify_founder_writer_connection,
     create_founder_database_engine,
     create_founder_write_database_engine,
     resolve_founder_database_url,
@@ -346,3 +347,30 @@ def test_founder_writer_requires_explicit_dedicated_postgres_role(
         create_founder_write_database_engine(
             "postgresql+psycopg://wrong_role:secret@127.0.0.1/kivou"
         )
+
+
+def test_founder_writer_role_probe_closes_its_implicit_transaction() -> None:
+    class ScalarResult:
+        def __init__(self, value: str) -> None:
+            self._value = value
+
+        def scalar_one(self) -> str:
+            return self._value
+
+    class Connection:
+        def __init__(self) -> None:
+            self.values = iter(("kivou_founder_rw", "off"))
+            self.rollback_count = 0
+
+        def exec_driver_sql(self, statement: str) -> ScalarResult:
+            del statement
+            return ScalarResult(next(self.values))
+
+        def rollback(self) -> None:
+            self.rollback_count += 1
+
+    connection = Connection()
+
+    _verify_founder_writer_connection(connection)  # type: ignore[arg-type]
+
+    assert connection.rollback_count == 1

@@ -71,11 +71,24 @@ The Founder service has two separate server-side capabilities:
   `/reject` and `/send` routes use the separately credentialed
   `kivou_founder_rw` action service and its bounded grants.
 
-The frontend in this delivery remains a **consultation UI**. It loads and
-filters read models, changes the tunnel period or completed cohort week, opens
-prepared mail for review, and refreshes the snapshot. The assisted action
-buttons remain visible but disabled and the browser does not call the action
-routes yet.
+The console remains read-only outside **Prospection**. On that page, the
+operator can validate, correct or reject a prepared target and send only a
+previously validated batch. Every mutation carries the displayed
+`expected_version`; send also carries one stable UUID `request_id`. The UI
+applies the decision optimistically, rolls it back on failure, and displays the
+API message and code for `409`, `422` and `502` responses.
+The queue shows how many targets remain server-side and loads at most one next
+page per status after an explicit **Charger la suite** click. A send contains at
+most 25 approved targets; if more are waiting, the next batch stays visible.
+Every terminal provider result is reconciled from the server before a failed
+target can be retried with a new request UUID. Only an ambiguous proxy or
+transport failure keeps the same UUID for a safe idempotent replay.
+
+nginx keeps the `/api/founder/` prefix GET/HEAD-only. Four exact locations
+allow POST: `/approve`, `/correct`, `/reject` and `/send` below
+`/api/founder/actions/prospection`. Those exact locations apply the same Basic
+Auth, rate limit, overwritten Founder identity and origin-secret headers as the
+read route. No other Founder or customer path gains write authority.
 
 This UI constraint is not an absence of server-side write routes. The Founder
 API still mounts no customer route, never exposes a customer mutation through
@@ -142,11 +155,19 @@ the cohort; they are not attributed to the selected interval.
 ### Prospection
 
 The page starts with the same acquisition-status projection, then always puts
-**File du jour** before **Annuaire**. The queue contains only targets whose
-durable status is `pending_review`; prepared targets use a professional address
-whose MX verification succeeded. Mail contents can be opened for consultation,
-while validation, correction, rejection and send controls remain disabled in
-this delivery.
+**File du jour** before **Annuaire**. The queue combines `pending_review`
+targets awaiting a decision with already `approved` targets awaiting the
+operator's explicit send. Prepared targets use a professional address whose MX
+verification succeeded. Mail contents can be opened before validation.
+
+**Valider** transitions one current target to `approved`. **Corriger** accepts
+only the address, director and company name fields from the public contract.
+**Écarter** requires one closed reason and a comment for `other`. **Envoyer** is
+disabled when no target is approved or when the acquisition kill switch is
+active; clicking it opens a second confirmation and performs no request until
+the operator clicks **Envoyer maintenant**. Each confirmed batch contains at
+most 25 targets, then the queue is reloaded from its authoritative versions.
+Loading the page never sends mail.
 
 **Annuaire** reads the active real supplier directory and returns pages of 25
 rows. Search, supplier-family, French-department and qualification filters are
@@ -583,7 +604,8 @@ sudo certbot renew --dry-run
 
 Also confirm in the authenticated console that:
 
-- the console says `Production` and `Consultation`;
+- the console says `Production`; `Consultation` remains visible on the
+  read-only pages and is absent from Prospection;
 - customer login cookies are neither required nor accepted as Founder authorization;
 - customer routes are not reachable through the Founder host;
 - no `/internal/*` route is exposed by the Founder vhost;
@@ -593,12 +615,16 @@ Also confirm in the authenticated console that:
   and shows exact bounds ending at the observation time;
 - the selected send cohort follows its stages through the observation time,
   while MRR and churn remain a separately timestamped current snapshot;
-- File du jour precedes Annuaire and contains only `pending_review` targets;
+- File du jour precedes Annuaire and contains the `pending_review` and
+  `approved` review states;
 - Annuaire is paginated by 25, names French departments, hides unconfirmed
   domains, exposes their qualification state and labels verified mail as
   `MX vérifié`;
-- the assisted action buttons are disabled and generate no action request from
-  this frontend.
+- validation, correction and rejection send the target UUID and displayed
+  `expected_version` only after an operator click;
+- send opens an explicit confirmation, uses a stable UUID `request_id`, and
+  makes no request before **Envoyer maintenant** is clicked;
+- `409`, `422` and `502` errors are readable and restore optimistic state.
 
 ## Delivered surface
 
@@ -606,7 +632,8 @@ Also confirm in the authenticated console that:
 - independent FastAPI process;
 - direct HTTPS boundary with nginx Basic Auth;
 - one production hostname;
-- French-only consultation UI;
+- French-only console with bounded writes on Prospection and read-only
+  authority everywhere else;
 - versioned nginx, systemd and runbook;
 - removal of the cockpit route from the customer SaaS;
 - no customer route mounted in the Founder API;
@@ -617,7 +644,7 @@ Also confirm in the authenticated console that:
   views;
 - one shared acquisition status across Aujourd’hui, Prospection and Système;
 - no fabricated metrics;
-- assisted action buttons kept disabled in the delivered frontend.
+- optimistic assisted decisions and explicit, idempotent batch confirmation.
 
 ## Non-goals
 

@@ -2,7 +2,12 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FounderApp } from './FounderApp'
-import type { FounderProspection, FounderSession } from './types'
+import type {
+  FounderProspection,
+  FounderProspectionActionList,
+  FounderProspectionActionTarget,
+  FounderSession,
+} from './types'
 
 const SESSION: FounderSession = {
   version: 'founder-session-v1',
@@ -192,6 +197,104 @@ const PROSPECTION_WITH_QUEUE: FounderProspection = {
   },
 }
 
+const ACTION_TARGET: FounderProspectionActionTarget = {
+  target_id: '5fca7822-e7d6-4f00-87a3-b9fec4b85063',
+  version: 3,
+  status: 'pending_review',
+  company: {
+    siren: '123456789',
+    name: 'Béton des Alpes',
+    city: 'Grenoble',
+    employees: 31,
+    family: 'Bois et charpente',
+  },
+  director: { name: 'Sophie Durand', title: 'Présidente', source: 'registry' },
+  email: {
+    address: 'sophie@beton-alpes.example',
+    source: 'apollo',
+    verification_status: 'mx_verified',
+  },
+  signal: {
+    opportunity_key: 'opp-1',
+    holder: 'Métropole de Grenoble',
+    subject: 'Extension du réseau tramway',
+    amount_minor_units: 120000000,
+    currency: 'eur',
+    location: 'Grenoble',
+    decision_date: '2026-09-10',
+  },
+  mail: {
+    subject: 'Extension du tramway — capacité béton',
+    text: 'Bonjour Sophie,\n\nVoici le message complet préparé pour cette cible.',
+    html: '<p>Bonjour Sophie,</p><p><a href="https://kivou.eu/a/token">Voir le marché</a></p>',
+    attribution_url: 'https://kivou.eu/a/token',
+    unsubscribe_url: 'https://kivou.eu/unsubscribe/token',
+    word_count: 10,
+    contract_status: 'passed',
+    contract_failure: null,
+  },
+  delivery: {
+    status: 'not_sent',
+    instantly_id: null,
+    sent_at: null,
+    opened_at: null,
+    clicked_at: null,
+    replied_at: null,
+    bounced_at: null,
+    unsubscribed_at: null,
+    reply_classification: null,
+    instantly_credit_units: 0,
+    instantly_request_count: 0,
+  },
+  created_at: '2026-09-11T07:45:00Z',
+  updated_at: '2026-09-11T07:45:00Z',
+  approved_at: null,
+  approved_by: null,
+}
+
+function actionList(items: FounderProspectionActionTarget[]): FounderProspectionActionList {
+  return {
+    version: 'founder-prospection-actions-v1',
+    generated_at: '2026-09-11T08:00:00Z',
+    daily_counts: { prepared: items.length, approved: 0, rejected: 0, sent: 0 },
+    daily_cap: 25,
+    kill_switch_active: false,
+    items,
+    pagination: {
+      page: 1,
+      page_size: 25,
+      total_items: items.length,
+      total_pages: items.length === 0 ? 0 : 1,
+    },
+  }
+}
+
+function installProspectionFetch(
+  prospection: FounderProspection = PROSPECTION,
+  actionItems: FounderProspectionActionTarget[] = [],
+) {
+  const fetchMock = vi.fn(async (input: string | URL | Request) => {
+    const url = String(input)
+    if (url.includes('/api/founder/actions/prospection/list')) {
+      const status = new URL(url, 'https://control.kivou.eu').searchParams.get('status')
+      return {
+        ok: true,
+        status: 200,
+        json: async () => actionList(actionItems.filter((item) => item.status === status)),
+      }
+    }
+    if (url.includes('/api/founder/prospection?')) {
+      return { ok: true, status: 200, json: async () => prospection }
+    }
+    if (url.endsWith('/api/founder/session')) {
+      return { ok: true, status: 200, json: async () => SESSION }
+    }
+    throw new Error(`requête inattendue: ${url}`)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
 afterEach(() => {
   window.history.replaceState({}, '', '/')
   vi.unstubAllGlobals()
@@ -200,16 +303,12 @@ afterEach(() => {
 describe('ProspectionPage', () => {
   it('routes to the production directory and always places the empty review queue first', async () => {
     window.history.replaceState({}, '', '/prospection')
-    const fetchMock = vi.fn(async (input: string | URL | Request) => ({
-      ok: true,
-      status: 200,
-      json: async () => (String(input).includes('/prospection') ? PROSPECTION : SESSION),
-    }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = installProspectionFetch()
 
     render(<FounderApp />)
 
     expect(await screen.findByRole('heading', { name: 'Prospection' })).toBeInTheDocument()
+    expect(screen.queryByText('Consultation')).not.toBeInTheDocument()
     const navigation = screen.getByRole('navigation', { name: 'Navigation de la console' })
     expect(within(navigation).getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Aujourd’hui',
@@ -232,7 +331,7 @@ describe('ProspectionPage', () => {
     expect(annuaire).not.toBeNull()
     expect(queue).not.toBeNull()
     expect(queue!.compareDocumentPosition(annuaire!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(within(queue!).getByText('Aucune cible en attente de revue.')).toBeInTheDocument()
+    expect(await within(queue!).findByText('Aucune cible en attente de revue.')).toBeInTheDocument()
     expect(within(queue!).getByText('La Session A n’a encore préparé aucune cible.')).toBeInTheDocument()
     expect(within(queue!).getByText(/Dernier cycle le 10 sept\. 2026/)).toBeInTheDocument()
     expect(screen.getAllByRole('region', { name: 'État de l’acquisition' })).toHaveLength(1)
@@ -248,11 +347,7 @@ describe('ProspectionPage', () => {
 
   it('masks unconfirmed domains and translates directory facts into French', async () => {
     window.history.replaceState({}, '', '/prospection')
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => ({
-      ok: true,
-      status: 200,
-      json: async () => (String(input).includes('/prospection') ? PROSPECTION : SESSION),
-    })))
+    installProspectionFetch()
 
     render(<FounderApp />)
 
@@ -290,15 +385,10 @@ describe('ProspectionPage', () => {
     expect(visibleCopy).not.toMatch(/supplier_directory|pending_review|timer/i)
   })
 
-  it('filters the directory and exposes the prepared mail without enabling assisted actions', async () => {
+  it('filters the directory and exposes the prepared mail with assisted actions enabled', async () => {
     const user = userEvent.setup()
     window.history.replaceState({}, '', '/prospection')
-    const fetchMock = vi.fn(async (input: string | URL | Request) => ({
-      ok: true,
-      status: 200,
-      json: async () => (String(input).includes('/prospection') ? PROSPECTION_WITH_QUEUE : SESSION),
-    }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = installProspectionFetch(PROSPECTION_WITH_QUEUE, [ACTION_TARGET])
 
     render(<FounderApp />)
 
@@ -310,11 +400,10 @@ describe('ProspectionPage', () => {
     expect(queue!.compareDocumentPosition(annuaire!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(within(queue!).getByText('Bois et charpente')).toBeInTheDocument()
 
-    for (const name of ['Valider', 'Corriger', 'Écarter', 'Envoyer les 0 validées']) {
-      const action = screen.getByRole('button', { name })
-      expect(action).toBeDisabled()
-      expect(action).toHaveAttribute('title', 'Disponible quand le mode assisté sera livré')
+    for (const name of ['Valider', 'Corriger', 'Écarter']) {
+      expect(screen.getByRole('button', { name })).toBeEnabled()
     }
+    expect(screen.getByRole('button', { name: 'Envoyer les 0 cibles validées' })).toBeDisabled()
 
     const mailButton = screen.getByRole('button', { name: 'Voir le mail de Béton des Alpes' })
     await user.click(mailButton)
@@ -322,7 +411,7 @@ describe('ProspectionPage', () => {
     expect(drawer).not.toHaveAttribute('aria-modal')
     expect(within(drawer).getByText('Extension du tramway — capacité béton')).toBeInTheDocument()
     const preview = within(drawer).getByTitle('Aperçu HTML du mail')
-    expect(preview).toHaveAttribute('srcdoc', PROSPECTION_WITH_QUEUE.queue.items[0].mail_html)
+    expect(preview).toHaveAttribute('srcdoc', ACTION_TARGET.mail.html)
     expect(within(drawer).queryByText(/message complet préparé/)).not.toBeInTheDocument()
     expect(within(drawer).getByRole('button', { name: 'Fermer' })).toHaveFocus()
     await user.keyboard('{Escape}')
@@ -376,11 +465,7 @@ describe('ProspectionPage', () => {
       ...PROSPECTION,
       acquisition_status: { ...PROSPECTION.acquisition_status, activity_since: null },
     }
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => ({
-      ok: true,
-      status: 200,
-      json: async () => (String(input).includes('/prospection') ? response : SESSION),
-    })))
+    installProspectionFetch(response)
 
     render(<FounderApp />)
 
@@ -403,11 +488,7 @@ describe('ProspectionPage', () => {
         ? { ...PROSPECTION.targeting, recent: false, status }
         : null,
     }
-    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => ({
-      ok: true,
-      status: 200,
-      json: async () => (String(input).includes('/prospection') ? response : SESSION),
-    })))
+    installProspectionFetch(response)
 
     render(<FounderApp />)
 

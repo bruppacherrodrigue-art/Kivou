@@ -313,6 +313,130 @@ export interface FounderProspectionQueueItem {
   mail_html: string
 }
 
+export type FounderProspectionActionStatus =
+  | 'pending_review'
+  | 'approved'
+  | 'rejected'
+  | 'sent'
+
+export interface FounderProspectionActionTarget {
+  target_id: string
+  version: number
+  status: FounderProspectionActionStatus
+  company: {
+    siren: string
+    name: string
+    city: string
+    employees: number
+    family: string
+  }
+  director: {
+    name: string
+    title: string
+    source: 'registry' | 'manual'
+  } | null
+  email: {
+    address: string
+    source: 'apollo' | 'site' | 'manual'
+    verification_status: 'mx_verified' | 'mx_failed'
+  }
+  signal: {
+    opportunity_key: string
+    holder: string
+    subject: string
+    amount_minor_units: number
+    currency: 'eur' | 'chf'
+    location: string
+    decision_date: string
+  }
+  mail: {
+    subject: string
+    text: string
+    html: string
+    attribution_url: string
+    unsubscribe_url: string
+    word_count: number
+    contract_status: 'passed' | 'failed'
+    contract_failure: string | null
+  }
+  delivery: {
+    status: 'not_sent' | 'sent' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'unsubscribed'
+    instantly_id: string | null
+    sent_at: string | null
+    opened_at: string | null
+    clicked_at: string | null
+    replied_at: string | null
+    bounced_at: string | null
+    unsubscribed_at: string | null
+    reply_classification: 'human_reply' | 'auto_reply' | null
+    instantly_credit_units: number
+    instantly_request_count: number
+  }
+  created_at: string
+  updated_at: string
+  approved_at: string | null
+  approved_by: string | null
+}
+
+export interface FounderProspectionActionList {
+  version: 'founder-prospection-actions-v1'
+  generated_at: string
+  daily_counts: {
+    prepared: number
+    approved: number
+    rejected: number
+    sent: number
+  }
+  daily_cap: 25
+  kill_switch_active: boolean
+  items: FounderProspectionActionTarget[]
+  pagination: {
+    page: number
+    page_size: number
+    total_items: number
+    total_pages: number
+  }
+}
+
+export interface FounderProspectionTargetResponse {
+  version: 'founder-prospection-actions-v1'
+  target: FounderProspectionActionTarget
+}
+
+export interface FounderProspectionCorrectionChanges {
+  email_address?: string
+  director_name?: string
+  company_name?: string
+}
+
+export interface FounderProspectionCorrectionResponse extends FounderProspectionTargetResponse {
+  token_reissued: boolean
+  email_reverified: boolean
+  directory_updated: boolean
+}
+
+export type FounderProspectionRejectionReason =
+  | 'wrong_company'
+  | 'wrong_address'
+  | 'off_topic'
+  | 'other'
+
+export interface FounderProspectionRejectionResponse extends FounderProspectionTargetResponse {
+  directory_effect: 'email_invalidated' | 'family_review_required' | 'none'
+}
+
+export interface FounderProspectionSendResponse {
+  version: 'founder-prospection-actions-v1'
+  request_id: string
+  results: Array<{
+    target_id: string
+    status: 'sent' | 'failed'
+    instantly_id: string | null
+  }>
+  daily_sent_count: number
+  daily_remaining: number
+}
+
 export interface FounderTargetingCycle {
   cycle_ref: string
   status: string

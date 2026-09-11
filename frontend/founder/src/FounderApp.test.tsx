@@ -259,6 +259,7 @@ describe('FounderApp', () => {
 
     expect(screen.getByText('Connexion aux read models de production…')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Aujourd’hui', level: 1 })).toBeInTheDocument()
+    expect(document.querySelector('.control-sidebar-footer .control-readonly')).toHaveTextContent('Consultation')
     expect(screen.getByText('rodrigue.bruppacher@gmail.com')).toBeInTheDocument()
     expect(screen.getByText('Provider failure')).toBeInTheDocument()
     expect(screen.getByText(/123[.,]45.*CHF/)).toBeInTheDocument()
