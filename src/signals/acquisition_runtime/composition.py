@@ -64,6 +64,12 @@ def _supplier_binding_is_usable(binding) -> bool:
     return bool(binding.domain)
 
 
+def _supplier_size_is_eligible(directory_record) -> bool:
+    """Keep small firms in the directory while excluding them from cold mail."""
+
+    return bool(directory_record is not None and (directory_record.employees or 0) >= 10)
+
+
 def runtime_qa_contact_profile_descriptor() -> dict[str, object]:
     return decision_maker_profile_semantics(RUNTIME_QA_CONTACT_PROFILE_VERSION)
 
@@ -160,6 +166,9 @@ def build_acquisition_domain_composition(
     def resolve_supplier(candidate) -> bool:
         if candidate.provider != "sirene":
             raise ValueError("runtime supplier identity must come from SIRENE")
+        directory_record = supplier_directory.get(candidate.provider_organization_id)
+        if not _supplier_size_is_eligible(directory_record):
+            return False
         binding = organization_resolver.resolve(candidate)
         return _supplier_binding_is_usable(binding)
 

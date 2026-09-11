@@ -197,6 +197,12 @@ def test_supplier_with_apollo_binding_but_no_verified_domain_is_not_eligible() -
     assert runtime_composition._supplier_binding_is_usable(binding) is False
 
 
+def test_cold_mail_supplier_requires_at_least_ten_employees() -> None:
+    for employees, expected in ((5, False), (9, False), (10, True), (19, True), (None, False)):
+        record = type("DirectoryRecord", (), {"employees": employees})()
+        assert runtime_composition._supplier_size_is_eligible(record) is expected
+
+
 def test_builder_refuses_supplier_limits_wider_than_one_candidate() -> None:
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     provider = NoNetworkProvider()
