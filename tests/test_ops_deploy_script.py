@@ -772,6 +772,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     assert "migrate_to_latest" in commands
     assert not live_backend.exists()
     assert not live_frontend.exists()
+    assert not (tmp_path / "backups/test.dump").exists()
 
     _fake_bin(fake_bin, "uv", recorder)
     _fake_bin(
@@ -800,3 +801,4 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     assert success_commands.rfind(permission_command) > success_commands.rfind("uv run")
     assert live_backend.resolve() == releases / f"staging-{'b' * 40}"
     assert live_frontend.resolve() == releases / f"staging-{'b' * 40}" / "frontend/dist"
+    assert not (tmp_path / "backups/test.dump").exists()

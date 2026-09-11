@@ -399,6 +399,7 @@ rehearsal_name="kivou_rehearsal_${KIVOU_SHA:0:12}_$$"
 rehearsal_created=0
 cleanup() {
   rm -f "$marker"
+  [[ -z "${backup_file:-}" ]] || rm -f -- "$backup_file"
   if [[ "$rehearsal_created" -eq 1 ]]; then
     dropdb --if-exists --maintenance-db="$KIVOU_ADMIN_SAFE_URL" "$rehearsal_name" >/dev/null 2>&1 || true
   fi
