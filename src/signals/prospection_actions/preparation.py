@@ -95,13 +95,18 @@ class ProspectPreparationService:
                     sa.select(
                         prospect_target.c.opportunity_key,
                         prospect_target.c.procedure_award_key,
+                        prospect_target.c.cycle_ref,
                     ).where(
                         prospect_target.c.created_at >= day_start,
                         prospect_target.c.created_at < day_end,
                     )
                 )
             )
-            if any(row.procedure_award_key == signal.procedure_key for row in daily):
+            if any(
+                row.procedure_award_key == signal.procedure_key
+                and row.cycle_ref != cycle_ref
+                for row in daily
+            ):
                 return PreparationResult(
                     prepared=0,
                     status="pending_review",

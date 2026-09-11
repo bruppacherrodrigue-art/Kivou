@@ -967,6 +967,7 @@ prospect_target = sa.Table(
     sa.Column("replied_at", sa.DateTime(timezone=True)),
     sa.Column("bounced_at", sa.DateTime(timezone=True)),
     sa.Column("unsubscribed_at", sa.DateTime(timezone=True)),
+    sa.Column("reply_classification", sa.String(32)),
     sa.Column("instantly_credit_units", sa.Integer, nullable=False, server_default="0"),
     sa.Column("instantly_request_count", sa.Integer, nullable=False, server_default="0"),
     sa.Column("delivery_error", sa.Text),
@@ -1000,6 +1001,22 @@ prospect_target = sa.Table(
         "opportunity_key", "email_address", name="uq_prospect_target_signal_email"
     ),
     sa.Index("ix_prospect_target_daily_status", "created_at", "status"),
+)
+
+prospect_delivery_event = sa.Table(
+    "prospect_delivery_event",
+    METADATA,
+    sa.Column("event_fingerprint", sa.String(64), primary_key=True),
+    sa.Column(
+        "target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="CASCADE"),
+    ),
+    sa.Column("provider_campaign_id", sa.String(128), nullable=False),
+    sa.Column("provider_event_type", sa.String(64), nullable=False),
+    sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_prospect_delivery_event_target_time", "target_id", "occurred_at"),
 )
 
 
@@ -2309,22 +2326,27 @@ acquisition_conversion_journey = sa.Table(
     ),
     sa.Column("source_click_event_ref", sa.String(64), nullable=False, index=True),
     sa.Column(
+        "prospect_target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="RESTRICT"),
+    ),
+    sa.Column(
         "campaign_ref",
         sa.String(64),
         sa.ForeignKey("acquisition_campaign.campaign_ref", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "member_ref",
         sa.String(64),
         sa.ForeignKey("acquisition_campaign_member.member_ref", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
         sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column("token_fingerprint", sa.String(64), nullable=False),
     sa.Column("token_version", sa.String(64), nullable=False),
@@ -2347,6 +2369,13 @@ acquisition_conversion_journey = sa.Table(
         "clicked_at <= signed_up_at AND signed_up_at <= attribution_expires_at",
         name="ck_conversion_journey_window",
     ),
+    sa.CheckConstraint(
+        "(prospect_target_id IS NULL AND campaign_ref IS NOT NULL AND member_ref IS NOT NULL "
+        "AND acquisition_opportunity_id IS NOT NULL) OR "
+        "(prospect_target_id IS NOT NULL AND campaign_ref IS NULL AND member_ref IS NULL "
+        "AND acquisition_opportunity_id IS NULL)",
+        name="ck_conversion_journey_source",
+    ),
     sa.Index("ix_conversion_journey_campaign", "campaign_ref", "signed_up_at"),
 )
 
@@ -2367,6 +2396,11 @@ acquisition_conversion_event = sa.Table(
     sa.Column("trigger_ref_type", sa.String(64)),
     sa.Column("trigger_ref", sa.String(256)),
     sa.Column("account_id", sa.String(64), sa.ForeignKey("account.account_id")),
+    sa.Column(
+        "prospect_target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="RESTRICT"),
+    ),
     sa.Column(
         "campaign_ref",
         sa.String(64),

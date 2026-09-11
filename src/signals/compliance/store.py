@@ -148,6 +148,50 @@ class SuppressionStore:
         values["suppression_id"] = suppression_id(values)
         return self._append_in_transaction(connection, values)
 
+    def record_for_email_in_transaction(
+        self,
+        connection: Connection,
+        email: str,
+        *,
+        source: SuppressionSource,
+        reason_code: SuppressionReasonCode,
+        evidence_ref: str,
+        received_at: dt.datetime,
+    ):
+        """Suppress a reviewed prospect that has no legacy Apollo contact row."""
+
+        if received_at.tzinfo is None or received_at.utcoffset() is None:
+            raise ValueError("received_at must be timezone-aware")
+        if not isinstance(source, SuppressionSource) or not isinstance(
+            reason_code, SuppressionReasonCode
+        ):
+            raise TypeError("suppression vocabularies must be closed")
+        if not (
+            evidence_ref.startswith(_EVIDENCE_PREFIX)
+            and len(evidence_ref) == len(_EVIDENCE_PREFIX) + 64
+        ):
+            raise ValueError("suppression evidence_ref must be opaque")
+        identities = self._keyring.identities_for_email(email)
+        version = self._keyring.current_key_version
+        self._lock_identities_in_transaction(connection, identities)
+        values: dict[str, object] = {
+            "identity_hmac": identities[version],
+            "identity_key_version": version,
+            "scope": SUPPRESSION_SCOPE,
+            "source": source.value,
+            "reason_code": reason_code.value,
+            "evidence_ref": evidence_ref,
+            "contact_ref": None,
+            "supplier_ref": None,
+            "received_at": received_at,
+            "effective_at": received_at,
+            "minimum_retention_until": minimum_retention_until(received_at),
+            "supersedes_suppression_id": None,
+            "created_at": received_at,
+        }
+        values["suppression_id"] = suppression_id(values)
+        return self._append_in_transaction(connection, values)
+
     def match_contact(self, contact_ref: str, *, at: dt.datetime | None = None) -> SuppressionMatch:
         with self._engine.connect() as connection:
             return self.match_contact_in_transaction(connection, contact_ref, at=at)

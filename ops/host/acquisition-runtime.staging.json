@@ -1,6 +1,6 @@
 {
   "schema_version": "acquisition-runtime-v1",
-  "mode": "SHADOW",
+  "mode": "ASSISTED",
   "qa_only": true,
   "allowed_opportunity_keys": [],
   "qa_scope": {
@@ -15,7 +15,7 @@
   "qa_provider_mutations_capable": true,
   "limits": {
     "maximum_cycle_cost": 10.0,
-    "maximum_suppliers": 1,
+    "maximum_suppliers": 25,
     "maximum_contacts": 1,
     "maximum_provider_operations": 4,
     "maximum_wall_seconds": 900,

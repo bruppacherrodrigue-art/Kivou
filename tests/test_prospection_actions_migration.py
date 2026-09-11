@@ -10,6 +10,7 @@ def test_prospection_actions_schema_is_at_head(migrated_sqlite_engine) -> None:
         "prospect_target",
         "prospect_target_history",
         "prospect_send_request",
+        "prospect_delivery_event",
     } <= set(inspector.get_table_names())
     columns = {column["name"] for column in inspector.get_columns("prospect_target")}
     assert {
@@ -21,4 +22,9 @@ def test_prospection_actions_schema_is_at_head(migrated_sqlite_engine) -> None:
         "mail_html",
         "instantly_credit_units",
         "instantly_request_count",
+        "reply_classification",
     } <= columns
+    assert "prospect_target_id" in {
+        column["name"]
+        for column in inspector.get_columns("acquisition_conversion_event")
+    }

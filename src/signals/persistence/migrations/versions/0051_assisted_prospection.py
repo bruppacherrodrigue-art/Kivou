@@ -84,6 +84,7 @@ def upgrade() -> None:
         sa.Column("replied_at", sa.DateTime(timezone=True)),
         sa.Column("bounced_at", sa.DateTime(timezone=True)),
         sa.Column("unsubscribed_at", sa.DateTime(timezone=True)),
+        sa.Column("reply_classification", sa.String(32)),
         sa.Column("instantly_credit_units", sa.Integer, nullable=False, server_default="0"),
         sa.Column("instantly_request_count", sa.Integer, nullable=False, server_default="0"),
         sa.Column("delivery_error", sa.Text),
@@ -105,6 +106,25 @@ def upgrade() -> None:
     op.create_index("ix_prospect_target_status", "prospect_target", ["status"])
     op.create_index("ix_prospect_target_created_at", "prospect_target", ["created_at"])
     op.create_index("ix_prospect_target_daily_status", "prospect_target", ["created_at", "status"])
+
+    op.create_table(
+        "prospect_delivery_event",
+        sa.Column("event_fingerprint", sa.String(64), primary_key=True),
+        sa.Column(
+            "target_id",
+            sa.String(36),
+            sa.ForeignKey("prospect_target.target_id", ondelete="CASCADE"),
+        ),
+        sa.Column("provider_campaign_id", sa.String(128), nullable=False),
+        sa.Column("provider_event_type", sa.String(64), nullable=False),
+        sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index(
+        "ix_prospect_delivery_event_target_time",
+        "prospect_delivery_event",
+        ["target_id", "occurred_at"],
+    )
 
     op.create_table(
         "prospect_target_history",
@@ -139,6 +159,37 @@ def upgrade() -> None:
     )
     op.create_index("ix_prospect_send_request_request_day", "prospect_send_request", ["request_day"])
 
+    with op.batch_alter_table("acquisition_conversion_event") as batch:
+        batch.add_column(sa.Column("prospect_target_id", sa.String(36)))
+        batch.create_foreign_key(
+            "fk_conversion_event_prospect_target",
+            "prospect_target",
+            ["prospect_target_id"],
+            ["target_id"],
+            ondelete="RESTRICT",
+        )
+    with op.batch_alter_table("acquisition_conversion_journey") as batch:
+        batch.add_column(sa.Column("prospect_target_id", sa.String(36)))
+        batch.alter_column("campaign_ref", existing_type=sa.String(64), nullable=True)
+        batch.alter_column("member_ref", existing_type=sa.String(64), nullable=True)
+        batch.alter_column(
+            "acquisition_opportunity_id", existing_type=sa.String(64), nullable=True
+        )
+        batch.create_foreign_key(
+            "fk_conversion_journey_prospect_target",
+            "prospect_target",
+            ["prospect_target_id"],
+            ["target_id"],
+            ondelete="RESTRICT",
+        )
+        batch.create_check_constraint(
+            "ck_conversion_journey_source",
+            "(prospect_target_id IS NULL AND campaign_ref IS NOT NULL "
+            "AND member_ref IS NOT NULL AND acquisition_opportunity_id IS NOT NULL) OR "
+            "(prospect_target_id IS NOT NULL AND campaign_ref IS NULL "
+            "AND member_ref IS NULL AND acquisition_opportunity_id IS NULL)",
+        )
+
     if op.get_bind().dialect.name == "postgresql":
         op.execute(
             """
@@ -148,7 +199,7 @@ def upgrade() -> None:
                 GRANT USAGE ON SCHEMA public TO kivou_founder_rw;
                 GRANT SELECT, INSERT, UPDATE ON prospect_target,
                   prospect_target_history, prospect_send_request TO kivou_founder_rw;
-                GRANT SELECT ON supplier_directory,
+                GRANT SELECT ON supplier_directory, prospect_delivery_event,
                   acquisition_contact_suppression TO kivou_founder_rw;
                 GRANT UPDATE (
                   legal_name, legal_name_observed_at, directors,
@@ -166,10 +217,27 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    with op.batch_alter_table("acquisition_conversion_journey") as batch:
+        batch.drop_constraint("ck_conversion_journey_source", type_="check")
+        batch.drop_constraint("fk_conversion_journey_prospect_target", type_="foreignkey")
+        batch.alter_column(
+            "acquisition_opportunity_id", existing_type=sa.String(64), nullable=False
+        )
+        batch.alter_column("member_ref", existing_type=sa.String(64), nullable=False)
+        batch.alter_column("campaign_ref", existing_type=sa.String(64), nullable=False)
+        batch.drop_column("prospect_target_id")
+    with op.batch_alter_table("acquisition_conversion_event") as batch:
+        batch.drop_constraint("fk_conversion_event_prospect_target", type_="foreignkey")
+        batch.drop_column("prospect_target_id")
     op.drop_index("ix_prospect_send_request_request_day", table_name="prospect_send_request")
     op.drop_table("prospect_send_request")
     op.drop_index("ix_prospect_target_history_target_id", table_name="prospect_target_history")
     op.drop_table("prospect_target_history")
+    op.drop_index(
+        "ix_prospect_delivery_event_target_time",
+        table_name="prospect_delivery_event",
+    )
+    op.drop_table("prospect_delivery_event")
     op.drop_index("ix_prospect_target_daily_status", table_name="prospect_target")
     op.drop_index("ix_prospect_target_created_at", table_name="prospect_target")
     op.drop_index("ix_prospect_target_status", table_name="prospect_target")

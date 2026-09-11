@@ -52,3 +52,10 @@ def test_founder_action_routes_publish_list_and_closed_rejection(migrated_sqlite
     assert listed.json()["version"] == "founder-prospection-actions-v1"
     assert listed.json()["items"][0]["mail"]["text"].startswith("Bonjour,")
     assert rejected.status_code == 422
+    assert rejected.json() == {
+        "detail": {
+            "code": "INVALID_REJECTION_REASON",
+            "message": "requête d'action invalide",
+            "target_ids": [],
+        }
+    }

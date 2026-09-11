@@ -773,6 +773,7 @@ def build_runtime_execution_composition(
     )
     handlers = dict(domain.handlers)
     if runtime_config.deployment.mode is RuntimeExecutionMode.ASSISTED:
+        enrichment_handler = handlers[AcquisitionRuntimeStage.SUPPLIER_DISCOVERY]
         handlers[AcquisitionRuntimeStage.SUPPLIER_DISCOVERY] = (
             build_assisted_preparation_action(
                 engine,
@@ -784,6 +785,7 @@ def build_runtime_execution_composition(
                     ),
                     clock=clock,
                 ),
+                enrichment_handler=enrichment_handler,
             )
         )
     registry = AcquisitionActionRegistry(handlers)

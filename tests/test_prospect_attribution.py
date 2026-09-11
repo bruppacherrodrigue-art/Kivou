@@ -3,10 +3,13 @@ from __future__ import annotations
 import datetime as dt
 from urllib.parse import urlsplit
 
+import sqlalchemy as sa
 from test_assisted_prospect_preparation import NOW, seed_directory, signal
 
+from signals.conversion.service import ConversionAttributionService
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
+from signals.persistence.schema import acquisition_conversion_event, prospect_target
 from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
 from signals.prospection_actions.preparation import ProspectPreparationService
 
@@ -26,14 +29,8 @@ def test_assisted_link_is_email_bound_and_reconstructed_from_target(
     prepared = ProspectPreparationService(
         migrated_sqlite_engine, link_issuer=issuer, clock=lambda: NOW
     ).prepare(signal(), cycle_ref="cycle-1")
-    target = ProspectPreparationService  # keep imports explicit for architecture checks
-    del target
-
-    listed = __import__("sqlalchemy").select
-    from signals.persistence.schema import prospect_target
-
     with migrated_sqlite_engine.connect() as connection:
-        row = connection.execute(listed(prospect_target)).mappings().one()
+        row = connection.execute(sa.select(prospect_target)).mappings().one()
         payload = AttributionSourceResolver(migrated_sqlite_engine).for_member(
             connection, row["attribution_member_ref"]
         )
@@ -45,3 +42,14 @@ def test_assisted_link_is_email_bound_and_reconstructed_from_target(
     assert verified.payload.member_ref == row["attribution_member_ref"]
     assert row["email_address"] not in row["attribution_url"]
     assert row["unsubscribe_url"].endswith(raw_token)
+
+    click = ConversionAttributionService(migrated_sqlite_engine, keyring).record_click(
+        raw_token, at=NOW + dt.timedelta(hours=1)
+    )
+    with migrated_sqlite_engine.connect() as connection:
+        event = connection.execute(sa.select(acquisition_conversion_event)).mappings().one()
+        updated = connection.execute(sa.select(prospect_target)).mappings().one()
+    assert not click.replayed
+    assert event["prospect_target_id"] == row["target_id"]
+    assert event["campaign_ref"] is None
+    assert updated["clicked_at"].replace(tzinfo=dt.UTC) == NOW + dt.timedelta(hours=1)

@@ -6,7 +6,10 @@ import datetime as dt
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from signals.founder_api.access import FounderIdentityDependency
@@ -44,6 +47,28 @@ def create_founder_app(
     app.state.prospection_actions = prospection_actions
     if prospection_actions is not None:
         app.include_router(build_prospection_actions_router(prospection_actions))
+
+        @app.exception_handler(RequestValidationError)
+        async def _action_validation_error(
+            request: Request, error: RequestValidationError
+        ) -> JSONResponse:
+            if not request.url.path.startswith("/api/founder/actions/prospection/"):
+                return await request_validation_exception_handler(request, error)
+            rejection_reason = request.url.path.endswith("/reject") and any(
+                tuple(item.get("loc", ())) == ("body", "reason")
+                for item in error.errors()
+            )
+            code = "INVALID_REJECTION_REASON" if rejection_reason else "INVALID_ACTION_PAYLOAD"
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": {
+                        "code": code,
+                        "message": "requête d'action invalide",
+                        "target_ids": [],
+                    }
+                },
+            )
 
     def now() -> dt.datetime:
         return now_override() if now_override is not None else dt.datetime.now(dt.UTC)

@@ -101,14 +101,34 @@ class AssistedPreparationAction:
         *,
         preparation: PreparationPort,
         signal_resolver: Callable[[str], object],
+        enrichment_handler: Callable[[AcquisitionActionContext], RuntimeActionResult]
+        | None = None,
     ) -> None:
         self._preparation = preparation
         self._signal_resolver = signal_resolver
+        self._enrichment_handler = enrichment_handler
 
     def __call__(self, context: AcquisitionActionContext) -> RuntimeActionResult:
         try:
             signal = self._signal_resolver(context.cycle.opportunity_key)
             result = self._preparation.prepare(signal, cycle_ref=context.cycle.cycle_ref)
+            enrichment = None
+            if result.enrichment_required and self._enrichment_handler is not None:
+                enrichment = self._enrichment_handler(context)
+                refreshed = self._preparation.prepare(
+                    signal, cycle_ref=context.cycle.cycle_ref
+                )
+                result = PreparationResult(
+                    prepared=result.prepared + refreshed.prepared,
+                    status="pending_review",
+                    target_ids=result.target_ids + refreshed.target_ids,
+                    reason=refreshed.reason,
+                    directory_candidates=max(
+                        result.directory_candidates,
+                        refreshed.directory_candidates,
+                    ),
+                    enrichment_required=refreshed.enrichment_required,
+                )
         except ValueError:
             return RuntimeActionResult(
                 status=RuntimeStageStatus.SUPPRESSED,
@@ -129,6 +149,8 @@ class AssistedPreparationAction:
             status=RuntimeStageStatus.SUPPRESSED,
             result_refs=(batch_ref,),
             reason_codes=(reason,),
+            reserved_cost=(enrichment.reserved_cost if enrichment is not None else 0),
+            observed_cost=(enrichment.observed_cost if enrichment is not None else 0),
         )
 
 
@@ -136,10 +158,13 @@ def build_assisted_preparation_action(
     engine,
     *,
     preparation: ProspectPreparationService,
+    enrichment_handler: Callable[[AcquisitionActionContext], RuntimeActionResult]
+    | None = None,
 ) -> AssistedPreparationAction:
     return AssistedPreparationAction(
         preparation=preparation,
         signal_resolver=lambda opportunity_key: resolve_assisted_signal(engine, opportunity_key),
+        enrichment_handler=enrichment_handler,
     )
 
 

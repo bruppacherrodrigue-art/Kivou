@@ -203,6 +203,7 @@ def _target(row: dict[str, object]) -> ProspectTarget:
             replied_at=_aware(row.get("replied_at")),
             bounced_at=_aware(row.get("bounced_at")),
             unsubscribed_at=_aware(row.get("unsubscribed_at")),
+            reply_classification=row.get("reply_classification"),
             instantly_credit_units=int(row.get("instantly_credit_units") or 0),
             instantly_request_count=int(row.get("instantly_request_count") or 0),
         ),

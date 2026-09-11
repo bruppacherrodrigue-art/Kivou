@@ -15,6 +15,7 @@ from signals.campaigns.webhooks import (
     WebhookFingerprintKeyring,
 )
 from signals.compliance.suppression import SuppressionIdentityKeyring
+from signals.prospection_actions.webhook import AssistedProspectWebhookProjector
 from signals.responses.contracts import (
     UNCONFIGURED_CLASSIFIER_VERSION,
     ContentFingerprintKeyring,
@@ -275,6 +276,12 @@ def build_instantly_webhook_service(
         suppression_keyring=configuration.suppression_keyring,
         response_ingress_capability=configuration.response_ingress_capability,
         response_ingress=response_ingress,
+        assisted_prospect_ingress=AssistedProspectWebhookProjector(
+            engine,
+            provider_workspace_ref=configuration.provider_workspace_ref,
+            fingerprint_keyring=configuration.fingerprint_keyring,
+            suppression_keyring=configuration.suppression_keyring,
+        ),
     )
 
 

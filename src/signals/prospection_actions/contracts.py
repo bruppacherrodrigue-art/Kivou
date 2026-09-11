@@ -109,6 +109,7 @@ class DeliverySnapshot(_Contract):
     replied_at: dt.datetime | None = None
     bounced_at: dt.datetime | None = None
     unsubscribed_at: dt.datetime | None = None
+    reply_classification: Literal["human_reply", "auto_reply"] | None = None
     instantly_credit_units: int = Field(default=0, ge=0)
     instantly_request_count: int = Field(default=0, ge=0)
 

@@ -86,7 +86,9 @@ def _active_production_environment(
         "KIVOU_FOUNDER_ALLOWED_EMAIL=founder@example.com\n"
         "KIVOU_FOUNDER_ALLOWED_USER=rodrigue\n"
         f"KIVOU_FOUNDER_ORIGIN_SECRET={founder_secret}\n"
-        "KIVOU_FOUNDER_DATABASE_URL=postgresql://readonly@example/kivou\n",
+        "KIVOU_FOUNDER_DATABASE_URL=postgresql://readonly@example/kivou\n"
+        "KIVOU_FOUNDER_WRITE_DATABASE_URL="
+        "postgresql://kivou_founder_rw:secret@example/kivou\n",
         encoding="utf-8",
     )
     origin_secret = tmp_path / "founder-origin-secret.conf"

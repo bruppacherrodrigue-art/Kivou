@@ -18,7 +18,8 @@ Les mutations utilisent `expected_version` pour refuser une écriture périmée.
 - `signal: {opportunity_key, holder, subject, amount_minor_units, currency, location, decision_date}` ;
 - `mail: {subject, text, html, attribution_url, unsubscribe_url, word_count}` ;
 - `delivery: {status, instantly_id, sent_at, opened_at, clicked_at, replied_at,
-  bounced_at, unsubscribed_at, instantly_credit_units, instantly_request_count}` ;
+  bounced_at, unsubscribed_at, reply_classification, instantly_credit_units,
+  instantly_request_count}` ;
 - `created_at`, `updated_at`, `approved_at`, `approved_by`.
 
 `mail.text` et `mail.html` sont définitifs. Si aucun dirigeant n'est connu, ils

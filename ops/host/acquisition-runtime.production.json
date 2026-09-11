@@ -1,6 +1,6 @@
 {
   "schema_version": "acquisition-production-v1",
-  "mode": "SHADOW",
+  "mode": "ASSISTED",
   "qa_only": false,
   "allowed_opportunity_keys": [],
   "qa_scope": {
