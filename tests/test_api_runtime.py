@@ -97,6 +97,21 @@ def _configure_instantly(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv(name, value)
 
 
+# ─── activation explicite de la phrase « Pour vous » ────────────────────────
+
+
+def test_generated_for_you_is_disabled_until_backfill_activation(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("KIVOU_GENERATED_FOR_YOU_ENABLED", raising=False)
+
+    assert ApiConfig.from_environment().generated_for_you_enabled is False
+
+    monkeypatch.setenv("KIVOU_GENERATED_FOR_YOU_ENABLED", "true")
+
+    assert ApiConfig.from_environment().generated_for_you_enabled is True
+
+
 # ─── configuration Instantly atomique et expurgée ────────────────────────────
 
 

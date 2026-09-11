@@ -341,7 +341,10 @@ class ApiConfig:
                 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV
             ),
             acquisition_environment=acquisition_environment,
-            generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=True),
+            # L'activation d'environnement vient seulement après le backfill
+            # borné des comptes actifs. Le défaut fermé empêche un déploiement
+            # d'afficher un mélange involontaire de phrases générées et de replis.
+            generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=False),
         )
 
 
