@@ -89,6 +89,18 @@ describe('AcquisitionStatus', () => {
     expect(screen.queryByText(/NEW_RUNTIME_REASON/)).not.toBeInTheDocument()
   })
 
+  it('explique en français la limite quotidienne de la file assistée', () => {
+    render(
+      <AcquisitionStatus
+        status={{ ...STOPPED_STATUS, last_cycle_reason_code: 'DAILY_PENDING_CAP_REACHED' }}
+      />,
+    )
+
+    expect(
+      screen.getByText('Supprimé · Limite quotidienne de cibles en attente atteinte'),
+    ).toBeInTheDocument()
+  })
+
   it('explicite chaque donnée de cycle absente', () => {
     render(
       <AcquisitionStatus

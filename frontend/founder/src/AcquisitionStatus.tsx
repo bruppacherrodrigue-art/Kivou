@@ -27,6 +27,7 @@ const CYCLE_REASON_LABELS: Record<string, string> = {
   CURRENT_RUN_TECHNICAL_FAILURE: 'Échec technique du cycle',
   OPERATOR_ABANDONED: 'Cycle abandonné par l’opérateur',
   RUNTIME_CYCLE_REASON_INVALID: 'Motif du cycle indisponible',
+  DAILY_PENDING_CAP_REACHED: 'Limite quotidienne de cibles en attente atteinte',
 }
 
 export function AcquisitionStatus({ status, compact = false }: Props) {
