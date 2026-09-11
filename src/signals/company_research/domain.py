@@ -326,44 +326,55 @@ class SerperDomainSearchClient:
     def candidates(self, identity: SireneOrganizationCandidate) -> tuple[DomainResolution, ...]:
         name = normalized_organization_name(identity.display_name)
         city = normalized_city(identity.location or "")
-        query = " ".join(part for part in (name, city) if part)
-        response = self._client.post(
-            SERPER_SEARCH_URL,
-            json={"q": query, "gl": "fr", "hl": "fr", "num": 10},
-            headers={"x-api-key": self._api_key, "content-type": "application/json"},
+        queries = tuple(
+            dict.fromkeys(
+                (
+                    " ".join(part for part in (name, city) if part),
+                    " ".join(part for part in (name, city, "site officiel") if part),
+                    " ".join(part for part in (name, identity.department) if part),
+                )
+            )
         )
-        if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
-            return ()
-        payload = response.json()
-        organic = payload.get("organic") if isinstance(payload, dict) else None
-        if not isinstance(organic, list) or len(organic) > 10:
-            return ()
         expected_words = significant_name_words(name)
         expected_anchor = expected_words[0] if expected_words else None
-        candidates: list[DomainResolution] = []
-        for item in organic:
-            if not isinstance(item, dict):
+        for query in queries:
+            response = self._client.post(
+                SERPER_SEARCH_URL,
+                json={"q": query, "gl": "fr", "hl": "fr", "num": 10},
+                headers={"x-api-key": self._api_key, "content-type": "application/json"},
+            )
+            if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
                 continue
-            parsed = _domain_from_url(item.get("link"))
-            if parsed is None:
+            payload = response.json()
+            organic = payload.get("organic") if isinstance(payload, dict) else None
+            if not isinstance(organic, list) or len(organic) > 10:
                 continue
-            domain, website_url = parsed
-            title = str(item.get("title") or "")
-            if rejected_supplier_domain(domain, title):
-                continue
-            title_words = set(significant_name_words(title))
-            url_words = set(significant_name_words(website_url.replace(".", " ")))
-            if expected_anchor and expected_anchor in title_words | url_words:
-                candidates.append(
-                    DomainResolution(
-                        domain=domain,
-                        website_url=website_url,
-                        source="serper",
-                        query=query,
-                        observed_at=identity.provider_observed_at,
+            candidates: list[DomainResolution] = []
+            for item in organic:
+                if not isinstance(item, dict):
+                    continue
+                parsed = _domain_from_url(item.get("link"))
+                if parsed is None:
+                    continue
+                domain, website_url = parsed
+                title = str(item.get("title") or "")
+                if rejected_supplier_domain(domain, title):
+                    continue
+                title_words = set(significant_name_words(title))
+                url_words = set(significant_name_words(website_url.replace(".", " ")))
+                if expected_anchor and expected_anchor in title_words | url_words:
+                    candidates.append(
+                        DomainResolution(
+                            domain=domain,
+                            website_url=website_url,
+                            source="serper",
+                            query=query,
+                            observed_at=identity.provider_observed_at,
+                        )
                     )
-                )
-        return tuple(candidates)
+            if candidates:
+                return tuple(candidates)
+        return ()
 
 
 class CompanyDomainResolver:

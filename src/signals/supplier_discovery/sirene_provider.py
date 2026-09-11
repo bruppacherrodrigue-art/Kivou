@@ -97,6 +97,7 @@ class SireneOrganizationSearchProvider:
                 "linkedin_company_url": None,
                 "country_code": "FR",
                 "location": company.city,
+                "department": company.department,
                 "industry": f"{family_key}:{company.naf_code or ''}",
             }
             candidates.append(

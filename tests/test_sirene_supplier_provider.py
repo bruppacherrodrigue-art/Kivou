@@ -50,6 +50,7 @@ def test_sirene_provider_searches_each_family_and_never_apollo_organizations() -
 
     assert [call.naf_codes for call in fake.calls] == [("23.63Z",), ("43.99C",)]
     assert len(page.candidates) == 2
+    assert {candidate.department for candidate in page.candidates} == {"69"}
     assert {candidate.industry.split(":", 1)[0] for candidate in page.candidates} == {
         "ready_mix_concrete",
         "formwork",

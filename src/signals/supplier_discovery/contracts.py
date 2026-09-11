@@ -189,6 +189,7 @@ class SireneOrganizationCandidate(DiscoveryContract):
     linkedin_company_url: None = None
     country_code: Literal["FR"] = "FR"
     location: Annotated[str, StringConstraints(max_length=512)] | None = None
+    department: Annotated[str, StringConstraints(min_length=2, max_length=3)] | None = None
     industry: Annotated[str, StringConstraints(max_length=256)] | None = None
     provider_observed_at: dt.datetime
     source_fingerprint: Fingerprint

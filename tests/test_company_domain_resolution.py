@@ -113,6 +113,51 @@ def test_serper_returns_none_when_no_result_contains_significant_name_words() ->
     assert resolution is None
 
 
+def test_serper_retries_with_official_site_then_name_and_department() -> None:
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = str(json.loads(request.content)["q"])
+        queries.append(query)
+        if query.endswith("38"):
+            return httpx.Response(
+                200,
+                json={
+                    "organic": [
+                        {
+                            "title": "Escolle Béton — site officiel",
+                            "link": "https://escolle-beton.fr",
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "organic": [
+                    {"title": "Escolle Béton", "link": "https://societe.com/escolle"}
+                ]
+            },
+        )
+
+    resolution = CompanyDomainResolver(
+        official=lambda identity: None,
+        serper=SerperDomainSearchClient(
+            api_key="secret", client=httpx.Client(transport=httpx.MockTransport(handler))
+        ),
+        clock=lambda: NOW,
+    ).resolve(_identity(department="38"))
+
+    assert resolution is not None
+    assert resolution.domain == "escolle-beton.fr"
+    assert resolution.query == "Escolle Beton 38"
+    assert queries == [
+        "Escolle Beton Saint-Egreve",
+        "Escolle Beton Saint-Egreve site officiel",
+        "Escolle Beton 38",
+    ]
+
+
 def test_serper_rejects_public_directory_and_municipal_false_matches() -> None:
     client = httpx.Client(
         transport=httpx.MockTransport(
