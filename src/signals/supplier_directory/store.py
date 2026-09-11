@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Mapping
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 
 import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
@@ -24,6 +25,7 @@ class SupplierDirectoryRecord(BaseModel):
     naf_code: str | None = None
     naf_observed_at: dt.datetime | None = None
     family_keys: tuple[str, ...] = Field(default=())
+    family_review_keys: tuple[str, ...] = Field(default=())
     families_observed_at: dt.datetime
     department: str | None = None
     department_observed_at: dt.datetime | None = None
@@ -47,16 +49,22 @@ class SupplierDirectoryRecord(BaseModel):
     email_verification_status: str | None = None
     email_contact_name: str | None = None
     email_contact_title: str | None = None
+    email_evidence_url: str | None = None
     email_observed_at: dt.datetime | None = None
     contact_form_url: str | None = None
     contact_form_observed_at: dt.datetime | None = None
     reverification_required_at: dt.datetime | None = None
     reverification_reason: str | None = None
+    website_failure_count: int = 0
+    website_next_retry_at: dt.datetime | None = None
+    website_unreachable_at: dt.datetime | None = None
+    website_search_queries_completed: int = 0
+    website_search_results_examined: int = 0
     suppressed_at: dt.datetime | None = None
     created_at: dt.datetime
     updated_at: dt.datetime
 
-    @field_validator("family_keys", mode="before")
+    @field_validator("family_keys", "family_review_keys", mode="before")
     @classmethod
     def tuple_families(cls, value):
         return tuple(value or ())
@@ -79,6 +87,8 @@ class SupplierDirectoryRecord(BaseModel):
         "email_observed_at",
         "contact_form_observed_at",
         "reverification_required_at",
+        "website_next_retry_at",
+        "website_unreachable_at",
         "suppressed_at",
         "created_at",
         "updated_at",
@@ -208,8 +218,11 @@ class SupplierDirectoryStore:
                 "domain_validation_method": validation_method,
                 "domain_validation_evidence_url": validation_evidence_url,
                 "domain_observed_at": observed_at,
-                "reverification_required_at": None,
-                "reverification_reason": None,
+            "reverification_required_at": None,
+            "reverification_reason": None,
+            "website_failure_count": 0,
+            "website_next_retry_at": None,
+            "website_unreachable_at": None,
         }
         with self._engine.begin() as connection:
             if connection.dialect.name == "postgresql":
@@ -235,6 +248,7 @@ class SupplierDirectoryStore:
                     "email_verification_status": None,
                     "email_contact_name": None,
                     "email_contact_title": None,
+                    "email_evidence_url": None,
                     "email_observed_at": None,
                     "reverification_required_at": observed_at,
                     "reverification_reason": "shared_domain_blocklist",
@@ -282,7 +296,16 @@ class SupplierDirectoryStore:
             observed_at,
         )
 
-    def mark_without_website(self, siren: str, *, observed_at: dt.datetime) -> bool:
+    def mark_without_website(
+        self,
+        siren: str,
+        *,
+        search_queries_completed: int,
+        search_results_examined: int,
+        observed_at: dt.datetime,
+    ) -> bool:
+        if search_queries_completed < 3 or search_results_examined < 30:
+            return False
         return self._update(
             siren,
             {
@@ -294,6 +317,8 @@ class SupplierDirectoryStore:
                 "domain_observed_at": observed_at,
                 "reverification_required_at": None,
                 "reverification_reason": "no_website",
+                "website_search_queries_completed": search_queries_completed,
+                "website_search_results_examined": search_results_examined,
             },
             observed_at,
         )
@@ -305,7 +330,48 @@ class SupplierDirectoryStore:
             and record.domain is None
             and record.domain_source == "no_website"
             and record.reverification_reason == "no_website"
+            and record.website_search_queries_completed >= 3
+            and record.website_search_results_examined >= 30
         )
+
+    def record_website_connection_failure(
+        self, siren: str, *, observed_at: dt.datetime
+    ) -> bool:
+        _require_aware(observed_at)
+        with self._engine.begin() as connection:
+            row = connection.execute(
+                sa.select(supplier_directory.c.website_failure_count)
+                .where(supplier_directory.c.siren == siren)
+                .with_for_update()
+            ).one_or_none()
+            if row is None:
+                return False
+            failures = min(3, int(row.website_failure_count or 0) + 1)
+            return (
+                connection.execute(
+                    sa.update(supplier_directory)
+                    .where(supplier_directory.c.siren == siren)
+                    .values(
+                        website_failure_count=failures,
+                        website_next_retry_at=(
+                            observed_at + dt.timedelta(days=1) if failures <= 2 else None
+                        ),
+                        website_unreachable_at=observed_at if failures >= 3 else None,
+                        reverification_reason=(
+                            "website_unreachable" if failures >= 3 else "website_retry_pending"
+                        ),
+                        updated_at=observed_at,
+                    )
+                ).rowcount
+                == 1
+            )
+
+    def website_lookup_due(self, siren: str, *, at: dt.datetime) -> bool:
+        record = self.get(siren)
+        if record is None or record.website_unreachable_at is not None:
+            return False
+        retry_at = record.website_next_retry_at
+        return retry_at is None or retry_at <= at
 
     def record_directors(
         self,
@@ -340,6 +406,7 @@ class SupplierDirectoryStore:
         verification_status: str,
         contact_name: str,
         contact_title: str,
+        evidence_url: str | None = None,
         observed_at: dt.datetime,
     ) -> bool:
         _require_aware(observed_at)
@@ -353,14 +420,29 @@ class SupplierDirectoryStore:
             "email_verification_status": verification_status,
             "email_contact_name": contact_name,
             "email_contact_title": contact_title,
+            "email_evidence_url": evidence_url,
             "email_observed_at": observed_at,
         }
         with self._engine.begin() as connection:
+            matching_site_evidence = sa.false()
+            if source == "site" and evidence_url:
+                evidence_domain = (urlsplit(evidence_url).hostname or "").casefold().removeprefix(
+                    "www."
+                )
+                if evidence_domain:
+                    matching_site_evidence = (
+                        sa.func.lower(supplier_directory.c.domain) == evidence_domain
+                    )
+            trusted_address = sa.or_(
+                sa.func.lower(supplier_directory.c.domain) == email_domain,
+                source == "manual",
+                matching_site_evidence,
+            )
             result = connection.execute(
                 sa.update(supplier_directory)
                 .where(
                     supplier_directory.c.siren == siren,
-                    sa.func.lower(supplier_directory.c.domain) == email_domain,
+                    trusted_address,
                     supplier_directory.c.domain_validation_method.is_not(None),
                     supplier_directory.c.reverification_required_at.is_(None),
                     supplier_directory.c.suppressed_at.is_(None),
@@ -415,6 +497,7 @@ class SupplierDirectoryStore:
                 "email_verification_status": None,
                 "email_contact_name": None,
                 "email_contact_title": None,
+                "email_evidence_url": None,
                 "email_observed_at": None,
                 "contact_form_url": None,
                 "contact_form_observed_at": None,
@@ -438,8 +521,19 @@ class SupplierDirectoryStore:
             and record.domain
             and record.domain_validation_method
             and record.reverification_required_at is None
-            and record.professional_email.rsplit("@", 1)[-1].casefold()
-            == record.domain.casefold()
+            and (
+                record.professional_email.rsplit("@", 1)[-1].casefold()
+                == record.domain.casefold()
+                or record.email_source == "manual"
+                or (
+                    record.email_source == "site"
+                    and record.email_evidence_url is not None
+                    and (urlsplit(record.email_evidence_url).hostname or "")
+                    .casefold()
+                    .removeprefix("www.")
+                    == record.domain.casefold()
+                )
+            )
             and _fresh(record.email_observed_at, at)
             else None
         )
@@ -477,6 +571,7 @@ class SupplierDirectoryStore:
                     email_verification_status=None,
                     email_contact_name=None,
                     email_contact_title=None,
+                    email_evidence_url=None,
                     email_observed_at=at,
                     suppressed_at=at,
                     updated_at=at,

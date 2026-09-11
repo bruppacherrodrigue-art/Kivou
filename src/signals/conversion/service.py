@@ -13,12 +13,17 @@ from signals.conversion.contracts import (
     ATTRIBUTION_POLICY_VERSION,
     ATTRIBUTION_WINDOW,
     CONVERSION_EVENT_VERSION,
+    AttributionTokenPayload,
     ConversionMilestone,
 )
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring, IssuedAttributionToken
 from signals.decision_engine.policy import semantic_fingerprint
-from signals.persistence.schema import acquisition_conversion_event, acquisition_conversion_journey
+from signals.persistence.schema import (
+    acquisition_conversion_event,
+    acquisition_conversion_journey,
+    prospect_target,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -87,6 +92,11 @@ class ConversionAttributionService:
                 replayed=True,
             )
         payload = verified.payload
+        prospect_target_id = connection.scalar(
+            sa.select(prospect_target.c.target_id).where(
+                prospect_target.c.attribution_member_ref == payload.member_ref
+            )
+        )
         values = {
             "conversion_event_ref": event_ref,
             "journey_ref": None,
@@ -97,9 +107,12 @@ class ConversionAttributionService:
             "trigger_ref_type": "ATTRIBUTION_TOKEN",
             "trigger_ref": verified.token_fingerprint,
             "account_id": None,
-            "campaign_ref": payload.campaign_ref,
-            "member_ref": payload.member_ref,
-            "acquisition_opportunity_id": payload.acquisition_opportunity_id,
+            "prospect_target_id": prospect_target_id,
+            "campaign_ref": None if prospect_target_id else payload.campaign_ref,
+            "member_ref": None if prospect_target_id else payload.member_ref,
+            "acquisition_opportunity_id": (
+                None if prospect_target_id else payload.acquisition_opportunity_id
+            ),
             "occurred_at": at,
             "observed_at": at,
             "recorded_at": at,
@@ -107,6 +120,17 @@ class ConversionAttributionService:
         try:
             with connection.begin_nested():
                 connection.execute(sa.insert(acquisition_conversion_event).values(**values))
+                if prospect_target_id is not None:
+                    connection.execute(
+                        sa.update(prospect_target)
+                        .where(prospect_target.c.target_id == prospect_target_id)
+                        .values(
+                            clicked_at=at,
+                            delivery_status="clicked",
+                            version=prospect_target.c.version + 1,
+                            updated_at=at,
+                        )
+                    )
         except IntegrityError:
             existing = connection.execute(
                 sa.select(acquisition_conversion_event.c.conversion_event_ref).where(
@@ -159,6 +183,7 @@ class ConversionAttributionService:
             return None
 
         payload = verified.payload
+        prospect_target_id = click.get("prospect_target_id")
         journey_ref = semantic_fingerprint(
             {
                 "kind": "conversion-journey-v1",
@@ -183,9 +208,12 @@ class ConversionAttributionService:
             "journey_ref": journey_ref,
             "account_id": account_id,
             "source_click_event_ref": click["conversion_event_ref"],
-            "campaign_ref": payload.campaign_ref,
-            "member_ref": payload.member_ref,
-            "acquisition_opportunity_id": payload.acquisition_opportunity_id,
+            "prospect_target_id": prospect_target_id,
+            "campaign_ref": None if prospect_target_id else payload.campaign_ref,
+            "member_ref": None if prospect_target_id else payload.member_ref,
+            "acquisition_opportunity_id": (
+                None if prospect_target_id else payload.acquisition_opportunity_id
+            ),
             "token_fingerprint": verified.token_fingerprint,
             "token_version": verified.token_version,
             "token_key_version": verified.key_version,
@@ -220,9 +248,12 @@ class ConversionAttributionService:
             "trigger_ref_type": "ACCOUNT_CREATED",
             "trigger_ref": account_id,
             "account_id": account_id,
-            "campaign_ref": payload.campaign_ref,
-            "member_ref": payload.member_ref,
-            "acquisition_opportunity_id": payload.acquisition_opportunity_id,
+            "prospect_target_id": prospect_target_id,
+            "campaign_ref": None if prospect_target_id else payload.campaign_ref,
+            "member_ref": None if prospect_target_id else payload.member_ref,
+            "acquisition_opportunity_id": (
+                None if prospect_target_id else payload.acquisition_opportunity_id
+            ),
             "occurred_at": observed,
             "observed_at": observed,
             "recorded_at": observed,
@@ -301,13 +332,28 @@ class ConversionAttributionService:
         ).mappings().one_or_none()
         if row is None:
             return None
+        if row["prospect_target_id"] is not None:
+            payload = AttributionTokenPayload.model_validate(
+                connection.scalar(
+                    sa.select(prospect_target.c.attribution_payload).where(
+                        prospect_target.c.target_id == row["prospect_target_id"]
+                    )
+                )
+            )
+            campaign_ref = payload.campaign_ref
+            member_ref = payload.member_ref
+            acquisition_opportunity_id = payload.acquisition_opportunity_id
+        else:
+            campaign_ref = row["campaign_ref"]
+            member_ref = row["member_ref"]
+            acquisition_opportunity_id = row["acquisition_opportunity_id"]
         return JourneyResult(
             journey_ref=row["journey_ref"],
             account_id=row["account_id"],
             source_click_event_ref=row["source_click_event_ref"],
-            campaign_ref=row["campaign_ref"],
-            member_ref=row["member_ref"],
-            acquisition_opportunity_id=row["acquisition_opportunity_id"],
+            campaign_ref=campaign_ref,
+            member_ref=member_ref,
+            acquisition_opportunity_id=acquisition_opportunity_id,
         )
 
 

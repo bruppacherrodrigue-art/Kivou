@@ -37,6 +37,7 @@ endroit.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from sqlalchemy.engine import Engine
 
 from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
 from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
@@ -44,10 +45,13 @@ from signals.api.app import create_app
 from signals.api.config import ApiConfig
 from signals.billing.gateway import StripeApiGateway
 from signals.campaigns.runtime_webhook import (
+    InstantlyWebhookRuntimeConfiguration,
     build_instantly_webhook_service,
     load_instantly_webhook_runtime_config,
 )
+from signals.conversion.token import AttributionTokenKeyring
 from signals.persistence.database import create_database_engine
+from signals.prospection_actions.unsubscribe import ProspectUnsubscribeService
 from signals.runtime_events import configure_runtime_event_logging
 
 
@@ -73,6 +77,31 @@ def build_application() -> FastAPI:
             if webhook_configuration is not None
             else None
         ),
+        prospect_unsubscribe_service=_prospect_unsubscribe_service(
+            engine, config, webhook_configuration
+        ),
+    )
+
+
+def _prospect_unsubscribe_service(
+    engine: Engine,
+    config: ApiConfig,
+    webhook_configuration: InstantlyWebhookRuntimeConfiguration | None,
+) -> ProspectUnsubscribeService | None:
+    key_version = config.attribution_hmac_key_version
+    if (
+        config.attribution_hmac_key is None
+        or key_version is None
+        or webhook_configuration is None
+    ):
+        return None
+    return ProspectUnsubscribeService(
+        engine,
+        attribution_keyring=AttributionTokenKeyring(
+            current_key_version=key_version,
+            keys={key_version: config.attribution_hmac_key},
+        ),
+        suppression_keyring=webhook_configuration.suppression_keyring,
     )
 
 

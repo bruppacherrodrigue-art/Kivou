@@ -172,7 +172,12 @@ def test_directory_marks_missing_website_without_expiration(tmp_path) -> None:
         observed_at=NOW,
     )
 
-    assert store.mark_without_website("331364729", observed_at=NOW)
+    assert store.mark_without_website(
+        "331364729",
+        search_queries_completed=3,
+        search_results_examined=30,
+        observed_at=NOW,
+    )
     assert store.permanently_without_website("331364729")
     assert store.permanently_without_website("331364729")
 
@@ -331,6 +336,95 @@ def test_directory_rejects_email_outside_the_validated_company_domain(tmp_path) 
 
     assert recorded is False
     assert store.get("331364729").professional_email is None
+
+
+def test_directory_accepts_cross_domain_email_published_on_confirmed_site(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ALTRAD PREZIOSO",
+        naf_code="43.99C",
+        family_key="scaffolding",
+        department="69",
+        city="CHASSE-SUR-RHONE",
+        employees=120,
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="altrad-prezioso.fr",
+        website_url="https://altrad-prezioso.fr",
+        source="serper",
+        validation_method="registration_number",
+        validation_evidence_url="https://altrad-prezioso.fr/mentions-legales",
+        observed_at=NOW,
+    )
+
+    recorded = store.record_email(
+        "331364729",
+        email="contact@altrad.com",
+        source="site",
+        verification_status="mx_verified",
+        contact_name="ALTRAD PREZIOSO",
+        contact_title="Entreprise",
+        evidence_url="https://altrad-prezioso.fr/contact",
+        observed_at=NOW,
+    )
+
+    assert recorded is True
+    record = store.fresh_email("331364729", at=NOW + dt.timedelta(days=1))
+    assert record is not None
+    assert record.professional_email == "contact@altrad.com"
+    assert record.email_evidence_url == "https://altrad-prezioso.fr/contact"
+
+
+def test_directory_retries_two_connection_failures_at_one_day_before_unreachable(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ALTRAD PREZIOSO",
+        naf_code="43.99C",
+        family_key="scaffolding",
+        department="69",
+        city="CHASSE-SUR-RHONE",
+        employees=120,
+        observed_at=NOW,
+    )
+
+    for attempt in range(1, 4):
+        store.record_website_connection_failure(
+            "331364729", observed_at=NOW + dt.timedelta(days=attempt - 1)
+        )
+        record = store.get("331364729")
+        assert record.website_failure_count == attempt
+        if attempt <= 2:
+            assert record.website_next_retry_at == NOW + dt.timedelta(days=attempt)
+            assert record.website_unreachable_at is None
+        else:
+            assert record.website_next_retry_at is None
+            assert record.website_unreachable_at == NOW + dt.timedelta(days=2)
+
+
+def test_directory_refuses_permanent_no_site_before_three_full_serper_queries(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ENTREPRISE GIRARD",
+        naf_code="43.99C",
+        family_key="formwork",
+        department="26",
+        city="VALENCE",
+        employees=20,
+        observed_at=NOW,
+    )
+
+    assert not store.mark_without_website(
+        "331364729",
+        search_queries_completed=2,
+        search_results_examined=20,
+        observed_at=NOW,
+    )
+    assert store.permanently_without_website("331364729") is False
 
 
 def test_directory_does_not_reuse_email_after_validated_domain_changes(tmp_path) -> None:

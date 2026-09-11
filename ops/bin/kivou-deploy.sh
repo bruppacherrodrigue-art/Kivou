@@ -137,6 +137,7 @@ required = {
     "KIVOU_FOUNDER_ALLOWED_USER",
     "KIVOU_FOUNDER_ORIGIN_SECRET",
     "KIVOU_FOUNDER_DATABASE_URL",
+    "KIVOU_FOUNDER_WRITE_DATABASE_URL",
 }
 values: dict[str, str] = {}
 with open(sys.argv[1], encoding="utf-8") as stream:
@@ -160,6 +161,11 @@ if values["KIVOU_FOUNDER_ALLOWED_USER"] != "rodrigue":
 if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", values["KIVOU_FOUNDER_ALLOWED_EMAIL"]):
     raise SystemExit(1)
 if not re.match(r"^postgresql(?:\+psycopg)?://", values["KIVOU_FOUNDER_DATABASE_URL"]):
+    raise SystemExit(1)
+if not re.match(
+    r"^postgresql(?:\+psycopg)?://kivou_founder_rw:",
+    values["KIVOU_FOUNDER_WRITE_DATABASE_URL"],
+):
     raise SystemExit(1)
 secret = values["KIVOU_FOUNDER_ORIGIN_SECRET"]
 if len(secret.encode("utf-8")) < 32:

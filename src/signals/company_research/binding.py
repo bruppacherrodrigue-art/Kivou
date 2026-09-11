@@ -14,7 +14,11 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy.engine import Engine
 
 from signals.company_research.contracts import CompanyResearchProviderError
-from signals.company_research.domain import CompanyDomainResolver, DomainResolution
+from signals.company_research.domain import (
+    CompanyDomainResolver,
+    DomainResolution,
+    DomainResolutionTemporaryFailure,
+)
 from signals.company_research.profile import build_company_research_profile
 from signals.company_research.provider import CompanyResearchProvider
 from signals.persistence.conflicts import insert_if_absent
@@ -172,10 +176,27 @@ class SireneApolloResolver:
             self._directory is not None
             and self._directory.permanently_without_website(identity.provider_organization_id)
         )
+        website_lookup_deferred = bool(
+            self._directory is not None
+            and not permanently_without_website
+            and cached_domain is None
+            and not self._directory.website_lookup_due(
+                identity.provider_organization_id, at=now
+            )
+        )
         if permanently_without_website:
             logger.info(
                 "supplier_directory_provider_call_avoided",
                 extra={"provider": "serper", "siren": identity.provider_organization_id},
+            )
+            domain_resolution = None
+        elif website_lookup_deferred:
+            logger.info(
+                "supplier_directory_provider_call_avoided",
+                extra={
+                    "provider": "serper_retry_window",
+                    "siren": identity.provider_organization_id,
+                },
             )
             domain_resolution = None
         elif cached_domain is not None:
@@ -192,11 +213,18 @@ class SireneApolloResolver:
                 observed_at=cached_domain.domain_observed_at or now,
             )
         else:
-            domain_resolution = (
-                self._domain_resolver.resolve(identity)
-                if self._domain_resolver is not None
-                else None
-            )
+            try:
+                domain_resolution = (
+                    self._domain_resolver.resolve(identity)
+                    if self._domain_resolver is not None
+                    else None
+                )
+            except DomainResolutionTemporaryFailure:
+                domain_resolution = None
+                if self._directory is not None:
+                    self._directory.record_website_connection_failure(
+                        identity.provider_organization_id, observed_at=now
+                    )
             if self._directory is not None and domain_resolution is not None:
                 recorded = self._directory.record_domain(
                     identity.provider_organization_id,
@@ -213,9 +241,17 @@ class SireneApolloResolver:
                 self._directory is not None
                 and self._domain_resolver is not None
                 and domain_resolution is None
+                and not website_lookup_deferred
             ):
                 self._directory.mark_without_website(
-                    identity.provider_organization_id, observed_at=now
+                    identity.provider_organization_id,
+                    search_queries_completed=int(
+                        getattr(self._domain_resolver, "search_queries_completed", 0)
+                    ),
+                    search_results_examined=int(
+                        getattr(self._domain_resolver, "search_results_examined", 0)
+                    ),
+                    observed_at=now,
                 )
         domain = domain_resolution.domain if domain_resolution is not None else None
         if self._directory is not None and self._directory.permanently_without_website(

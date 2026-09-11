@@ -843,6 +843,7 @@ supplier_directory = sa.Table(
     sa.Column("naf_code", sa.String(8)),
     sa.Column("naf_observed_at", sa.DateTime(timezone=True)),
     sa.Column("family_keys", sa.JSON, nullable=False),
+    sa.Column("family_review_keys", sa.JSON, nullable=False, server_default="[]"),
     sa.Column("families_observed_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("department", sa.String(3)),
     sa.Column("department_observed_at", sa.DateTime(timezone=True)),
@@ -866,17 +867,27 @@ supplier_directory = sa.Table(
     sa.Column("email_verification_status", sa.String(32)),
     sa.Column("email_contact_name", sa.Text),
     sa.Column("email_contact_title", sa.Text),
+    sa.Column("email_evidence_url", sa.Text),
     sa.Column("email_observed_at", sa.DateTime(timezone=True)),
     sa.Column("contact_form_url", sa.Text),
     sa.Column("contact_form_observed_at", sa.DateTime(timezone=True)),
     sa.Column("reverification_required_at", sa.DateTime(timezone=True)),
     sa.Column("reverification_reason", sa.String(128)),
+    sa.Column("website_failure_count", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("website_next_retry_at", sa.DateTime(timezone=True)),
+    sa.Column("website_unreachable_at", sa.DateTime(timezone=True)),
+    sa.Column("website_search_queries_completed", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("website_search_results_examined", sa.Integer, nullable=False, server_default="0"),
     sa.Column("suppressed_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("length(siren) = 9", name="ck_supplier_directory_siren"),
     sa.CheckConstraint(
         "employees IS NULL OR employees >= 0", name="ck_supplier_directory_employees"
+    ),
+    sa.CheckConstraint(
+        "website_failure_count BETWEEN 0 AND 3",
+        name="ck_supplier_directory_website_failures",
     ),
     sa.CheckConstraint(
         "email_source IS NULL OR email_source IN ('apollo', 'site', 'manual')",
@@ -890,6 +901,168 @@ supplier_directory = sa.Table(
         "domain_validation_method IS NULL OR "
         "domain_validation_method IN ('name_word', 'registration_number')",
         name="ck_supplier_directory_domain_validation_method",
+    ),
+)
+
+
+prospect_target = sa.Table(
+    "prospect_target",
+    METADATA,
+    sa.Column("target_id", sa.String(36), primary_key=True),
+    sa.Column("version", sa.Integer, nullable=False, server_default=sa.text("1")),
+    sa.Column("cycle_ref", sa.String(64), index=True),
+    sa.Column("opportunity_key", sa.String(256), nullable=False, index=True),
+    sa.Column("procedure_award_key", sa.String(256), nullable=False),
+    sa.Column("acquisition_opportunity_id", sa.String(64)),
+    sa.Column(
+        "siren",
+        sa.String(9),
+        sa.ForeignKey("supplier_directory.siren", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    ),
+    sa.Column("company_name", sa.Text, nullable=False),
+    sa.Column("company_city", sa.Text, nullable=False),
+    sa.Column("company_employees", sa.Integer, nullable=False),
+    sa.Column("vertical", sa.String(100), nullable=False),
+    sa.Column("family_key", sa.String(100), nullable=False),
+    sa.Column("family_label", sa.Text, nullable=False),
+    sa.Column("director_name", sa.Text),
+    sa.Column("director_title", sa.Text),
+    sa.Column("director_source", sa.String(16)),
+    sa.Column("email_address", sa.String(320), nullable=False),
+    sa.Column("email_source", sa.String(16), nullable=False),
+    sa.Column("email_verification_status", sa.String(32), nullable=False),
+    sa.Column("email_evidence_url", sa.Text),
+    sa.Column("signal_holder", sa.Text, nullable=False),
+    sa.Column("signal_subject", sa.Text, nullable=False),
+    sa.Column("signal_amount_minor_units", sa.BigInteger, nullable=False),
+    sa.Column("signal_currency", sa.String(3), nullable=False),
+    sa.Column("signal_location", sa.Text, nullable=False),
+    sa.Column("signal_decision_date", sa.Date, nullable=False),
+    sa.Column("signal_source_url", sa.Text, nullable=False),
+    sa.Column("mail_subject", sa.Text, nullable=False),
+    sa.Column("mail_text", sa.Text, nullable=False),
+    sa.Column("mail_html", sa.Text, nullable=False),
+    sa.Column("attribution_url", sa.Text, nullable=False),
+    sa.Column("attribution_member_ref", sa.String(64), nullable=False, unique=True),
+    sa.Column("attribution_payload", sa.JSON, nullable=False),
+    sa.Column("attribution_token_fingerprint", sa.String(64), nullable=False),
+    sa.Column("unsubscribe_url", sa.Text, nullable=False),
+    sa.Column("mail_word_count", sa.Integer, nullable=False),
+    sa.Column("status", sa.String(16), nullable=False, index=True),
+    sa.Column("rejection_reason", sa.String(32)),
+    sa.Column("rejection_comment", sa.Text),
+    sa.Column("approved_at", sa.DateTime(timezone=True)),
+    sa.Column("approved_by", sa.String(320)),
+    sa.Column("rejected_at", sa.DateTime(timezone=True)),
+    sa.Column("rejected_by", sa.String(320)),
+    sa.Column("delivery_status", sa.String(16), nullable=False, server_default="not_sent"),
+    sa.Column("provider_campaign_id", sa.String(128)),
+    sa.Column("instantly_id", sa.String(128)),
+    sa.Column("send_request_id", sa.String(36)),
+    sa.Column("sent_at", sa.DateTime(timezone=True)),
+    sa.Column("opened_at", sa.DateTime(timezone=True)),
+    sa.Column("clicked_at", sa.DateTime(timezone=True)),
+    sa.Column("replied_at", sa.DateTime(timezone=True)),
+    sa.Column("bounced_at", sa.DateTime(timezone=True)),
+    sa.Column("unsubscribed_at", sa.DateTime(timezone=True)),
+    sa.Column("reply_classification", sa.String(32)),
+    sa.Column("instantly_credit_units", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("instantly_request_count", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("delivery_error", sa.Text),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, index=True),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("version >= 1", name="ck_prospect_target_version"),
+    sa.CheckConstraint("company_employees >= 10", name="ck_prospect_target_employees"),
+    sa.CheckConstraint(
+        "status IN ('pending_review', 'approved', 'rejected', 'sent')",
+        name="ck_prospect_target_status",
+    ),
+    sa.CheckConstraint(
+        "rejection_reason IS NULL OR rejection_reason IN "
+        "('wrong_company', 'wrong_address', 'off_topic', 'other')",
+        name="ck_prospect_target_rejection_reason",
+    ),
+    sa.CheckConstraint(
+        "email_source IN ('apollo', 'site', 'manual')",
+        name="ck_prospect_target_email_source",
+    ),
+    sa.CheckConstraint(
+        "email_verification_status IN ('mx_verified', 'mx_failed')",
+        name="ck_prospect_target_email_verification",
+    ),
+    sa.CheckConstraint("mail_word_count BETWEEN 1 AND 120", name="ck_prospect_target_words"),
+    sa.CheckConstraint(
+        "instantly_credit_units >= 0 AND instantly_request_count >= 0",
+        name="ck_prospect_target_delivery_cost",
+    ),
+    sa.UniqueConstraint(
+        "opportunity_key", "email_address", name="uq_prospect_target_signal_email"
+    ),
+    sa.Index("ix_prospect_target_daily_status", "created_at", "status"),
+)
+
+prospect_delivery_event = sa.Table(
+    "prospect_delivery_event",
+    METADATA,
+    sa.Column("event_fingerprint", sa.String(64), primary_key=True),
+    sa.Column(
+        "target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="CASCADE"),
+    ),
+    sa.Column("provider_campaign_id", sa.String(128), nullable=False),
+    sa.Column("provider_event_type", sa.String(64), nullable=False),
+    sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_prospect_delivery_event_target_time", "target_id", "occurred_at"),
+)
+
+
+prospect_target_history = sa.Table(
+    "prospect_target_history",
+    METADATA,
+    sa.Column("history_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
+    sa.Column("event_type", sa.String(32), nullable=False),
+    sa.Column("actor", sa.String(320), nullable=False),
+    sa.Column("previous_values", sa.JSON, nullable=False),
+    sa.Column("new_values", sa.JSON, nullable=False),
+    sa.Column("reason", sa.String(32)),
+    sa.Column("comment", sa.Text),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+
+prospect_send_request = sa.Table(
+    "prospect_send_request",
+    METADATA,
+    sa.Column("request_id", sa.String(36), primary_key=True),
+    sa.Column("payload_fingerprint", sa.String(64), nullable=False),
+    sa.Column("target_ids", sa.JSON, nullable=False),
+    sa.Column("request_day", sa.Date, nullable=False, index=True),
+    sa.Column("reserved_count", sa.Integer, nullable=False),
+    sa.Column("sent_count", sa.Integer, nullable=False, server_default="0"),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("result", sa.JSON),
+    sa.Column("error", sa.Text),
+    sa.Column("created_by", sa.String(320), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "status IN ('started', 'completed', 'partial', 'failed')",
+        name="ck_prospect_send_request_status",
+    ),
+    sa.CheckConstraint(
+        "reserved_count BETWEEN 1 AND 25 AND sent_count BETWEEN 0 AND reserved_count",
+        name="ck_prospect_send_request_counts",
     ),
 )
 
@@ -2153,22 +2326,27 @@ acquisition_conversion_journey = sa.Table(
     ),
     sa.Column("source_click_event_ref", sa.String(64), nullable=False, index=True),
     sa.Column(
+        "prospect_target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="RESTRICT"),
+    ),
+    sa.Column(
         "campaign_ref",
         sa.String(64),
         sa.ForeignKey("acquisition_campaign.campaign_ref", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "member_ref",
         sa.String(64),
         sa.ForeignKey("acquisition_campaign_member.member_ref", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
         sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     ),
     sa.Column("token_fingerprint", sa.String(64), nullable=False),
     sa.Column("token_version", sa.String(64), nullable=False),
@@ -2191,6 +2369,13 @@ acquisition_conversion_journey = sa.Table(
         "clicked_at <= signed_up_at AND signed_up_at <= attribution_expires_at",
         name="ck_conversion_journey_window",
     ),
+    sa.CheckConstraint(
+        "(prospect_target_id IS NULL AND campaign_ref IS NOT NULL AND member_ref IS NOT NULL "
+        "AND acquisition_opportunity_id IS NOT NULL) OR "
+        "(prospect_target_id IS NOT NULL AND campaign_ref IS NULL AND member_ref IS NULL "
+        "AND acquisition_opportunity_id IS NULL)",
+        name="ck_conversion_journey_source",
+    ),
     sa.Index("ix_conversion_journey_campaign", "campaign_ref", "signed_up_at"),
 )
 
@@ -2211,6 +2396,11 @@ acquisition_conversion_event = sa.Table(
     sa.Column("trigger_ref_type", sa.String(64)),
     sa.Column("trigger_ref", sa.String(256)),
     sa.Column("account_id", sa.String(64), sa.ForeignKey("account.account_id")),
+    sa.Column(
+        "prospect_target_id",
+        sa.String(36),
+        sa.ForeignKey("prospect_target.target_id", ondelete="RESTRICT"),
+    ),
     sa.Column(
         "campaign_ref",
         sa.String(64),

@@ -9,7 +9,7 @@ from signals.persistence.schema import METADATA, acquisition_event, acquisition_
 
 PREVIOUS_REVISION = "0006_award_text_capacity"
 ACQUISITION_REVISION = "0007_acquisition_event_store"
-CURRENT_HEAD = "0050_supplier_domain_validation"
+CURRENT_HEAD = "0051_assisted_prospection"
 
 
 def test_upgrade_from_0006_adds_only_acquisition_memory_tables(tmp_path) -> None:

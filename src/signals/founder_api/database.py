@@ -7,6 +7,7 @@ import os
 import sqlalchemy as sa
 
 FOUNDER_DATABASE_URL_ENV = "KIVOU_FOUNDER_DATABASE_URL"
+FOUNDER_WRITE_DATABASE_URL_ENV = "KIVOU_FOUNDER_WRITE_DATABASE_URL"
 FOUNDER_STATEMENT_TIMEOUT_MS = 10_000
 
 
@@ -67,9 +68,59 @@ def create_founder_database_engine(url: str | None = None) -> sa.Engine:
     return engine
 
 
+def resolve_founder_write_database_url(url: str | None = None) -> str:
+    if url:
+        return url
+    configured = os.environ.get(FOUNDER_WRITE_DATABASE_URL_ENV)
+    if not configured:
+        raise RuntimeError(
+            f"{FOUNDER_WRITE_DATABASE_URL_ENV} n'est pas défini : les actions "
+            "Founder restent fermées"
+        )
+    return configured
+
+
+def create_founder_write_database_engine(url: str | None = None) -> sa.Engine:
+    """Create the separately credentialed, narrowly granted Founder writer."""
+
+    resolved = resolve_founder_write_database_url(url)
+    parsed = sa.engine.make_url(resolved)
+    if parsed.get_backend_name() != "postgresql":
+        raise RuntimeError("les actions Founder exigent PostgreSQL")
+    if parsed.username != "kivou_founder_rw":
+        raise RuntimeError("les actions Founder exigent le rôle kivou_founder_rw")
+    engine = sa.create_engine(
+        resolved,
+        future=True,
+        pool_pre_ping=True,
+        pool_size=2,
+        max_overflow=0,
+        pool_timeout=5,
+        connect_args={
+            "connect_timeout": 5,
+            "options": (
+                "-c application_name=kivou-founder-actions "
+                f"-c statement_timeout={FOUNDER_STATEMENT_TIMEOUT_MS}"
+            ),
+        },
+    )
+
+    @sa.event.listens_for(engine, "engine_connect")
+    def _verify_writer(connection: sa.Connection) -> None:
+        role = connection.exec_driver_sql("SELECT current_user").scalar_one()
+        read_only = connection.exec_driver_sql("SHOW transaction_read_only").scalar_one()
+        if role != "kivou_founder_rw" or read_only != "off":
+            raise RuntimeError("la connexion d'actions Founder n'utilise pas le rôle attendu")
+
+    return engine
+
+
 __all__ = [
     "FOUNDER_DATABASE_URL_ENV",
     "FOUNDER_STATEMENT_TIMEOUT_MS",
+    "FOUNDER_WRITE_DATABASE_URL_ENV",
     "create_founder_database_engine",
+    "create_founder_write_database_engine",
     "resolve_founder_database_url",
+    "resolve_founder_write_database_url",
 ]

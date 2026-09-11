@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import os
+import re
 import signal
 import sys
 from collections.abc import Callable
@@ -21,10 +22,21 @@ from signals.acquisition_runtime.events import configure_acquisition_runtime_log
 from signals.acquisition_runtime.shadow_store import latest_shadow_mails
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.persistence.database import create_database_engine
+from signals.prospection_actions.stats import assisted_stats
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
 RuntimeDependencyExecutor = Callable[[], tuple[RuntimeStageDependency, ...]]
 _EXPECTED_DEPENDENCY_COUNT = 11
+_SINCE_RE = re.compile(r"^(?P<value>[1-9]\d{0,3})(?P<unit>[hd])$")
+
+
+def _since_boundary(value: str, *, now: dt.datetime) -> dt.datetime:
+    match = _SINCE_RE.fullmatch(value)
+    if match is None:
+        raise ValueError("since must use Nh or Nd")
+    amount = int(match.group("value"))
+    delta = dt.timedelta(hours=amount) if match.group("unit") == "h" else dt.timedelta(days=amount)
+    return now - delta
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):
@@ -127,13 +139,22 @@ def main(
     if arguments.command == "stats":
         try:
             engine = create_database_engine()
-            with engine.connect() as connection:
-                from signals.persistence.schema import acquisition_runtime_cycle
-
-                count = connection.execute(
-                    sa.select(sa.func.count()).select_from(acquisition_runtime_cycle)
-                ).scalar_one()
-            print(f"cycles={count} mails_generated={len(latest_shadow_mails(engine, limit=20))}")
+            result = assisted_stats(
+                engine,
+                since=_since_boundary(arguments.since, now=dt.datetime.now(dt.UTC)),
+            )
+            rejection = ",".join(
+                f"{reason}:{count}"
+                for reason, count in sorted(result.rejected_by_reason.items())
+            ) or "none"
+            print(
+                f"cycles={result.cycles} prepared={result.prepared} "
+                f"approved={result.approved} rejected={rejection} sent={result.sent} "
+                f"opened={result.opened} clicks={result.clicks} "
+                f"landings={result.landings} profiles_confirmed={result.profiles_confirmed} "
+                f"instantly_credits={result.instantly_credit_units} "
+                f"instantly_requests={result.instantly_request_count}"
+            )
         except (OSError, sa.exc.SQLAlchemyError, ValueError):
             print("status=STATS_UNAVAILABLE")
             return 1

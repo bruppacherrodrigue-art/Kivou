@@ -19,7 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0050_supplier_domain_validation"
+CURRENT_HEAD = "0051_assisted_prospection"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",
@@ -46,6 +46,7 @@ def test_linear_head_and_exactly_two_spec028_tables(tmp_path) -> None:
         "journey_ref",
         "account_id",
         "source_click_event_ref",
+        "prospect_target_id",
         "campaign_ref",
         "member_ref",
         "acquisition_opportunity_id",
@@ -96,7 +97,7 @@ def test_0018_upgrade_downgrade_and_reupgrade(tmp_path) -> None:
 def test_core_schema_matches_migration(tmp_path) -> None:
     migrated = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'migrated.db'}")
     core = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'core.db'}")
-    command.upgrade(alembic_config(migrated), HEAD)
+    command.upgrade(alembic_config(migrated), CURRENT_HEAD)
     METADATA.create_all(core)
 
     for table in SPEC028_TABLES:

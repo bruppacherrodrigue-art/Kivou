@@ -1,6 +1,15 @@
-# Runtime Acquisition PRODUCTION/SHADOW — phase 1
+# Runtime Acquisition PRODUCTION/ASSISTED — revue humaine
+
+La configuration déployée porte `mode: ASSISTED`. Chaque cycle prépare au plus
+25 lignes `pending_review` sur au plus cinq signaux dans la journée, puis
+s'arrête avant tout transport. `SHADOW` reste documenté ci-dessous comme état
+historique et procédure de diagnostic ; il ne correspond plus au mode hôte.
 
 Le coupe-circuit immédiat est `systemctl stop kivou-acquisition-production.timer`.
+Le fichier `/etc/kivou/acquisition.disabled` bloque également chaque cycle et
+chaque action Founder d'envoi. En mode `assisted`, le timer ne transporte aucun
+message : seul `POST /api/founder/actions/prospection/send`, après validation,
+obtient une autorisation bornée aux identifiants demandés.
 Chaque cycle relit aussi `/etc/kivou/acquisition.disabled`; sa présence bloque
 le cycle avant tout appel fournisseur. Pour reprendre, supprimer ce fichier
 après contrôle opérateur puis démarrer le timer.

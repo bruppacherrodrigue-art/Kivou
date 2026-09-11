@@ -6,18 +6,23 @@ import datetime as dt
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from signals.founder_api.access import FounderIdentityDependency
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
 from signals.founder_api.prospection import FounderDirectoryStatus, FounderProspection
+from signals.founder_api.prospection_actions import build_prospection_actions_router
 from signals.founder_api.read_models import (
     FounderConsoleOverview,
     FounderProcedureDocumentReview,
     FounderReadService,
 )
+from signals.prospection_actions.service import ProspectionActions
 
 
 def create_founder_app(
@@ -25,8 +30,9 @@ def create_founder_app(
     *,
     now_override: Callable[[], dt.datetime] | None = None,
     read_service: FounderReadService | None = None,
+    prospection_actions: ProspectionActions | None = None,
 ) -> FastAPI:
-    """Build the Founder API without mounting any customer or write route."""
+    """Build the isolated Founder API with an optional least-privilege action service."""
 
     app = FastAPI(
         title="Kivou Founder Control",
@@ -38,6 +44,31 @@ def create_founder_app(
     app.state.config = config
     app.state.now_override = now_override
     app.state.read_service = read_service
+    app.state.prospection_actions = prospection_actions
+    if prospection_actions is not None:
+        app.include_router(build_prospection_actions_router(prospection_actions))
+
+        @app.exception_handler(RequestValidationError)
+        async def _action_validation_error(
+            request: Request, error: RequestValidationError
+        ) -> JSONResponse:
+            if not request.url.path.startswith("/api/founder/actions/prospection/"):
+                return await request_validation_exception_handler(request, error)
+            rejection_reason = request.url.path.endswith("/reject") and any(
+                tuple(item.get("loc", ())) == ("body", "reason")
+                for item in error.errors()
+            )
+            code = "INVALID_REJECTION_REASON" if rejection_reason else "INVALID_ACTION_PAYLOAD"
+            return JSONResponse(
+                status_code=422,
+                content={
+                    "detail": {
+                        "code": code,
+                        "message": "requête d'action invalide",
+                        "target_ids": [],
+                    }
+                },
+            )
 
     def now() -> dt.datetime:
         return now_override() if now_override is not None else dt.datetime.now(dt.UTC)

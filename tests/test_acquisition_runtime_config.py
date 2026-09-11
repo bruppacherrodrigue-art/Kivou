@@ -201,9 +201,11 @@ def test_runtime_limits_are_small_and_lease_outlives_wall_clock(field, value) ->
         AcquisitionRuntimeLimits.model_validate(limits)
 
 
-def test_deployment_is_shadow_qa_only_and_provider_capability_is_explicit() -> None:
+def test_deployment_allows_assisted_but_remains_qa_only_and_provider_capability_explicit() -> None:
+    assisted = AcquisitionRuntimeDeployment.model_validate(_document(mode="ASSISTED"))
+    assert assisted.mode is RuntimeExecutionMode.ASSISTED
+
     for update in (
-        {"mode": "ASSISTED"},
         {"qa_only": False},
         {"qa_provider_mutations_capable": False},
     ):

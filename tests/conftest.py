@@ -71,6 +71,7 @@ EXHAUSTIVE_MIGRATION_SUITES = frozenset(
         "test_persistence_migrations.py",
         "test_personalization_migration.py",
         "test_portal_capture_migration.py",
+        "test_prospection_actions_migration.py",
         "test_reliability_operations_migration.py",
         "test_response_intelligence_migration.py",
         "test_saas_company_migration.py",

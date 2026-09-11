@@ -141,6 +141,8 @@ def test_missing_website_is_permanent_and_skips_serper_and_apollo_on_replay(tmp_
 
     class MissingDomainResolver:
         calls = 0
+        search_queries_completed = 3
+        search_results_examined = 30
 
         def resolve(self, identity):
             self.calls += 1

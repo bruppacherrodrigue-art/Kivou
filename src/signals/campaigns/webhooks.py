@@ -221,6 +221,17 @@ class ResponseIngressHandler(Protocol):
     ) -> str: ...
 
 
+class AssistedProspectIngress(Protocol):
+    def handles(self, payload: InstantlyWebhookPayload) -> bool: ...
+
+    def ingest_payload(
+        self,
+        payload: InstantlyWebhookPayload,
+        *,
+        received_at: dt.datetime,
+    ) -> WebhookIngestResult: ...
+
+
 class InstantlyWebhookService:
     def __init__(
         self,
@@ -231,6 +242,7 @@ class InstantlyWebhookService:
         suppression_keyring: SuppressionIdentityKeyring,
         response_ingress_capability: ResponseIngressCapability,
         response_ingress: ResponseIngressHandler | None = None,
+        assisted_prospect_ingress: AssistedProspectIngress | None = None,
     ) -> None:
         if (
             response_ingress_capability is ResponseIngressCapability.SPEC027_V1
@@ -243,6 +255,7 @@ class InstantlyWebhookService:
         self._suppression_keyring = suppression_keyring
         self._response_capability = response_ingress_capability
         self._response_ingress = response_ingress
+        self._assisted_prospect_ingress = assisted_prospect_ingress
         self._suppressions = SuppressionStore(engine, suppression_keyring)
         self._campaigns = CampaignStore(engine)
 
@@ -254,6 +267,12 @@ class InstantlyWebhookService:
             raise WebhookBindingError("Instantly workspace mismatch")
         if received_at.tzinfo is None or received_at.utcoffset() is None:
             raise ValueError("webhook received_at must be timezone-aware")
+        if self._assisted_prospect_ingress is not None and self._assisted_prospect_ingress.handles(
+            payload
+        ):
+            return self._assisted_prospect_ingress.ingest_payload(
+                payload, received_at=received_at
+            )
         if abs(received_at - payload.timestamp.astimezone(dt.UTC)) > dt.timedelta(days=7):
             raise WebhookBindingError("Instantly event timestamp is outside the accepted bound")
         fingerprints = self._fingerprints(payload)

@@ -57,6 +57,7 @@ CommitFingerprint = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 
 class RuntimeExecutionMode(StrEnum):
     SHADOW = "SHADOW"
+    ASSISTED = "ASSISTED"
 
 
 class RuntimeDependencyState(StrEnum):
@@ -157,7 +158,7 @@ class RuntimeStageDependency(_FrozenModel):
 
 class RuntimeCapabilityEvidence(_FrozenModel):
     environment: Literal["STAGING", "PRODUCTION"]
-    mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
+    mode: RuntimeExecutionMode = RuntimeExecutionMode.SHADOW
     qa_only: bool
     hermes: RuntimeHermesIdentityEvidence
     registry_identity: Fingerprint
@@ -283,7 +284,7 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
     schema_version: Literal["acquisition-runtime-v1", "acquisition-production-v1"] = (
         ACQUISITION_RUNTIME_SCHEMA_VERSION
     )
-    mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
+    mode: RuntimeExecutionMode = RuntimeExecutionMode.SHADOW
     qa_only: bool = False
     allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(default=(), max_length=8)
     qa_scope: RuntimeQaScope

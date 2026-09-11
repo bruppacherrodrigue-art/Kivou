@@ -17,8 +17,11 @@ from signals.founder_api.app import create_founder_app
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.database import (
     FOUNDER_DATABASE_URL_ENV,
+    FOUNDER_WRITE_DATABASE_URL_ENV,
     create_founder_database_engine,
+    create_founder_write_database_engine,
     resolve_founder_database_url,
+    resolve_founder_write_database_url,
 )
 from signals.founder_api.read_models import FounderReadService
 from signals.operations.contracts import (
@@ -269,3 +272,17 @@ def test_founder_database_never_guesses_or_accepts_sqlite(
         resolve_founder_database_url()
     with pytest.raises(RuntimeError, match="PostgreSQL"):
         create_founder_database_engine("sqlite+pysqlite:///:memory:")
+
+
+def test_founder_writer_requires_explicit_dedicated_postgres_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(FOUNDER_WRITE_DATABASE_URL_ENV, raising=False)
+    with pytest.raises(RuntimeError, match=FOUNDER_WRITE_DATABASE_URL_ENV):
+        resolve_founder_write_database_url()
+    with pytest.raises(RuntimeError, match="PostgreSQL"):
+        create_founder_write_database_engine("sqlite+pysqlite:///:memory:")
+    with pytest.raises(RuntimeError, match="kivou_founder_rw"):
+        create_founder_write_database_engine(
+            "postgresql+psycopg://wrong_role:secret@127.0.0.1/kivou"
+        )
