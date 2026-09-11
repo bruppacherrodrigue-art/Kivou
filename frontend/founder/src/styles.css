@@ -17,8 +17,8 @@ body {
     radial-gradient(circle at 20% 5%, rgba(8, 145, 178, 0.08), transparent 26%),
     #071019;
 }
-button, input, select { font: inherit; }
-button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+button, input, select, textarea { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid #67e8f9;
   outline-offset: 3px;
 }
@@ -748,7 +748,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .prospection-search-control button,
 .prospection-pagination button,
 .prospection-mail-button,
-.prospection-action-lock button {
+.prospection-row-actions button,
+.prospection-action-form button,
+.prospection-action-confirmation button,
+.prospection-action-primary {
   border: 1px solid rgba(52, 211, 153, 0.22);
   border-radius: 8px;
   color: #c9f7e3;
@@ -758,7 +761,10 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .prospection-search-control button { padding: 8px 13px; border-left: 0; border-radius: 0 8px 8px 0; }
 .prospection-search-control button:hover:not(:disabled),
 .prospection-pagination button:hover:not(:disabled),
-.prospection-mail-button:hover { background: rgba(6, 95, 70, 0.28); }
+.prospection-mail-button:hover,
+.prospection-row-actions button:hover:not(:disabled),
+.prospection-action-form button:hover:not(:disabled),
+.prospection-action-confirmation button:hover:not(:disabled) { background: rgba(6, 95, 70, 0.28); }
 
 .prospection-table-panel,
 .prospection-queue-panel { margin-top: 10px; padding: 0; overflow: visible; }
@@ -804,9 +810,12 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .prospection-pagination > div { display: flex; align-items: center; gap: 10px; }
 .prospection-pagination button,
 .prospection-mail-button,
-.prospection-action-lock button { padding: 6px 9px; font-size: 10px; }
+.prospection-row-actions button { padding: 6px 9px; font-size: 10px; }
 .prospection-pagination button:disabled,
-.prospection-action-lock button:disabled { cursor: not-allowed; opacity: 0.45; }
+.prospection-row-actions button:disabled,
+.prospection-action-form button:disabled,
+.prospection-action-confirmation button:disabled,
+.prospection-action-primary:disabled { cursor: not-allowed; opacity: 0.45; }
 .prospection-compact-empty { display: grid; gap: 5px; padding: 20px 22px; }
 .prospection-compact-empty strong { color: #d8e8e0; }
 .prospection-compact-empty span { color: #71877f; font-size: 12px; }
@@ -814,27 +823,21 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
 .prospection-queue-table table { min-width: 1320px; }
 .prospection-row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.prospection-row-approved { background: rgba(16, 185, 129, 0.045); }
 .prospection-mail-button { white-space: nowrap; }
-.prospection-action-lock { position: relative; display: inline-flex; }
-.prospection-action-lock:focus::after,
-.prospection-action-lock:hover::after {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
-  z-index: 50;
-  width: max-content;
-  max-width: 240px;
-  padding: 7px 9px;
-  border: 1px solid rgba(167, 243, 208, 0.18);
-  border-radius: 7px;
-  color: #d1fae5;
-  background: #10251f;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.34);
-  content: attr(data-tooltip);
-  font-size: 10px;
-  line-height: 1.35;
-}
 .prospection-action-primary { padding: 8px 12px !important; color: #d1fae5 !important; background: rgba(5, 150, 105, 0.2) !important; }
+.prospection-action-danger { border-color: rgba(248, 113, 113, 0.25) !important; color: #fecaca !important; background: rgba(153, 27, 27, 0.12) !important; }
+.prospection-action-error,
+.prospection-action-warning,
+.prospection-action-notice {
+  margin: 0;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  font-size: 11px;
+}
+.prospection-action-error { color: #fecaca; background: rgba(153, 27, 27, 0.1); }
+.prospection-action-warning { color: #fde68a; background: rgba(161, 98, 7, 0.08); }
+.prospection-action-notice { color: #a7f3d0; background: rgba(6, 95, 70, 0.08); }
 
 .prospection-targeting-grid {
   display: grid;
@@ -890,6 +893,24 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .prospection-drawer dd { margin: 0; color: #b5c8bf; font-size: 12px; }
 .prospection-mail-preview { flex: 1; width: 100%; min-height: 390px; margin: 24px 0; border: 0; border-radius: 10px; background: #fff; }
 .prospection-drawer footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.1); color: #60786f; font-size: 10px; }
+.prospection-action-form { display: grid; gap: 18px; margin-top: 28px; }
+.prospection-action-form label { display: grid; gap: 7px; color: #80988f; font-size: 11px; font-weight: 650; }
+.prospection-action-form input,
+.prospection-action-form select,
+.prospection-action-form textarea {
+  width: 100%;
+  padding: 10px 11px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 8px;
+  color: #e1eee8;
+  background: #0a1a20;
+}
+.prospection-action-form textarea { min-height: 120px; resize: vertical; }
+.prospection-action-form footer { margin-top: 8px; }
+.prospection-action-form button,
+.prospection-action-confirmation button { padding: 8px 12px; }
+.prospection-action-confirmation { display: grid; gap: 22px; margin-top: 28px; color: #9bb0a7; line-height: 1.55; }
+.prospection-action-confirmation p { margin: 0; }
 @keyframes control-spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1180px) {

@@ -11,6 +11,18 @@ FOUNDER_WRITE_DATABASE_URL_ENV = "KIVOU_FOUNDER_WRITE_DATABASE_URL"
 FOUNDER_STATEMENT_TIMEOUT_MS = 10_000
 
 
+def _verify_founder_writer_connection(connection: sa.Connection) -> None:
+    """Verify the writer role without leaking the probe's implicit transaction."""
+
+    try:
+        role = connection.exec_driver_sql("SELECT current_user").scalar_one()
+        read_only = connection.exec_driver_sql("SHOW transaction_read_only").scalar_one()
+    finally:
+        connection.rollback()
+    if role != "kivou_founder_rw" or read_only != "off":
+        raise RuntimeError("la connexion d'actions Founder n'utilise pas le rôle attendu")
+
+
 def resolve_founder_database_url(url: str | None = None) -> str:
     """Resolve only the explicitly configured Founder database."""
 
@@ -107,10 +119,7 @@ def create_founder_write_database_engine(url: str | None = None) -> sa.Engine:
 
     @sa.event.listens_for(engine, "engine_connect")
     def _verify_writer(connection: sa.Connection) -> None:
-        role = connection.exec_driver_sql("SELECT current_user").scalar_one()
-        read_only = connection.exec_driver_sql("SHOW transaction_read_only").scalar_one()
-        if role != "kivou_founder_rw" or read_only != "off":
-            raise RuntimeError("la connexion d'actions Founder n'utilise pas le rôle attendu")
+        _verify_founder_writer_connection(connection)
 
     return engine
 

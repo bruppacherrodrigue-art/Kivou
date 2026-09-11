@@ -136,7 +136,7 @@ export function FounderApp() {
             <span aria-hidden="true" />
             Production
           </span>
-          <span className="control-readonly">Consultation</span>
+          {!isProspectionRoute ? <span className="control-readonly">Consultation</span> : null}
           {snapshot ? <small>{snapshot.session.operator_email}</small> : null}
         </div>
       </aside>

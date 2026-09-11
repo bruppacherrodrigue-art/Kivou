@@ -88,6 +88,13 @@ EXPECTED_PROXY_SELECTORS = frozenset(
 #: nommer ; tout autre préfixe, présent ou futur, doit y figurer.
 FOUNDER_FAIL_CLOSED_EXEMPT_PREFIXES = frozenset({"a"})
 
+FOUNDER_ACTION_POST_SELECTORS = (
+    "= /api/founder/actions/prospection/approve",
+    "= /api/founder/actions/prospection/correct",
+    "= /api/founder/actions/prospection/reject",
+    "= /api/founder/actions/prospection/send",
+)
+
 
 def _public_api_prefixes() -> frozenset[str]:
     """Le premier segment de chaque route publique — la seule source de vérité.
@@ -798,7 +805,7 @@ def test_founder_https_preserves_frontend_and_security_contracts() -> None:
     assert "= /healthz" not in selectors
     assert tuple(
         block.selector for block in locations if "proxy_pass" in block.body
-    ) == ("^~ /api/founder/",)
+    ) == (*FOUNDER_ACTION_POST_SELECTORS, "^~ /api/founder/")
     assert _directives(_only_location(https, "/").body) == (
         "try_files $uri $uri/ /index.html;",
     )
@@ -815,8 +822,6 @@ def test_founder_uses_only_production_security_header_fragments() -> None:
 
 def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> None:
     https = _only_founder_server("listen 443 ssl http2;")
-    api = _only_location(https, "^~ /api/founder/")
-    directives = _directives(api.body)
     shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
     founder_user = "proxy_set_header X-Kivou-Founder-User $remote_user;"
     origin_secret = (
@@ -824,26 +829,41 @@ def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> N
         "$kivou_founder_origin_secret;"
     )
 
-    assert _directives_starting_with(api.body, "proxy_pass ") == (
-        "proxy_pass http://127.0.0.1:8011;",
-    )
-    assert directives.count("limit_req zone=kivou_api burst=20 nodelay;") == 1
-    assert directives.count(shared_params) == 1
-    assert directives.count(founder_user) == 1
-    assert directives.count(origin_secret) == 1
-    assert directives.index(shared_params) < directives.index(founder_user)
-    assert directives.index(shared_params) < directives.index(origin_secret)
-    assert not any(
-        directive.startswith((
-            "proxy_set_header Host ",
-            "proxy_set_header X-Forwarded-Proto ",
-        ))
-        for directive in directives
-    )
+    for selector in (*FOUNDER_ACTION_POST_SELECTORS, "^~ /api/founder/"):
+        api = _only_location(https, selector)
+        directives = _directives(api.body)
+        assert _directives_starting_with(api.body, "proxy_pass ") == (
+            "proxy_pass http://127.0.0.1:8011;",
+        )
+        assert directives.count("limit_req zone=kivou_api burst=20 nodelay;") == 1
+        assert directives.count(shared_params) == 1
+        assert directives.count(founder_user) == 1
+        assert directives.count(origin_secret) == 1
+        assert directives.index(shared_params) < directives.index(founder_user)
+        assert directives.index(shared_params) < directives.index(origin_secret)
+        assert not any(
+            directive.startswith((
+                "proxy_set_header Host ",
+                "proxy_set_header X-Forwarded-Proto ",
+            ))
+            for directive in directives
+        )
 
-    lowered = api.body.lower()
-    assert "cf-access" not in lowered
-    assert "cloudflare" not in lowered
+        lowered = api.body.lower()
+        assert "cf-access" not in lowered
+        assert "cloudflare" not in lowered
+
+
+def test_founder_nginx_allows_posts_only_on_the_four_action_endpoints() -> None:
+    https = _only_founder_server("listen 443 ssl http2;")
+    generic = _only_location(https, "^~ /api/founder/")
+
+    assert "limit_except GET HEAD {" in _directives(generic.body)
+    assert "deny all;" in _directives(generic.body)
+    for selector in FOUNDER_ACTION_POST_SELECTORS:
+        action = _only_location(https, selector)
+        assert "limit_except POST {" in _directives(action.body)
+        assert "deny all;" in _directives(action.body)
 
 
 def test_shared_proxy_params_own_standard_headers_not_founder_trust() -> None:
