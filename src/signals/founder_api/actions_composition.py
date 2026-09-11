@@ -28,7 +28,7 @@ def build_prospection_actions(
     webhook = load_instantly_webhook_runtime_config(required=True)
     assert webhook is not None
     links = load_runtime_link_config()
-    mailbox = min(connectivity.deployment.mailboxes, key=lambda item: item.mailbox_ref)
+    mailbox = connectivity.deployment.mailboxes[0]
     provider = HttpInstantlyProvider(
         api_key=connectivity.instantly_api_key.get_secret_value(),
         client=client,

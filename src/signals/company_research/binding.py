@@ -176,10 +176,27 @@ class SireneApolloResolver:
             self._directory is not None
             and self._directory.permanently_without_website(identity.provider_organization_id)
         )
+        website_lookup_deferred = bool(
+            self._directory is not None
+            and not permanently_without_website
+            and cached_domain is None
+            and not self._directory.website_lookup_due(
+                identity.provider_organization_id, at=now
+            )
+        )
         if permanently_without_website:
             logger.info(
                 "supplier_directory_provider_call_avoided",
                 extra={"provider": "serper", "siren": identity.provider_organization_id},
+            )
+            domain_resolution = None
+        elif website_lookup_deferred:
+            logger.info(
+                "supplier_directory_provider_call_avoided",
+                extra={
+                    "provider": "serper_retry_window",
+                    "siren": identity.provider_organization_id,
+                },
             )
             domain_resolution = None
         elif cached_domain is not None:
@@ -224,6 +241,7 @@ class SireneApolloResolver:
                 self._directory is not None
                 and self._domain_resolver is not None
                 and domain_resolution is None
+                and not website_lookup_deferred
             ):
                 self._directory.mark_without_website(
                     identity.provider_organization_id,

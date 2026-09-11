@@ -20,6 +20,8 @@ def build_application() -> FastAPI:
     config = FounderApiConfig.from_environment()
     engine = create_founder_database_engine()
     write_engine = create_founder_write_database_engine()
+    with write_engine.connect() as connection:
+        connection.exec_driver_sql("SELECT 1").scalar_one()
     provider_client = httpx.Client(timeout=10.0, follow_redirects=False)
     operations = OperationsReadService(
         engine,

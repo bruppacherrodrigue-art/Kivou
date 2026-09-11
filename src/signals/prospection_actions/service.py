@@ -707,6 +707,27 @@ class ProspectionActions:
                 .values(send_request_id=request_id, updated_at=at)
             )
 
+        if self._kill_switch_path.exists():
+            with self._engine.begin() as connection:
+                connection.execute(
+                    sa.update(prospect_target)
+                    .where(prospect_target.c.send_request_id == request_id)
+                    .values(send_request_id=None, updated_at=at)
+                )
+                connection.execute(
+                    sa.update(prospect_send_request)
+                    .where(prospect_send_request.c.request_id == request_id)
+                    .values(
+                        status="failed",
+                        sent_count=0,
+                        error="kill switch activated before provider handoff",
+                        completed_at=at,
+                    )
+                )
+            raise ProspectionActionError(
+                "KILL_SWITCH_ACTIVE", "l'arrêt d'urgence de l'acquisition est actif"
+            )
+
         delivery_targets = tuple(
             DeliveryTarget(
                 target_id=str(row["target_id"]),

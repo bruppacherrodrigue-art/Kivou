@@ -1,6 +1,6 @@
 # Contrat API — Prospection assistée Founder
 
-Date : 11 septembre 2026  
+Date : 11 septembre 2026
 Version : `founder-prospection-actions-v1`
 
 Ce contrat est la frontière partagée entre la page Prospection et le service
