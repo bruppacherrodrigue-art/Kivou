@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from signals.founder_api.access import FounderIdentityDependency
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
+from signals.founder_api.prospection import FounderDirectoryStatus, FounderProspection
 from signals.founder_api.read_models import (
     FounderConsoleOverview,
     FounderProcedureDocumentReview,
@@ -90,6 +91,42 @@ def create_founder_app(
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="les dossiers à revoir sont indisponibles",
+            ) from error
+
+    @app.get("/api/founder/prospection")
+    def founder_prospection(
+        identity: FounderIdentityDependency,
+        page: Annotated[int, Query(ge=1, le=10_000)] = 1,
+        page_size: Annotated[int, Query(ge=1, le=25)] = 25,
+        q: Annotated[str | None, Query(max_length=100)] = None,
+        family: Annotated[str | None, Query(max_length=100)] = None,
+        department: Annotated[str | None, Query(max_length=3)] = None,
+        directory_status: Annotated[
+            FounderDirectoryStatus | None,
+            Query(alias="status"),
+        ] = None,
+    ) -> FounderProspection:
+        del identity
+        service: FounderReadService | None = app.state.read_service
+        if service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les données de prospection ne sont pas configurées",
+            )
+        try:
+            return service.prospection(
+                now=now(),
+                page=page,
+                page_size=page_size,
+                q=q,
+                family=family,
+                department=department,
+                directory_status=directory_status,
+            )
+        except (SQLAlchemyError, RuntimeError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les données de prospection sont indisponibles",
             ) from error
 
     return app

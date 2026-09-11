@@ -1,4 +1,9 @@
-import type { FounderOverview, FounderSession } from './types'
+import type {
+  FounderOverview,
+  FounderProspection,
+  FounderProspectionFilters,
+  FounderSession,
+} from './types'
 
 export class FounderApiError extends Error {
   readonly status: number
@@ -38,4 +43,19 @@ export function loadFounderOverview(
 ): Promise<FounderOverview> {
   const query = new URLSearchParams({ week_offset: String(weekOffset) })
   return requestJson<FounderOverview>(`/api/founder/overview?${query}`, signal)
+}
+
+export function loadFounderProspection(
+  filters: FounderProspectionFilters,
+  signal: AbortSignal,
+): Promise<FounderProspection> {
+  const query = new URLSearchParams({
+    page: String(filters.page),
+    page_size: '25',
+  })
+  if (filters.q) query.set('q', filters.q)
+  if (filters.family) query.set('family', filters.family)
+  if (filters.department) query.set('department', filters.department)
+  if (filters.status) query.set('status', filters.status)
+  return requestJson<FounderProspection>(`/api/founder/prospection?${query}`, signal)
 }

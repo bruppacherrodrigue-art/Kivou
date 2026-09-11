@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FounderApp } from './FounderApp'
@@ -156,10 +158,18 @@ const OVERVIEW: FounderOverview = {
 }
 
 afterEach(() => {
+  window.history.replaceState({}, '', '/')
   vi.unstubAllGlobals()
 })
 
 describe('FounderApp', () => {
+  it('keeps the three-route navigation available below the tablet breakpoint', () => {
+    const styles = readFileSync(resolve(process.cwd(), 'founder/src/styles.css'), 'utf8')
+
+    expect(styles).not.toContain('.control-sidebar nav { display: none; }')
+    expect(styles).toContain('@media (max-width: 900px)')
+  })
+
   it('renders production read models without fake agents or write actions', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
