@@ -1,6 +1,17 @@
 export type HealthStatus = 'READY' | 'DEGRADED' | 'NOT_READY'
 export type GateStatus = 'READY' | 'NOT_READY' | 'INSUFFICIENT_EVIDENCE'
 export type AutonomyMode = 'SHADOW' | 'ASSISTED' | 'AUTONOMOUS_CAPPED' | 'ADAPTIVE_VOLUME'
+export type FounderTunnelPeriod = 'today' | 'last_7_days'
+
+export interface FounderAcquisitionStatus {
+  mode: string | null
+  activity: 'RUNNING' | 'STOPPED' | 'UNKNOWN'
+  activity_since: string | null
+  last_cycle_ref: string | null
+  last_cycle_at: string | null
+  last_cycle_status: string | null
+  last_cycle_reason_code: string | null
+}
 
 export interface FounderSession {
   version: 'founder-session-v1'
@@ -14,6 +25,34 @@ export interface FounderSession {
 export interface MoneyTotal {
   currency: 'CHF' | 'EUR'
   minor_units: number
+}
+
+export interface FounderTunnelCounts {
+  sent_count: number
+  opened_count: number
+  click_count: number
+  landing_count: number
+  confirmed_profile_count: number
+  paid_count: number
+}
+
+export interface FounderTunnelSlice extends FounderTunnelCounts {
+  start_at: string
+  end_at: string
+}
+
+export interface FounderTunnelCurrent {
+  observed_at: string
+  mrr_by_currency: MoneyTotal[]
+  churn_count: number
+}
+
+export interface FounderCommercialTunnel {
+  period_kind: FounderTunnelPeriod
+  period: FounderTunnelSlice
+  cohort_week_offset: number
+  cohort: FounderTunnelSlice
+  current: FounderTunnelCurrent
 }
 
 export interface CommercialFunnel {
@@ -140,6 +179,7 @@ export interface FounderOverview {
   environment: 'PRODUCTION'
   read_only: true
   generated_at: string
+  acquisition_status: FounderAcquisitionStatus
   today: {
     generated_at: string
     open_attention_count: number
@@ -148,12 +188,10 @@ export interface FounderOverview {
     paid_accounts_last_completed_week: number
     business_period_start: string
     business_period_end: string
-    system_status: HealthStatus
-    hermes_status: HealthStatus
-    highest_safe_mode: AutonomyMode
   }
   attention: AttentionItem[]
   business: CommercialReport
+  commercial_tunnel: FounderCommercialTunnel
   quality: QualitySummary
   system: {
     health: OperationalHealth
@@ -174,6 +212,10 @@ export type FounderDirectoryStatus =
   | 'without_website'
   | 'reverification_required'
 
+export type FounderDirectoryQualificationStatus =
+  | FounderDirectoryStatus
+  | 'to_qualify'
+
 export interface FounderProspectionFilters {
   page: number
   q: string
@@ -186,13 +228,7 @@ export interface FounderProspection {
   version: 'founder-prospection-v1'
   generated_at: string
   read_only: true
-  timer: {
-    state: 'RUNNING' | 'STOPPED' | 'UNKNOWN'
-    unit: 'kivou-acquisition-production.timer'
-    inactive_since: string | null
-    last_triggered_at: string | null
-    next_trigger_at: string | null
-  }
+  acquisition_status: FounderAcquisitionStatus
   queue: {
     available: boolean
     last_cycle_at: string | null
@@ -230,6 +266,7 @@ export interface FounderProspection {
 
 export interface FounderCountFacet {
   key: string
+  label: string
   count: number
 }
 
@@ -238,11 +275,13 @@ export interface FounderDirectoryRow {
   legal_name: string
   family_keys: string[]
   department: string | null
+  department_name: string | null
   city: string | null
   employees: number | null
   domain: string | null
   website_url: string | null
   confirmed_domain: boolean
+  qualification_status: FounderDirectoryQualificationStatus
   professional_email: string | null
   email_source: string | null
   email_verification_status: string | null

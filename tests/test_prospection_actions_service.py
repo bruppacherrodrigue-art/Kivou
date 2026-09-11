@@ -160,6 +160,116 @@ def test_approve_is_versioned_and_records_actor(service) -> None:
     assert stale.value.code == "TARGET_VERSION_CONFLICT"
 
 
+def test_approve_refuses_a_target_whose_live_directory_domain_is_blocked(service) -> None:
+    actions, _verifier, _issuer, engine = service
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "123456789")
+            .values(domain="beton-bourbonnais.localbiz.fr")
+        )
+
+    with pytest.raises(ProspectionActionError) as caught:
+        actions.approve(
+            ApproveCommand(target_id=TARGET_ID, expected_version=1),
+            actor="rodrigue@kivou.eu",
+        )
+
+    assert caught.value.code == "DIRECTORY_REVERIFICATION_REQUIRED"
+    assert caught.value.status_code == 422
+    assert caught.value.target_ids == (TARGET_ID,)
+    with engine.connect() as connection:
+        target = connection.execute(sa.select(prospect_target)).mappings().one()
+        history_count = connection.scalar(
+            sa.select(sa.func.count()).select_from(prospect_target_history)
+        )
+    assert target["status"] == "pending_review"
+    assert target["version"] == 1
+    assert history_count == 0
+
+
+def test_approve_maps_postgresql_nowait_contention_to_safe_retryable_error(service) -> None:
+    actions, _verifier, _issuer, engine = service
+
+    class LockNotAvailable(RuntimeError):
+        sqlstate = "55P03"
+        pgcode = "55P03"
+
+    database_error = sa.exc.OperationalError(
+        "SELECT private_value FROM secret_table",
+        {"credential": "do-not-leak"},
+        LockNotAvailable("lock details with do-not-leak"),
+    )
+
+    def fail_on_lock(
+        _connection,
+        clauseelement,
+        _multiparams,
+        _params,
+        _execution_options,
+    ) -> None:
+        if (
+            isinstance(clauseelement, sa.sql.Select)
+            and clauseelement._for_update_arg is not None
+        ):
+            raise database_error
+
+    sa.event.listen(engine, "before_execute", fail_on_lock)
+    try:
+        with pytest.raises(ProspectionActionError) as caught:
+            actions.approve(
+                ApproveCommand(target_id=TARGET_ID, expected_version=1),
+                actor="rodrigue@kivou.eu",
+            )
+    finally:
+        sa.event.remove(engine, "before_execute", fail_on_lock)
+
+    assert caught.value.code == "RESOURCE_LOCK_BUSY"
+    assert caught.value.status_code == 409
+    assert caught.value.target_ids == (TARGET_ID,)
+    assert str(caught.value) == "ressource occupée, réessayez"
+    assert "do-not-leak" not in str(caught.value)
+    assert "55P03" not in str(caught.value)
+
+
+def test_approve_does_not_mask_other_database_operational_errors(service) -> None:
+    actions, _verifier, _issuer, engine = service
+
+    class ConnectionFailure(RuntimeError):
+        sqlstate = "08006"
+
+    database_error = sa.exc.OperationalError(
+        "SELECT unavailable",
+        {},
+        ConnectionFailure("connection failure"),
+    )
+
+    def fail_on_lock(
+        _connection,
+        clauseelement,
+        _multiparams,
+        _params,
+        _execution_options,
+    ) -> None:
+        if (
+            isinstance(clauseelement, sa.sql.Select)
+            and clauseelement._for_update_arg is not None
+        ):
+            raise database_error
+
+    sa.event.listen(engine, "before_execute", fail_on_lock)
+    try:
+        with pytest.raises(sa.exc.OperationalError) as caught:
+            actions.approve(
+                ApproveCommand(target_id=TARGET_ID, expected_version=1),
+                actor="rodrigue@kivou.eu",
+            )
+    finally:
+        sa.event.remove(engine, "before_execute", fail_on_lock)
+
+    assert caught.value is database_error
+
+
 def test_correct_email_rechecks_mx_reissues_token_and_keeps_status(service) -> None:
     actions, verifier, issuer, engine = service
 

@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import datetime as dt
 import math
-import os
-import subprocess
 import unicodedata
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
@@ -18,6 +16,8 @@ from pydantic import Field, field_validator
 from sqlalchemy.engine import Engine
 
 from signals.accounts.schema import account_landing_signal
+from signals.domain.french_departments import DEPARTMENTS
+from signals.founder_api.acquisition_status import FounderAcquisitionStatus
 from signals.founder_api.contracts import FounderContract
 from signals.persistence.schema import (
     acquisition_campaign_member,
@@ -37,7 +37,6 @@ from signals.persistence.schema import (
 )
 
 FOUNDER_PROSPECTION_VERSION = "founder-prospection-v1"
-ACQUISITION_TIMER_UNIT = "kivou-acquisition-production.timer"
 
 
 def _aware(value: dt.datetime) -> dt.datetime:
@@ -52,20 +51,16 @@ class FounderDirectoryStatus(StrEnum):
     REVERIFICATION_REQUIRED = "reverification_required"
 
 
-class FounderAcquisitionTimer(FounderContract):
-    state: Literal["RUNNING", "STOPPED", "UNKNOWN"]
-    unit: Literal["kivou-acquisition-production.timer"] = ACQUISITION_TIMER_UNIT
-    inactive_since: dt.datetime | None = None
-    last_triggered_at: dt.datetime | None = None
-    next_trigger_at: dt.datetime | None = None
-
-    _times = field_validator("inactive_since", "last_triggered_at", "next_trigger_at")(
-        lambda value: _aware(value) if value is not None else None
-    )
+class FounderDirectoryQualificationStatus(StrEnum):
+    CONFIRMED_DOMAIN = "confirmed_domain"
+    WITHOUT_WEBSITE = "without_website"
+    REVERIFICATION_REQUIRED = "reverification_required"
+    TO_QUALIFY = "to_qualify"
 
 
 class FounderCountFacet(FounderContract):
     key: str
+    label: str
     count: int = Field(ge=0)
 
 
@@ -81,11 +76,13 @@ class FounderDirectoryRow(FounderContract):
     legal_name: str
     family_keys: tuple[str, ...]
     department: str | None = None
+    department_name: str | None = None
     city: str | None = None
     employees: int | None = Field(default=None, ge=0)
     domain: str | None = None
     website_url: str | None = None
     confirmed_domain: bool
+    qualification_status: FounderDirectoryQualificationStatus
     professional_email: str | None = None
     email_source: str | None = None
     email_verification_status: str | None = None
@@ -200,7 +197,7 @@ class FounderProspection(FounderContract):
     version: Literal["founder-prospection-v1"] = FOUNDER_PROSPECTION_VERSION
     generated_at: dt.datetime
     read_only: Literal[True] = True
-    timer: FounderAcquisitionTimer
+    acquisition_status: FounderAcquisitionStatus
     queue: FounderProspectionQueue
     directory: FounderSupplierDirectory
     targeting: FounderTargetingCycle | None
@@ -209,74 +206,15 @@ class FounderProspection(FounderContract):
     _generated_at = field_validator("generated_at")(_aware)
 
 
-TimerReader = Callable[[dt.datetime], FounderAcquisitionTimer]
-CommandRunner = Callable[..., subprocess.CompletedProcess[str]]
-
-
-class SystemdAcquisitionTimerReader:
-    _PROPERTIES = (
-        "LoadState",
-        "ActiveState",
-        "SubState",
-        "UnitFileState",
-        "InactiveEnterTimestamp",
-        "LastTriggerUSec",
-        "NextElapseUSecRealtime",
-    )
-
-    def __init__(self, *, run: CommandRunner = subprocess.run) -> None:
-        self._run = run
-
-    def __call__(self, _: dt.datetime) -> FounderAcquisitionTimer:
-        try:
-            completed = self._run(
-                (
-                    "systemctl",
-                    "show",
-                    ACQUISITION_TIMER_UNIT,
-                    "--no-pager",
-                    *(f"--property={key}" for key in self._PROPERTIES),
-                ),
-                capture_output=True,
-                check=False,
-                text=True,
-                timeout=2,
-                env={**os.environ, "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
-            )
-        except (OSError, subprocess.TimeoutExpired):
-            return FounderAcquisitionTimer(state="UNKNOWN")
-        values = _systemd_properties(completed.stdout, allowed=frozenset(self._PROPERTIES))
-        if completed.returncode != 0 or values.get("LoadState") != "loaded":
-            return FounderAcquisitionTimer(state="UNKNOWN")
-        active_state = values.get("ActiveState")
-        if active_state == "active":
-            state = "RUNNING"
-        elif active_state == "inactive":
-            state = "STOPPED"
-        else:
-            return FounderAcquisitionTimer(state="UNKNOWN")
-        return FounderAcquisitionTimer(
-            state=state,
-            inactive_since=_systemd_time(values.get("InactiveEnterTimestamp")),
-            last_triggered_at=_systemd_time(values.get("LastTriggerUSec")),
-            next_trigger_at=_systemd_time(values.get("NextElapseUSecRealtime")),
-        )
-
-
 class FounderProspectionReadService:
-    def __init__(
-        self,
-        engine: Engine,
-        *,
-        timer_reader: TimerReader | None = None,
-    ) -> None:
+    def __init__(self, engine: Engine) -> None:
         self._engine = engine
-        self._timer_reader = timer_reader or SystemdAcquisitionTimerReader()
 
     def read(
         self,
         *,
         now: dt.datetime,
+        acquisition_status: FounderAcquisitionStatus,
         page: int = 1,
         page_size: int = 25,
         q: str | None = None,
@@ -301,7 +239,7 @@ class FounderProspectionReadService:
         results = self._results()
         return FounderProspection(
             generated_at=now,
-            timer=self._timer_reader(now),
+            acquisition_status=acquisition_status,
             queue=self._queue(
                 last_cycle_at=targeting.updated_at if targeting is not None else None,
             ),
@@ -659,7 +597,7 @@ class FounderProspectionReadService:
         return FounderSupplierDirectory(
             summary=summary,
             family_counts=_facets(family_counts),
-            department_counts=_facets(department_counts),
+            department_counts=_facets(department_counts, names=DEPARTMENTS),
             rows=filtered[start : start + page_size],
             pagination=FounderDirectoryPagination(
                 page=page,
@@ -672,18 +610,30 @@ class FounderProspectionReadService:
 
 def _directory_row(row: Mapping[str, object]) -> FounderDirectoryRow:
     family_keys = row["family_keys"]
+    department = str(row["department"]) if row["department"] is not None else None
+    confirmed_domain = (
+        row["domain"] is not None and row["domain_validation_method"] is not None
+    )
     return FounderDirectoryRow(
         siren=str(row["siren"]),
         legal_name=str(row["legal_name"]),
         family_keys=tuple(str(key) for key in family_keys or ()),  # type: ignore[union-attr]
-        department=str(row["department"]) if row["department"] is not None else None,
+        department=department,
+        department_name=DEPARTMENTS.get(department) if department is not None else None,
         city=str(row["city"]) if row["city"] is not None else None,
         employees=int(row["employees"]) if row["employees"] is not None else None,
-        domain=str(row["domain"]) if row["domain"] is not None else None,
-        website_url=(str(row["website_url"]) if row["website_url"] is not None else None),
-        confirmed_domain=(
-            row["domain"] is not None and row["domain_validation_method"] is not None
+        domain=(
+            str(row["domain"])
+            if confirmed_domain and row["domain"] is not None
+            else None
         ),
+        website_url=(
+            str(row["website_url"])
+            if confirmed_domain and row["website_url"] is not None
+            else None
+        ),
+        confirmed_domain=confirmed_domain,
+        qualification_status=_directory_qualification_status(row),
         professional_email=(
             str(row["professional_email"]) if row["professional_email"] is not None else None
         ),
@@ -707,6 +657,24 @@ def _directory_row(row: Mapping[str, object]) -> FounderDirectoryRow:
     )
 
 
+def _directory_qualification_status(
+    row: Mapping[str, object],
+) -> FounderDirectoryQualificationStatus:
+    if row["reverification_required_at"] is not None:
+        return FounderDirectoryQualificationStatus.REVERIFICATION_REQUIRED
+    if row["domain"] is not None and row["domain_validation_method"] is not None:
+        return FounderDirectoryQualificationStatus.CONFIRMED_DOMAIN
+    if (
+        row["domain"] is None
+        and row["domain_source"] == "no_website"
+        and row["reverification_reason"] == "no_website"
+        and int(row["website_search_queries_completed"] or 0) >= 3
+        and int(row["website_search_results_examined"] or 0) >= 30
+    ):
+        return FounderDirectoryQualificationStatus.WITHOUT_WEBSITE
+    return FounderDirectoryQualificationStatus.TO_QUALIFY
+
+
 def _directory_matches(
     row: FounderDirectoryRow,
     *,
@@ -721,12 +689,8 @@ def _directory_matches(
         return False
     if department and row.department != department:
         return False
-    if directory_status is FounderDirectoryStatus.CONFIRMED_DOMAIN:
-        return row.confirmed_domain
-    if directory_status is FounderDirectoryStatus.WITHOUT_WEBSITE:
-        return row.domain is None and row.website_url is None
-    if directory_status is FounderDirectoryStatus.REVERIFICATION_REQUIRED:
-        return row.reverification_required_at is not None
+    if directory_status is not None:
+        return row.qualification_status.value == directory_status.value
     return True
 
 
@@ -767,9 +731,15 @@ def _current_mrr(
     )
 
 
-def _facets(counts: Counter[str]) -> tuple[FounderCountFacet, ...]:
+def _facets(
+    counts: Counter[str], *, names: Mapping[str, str] | None = None
+) -> tuple[FounderCountFacet, ...]:
     return tuple(
-        FounderCountFacet(key=key, count=count)
+        FounderCountFacet(
+            key=key,
+            label=f"{names[key]} ({key})" if names is not None and key in names else key,
+            count=count,
+        )
         for key, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     )
 
@@ -783,35 +753,10 @@ def _searchable(value: str) -> str:
     return "".join(character for character in decomposed if not unicodedata.combining(character))
 
 
-def _systemd_properties(
-    output: str,
-    *,
-    allowed: frozenset[str] | None = None,
-) -> dict[str, str]:
-    return {
-        key: value
-        for line in output.splitlines()
-        if "=" in line
-        for key, value in (line.split("=", 1),)
-        if allowed is None or key in allowed
-    }
-
-
-def _systemd_time(value: str | None) -> dt.datetime | None:
-    if not value or value == "n/a":
-        return None
-    try:
-        return dt.datetime.strptime(value, "%a %Y-%m-%d %H:%M:%S UTC").replace(tzinfo=dt.UTC)
-    except ValueError:
-        return None
-
-
 __all__ = [
-    "ACQUISITION_TIMER_UNIT",
     "FOUNDER_PROSPECTION_VERSION",
-    "FounderAcquisitionTimer",
+    "FounderDirectoryQualificationStatus",
     "FounderDirectoryStatus",
     "FounderProspection",
     "FounderProspectionReadService",
-    "SystemdAcquisitionTimerReader",
 ]

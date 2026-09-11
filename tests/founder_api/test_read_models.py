@@ -13,7 +13,9 @@ from signals.founder_api.access import (
     FOUNDER_USER_HEADER,
     ORIGIN_SECRET_HEADER,
 )
+from signals.founder_api.acquisition_status import FounderAcquisitionActivity
 from signals.founder_api.app import create_founder_app
+from signals.founder_api.commercial_tunnel import FounderTunnelPeriod
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.database import (
     FOUNDER_DATABASE_URL_ENV,
@@ -59,6 +61,13 @@ def _headers() -> dict[str, str]:
         FOUNDER_USER_HEADER: ALLOWED_USER,
         ORIGIN_SECRET_HEADER: ORIGIN_SECRET,
     }
+
+
+def _stopped_timer(_: dt.datetime) -> FounderAcquisitionActivity:
+    return FounderAcquisitionActivity(
+        activity="STOPPED",
+        activity_since=NOW - dt.timedelta(hours=2),
+    )
 
 
 def _seed_quality(engine: sa.Engine) -> None:
@@ -163,13 +172,19 @@ def test_overview_composes_only_authoritative_read_models() -> None:
     _seed_quality(engine)
     _seed_attention(engine)
 
-    overview = FounderReadService(engine).overview(now=NOW)
+    overview = FounderReadService(engine, timer_reader=_stopped_timer).overview(now=NOW)
 
     assert overview.environment == "PRODUCTION"
     assert overview.read_only is True
+    assert overview.acquisition_status.activity == "STOPPED"
+    assert overview.acquisition_status.activity_since == NOW - dt.timedelta(hours=2)
     assert overview.today.open_attention_count == 2
     assert overview.today.critical_attention_count == 1
-    assert overview.today.system_status.value == "NOT_READY"
+    assert {
+        "system_status",
+        "hermes_status",
+        "highest_safe_mode",
+    }.isdisjoint(overview.today.model_dump())
     assert [item.kind for item in overview.attention] == ["INCIDENT", "DEAD_LETTER"]
     assert overview.attention[0].title_code == "PROVIDER_FAILURE"
     assert overview.attention[0].pause_required is True
@@ -180,12 +195,35 @@ def test_overview_composes_only_authoritative_read_models() -> None:
     assert overview.quality.negative_feedback_rate_bps == 5_000
     assert overview.quality.negative_reason_counts[0].reason_code == "wrong_need"
     assert overview.business.delivery_semantics == "PROXY_SENT_MINUS_BOUNCE_V1"
+    assert overview.commercial_tunnel.period_kind == FounderTunnelPeriod.LAST_7_DAYS
+    assert overview.commercial_tunnel.period.end_at == NOW
+    assert overview.commercial_tunnel.cohort_week_offset == 0
     assert overview.system.database_access == "READ_ONLY"
+    assert {"health", "readiness", "hermes"} <= set(overview.system.model_dump())
+
+
+def test_overview_and_prospection_share_the_acquisition_status_read_model() -> None:
+    engine = _engine()
+    service = FounderReadService(engine, timer_reader=_stopped_timer)
+
+    overview = service.overview(now=NOW)
+    prospection = service.prospection(now=NOW)
+
+    assert overview.acquisition_status == prospection.acquisition_status
+    assert overview.acquisition_status.model_dump() == {
+        "mode": None,
+        "activity": "STOPPED",
+        "activity_since": NOW - dt.timedelta(hours=2),
+        "last_cycle_ref": None,
+        "last_cycle_at": None,
+        "last_cycle_status": None,
+        "last_cycle_reason_code": None,
+    }
 
 
 def test_overview_route_is_authenticated_bounded_and_read_only() -> None:
     engine = _engine()
-    read_service = FounderReadService(engine)
+    read_service = FounderReadService(engine, timer_reader=_stopped_timer)
     app = create_founder_app(
         FounderApiConfig(
             allowed_email=ALLOWED_EMAIL,
@@ -198,8 +236,16 @@ def test_overview_route_is_authenticated_bounded_and_read_only() -> None:
 
     with TestClient(app) as client:
         response = client.get("/api/founder/overview", headers=_headers())
+        today_response = client.get(
+            "/api/founder/overview?period=today&week_offset=1",
+            headers=_headers(),
+        )
         invalid = client.get(
             "/api/founder/overview?week_offset=52",
+            headers=_headers(),
+        )
+        invalid_period = client.get(
+            "/api/founder/overview?period=this_month",
             headers=_headers(),
         )
         unauthenticated = client.get("/api/founder/overview")
@@ -208,7 +254,21 @@ def test_overview_route_is_authenticated_bounded_and_read_only() -> None:
     payload = response.json()
     assert payload["environment"] == "PRODUCTION"
     assert payload["read_only"] is True
+    assert payload["acquisition_status"]["activity"] == "STOPPED"
+    assert {
+        "system_status",
+        "hermes_status",
+        "highest_safe_mode",
+    }.isdisjoint(payload["today"])
+    assert {"health", "readiness", "hermes"} <= set(payload["system"])
+    assert payload["business"]["delivery_semantics"] == "PROXY_SENT_MINUS_BOUNCE_V1"
+    assert payload["commercial_tunnel"]["period_kind"] == "last_7_days"
+    assert payload["commercial_tunnel"]["cohort_week_offset"] == 0
+    assert today_response.status_code == 200
+    assert today_response.json()["commercial_tunnel"]["period_kind"] == "today"
+    assert today_response.json()["commercial_tunnel"]["cohort_week_offset"] == 1
     assert invalid.status_code == 422
+    assert invalid_period.status_code == 422
     assert unauthenticated.status_code == 403
 
 

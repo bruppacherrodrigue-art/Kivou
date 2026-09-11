@@ -1,5 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { AcquisitionStatus } from './AcquisitionStatus'
 import type {
+  FounderDirectoryQualificationStatus,
   FounderDirectoryRow,
   FounderDirectoryStatus,
   FounderProspection,
@@ -14,6 +16,22 @@ const FAMILY_LABELS: Record<string, string> = {
   reinforcement_steel: 'Armatures / acier',
   subcontracted_structural_work: 'Gros œuvre sous-traité',
   formwork: 'Coffrage',
+  scaffolding: 'Échafaudage',
+  plastering: 'Plâtrerie',
+  flooring: 'Revêtements de sol',
+  exterior_joinery: 'Menuiserie extérieure',
+  plumbing: 'Plomberie',
+  electrical: 'Électricité',
+  hvac: 'Chauffage et ventilation',
+  road_construction: 'Travaux routiers',
+  asphalt: 'Enrobés et asphalte',
+  road_markings: 'Signalisation routière',
+  earthmoving: 'Terrassement',
+  demolition: 'Démolition',
+  waste_removal: 'Évacuation des déchets',
+  waterproofing: 'Étanchéité',
+  structural_steel: 'Charpente métallique',
+  facade_cladding: 'Bardage et façade',
 }
 
 const DIRECTORY_STATUS_LABELS: Record<FounderDirectoryStatus, string> = {
@@ -37,7 +55,6 @@ export function ProspectionPage({
 }: ProspectionPageProps) {
   const [openMail, setOpenMail] = useState<FounderProspectionQueueItem | null>(null)
   const mailTriggerRef = useRef<HTMLButtonElement | null>(null)
-  const hasPreparedTargets = data.queue.items.length > 0
 
   useEffect(() => {
     if (!openMail) return undefined
@@ -52,29 +69,22 @@ export function ProspectionPage({
     if (!openMail) mailTriggerRef.current?.focus()
   }, [openMail])
 
-  const directory = (
-    <DirectorySection
-      data={data}
-      filters={filters}
-      refreshing={refreshing}
-      onFiltersChange={onFiltersChange}
-    />
-  )
-  const queue = (
-    <QueueSection
-      data={data}
-      onOpenMail={(item, trigger) => {
-        mailTriggerRef.current = trigger
-        setOpenMail(item)
-      }}
-    />
-  )
-
   return (
     <>
       <ProspectionHero data={data} />
-      {hasPreparedTargets ? queue : directory}
-      {hasPreparedTargets ? directory : queue}
+      <QueueSection
+        data={data}
+        onOpenMail={(item, trigger) => {
+          mailTriggerRef.current = trigger
+          setOpenMail(item)
+        }}
+      />
+      <DirectorySection
+        data={data}
+        filters={filters}
+        refreshing={refreshing}
+        onFiltersChange={onFiltersChange}
+      />
       <TargetingSection data={data} />
       <ResultsSection data={data} />
       {openMail ? <MailDrawer item={openMail} onClose={() => setOpenMail(null)} /> : null}
@@ -93,14 +103,7 @@ function ProspectionHero({ data }: { data: FounderProspection }) {
           dans une vue de consultation.
         </p>
       </div>
-      <div className="prospection-runtime-card">
-        <span className={`prospection-timer-dot prospection-timer-${data.timer.state.toLowerCase()}`} aria-hidden="true" />
-        <div>
-          <small>Timer d’acquisition</small>
-          <strong>{timerLabel(data)}</strong>
-          <span>{lastCycleLabel(data)}</span>
-        </div>
-      </div>
+      <AcquisitionStatus status={data.acquisition_status} compact />
     </section>
   )
 }
@@ -129,8 +132,8 @@ function DirectorySection({
         eyebrow="Base fournisseurs"
         title="Annuaire"
         titleId="directory-title"
-        description="Entreprises actives de supplier_directory. Les compteurs restent globaux pendant le filtrage."
-        meta={`${formatCount(pagination.total_items)} résultat(s) · ${timerShortLabel(data)}`}
+        description="Entreprises actives de l’annuaire fournisseurs. Les compteurs restent globaux pendant le filtrage."
+        meta={`${formatCount(pagination.total_items)} résultats`}
       />
 
       <div className="prospection-kpi-grid" aria-label="Compteurs de l’annuaire">
@@ -147,7 +150,7 @@ function DirectorySection({
         />
         <FacetList
           label="Par département"
-          values={directory.department_counts.map((facet) => ({ ...facet, label: facet.key }))}
+          values={directory.department_counts}
         />
       </div>
 
@@ -188,7 +191,7 @@ function DirectorySection({
           onChange={(value) => changeFilter({ department: value })}
           options={directory.department_counts.map((facet) => ({
             value: facet.key,
-            label: `${facet.key} (${formatCount(facet.count)})`,
+            label: `${facet.label} (${formatCount(facet.count)})`,
           }))}
         />
         <FilterSelect
@@ -252,9 +255,9 @@ function DirectorySection({
 }
 
 function DirectoryTableRow({ row }: { row: FounderDirectoryRow }) {
-  const safeWebsite = row.website_url?.startsWith('https://') || row.website_url?.startsWith('http://')
-    ? row.website_url
-    : null
+  const hasConfirmedDomain = row.qualification_status === 'confirmed_domain'
+    && row.confirmed_domain
+    && row.domain !== null
   return (
     <tr>
       <td>
@@ -268,31 +271,28 @@ function DirectoryTableRow({ row }: { row: FounderDirectoryRow }) {
       </td>
       <td>
         <span>{row.city ?? '—'}</span>
-        {row.department ? <small>Département {row.department}</small> : null}
+        {row.department ? <small>Département {departmentLabel(row.department, row.department_name)}</small> : null}
       </td>
       <td className="prospection-number">{row.employees === null ? '—' : formatCount(row.employees)}</td>
       <td>
-        {row.domain ? (
-          <>
-            {safeWebsite ? <a href={safeWebsite} target="_blank" rel="noreferrer">{row.domain}</a> : <span>{row.domain}</span>}
-            <small>{row.confirmed_domain ? 'Confirmé' : 'À confirmer'}</small>
-          </>
+        {hasConfirmedDomain ? (
+          <a href={confirmedWebsiteUrl(row)} target="_blank" rel="noreferrer">{row.domain}</a>
         ) : (
-          <span className="prospection-missing">Sans site</span>
+          <DirectoryStatus status="to_qualify" />
         )}
       </td>
       <td>
         {row.professional_email ? (
           <>
             <a href={`mailto:${row.professional_email}`}>{row.professional_email}</a>
-            <small>{sourceLabel(row.email_source)} · {humanizeCode(row.email_verification_status)}</small>
+            <EmailMetadata source={row.email_source} verificationStatus={row.email_verification_status} />
           </>
         ) : (
           <span className="prospection-missing">—</span>
         )}
       </td>
       <td>
-        <DirectoryStatus row={row} />
+        <DirectoryStatus status={row.qualification_status} />
         <small>Maj. {formatDate(row.updated_at)}</small>
       </td>
     </tr>
@@ -314,16 +314,15 @@ function QueueSection({
         eyebrow="Revue assistée"
         title="File du jour"
         titleId="queue-title"
-        description="Cibles préparées au statut pending_review. Aucune action n’est écrite depuis cette console."
-        meta={`${cycleDateLabel(data.queue.last_cycle_at)} · ${timerShortLabel(data)}`}
+        description="Cibles préparées pour une revue manuelle. Aucune action n’est écrite depuis cette console."
+        meta={cycleDateLabel(data.queue.last_cycle_at)}
       />
       <span id={lockedId} className="control-visually-hidden">{ASSISTED_TOOLTIP}</span>
       <article className="control-panel prospection-queue-panel">
         {items.length === 0 ? (
           <div className="prospection-compact-empty">
-            <strong>Aucune cible préparée.</strong>
-            <span>Le runtime d’acquisition est à l’arrêt.</span>
-            <small>{cycleDateLabel(data.queue.last_cycle_at)}</small>
+            <strong>Aucune cible en attente de revue.</strong>
+            <span>La Session A n’a encore préparé aucune cible.</span>
           </div>
         ) : (
           <div className="control-table-wrap prospection-table-wrap prospection-queue-table">
@@ -353,7 +352,7 @@ function QueueSection({
                     </td>
                     <td>
                       <span>{item.email_address}</span>
-                      <small>{sourceLabel(item.email_source)} · {humanizeCode(item.email_verification_status)}</small>
+                      <EmailMetadata source={item.email_source} verificationStatus={item.email_verification_status} />
                     </td>
                     <td>
                       <strong className="prospection-primary-cell">{item.bait_holder}</strong>
@@ -400,13 +399,13 @@ function TargetingSection({ data }: { data: FounderProspection }) {
         eyebrow="Dernier passage"
         title="Sélection"
         titleId="targeting-title"
-        description="Signal, volume et écarts lus dans les journaux du dernier cycle d’acquisition."
-        meta={`${cycleDateLabel(cycle?.updated_at ?? null)} · ${timerShortLabel(data)}`}
+        description="Signal, volume et écarts lus dans le journal de sélection du dernier cycle d’acquisition."
+        meta={cycleDateLabel(cycle?.updated_at ?? null)}
       />
       {!cycle ? (
         <CompactEmpty title="Aucun cycle enregistré." body="Le runtime n’a produit aucun journal de sélection." />
       ) : !cycle.recent ? (
-        <CompactEmpty title="Aucun cycle récent." body={`Dernier cycle le ${formatDateTime(cycle.updated_at)} · ${humanizeCode(cycle.status)}.`} />
+        <CompactEmpty title="Aucun cycle récent." body={`Dernier cycle le ${formatDateTime(cycle.updated_at)} · ${cycleStatusLabel(cycle.status)}.`} />
       ) : (
         <article className="control-panel prospection-targeting-grid">
           <div className="prospection-signal">
@@ -426,7 +425,7 @@ function TargetingSection({ data }: { data: FounderProspection }) {
           </div>
           <div className="prospection-inline-list">
             <small>Écarts par motif</small>
-            <span>{cycle.deviation_counts.map((deviation) => `${humanizeCode(deviation.reason_code)} ${formatCount(deviation.count)}`).join(' · ') || 'Aucun écart'}</span>
+            <span>{cycle.deviation_counts.map((deviation) => `${deviationLabel(deviation.reason_code)} ${formatCount(deviation.count)}`).join(' · ') || 'Aucun écart'}</span>
           </div>
         </article>
       )}
@@ -443,7 +442,7 @@ function ResultsSection({ data }: { data: FounderProspection }) {
         title="Résultats"
         titleId="results-title"
         description="Progression observée depuis les envois jusqu’au revenu récurrent."
-        meta={`Actualisé ${formatDateTime(data.generated_at)} · ${timerShortLabel(data)}`}
+        meta={`Actualisé ${formatDateTime(data.generated_at)}`}
       />
       <div className="prospection-results-grid">
         <CompactMetric label="Envoyés" value={results.sent_count} />
@@ -549,11 +548,29 @@ function FilterSelect({
   )
 }
 
-function DirectoryStatus({ row }: { row: FounderDirectoryRow }) {
-  if (row.reverification_required_at) return <span className="prospection-pill prospection-pill-warning">À revérifier</span>
-  if (row.confirmed_domain) return <span className="prospection-pill prospection-pill-positive">Domaine confirmé</span>
-  if (!row.domain && !row.website_url) return <span className="prospection-pill">Sans site</span>
-  return <span className="prospection-pill">À qualifier</span>
+function DirectoryStatus({ status }: { status: FounderDirectoryQualificationStatus }) {
+  const className = status === 'reverification_required'
+    ? 'prospection-pill prospection-pill-warning'
+    : status === 'confirmed_domain'
+      ? 'prospection-pill prospection-pill-positive'
+      : 'prospection-pill'
+  return <span className={className}>{qualificationStatusLabel(status)}</span>
+}
+
+function EmailMetadata({
+  source,
+  verificationStatus,
+}: {
+  source: string | null
+  verificationStatus: string | null
+}) {
+  return (
+    <small>
+      <span>{sourceLabel(source)}</span>
+      {' · '}
+      <span>{emailVerificationLabel(verificationStatus)}</span>
+    </small>
+  )
 }
 
 function FacetList({ label, values }: { label: string; values: Array<{ key: string; label: string; count: number }> }) {
@@ -622,41 +639,71 @@ function CompactEmpty({ title, body }: { title: string; body: string }) {
 }
 
 function familyLabel(value: string): string {
-  return FAMILY_LABELS[value] ?? humanizeCode(value)
+  return FAMILY_LABELS[value] ?? 'Famille non répertoriée'
 }
 
 function sourceLabel(value: string | null): string {
   if (!value) return 'Source inconnue'
   const labels: Record<string, string> = { apollo: 'Apollo', site: 'Site', manual: 'Manuel' }
-  return labels[value.toLowerCase()] ?? humanizeCode(value)
+  return labels[value.toLowerCase()] ?? 'Source non répertoriée'
 }
 
-function timerLabel(data: FounderProspection): string {
-  if (data.timer.state === 'RUNNING') {
-    return data.timer.next_trigger_at
-      ? `Actif · prochain passage ${formatDateTime(data.timer.next_trigger_at)}`
-      : 'Actif'
+function emailVerificationLabel(value: string | null): string {
+  if (!value) return 'Vérification inconnue'
+  const labels: Record<string, string> = {
+    mx_verified: 'MX vérifié',
+    mx_accepted: 'MX vérifié',
+    provider_verified: 'Vérifié par le fournisseur',
+    deliverability_verified: 'Délivrabilité vérifiée',
+    verified: 'Vérifié',
   }
-  if (data.timer.state === 'STOPPED') {
-    const stoppedAt = data.timer.inactive_since
-    return stoppedAt ? `Arrêté depuis le ${formatDateTime(stoppedAt)}` : 'Arrêté'
-  }
-  return 'État indisponible'
+  return labels[value.toLowerCase()] ?? 'Statut de vérification non répertorié'
 }
 
-function timerShortLabel(data: FounderProspection): string {
-  if (data.timer.state === 'RUNNING') return 'timer actif'
-  if (data.timer.state === 'STOPPED') {
-    const stoppedAt = data.timer.inactive_since
-    return stoppedAt ? `arrêté depuis le ${formatDateTime(stoppedAt)}` : 'timer arrêté'
+function qualificationStatusLabel(status: FounderDirectoryQualificationStatus): string {
+  const labels: Record<FounderDirectoryQualificationStatus, string> = {
+    confirmed_domain: 'Domaine confirmé',
+    reverification_required: 'À revérifier',
+    without_website: 'Sans site',
+    to_qualify: 'À qualifier',
   }
-  return 'timer inconnu'
+  return labels[status]
 }
 
-function lastCycleLabel(data: FounderProspection): string {
-  const cycle = data.targeting
-  if (!cycle) return 'Aucun cycle enregistré'
-  return `Dernier cycle ${formatDateTime(cycle.updated_at)} · ${humanizeCode(cycle.status)}`
+function departmentLabel(code: string, name: string | null): string {
+  return name ? `${name} (${code})` : code
+}
+
+function confirmedWebsiteUrl(row: FounderDirectoryRow): string {
+  if (row.website_url?.startsWith('https://') || row.website_url?.startsWith('http://')) {
+    return row.website_url
+  }
+  return `https://${row.domain ?? ''}`
+}
+
+function cycleStatusLabel(value: string): string {
+  const labels: Record<string, string> = {
+    suppressed: 'Supprimé',
+    succeeded: 'Réussi',
+    failed: 'Échoué',
+    running: 'En cours',
+    abandoned: 'Abandonné',
+    pending: 'En attente',
+    waiting: 'En attente de traitement',
+    blocked: 'Bloqué',
+    cancelled: 'Annulé',
+  }
+  return labels[value.toLowerCase()] ?? 'État du cycle non répertorié'
+}
+
+function deviationLabel(value: string): string {
+  const labels: Record<string, string> = {
+    contact_identity_unresolved: 'Identité du contact non résolue',
+    confirmed_domain_not_found: 'Aucun domaine confirmé',
+    verified_email_not_found: 'Aucun e-mail vérifié',
+    no_eligible_supplier: 'Aucun fournisseur éligible',
+  }
+  return labels[value.toLowerCase()] ?? 'Motif non répertorié'
 }
 
 function cycleDateLabel(value: string | null): string {
@@ -698,10 +745,4 @@ function formatMoney(minorUnits: number, currency: string): string {
   } catch {
     return `${formatCount(minorUnits / 100)} ${currency}`
   }
-}
-
-function humanizeCode(value: string | null): string {
-  if (!value) return '—'
-  const words = value.replaceAll('-', ' ').replaceAll('_', ' ').toLowerCase()
-  return words ? words[0].toUpperCase() + words.slice(1) : '—'
 }

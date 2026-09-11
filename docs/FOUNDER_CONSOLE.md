@@ -27,7 +27,8 @@ V1.
 Public DNS for control.kivou.eu
   -> nginx HTTP redirect / ACME challenge and HTTPS Basic Auth
   -> Founder API on 127.0.0.1:8011
-  -> production read models through a PostgreSQL read-only role
+      -> GET read models through PostgreSQL role kivou_founder_ro
+      -> bounded assisted-prospection actions through PostgreSQL role kivou_founder_rw
 ```
 
 Defense in depth:
@@ -37,11 +38,13 @@ Defense in depth:
 3. nginx overwrites `X-Kivou-Founder-Origin-Secret` with a local root-managed secret;
 4. nginx overwrites `X-Kivou-Founder-User` with the authenticated Basic Auth username;
 5. the API requires the proxy secret and the configured username must exactly match `rodrigue`;
-6. the Founder API mounts no customer route and no write route;
-7. PostgreSQL sessions start with `default_transaction_read_only=on`;
-8. the database user receives CONNECT, USAGE and SELECT only;
-9. each session verifies `SHOW transaction_read_only = on` before serving reads;
-10. the Founder connection has a bounded statement timeout.
+6. the Founder API mounts no customer route;
+7. read-model sessions use `kivou_founder_ro` and start with `default_transaction_read_only=on`;
+8. the read-model role receives CONNECT, USAGE and SELECT only;
+9. each read-model session verifies `SHOW transaction_read_only = on` before serving reads;
+10. assisted-prospection actions are isolated under `/api/founder/actions/prospection/*` and use only `kivou_founder_rw`;
+11. the action role has narrowly enumerated grants for the review queue, send audit, suppression lookup and approved supplier-directory corrections;
+12. both Founder database connections have a bounded statement timeout.
 
 Basic Auth and the origin secret are separate controls. The secret prevents
 direct calls to the local API from succeeding with a forged username header.
@@ -59,40 +62,49 @@ ops/examples/founder-console.env.example
 
 The customer SPA remains built into `frontend/dist`. The Founder Console is built into `frontend/dist-founder` and deployed independently to `/srv/kivou-founder/frontend`.
 
-## V1 authority boundary
+## Authority boundary
 
-V1 is read-only. It may:
+The Founder service has two separate server-side capabilities:
 
-- load summaries and read models;
-- filter or change a completed reporting week;
-- display incidents and dead letters;
-- display commercial, quality and operations metrics;
-- show the current Hermes and Policy Gateway evidence;
-- refresh the current snapshot.
+- consultation endpoints compose read models through `kivou_founder_ro`;
+- the existing `/api/founder/actions/prospection/list`, `/approve`, `/correct`,
+  `/reject` and `/send` routes use the separately credentialed
+  `kivou_founder_rw` action service and its bounded grants.
 
-V1 may not:
+The frontend in this delivery remains a **consultation UI**. It loads and
+filters read models, changes the tunnel period or completed cohort week, opens
+prepared mail for review, and refreshes the snapshot. The assisted action
+buttons remain visible but disabled and the browser does not call the action
+routes yet.
 
-- approve or reject a campaign;
-- pause or resume execution;
-- change a policy;
-- trigger a retry;
-- operate the kill switch;
-- edit a signal;
-- write directly to PostgreSQL;
-- call a customer mutation route;
-- deploy code.
-
-A future command layer must use an explicit Founder Command API, the Policy Gateway, idempotent commands and an audit trail. It must never grant the frontend direct database writes.
+This UI constraint is not an absence of server-side write routes. The Founder
+API still mounts no customer route, never exposes a customer mutation through
+the Founder host, and never gives the frontend direct PostgreSQL access. It
+also does not expose controls for policy changes, retries, the kill switch or
+deployment.
 
 ## Read-model semantics
 
-The endpoint `GET /api/founder/overview` composes existing Kivou truth. It does not call Apollo, Instantly, Stripe, Hermes or any other provider while rendering the console.
+The endpoints `GET /api/founder/overview` and
+`GET /api/founder/prospection` compose existing Kivou truth. They do not call
+an external provider while rendering the console.
 
-### Vue du moment
+### Acquisition status
 
-Current operational health, unresolved attention count, current Hermes evidence and highest safe autonomy mode are evaluated at request time from durable local state.
+One `FounderAcquisitionStatus` projection is the displayed source of truth on
+**Aujourd’hui**, **Prospection** and **Système**. The same contract reports:
 
-Positive replies and paid accounts shown in the same summary are explicitly labelled as belonging to the selected **last completed business week**. They are not presented as same-day values.
+- the acquisition mode;
+- whether acquisition is active, stopped or unavailable, with the time since
+  that activity state began when known;
+- the last observed cycle reference and timestamp;
+- the last cycle result and its durable reason when available.
+
+The mode and last-cycle fields come from the production runtime observation;
+activity and its start time come from the acquisition systemd timer. Missing
+or unstable evidence remains explicitly unknown rather than being inferred
+from another timestamp. The detailed health and readiness diagnostics in
+**Système** remain separate and do not create a second acquisition summary.
 
 ### À traiter
 
@@ -103,15 +115,49 @@ The queue contains only:
 
 Rows are whitelisted into a PII-minimal contract. No raw provider payload, email body, customer note or secret is returned.
 
-### Business
+### Tunnel commercial
 
-The commercial panel reuses `WeeklyCommercialCockpitService` and its existing immutable contract:
+**Tunnel commercial** replaces the former visible weekly analytics panel. It
+shows six stages: sent, opened, clicked, landed, profile confirmed and paid.
+The read model includes both regular acquisition and assisted-prospection
+delivery evidence.
 
-- sent-minus-bounce remains labelled as a delivery proxy;
-- MRR is kept per currency;
-- incomplete revenue journeys remain visible as incomplete;
-- M2 efficiency is shown only when the bounded evidence says `READY`;
-- historical selection is limited to 52 completed weeks.
+The default **Période** view offers `Aujourd’hui` and `7 derniers jours`:
+
+- `Aujourd’hui` runs from midnight in `Europe/Zurich` to the request time;
+- `7 derniers jours` runs from midnight six calendar days earlier to the
+  request time;
+- every stage is counted by its own event timestamp inside the selected
+  interval, whose exact bounds are returned to the UI.
+
+The **Par cohorte** view selects one of the 52 completed send weeks. Its cohort
+contains the targets sent during that week, while every later stage is counted
+from each send through the current request time, including stages reached
+after the selected week ended.
+
+MRR by currency and churn are shown separately under **Situation actuelle**.
+They form a current, timestamped snapshot independent of both the period and
+the cohort; they are not attributed to the selected interval.
+
+### Prospection
+
+The page starts with the same acquisition-status projection, then always puts
+**File du jour** before **Annuaire**. The queue contains only targets whose
+durable status is `pending_review`; prepared targets use a professional address
+whose MX verification succeeded. Mail contents can be opened for consultation,
+while validation, correction, rejection and send controls remain disabled in
+this delivery.
+
+**Annuaire** reads the active real supplier directory and returns pages of 25
+rows. Search, supplier-family, French-department and qualification filters are
+applied before pagination while the summary and facets remain global.
+
+A raw domain or website candidate is never exposed unless its validation
+method confirms it. Each row carries a `qualification_status` that distinguishes
+`confirmed_domain`, `without_website`, `reverification_required` and
+`to_qualify`. Department names come from the French reference and are displayed
+with their code, for example `Rhône (69)`. Verified MX states are rendered as
+`MX vérifié`.
 
 ### Qualité
 
@@ -123,8 +169,7 @@ It reports:
 - relevant and not-relevant states;
 - contacts declared during the window;
 - negative share among feedback updated in the window;
-- structured negative reasons;
-- unresolved commercial sectors and incomplete MRR journeys.
+- structured negative reasons.
 
 Customer feedback remains separate from public facts and engine inferences. The console never rewrites the Need Graph, scoring or ICP from a negative click.
 
@@ -133,17 +178,20 @@ Customer feedback remains separate from public facts and engine inferences. The 
 The system panel reuses `OperationsReadService`:
 
 - API and database health;
-- Hermes runtime and supervisor loop;
+- supervisor-loop health;
 - Policy Gateway;
 - campaign execution;
 - dead-letter queue;
 - circuit breakers;
-- readiness gates and blockers;
-- highest safe autonomy mode.
+- readiness gates and blockers.
 
-The UI shows only the agent actually implemented: **Hermes Acquisition Supervisor**. Future agent cards are added only when a real read model exists behind them.
+The same acquisition-status component appears at the top of this section. The
+remaining component health, reasons and readiness gates are detailed diagnostic
+evidence, not another global acquisition state.
 
-## PostgreSQL read-only role
+## PostgreSQL roles
+
+### Read-model role
 
 Create a dedicated credential. Never reuse the Kivou application or migration writer.
 
@@ -189,6 +237,8 @@ Expected production URL:
 KIVOU_FOUNDER_DATABASE_URL=postgresql+psycopg://kivou_founder_ro:REPLACE@127.0.0.1:5432/kivou
 ```
 
+### Assisted-action role
+
 The assisted-prospection actions use a second credential. Create it before the
 `0051_assisted_prospection` migration so that the migration can grant only the
 review queue, send audit, suppression lookup, and the explicitly mutable
@@ -208,11 +258,12 @@ Set the distinct URL in `/etc/kivou/founder.env`:
 KIVOU_FOUNDER_WRITE_DATABASE_URL=postgresql+psycopg://kivou_founder_rw:REPLACE@127.0.0.1:5432/kivou
 ```
 
-The Founder process verifies `current_user=kivou_founder_rw` on every new
-writer connection. The migration grants no access to customer, billing, or
-general application writes.
+The Founder process verifies `current_user=kivou_founder_rw` and a writable
+transaction mode on every new action connection. The migration grants no
+access to customer, billing, or general application writes.
 
-A non-PostgreSQL URL is refused by the production Founder entrypoint.
+Both database URLs must use PostgreSQL. The production Founder entrypoint also
+refuses an action connection whose database user is not `kivou_founder_rw`.
 
 ## DNS handoff
 
@@ -274,6 +325,7 @@ KIVOU_FOUNDER_ALLOWED_EMAIL=rodrigue.bruppacher@gmail.com
 KIVOU_FOUNDER_ALLOWED_USER=rodrigue
 KIVOU_FOUNDER_ORIGIN_SECRET=<random-value-from-openssl-rand-hex-32>
 KIVOU_FOUNDER_DATABASE_URL=postgresql+psycopg://kivou_founder_ro:REPLACE@127.0.0.1:5432/kivou
+KIVOU_FOUNDER_WRITE_DATABASE_URL=postgresql+psycopg://kivou_founder_rw:REPLACE@127.0.0.1:5432/kivou
 ```
 
 Generate the origin secret with `openssl rand -hex 32`. Put that same generated
@@ -436,6 +488,61 @@ uv run pytest -q
 uv run ruff check .
 ```
 
+## Blocked-domain audit in production
+
+The blocked-domain audit is an operations command, not a Founder Console
+action. It reads `KIVOU_DATABASE_URL` from the protected production environment
+and must run with the normal Kivou application database role. Do not use
+`KIVOU_FOUNDER_DATABASE_URL` or `kivou_founder_ro`: the application pass needs
+`UPDATE` permission to mark affected directory rows for reverification. The
+command never prints the database URL or other configuration values.
+
+After deploying the audited release, run these three passes in order. The first
+pass is the default dry-run and performs no write:
+
+```bash
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/production.env \
+  /srv/kivou/app/.venv/bin/python -m signals.supplier_directory.domain_audit
+```
+
+Inspect the JSON before continuing. For the 11 September snapshot, it should
+report one affected row: SIREN `402274716`, legal name `AJEBAT`, domain
+`neyron.localbiz.fr`, and `modified_count` equal to zero. Stop if the affected
+set is unexpected. Apply exactly that audit:
+
+```bash
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/production.env \
+  /srv/kivou/app/.venv/bin/python -m signals.supplier_directory.domain_audit --apply
+```
+
+The application pass must report `modified_count` equal to the prior
+`affected_count`. It clears the untrusted domain and contact evidence and sets
+the reason `blocked_domain_audit`. Finally, rerun the dry-run:
+
+If the command reports `domain_audit_failed`, no row from that pass is
+quarantined. In particular, the audit refuses to race a target whose send
+request is still `started`. Let that request reach a terminal state, investigate
+any other concurrent directory change, then restart from the dry-run; never
+assume a partial application succeeded.
+
+```bash
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/production.env \
+  /srv/kivou/app/.venv/bin/python -m signals.supplier_directory.domain_audit
+```
+
+The final JSON must report `affected_count: 0` and `modified_count: 0`. A
+non-zero affected count means the quarantine is incomplete; do not treat the
+operation as finished.
+
 Before publication:
 
 ```bash
@@ -473,34 +580,41 @@ sudo certbot renew --dry-run
 
 Also confirm in the authenticated console that:
 
-- the console says `Production` and `Lecture seule`;
+- the console says `Production` and `Consultation`;
 - customer login cookies are neither required nor accepted as Founder authorization;
 - customer routes are not reachable through the Founder host;
 - no `/internal/*` route is exposed by the Founder vhost;
-- the completed-week labels match the returned business period;
-- no action button capable of changing Kivou exists.
+- Aujourd’hui, Prospection and Système show the same acquisition mode,
+  activity-since value and last-cycle result;
+- Tunnel commercial opens on `7 derniers jours`, switches to `Aujourd’hui`,
+  and shows exact bounds ending at the observation time;
+- the selected send cohort follows its stages through the observation time,
+  while MRR and churn remain a separately timestamped current snapshot;
+- File du jour precedes Annuaire and contains only `pending_review` targets;
+- Annuaire is paginated by 25, names French departments, hides unconfirmed
+  domains, exposes their qualification state and labels verified mail as
+  `MX vérifié`;
+- the assisted action buttons are disabled and generate no action request from
+  this frontend.
 
-## Two-PR delivery
-
-### PR 1 — Foundation
+## Delivered surface
 
 - independent frontend build;
 - independent FastAPI process;
 - direct HTTPS boundary with nginx Basic Auth;
 - one production hostname;
-- French-only foundation UI;
-- read-only session contract;
+- French-only consultation UI;
 - versioned nginx, systemd and runbook;
 - removal of the cockpit route from the customer SaaS;
-- no data read model and no command.
-
-### PR 2 — Production read models
-
-- production database connection through a dedicated read-only role;
-- Vue du moment, À traiter, Business, Qualité and Système views;
-- Hermes and Policy Gateway status derived from durable evidence;
+- no customer route mounted in the Founder API;
+- read models through the dedicated `kivou_founder_ro` role;
+- bounded assisted-prospection routes through the dedicated
+  `kivou_founder_rw` role;
+- Aujourd’hui, Prospection, À traiter, Tunnel commercial, Qualité and Système
+  views;
+- one shared acquisition status across Aujourd’hui, Prospection and Système;
 - no fabricated metrics;
-- no write action.
+- assisted action buttons kept disabled in the delivered frontend.
 
 ## Non-goals
 

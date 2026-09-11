@@ -299,6 +299,11 @@ def test_observed_french_directories_and_trade_press_are_rejected() -> None:
     assert all(rejected_supplier_domain(domain) for domain in domains)
 
 
+@pytest.mark.parametrize("domain", ["localbiz.fr", "neyron.localbiz.fr"])
+def test_localbiz_is_rejected_as_a_directory(domain: str) -> None:
+    assert rejected_supplier_domain(domain) is True
+
+
 @pytest.mark.parametrize(
     "domain",
     (

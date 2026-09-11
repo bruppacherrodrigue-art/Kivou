@@ -302,6 +302,45 @@ def test_directory_marks_untrusted_contact_data_for_reverification(tmp_path) -> 
     assert record.reverification_reason == "third_party_domain"
 
 
+def test_directory_reverification_expected_domain_does_not_clear_a_corrected_domain(
+    tmp_path,
+) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ESCOLLE BETON",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city="SAINT-EGREVE",
+        employees=19,
+        observed_at=NOW,
+    )
+    store.record_domain(
+        "331364729",
+        domain="corrected.example",
+        website_url="https://corrected.example",
+        source="serper",
+        validation_method="registration_number",
+        validation_evidence_url="https://corrected.example/mentions-legales",
+        observed_at=NOW,
+    )
+
+    modified = store.mark_for_reverification(
+        "331364729",
+        reason="blocked_domain_audit",
+        observed_at=NOW + dt.timedelta(hours=1),
+        expected_domain="stale.localbiz.fr",
+    )
+
+    record = store.get("331364729")
+    assert modified is False
+    assert record is not None
+    assert record.domain == "corrected.example"
+    assert record.domain_validation_method == "registration_number"
+    assert record.reverification_required_at is None
+
+
 def test_directory_rejects_email_outside_the_validated_company_domain(tmp_path) -> None:
     store = _store(tmp_path)
     store.upsert_identity(

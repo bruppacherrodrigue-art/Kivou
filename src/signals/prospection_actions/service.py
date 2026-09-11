@@ -13,6 +13,7 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
+from signals.company_research.domain import rejected_supplier_domain
 from signals.persistence.schema import (
     prospect_send_request,
     prospect_target,
@@ -220,6 +221,11 @@ def _history_id(target_id: str, version: int, event_type: str) -> str:
     ).hexdigest()
 
 
+def _postgresql_sqlstate(error: sa.exc.OperationalError) -> str | None:
+    original = error.orig
+    return getattr(original, "sqlstate", None) or getattr(original, "pgcode", None)
+
+
 class ProspectionActions:
     def __init__(
         self,
@@ -295,18 +301,40 @@ class ProspectionActions:
         )
 
     @staticmethod
+    def _locked_rows(
+        connection: sa.Connection,
+        statement: sa.sql.Select,
+        *,
+        target_ids: tuple[str, ...],
+    ) -> tuple[sa.RowMapping, ...]:
+        try:
+            return tuple(connection.execute(statement).mappings())
+        except sa.exc.OperationalError as error:
+            if _postgresql_sqlstate(error) == "55P03":
+                raise ProspectionActionError(
+                    "RESOURCE_LOCK_BUSY",
+                    "ressource occupée, réessayez",
+                    target_ids=target_ids,
+                ) from None
+            raise
+
+    @classmethod
     def _load(
-        connection: sa.Connection, target_id: UUID, expected_version: int
+        cls,
+        connection: sa.Connection,
+        target_id: UUID,
+        expected_version: int,
     ) -> dict[str, object]:
-        row = (
-            connection.execute(
+        rows = cls._locked_rows(
+            connection,
+            (
                 sa.select(prospect_target)
                 .where(prospect_target.c.target_id == str(target_id))
-                .with_for_update()
-            )
-            .mappings()
-            .one_or_none()
+                .with_for_update(nowait=True)
+            ),
+            target_ids=(str(target_id),),
         )
+        row = rows[0] if rows else None
         if row is None:
             raise ProspectionActionError(
                 "TARGET_NOT_FOUND",
@@ -359,6 +387,53 @@ class ProspectionActions:
             .one()
         )
 
+    @staticmethod
+    def _validate_live_directory_contact(
+        row: dict[str, object], directory: sa.RowMapping | None
+    ) -> None:
+        domain = None if directory is None else directory["domain"]
+        email = None if directory is None else directory["professional_email"]
+        valid = bool(
+            directory is not None
+            and directory["suppressed_at"] is None
+            and directory["reverification_required_at"] is None
+            and domain is not None
+            and directory["domain_validation_method"] is not None
+            and email is not None
+            and str(email).casefold() == str(row["email_address"]).casefold()
+            and not rejected_supplier_domain(str(domain))
+        )
+        if not valid:
+            raise ProspectionActionError(
+                "DIRECTORY_REVERIFICATION_REQUIRED",
+                "la fiche annuaire doit être revérifiée",
+                target_ids=(str(row["target_id"]),),
+                status_code=422,
+            )
+
+    @classmethod
+    def _require_live_directory_contact(
+        cls, connection: sa.Connection, row: dict[str, object]
+    ) -> None:
+        directories = cls._locked_rows(
+            connection,
+            (
+                sa.select(
+                    supplier_directory.c.siren,
+                    supplier_directory.c.domain,
+                    supplier_directory.c.domain_validation_method,
+                    supplier_directory.c.professional_email,
+                    supplier_directory.c.reverification_required_at,
+                    supplier_directory.c.suppressed_at,
+                )
+                .where(supplier_directory.c.siren == row["siren"])
+                .with_for_update(nowait=True)
+            ),
+            target_ids=(str(row["target_id"]),),
+        )
+        directory = directories[0] if directories else None
+        cls._validate_live_directory_contact(row, directory)
+
     def approve(self, command: ApproveCommand, *, actor: str) -> ProspectTarget:
         at = self._clock()
         with self._engine.begin() as connection:
@@ -369,6 +444,7 @@ class ProspectionActions:
                     "seule une cible en attente peut être validée",
                     target_ids=(str(command.target_id),),
                 )
+            self._require_live_directory_contact(connection, row)
             values = {
                 "status": ProspectStatus.APPROVED.value,
                 "approved_at": at,
@@ -661,15 +737,65 @@ class ProspectionActions:
                     target_ids=tuple(str(item.target_id) for item in command.targets),
                 )
 
+            requested_target_ids = tuple(str(item.target_id) for item in command.targets)
+            locked_target_rows = self._locked_rows(
+                connection,
+                sa.select(prospect_target)
+                .where(prospect_target.c.target_id.in_(tuple(sorted(requested_target_ids))))
+                .order_by(prospect_target.c.target_id)
+                .with_for_update(nowait=True),
+                target_ids=requested_target_ids,
+            )
+            targets_by_id = {str(row["target_id"]): row for row in locked_target_rows}
             for item in command.targets:
-                row = self._load(connection, item.target_id, item.expected_version)
                 target_id = str(item.target_id)
+                row = targets_by_id.get(target_id)
+                if row is None:
+                    raise ProspectionActionError(
+                        "TARGET_NOT_FOUND",
+                        "cible introuvable",
+                        target_ids=(target_id,),
+                        status_code=404,
+                    )
+                if int(row["version"]) != item.expected_version:
+                    raise ProspectionActionError(
+                        "TARGET_VERSION_CONFLICT",
+                        "la cible a été modifiée",
+                        target_ids=(target_id,),
+                    )
                 if row["status"] != ProspectStatus.APPROVED.value or row.get("send_request_id"):
                     raise ProspectionActionError(
                         "INVALID_TARGET_STATUS",
                         "toutes les cibles doivent être validées",
                         target_ids=(target_id,),
                     )
+                target_rows.append(dict(row))
+
+            requested_sirens = tuple(sorted({str(row["siren"]) for row in target_rows}))
+            locked_directory_rows = self._locked_rows(
+                connection,
+                sa.select(
+                    supplier_directory.c.siren,
+                    supplier_directory.c.domain,
+                    supplier_directory.c.domain_validation_method,
+                    supplier_directory.c.professional_email,
+                    supplier_directory.c.reverification_required_at,
+                    supplier_directory.c.suppressed_at,
+                )
+                .where(supplier_directory.c.siren.in_(requested_sirens))
+                .order_by(supplier_directory.c.siren)
+                .with_for_update(nowait=True),
+                target_ids=requested_target_ids,
+            )
+            directories_by_siren = {
+                str(row["siren"]): row for row in locked_directory_rows
+            }
+            for row in target_rows:
+                target_id = str(row["target_id"])
+                self._validate_live_directory_contact(
+                    row,
+                    directories_by_siren.get(str(row["siren"])),
+                )
                 if row["email_verification_status"] != "mx_verified":
                     raise ProspectionActionError(
                         "EMAIL_NOT_MX_VERIFIED",
@@ -686,7 +812,6 @@ class ProspectionActions:
                         target_ids=(target_id,),
                         status_code=422,
                     )
-                target_rows.append(row)
 
             connection.execute(
                 sa.insert(prospect_send_request).values(
@@ -775,7 +900,10 @@ class ProspectionActions:
                     instantly_request_count=0,
                     error="provider result missing",
                 )
-        sent_count = sum(item.status == "sent" for item in attempts_by_id.values())
+        ordered_attempts = tuple(
+            attempts_by_id[str(row["target_id"])] for row in target_rows
+        )
+        sent_count = sum(item.status == "sent" for item in ordered_attempts)
         with self._engine.begin() as connection:
             for row in target_rows:
                 attempt = attempts_by_id[str(row["target_id"])]
@@ -829,7 +957,7 @@ class ProspectionActions:
                         status=item.status,
                         instantly_id=item.instantly_id,
                     )
-                    for item in attempts_by_id.values()
+                    for item in ordered_attempts
                 ),
                 daily_sent_count=daily_sent,
                 daily_remaining=max(0, 25 - daily_sent),
@@ -860,7 +988,7 @@ class ProspectionActions:
             raise ProspectionActionError(
                 "INSTANTLY_SEND_FAILED",
                 "le fournisseur n'a accepté aucune cible",
-                target_ids=tuple(permit.target_ids),
+                target_ids=tuple(str(row["target_id"]) for row in target_rows),
                 status_code=502,
             )
         return result
