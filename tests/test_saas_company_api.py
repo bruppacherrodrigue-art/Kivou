@@ -122,6 +122,23 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert "contact_ref" not in response.text.lower()
 
 
+def test_signal_and_company_expose_the_same_holder_market_history(app, engine) -> None:
+    client = _signup(app, email="company-market-history@example.com")
+    signal_key = _seed_unlocked(engine, client)
+
+    signal = client.get(f"/signals/{signal_key}").json()
+    profile = client.get(f"/companies/{signal['company_key']}").json()
+
+    assert signal["holder_history"]["resolution"] == "company_key"
+    assert signal["holder_history"]["last_12_months"]["awards_count"] == 1
+    assert signal["holder_history"]["source"] == "public_awards"
+    assert profile["market_summary"] == {
+        **signal["holder_history"]["summary"],
+        "resolution": "company_key",
+        "source": "public_awards",
+    }
+
+
 def test_company_list_projects_a_named_holder_even_before_enrichment(app, engine) -> None:
     client = _signup(app, email="company-unresolved-list@example.com")
     icp_id = _icp(client)
@@ -208,6 +225,7 @@ def test_locked_signal_detail_never_reveals_a_company_key(app, engine) -> None:
     assert response.status_code == 200
     assert response.json()["locked"] is True
     assert "company_key" not in response.json()
+    assert "holder_history" not in response.json()
 
 
 def test_missing_and_malformed_company_keys_share_the_same_not_found_shape(app, engine) -> None:

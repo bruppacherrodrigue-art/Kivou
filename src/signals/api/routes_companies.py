@@ -16,6 +16,7 @@ from signals.api.errors import api_error
 from signals.billing import service as billing
 from signals.billing.access import FeedAccess, feed_access
 from signals.card_intelligence.store import published_for_signals
+from signals.client_value.history import department_for_place, history_for_company
 from signals.companies.contracts import CompanyProfile
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
@@ -282,6 +283,22 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             company_key=company_key,
             items=items,
         )
+        holder_history = history_for_company(
+            connection,
+            company_key=company_key,
+            winner_name=profile.official_identity.name,
+            department=department_for_place(most_recent.signal.award.place_of_performance),
+            as_of=now.date(),
+        )
+        market_summary = None
+        if holder_history is not None:
+            market_summary = {
+                **holder_history["summary"],
+                "resolution": holder_history["resolution"],
+                "source": holder_history["source"],
+            }
+            if "resolution_note" in holder_history:
+                market_summary["resolution_note"] = holder_history["resolution_note"]
     return profile.model_copy(
         update={
             "city": place.get("locality"),
@@ -290,6 +307,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             "note": note.body if note is not None else None,
             "signals": signals,
             "history": history,
+            "market_summary": market_summary,
         }
     )
 

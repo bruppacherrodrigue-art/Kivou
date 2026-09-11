@@ -55,6 +55,7 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.client_value.history import department_for_place, history_for_company
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.service import (
@@ -503,6 +504,7 @@ def get_signal(
     company_key = None
     enrichment = None
     presentation = None
+    holder_history = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
@@ -581,6 +583,17 @@ def get_signal(
                 enrichment = winner_enrichments_for_signals(
                     connection, signal_keys=(signal_key,)
                 ).get(signal_key)
+                holder_history = history_for_company(
+                    connection,
+                    company_key=company_key,
+                    winner_name=(
+                        enrichment.official_name
+                        if enrichment is not None and enrichment.official_name is not None
+                        else item.display.name if item.display is not None else None
+                    ),
+                    department=department_for_place(item.signal.award.place_of_performance),
+                    as_of=as_of,
+                )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -610,6 +623,8 @@ def get_signal(
         detail["winner_enrichment"] = enrichment.model_dump(mode="json")
         if enrichment.official_name is not None:
             detail["company"]["name"] = enrichment.official_name
+    if holder_history is not None:
+        detail["holder_history"] = holder_history
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.
