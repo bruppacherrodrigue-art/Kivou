@@ -71,11 +71,17 @@ function activityLabel(status: FounderAcquisitionStatus): string {
 
 function cycleLabel(status: FounderAcquisitionStatus): string {
   if (!status.last_cycle_ref && !status.last_cycle_at) return 'Aucun cycle observé'
-  const reference = status.last_cycle_ref ?? 'Référence indisponible'
+  const reference = cycleReferenceLabel(status.last_cycle_ref)
   const observedAt = status.last_cycle_at
     ? formatDateTime(status.last_cycle_at)
     : 'date indisponible'
   return `${reference} · ${observedAt}`
+}
+
+function cycleReferenceLabel(reference: string | null): string {
+  if (!reference) return 'Référence indisponible'
+  if (reference.length <= 24) return reference
+  return `${reference.slice(0, 8)}…${reference.slice(-6)}`
 }
 
 function cycleResultLabel(status: FounderAcquisitionStatus): string {
