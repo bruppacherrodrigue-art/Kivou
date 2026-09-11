@@ -69,13 +69,14 @@ _DIRECTORY_DOMAINS = frozenset(
         "gowork.fr",
         "actulegales.fr",
         "lavieduvillage.fr",
+        "win2win-france.fr",
+        "publikconnect.fr",
+        "viviany.fr",
     }
 )
 
 _PUBLIC_TITLE_WORDS = frozenset({"mairie", "commune", "municipalite"})
-_IGNORED_COMPANY_WORDS = frozenset(
-    {"etablissement", "etablissements", "ets", "groupe", "societe"}
-)
+_IGNORED_COMPANY_WORDS = frozenset({"etablissement", "etablissements", "ets", "groupe", "societe"})
 _LEGAL_PATH_WORDS = ("mention", "legal", "juridique", "impressum")
 _REGISTRATION_PATHS = (
     "/mentions-legales",
@@ -99,6 +100,7 @@ class DomainResolution(BaseModel):
     search_title: str | None = Field(default=None, max_length=1024)
     validation_method: Literal["name_word", "registration_number"] | None = None
     validation_evidence_url: str | None = Field(default=None, max_length=2048)
+    homepage_title: str | None = Field(default=None, max_length=1024)
     observed_at: dt.datetime
 
 
@@ -158,19 +160,14 @@ def rejected_supplier_domain(domain: str, title: str = "") -> bool:
 
 def _normalized_company_words(company_name: str) -> tuple[str, ...]:
     return tuple(
-        word
-        for word in significant_name_words(company_name)
-        if word not in _IGNORED_COMPANY_WORDS
+        word for word in significant_name_words(company_name) if word not in _IGNORED_COMPANY_WORDS
     )
 
 
 def _domain_contains_company_word(domain: str, company_name: str) -> bool:
     compact_domain = "".join(re.findall(r"[a-z0-9]+", domain.casefold().rsplit(".", 1)[0]))
     company_words = _normalized_company_words(company_name)
-    if any(len(word) >= 4 and word in compact_domain for word in company_words):
-        return True
-    initials = "".join(word[0] for word in company_words if word)
-    return len(initials) >= 2 and initials in compact_domain
+    return any(len(word) >= 5 and word in compact_domain for word in company_words)
 
 
 def _homepage_title_contains_company_name(title: str, company_name: str) -> bool:
@@ -229,9 +226,7 @@ class CompanyWebsiteRegistrationClient:
     def __init__(self, *, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(timeout=10.0, follow_redirects=True)
 
-    def _get(
-        self, url: str, domain: str
-    ) -> tuple[str, str, str, str, tuple[str, ...]] | None:
+    def _get(self, url: str, domain: str) -> tuple[str, str, str, str, tuple[str, ...]] | None:
         try:
             response = self._client.get(url, headers={"user-agent": "Kivou/1.0"})
             final_domain = (response.url.host or "").casefold().removeprefix("www.")
@@ -258,11 +253,13 @@ class CompanyWebsiteRegistrationClient:
         self, resolution: DomainResolution, identity: SireneOrganizationCandidate
     ) -> str | None:
         evidence = self.inspect(resolution, identity)
-        return evidence[1] if evidence is not None and evidence[0] == "registration_number" else None
+        return (
+            evidence[1] if evidence is not None and evidence[0] == "registration_number" else None
+        )
 
     def inspect(
         self, resolution: DomainResolution, identity: SireneOrganizationCandidate
-    ) -> tuple[Literal["registration_number", "homepage_title"], str] | None:
+    ) -> tuple[Literal["registration_number", "homepage_title"], str, str] | None:
         home_url = f"https://{resolution.domain}/"
         home = self._get(home_url, resolution.domain)
         if home is None:
@@ -270,7 +267,7 @@ class CompanyWebsiteRegistrationClient:
         final_url, _home_text, footer_text, title, links = home
         siren = identity.provider_organization_id
         if _contains_registration_number(footer_text, siren):
-            return "registration_number", final_url
+            return "registration_number", final_url, title.strip()
         candidate_links = tuple(dict.fromkeys((*_REGISTRATION_PATHS, *links)))
         for link in candidate_links:
             legal_url = urljoin(final_url, link)
@@ -279,9 +276,9 @@ class CompanyWebsiteRegistrationClient:
                 continue
             evidence_url, legal_text, _legal_footer, _legal_title, _ = legal
             if _contains_registration_number(legal_text, siren):
-                return "registration_number", evidence_url
+                return "registration_number", evidence_url, title.strip()
         if _homepage_title_contains_company_name(title, identity.display_name):
-            return "homepage_title", final_url
+            return "homepage_title", final_url, title.strip()
         return None
 
 
@@ -436,22 +433,21 @@ class CompanyDomainResolver:
                     if rejected_supplier_domain(resolution.domain):
                         self._log(identity, resolution, accepted=False, criterion="blocklist")
                         continue
-                    if _domain_contains_company_word(resolution.domain, identity.display_name):
-                        self._log(identity, resolution, accepted=True, criterion="name_word")
-                        return resolution.model_copy(
-                            update={"observed_at": self._clock(), "validation_method": "name_word"}
-                        )
-                    if resolution.search_title and _homepage_title_contains_company_name(
-                        resolution.search_title, identity.display_name
-                    ):
-                        self._log(identity, resolution, accepted=True, criterion="search_title")
-                        return resolution.model_copy(
-                            update={"observed_at": self._clock(), "validation_method": "name_word"}
-                        )
                     inspect = getattr(self._registration, "inspect", None)
                     evidence = inspect(resolution, identity) if callable(inspect) else None
                     if evidence is not None:
-                        criterion, evidence_url = evidence
+                        criterion, evidence_url, homepage_title = evidence
+                        name_word = _domain_contains_company_word(
+                            resolution.domain, identity.display_name
+                        )
+                        if criterion == "homepage_title" and not name_word:
+                            self._log(
+                                identity,
+                                resolution,
+                                accepted=False,
+                                criterion="name_word_missing",
+                            )
+                            continue
                         validation_method = (
                             "registration_number"
                             if criterion == "registration_number"
@@ -463,6 +459,7 @@ class CompanyDomainResolver:
                                 "observed_at": self._clock(),
                                 "validation_method": validation_method,
                                 "validation_evidence_url": evidence_url,
+                                "homepage_title": homepage_title or None,
                             }
                         )
                     evidence_url = (

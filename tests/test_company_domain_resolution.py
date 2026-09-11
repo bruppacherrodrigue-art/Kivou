@@ -24,6 +24,16 @@ from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 NOW = dt.datetime(2026, 9, 10, 10, tzinfo=dt.UTC)
 
 
+class SearchResultAsFetchedHomepage:
+    def inspect(self, resolution, _identity):
+        if not resolution.search_title:
+            return None
+        return "homepage_title", resolution.website_url, resolution.search_title
+
+    def __call__(self, _resolution, _identity):
+        return None
+
+
 def _identity(**updates) -> SireneOrganizationCandidate:
     values = {
         "provider_organization_id": "331364729",
@@ -59,6 +69,7 @@ def test_domain_resolver_prefers_official_website_without_serper() -> None:
     resolution = CompanyDomainResolver(
         official=AnnuaireWebsiteClient(client=client),
         serper=SerperDomainSearchClient(api_key="unused", client=client),
+        registration=lambda resolution, _identity: resolution.website_url,
         clock=lambda: NOW,
     ).resolve(_identity())
 
@@ -96,6 +107,7 @@ def test_serper_rejects_directories_and_unrelated_results_then_accepts_name_matc
     resolution = CompanyDomainResolver(
         official=lambda identity: None,
         serper=SerperDomainSearchClient(api_key="secret", client=shared),
+        registration=SearchResultAsFetchedHomepage(),
         clock=lambda: NOW,
     ).resolve(_identity())
 
@@ -125,7 +137,7 @@ def test_serper_validates_all_ten_results_in_order_after_normalizing_name() -> N
                 + [
                     {
                         "title": "Entreprise Girard — site officiel",
-                        "link": "https://batiment-valence.fr",
+                        "link": "https://a-girard.com",
                     }
                 ]
             },
@@ -136,6 +148,7 @@ def test_serper_validates_all_ten_results_in_order_after_normalizing_name() -> N
         serper=SerperDomainSearchClient(
             api_key="secret", client=httpx.Client(transport=httpx.MockTransport(handler))
         ),
+        registration=SearchResultAsFetchedHomepage(),
         clock=lambda: NOW,
     ).resolve(
         _identity(
@@ -147,7 +160,7 @@ def test_serper_validates_all_ten_results_in_order_after_normalizing_name() -> N
     )
 
     assert resolution is not None
-    assert resolution.domain == "batiment-valence.fr"
+    assert resolution.domain == "a-girard.com"
     assert resolution.query == "Girard Valence"
     assert requests == ["Girard Valence"]
 
@@ -157,11 +170,7 @@ def test_serper_returns_none_when_no_result_contains_significant_name_words() ->
         transport=httpx.MockTransport(
             lambda request: httpx.Response(
                 200,
-                json={
-                    "organic": [
-                        {"title": "Construction Grenoble", "link": "https://ciment.fr"}
-                    ]
-                },
+                json={"organic": [{"title": "Construction Grenoble", "link": "https://ciment.fr"}]},
             )
         )
     )
@@ -196,9 +205,7 @@ def test_serper_retries_with_official_site_then_name_and_department() -> None:
             return httpx.Response(
                 200,
                 json={
-                    "organic": [
-                        {"title": "Escolle Béton", "link": "https://societe.com/escolle"}
-                    ]
+                    "organic": [{"title": "Escolle Béton", "link": "https://societe.com/escolle"}]
                 },
             )
         return httpx.Response(
@@ -218,6 +225,7 @@ def test_serper_retries_with_official_site_then_name_and_department() -> None:
         serper=SerperDomainSearchClient(
             api_key="secret", client=httpx.Client(transport=httpx.MockTransport(handler))
         ),
+        registration=SearchResultAsFetchedHomepage(),
         clock=lambda: NOW,
     ).resolve(_identity(department="38"))
 
@@ -336,6 +344,9 @@ def test_localbiz_is_rejected_as_a_directory(domain: str) -> None:
         "commune-certines.fr",
         "ville-saint-etienne.fr",
         "entreprises.gouv.fr",
+        "win2win-france.fr",
+        "publikconnect.fr",
+        "viviany.fr",
     ),
 )
 def test_domain_validation_rejects_every_forbidden_registry_and_public_domain(domain) -> None:
@@ -408,24 +419,40 @@ def test_registration_probes_fixed_legal_paths_and_accepts_rcs_number() -> None:
     ]
 
 
-def test_domain_name_match_accepts_word_inside_domain_and_company_initials() -> None:
-    for name, candidate_domain in (
-        ("MEYNET BETON SAS", "livraisonbeton.fr"),
-        ("SOCIETE TRAVAUX GROS OEUVRE", "stgo.eu"),
-    ):
-        resolution = CompanyDomainResolver(
-            official=lambda _identity, domain=candidate_domain: DomainResolution(
-                domain=domain,
-                website_url=f"https://{domain}",
-                source="annuaire_entreprises",
-                observed_at=NOW,
-            ),
-            serper=lambda _identity: None,
-            clock=lambda: NOW,
-        ).resolve(_identity(display_name=name, normalized_name=name.casefold()))
+def test_domain_name_match_requires_a_five_letter_word_and_rejects_initials() -> None:
+    accepted = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="livraisonbeton.fr",
+            website_url="https://livraisonbeton.fr",
+            source="annuaire_entreprises",
+            search_title="Meynet Beton",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=SearchResultAsFetchedHomepage(),
+        clock=lambda: NOW,
+    ).resolve(_identity(display_name="MEYNET BETON SAS", normalized_name="meynet beton sas"))
+    rejected = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="stgo.eu",
+            website_url="https://stgo.eu",
+            source="annuaire_entreprises",
+            search_title="Société Travaux Gros Oeuvre",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=SearchResultAsFetchedHomepage(),
+        clock=lambda: NOW,
+    ).resolve(
+        _identity(
+            display_name="SOCIETE TRAVAUX GROS OEUVRE",
+            normalized_name="societe travaux gros oeuvre",
+        )
+    )
 
-        assert resolution is not None
-        assert resolution.validation_method == "name_word"
+    assert accepted is not None
+    assert accepted.validation_method == "name_word"
+    assert rejected is None
 
 
 def test_domain_resolver_accepts_normalized_company_name_in_homepage_title() -> None:
@@ -441,8 +468,8 @@ def test_domain_resolver_accepts_normalized_company_name_in_homepage_title() -> 
     )
     resolution = CompanyDomainResolver(
         official=lambda _identity: DomainResolution(
-            domain="centrale-grenoble.fr",
-            website_url="https://centrale-grenoble.fr",
+            domain="escolle-grenoble.fr",
+            website_url="https://escolle-grenoble.fr",
             source="annuaire_entreprises",
             observed_at=NOW,
         ),
@@ -453,7 +480,7 @@ def test_domain_resolver_accepts_normalized_company_name_in_homepage_title() -> 
 
     assert resolution is not None
     assert resolution.validation_method == "name_word"
-    assert resolution.validation_evidence_url == "https://centrale-grenoble.fr/"
+    assert resolution.validation_evidence_url == "https://escolle-grenoble.fr/"
 
 
 def test_domain_resolver_rejects_unmatched_domain_without_registration_number(caplog) -> None:
@@ -488,6 +515,56 @@ def test_domain_resolver_rejects_unmatched_domain_without_registration_number(ca
     assert decision.domain_validation_criterion == "identity_unconfirmed"
 
 
+def test_name_validation_requires_long_name_word_in_domain_and_homepage_confirmation() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        title = (
+            "Entreprise A. Girard"
+            if request.url.host in {"patisserie-intense.com", "a-girard.com"}
+            else ""
+        )
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text=f"<html><head><title>{title}</title></head></html>",
+        )
+
+    registration = domain_module.CompanyWebsiteRegistrationClient(
+        client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    )
+    identity = _identity(
+        provider_organization_id="572621712",
+        display_name="ENT A. GIRARD",
+        normalized_name="ent a girard",
+    )
+
+    rejected = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="patisserie-intense.com",
+            website_url="https://patisserie-intense.com",
+            source="annuaire_entreprises",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=registration,
+        clock=lambda: NOW,
+    ).resolve(identity)
+    accepted = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="a-girard.com",
+            website_url="https://a-girard.com",
+            source="annuaire_entreprises",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=registration,
+        clock=lambda: NOW,
+    ).resolve(identity)
+
+    assert rejected is None
+    assert accepted is not None
+    assert accepted.validation_method == "name_word"
+
+
 def test_serper_accepts_one_significant_company_word_in_domain_or_title() -> None:
     client = httpx.Client(
         transport=httpx.MockTransport(
@@ -508,6 +585,7 @@ def test_serper_accepts_one_significant_company_word_in_domain_or_title() -> Non
     resolution = CompanyDomainResolver(
         official=lambda identity: None,
         serper=SerperDomainSearchClient(api_key="secret", client=client),
+        registration=SearchResultAsFetchedHomepage(),
         clock=lambda: NOW,
     ).resolve(_identity())
 

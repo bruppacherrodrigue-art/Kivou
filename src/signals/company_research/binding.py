@@ -180,9 +180,7 @@ class SireneApolloResolver:
             self._directory is not None
             and not permanently_without_website
             and cached_domain is None
-            and not self._directory.website_lookup_due(
-                identity.provider_organization_id, at=now
-            )
+            and not self._directory.website_lookup_due(identity.provider_organization_id, at=now)
         )
         if permanently_without_website:
             logger.info(
@@ -234,6 +232,7 @@ class SireneApolloResolver:
                     validation_method=domain_resolution.validation_method,
                     validation_evidence_url=domain_resolution.validation_evidence_url,
                     observed_at=domain_resolution.observed_at,
+                    website_title=domain_resolution.homepage_title,
                 )
                 if not recorded:
                     domain_resolution = None
