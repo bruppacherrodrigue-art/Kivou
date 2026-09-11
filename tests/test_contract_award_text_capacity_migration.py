@@ -50,6 +50,8 @@ REQUEUE_UNRESOLVED_SIRET_REVISION = "0033_requeue_unresolved_siret"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_UNRESOLVED_SIRET_REVISION, et écraser ce lien ferait passer un test faux.
 COMPANY_ENGAGEMENT_REVISION = "0034_company_engagement"
+SUPPLIER_DOMAIN_REVISION = "0050_supplier_domain_validation"
+ASSISTED_PROSPECTION_REVISION = "0051_assisted_prospection"
 CURRENT_HEAD = "0052_assisted_observation"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
@@ -139,7 +141,11 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == "0050_supplier_domain_validation"
+    assert script.get_revision(CURRENT_HEAD).down_revision == ASSISTED_PROSPECTION_REVISION
+    assert (
+        script.get_revision(ASSISTED_PROSPECTION_REVISION).down_revision
+        == SUPPLIER_DOMAIN_REVISION
+    )
     assert script.get_revision("0046_sirene_apollo_binding").down_revision == (
         "0045_pr7_shadow_mail"
     )
