@@ -92,6 +92,21 @@ def load_supplier_family_catalog(path: Path | None = None) -> dict[str, tuple[Su
     return result
 
 
+def naf_label_for_code(code: str | None, path: Path | None = None) -> str | None:
+    if not code:
+        return None
+    source = _catalog_path() if path is None else path
+    try:
+        raw: Any = yaml.safe_load(source.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError("supplier family catalog unavailable") from exc
+    labels = raw.get("naf_labels") if isinstance(raw, dict) else None
+    if not isinstance(labels, dict):
+        raise TypeError("supplier family NAF labels are invalid")
+    value = labels.get(str(code).strip().upper())
+    return str(value).strip() if isinstance(value, str) and value.strip() else None
+
+
 def _normalized_words(value: str) -> str:
     folded = "".join(
         character
@@ -225,5 +240,6 @@ __all__ = [
     "families_for_signal",
     "load_supplier_family_catalog",
     "matching_supplier_family_keys",
+    "naf_label_for_code",
     "supplier_matches_family",
 ]

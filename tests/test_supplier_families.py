@@ -5,6 +5,7 @@ from signals.supplier_discovery.families import (
     department_from_subdivision,
     families_for_signal,
     load_supplier_family_catalog,
+    naf_label_for_code,
     supplier_matches_family,
 )
 
@@ -43,6 +44,7 @@ def test_catalog_covers_six_verticals_with_bounded_readable_families() -> None:
         "43.12B",
         "42.11Z",
     } <= naf_codes
+    assert all(naf_label_for_code(code) for code in naf_codes)
 
 
 def test_gross_oeuvre_maps_to_precise_supplier_families() -> None:
@@ -102,6 +104,25 @@ def test_reinforcement_family_requires_naf_and_explicit_activity_words() -> None
         family,
         naf_code="25.11Z",
         activity_texts=("ACIER ARMATURES", "Treillis soudés et acier pour béton"),
+    )
+
+
+def test_official_naf_label_supplies_activity_evidence_when_api_omits_it() -> None:
+    catalog = {
+        family.key: family
+        for families in load_supplier_family_catalog().values()
+        for family in families
+    }
+
+    assert supplier_matches_family(
+        catalog["roofing"],
+        naf_code="43.91B",
+        activity_texts=("ECOTOIT", naf_label_for_code("43.91B") or ""),
+    )
+    assert not supplier_matches_family(
+        catalog["reinforcement_steel"],
+        naf_code="25.11Z",
+        activity_texts=("DENIOS", naf_label_for_code("25.11Z") or ""),
     )
 
 

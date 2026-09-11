@@ -15,6 +15,7 @@ from signals.supplier_discovery.contracts import (
 )
 from signals.supplier_discovery.families import (
     load_supplier_family_catalog,
+    naf_label_for_code,
     supplier_matches_family,
 )
 
@@ -82,7 +83,8 @@ class SireneOrganizationSearchProvider:
             family = by_key.get(family_key)
             if family is None:
                 continue
-            activity_texts = (company.legal_name, company.naf_label or "")
+            naf_label = company.naf_label or naf_label_for_code(company.naf_code)
+            activity_texts = (company.legal_name, naf_label or "")
             if self._directory is not None:
                 directory_record = self._directory.upsert_identity(
                     siren=company.siren,
@@ -93,7 +95,7 @@ class SireneOrganizationSearchProvider:
                     city=company.city,
                     employees=company.employees,
                     observed_at=company.observed_at,
-                    naf_label=company.naf_label,
+                    naf_label=naf_label,
                 )
                 if directory_record is None or family_key not in directory_record.family_keys:
                     continue
