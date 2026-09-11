@@ -704,7 +704,7 @@ def build_runtime_execution_composition(
         max_pages=1,
         per_page=candidate_cap,
         candidate_cap=candidate_cap,
-        search_too_broad_threshold=200,
+        search_too_broad_threshold=10_000,
     )
     empty_registry = AcquisitionActionRegistry(
         {

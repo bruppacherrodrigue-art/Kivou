@@ -185,7 +185,7 @@ def test_opportunity_allowlist_accepts_only_opaque_keys(opportunity_key) -> None
     ("field", "value"),
     [
         ("maximum_cycle_cost", "50.01"),
-        ("maximum_suppliers", 2),
+        ("maximum_suppliers", 26),
         ("maximum_contacts", 2),
         ("maximum_provider_operations", 5),
         ("maximum_wall_seconds", 1801),

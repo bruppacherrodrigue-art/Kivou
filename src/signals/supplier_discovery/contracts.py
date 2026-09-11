@@ -233,8 +233,8 @@ class SupplierSearchPage(DiscoveryContract):
     total_entries: int = Field(ge=0)
     total_pages: int = Field(ge=0)
     partial_results_only: bool | None = None
-    candidates: tuple[SupplierOrganizationCandidate, ...] = Field(max_length=100)
-    rejections: tuple[CandidateRejection, ...] = Field(max_length=100)
+    candidates: tuple[SupplierOrganizationCandidate, ...] = Field(max_length=300)
+    rejections: tuple[CandidateRejection, ...] = Field(max_length=300)
 
 
 class DiscoveryRunStart(DiscoveryContract):

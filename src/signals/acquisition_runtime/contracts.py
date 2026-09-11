@@ -229,7 +229,7 @@ def expected_runtime_registry_identity() -> str:
 
 class AcquisitionRuntimeLimits(_FrozenModel):
     maximum_cycle_cost: Decimal = Field(gt=0, le=Decimal("50"))
-    maximum_suppliers: Literal[1] = 1
+    maximum_suppliers: int = Field(default=1, ge=1, le=25)
     maximum_contacts: Literal[1] = 1
     maximum_provider_operations: int = Field(ge=1, le=4)
     maximum_wall_seconds: int = Field(ge=60, le=1200)

@@ -53,6 +53,14 @@ def test_production_deployment_omits_every_qa_binding() -> None:
     assert deployment.allowed_opportunity_keys == ()
 
 
+def test_production_allows_twenty_five_supplier_candidates_per_cycle() -> None:
+    deployment = AcquisitionRuntimeDeployment.model_validate(
+        _production_document(limits={**LIMITS, "maximum_suppliers": 25})
+    )
+
+    assert deployment.limits.maximum_suppliers == 25
+
+
 @pytest.mark.parametrize(
     "field, value",
     [

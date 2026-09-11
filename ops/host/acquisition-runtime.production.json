@@ -13,7 +13,7 @@
   "qa_provider_mutations_capable": false,
   "limits": {
     "maximum_cycle_cost": 10.0,
-    "maximum_suppliers": 1,
+    "maximum_suppliers": 25,
     "maximum_contacts": 1,
     "maximum_provider_operations": 4,
     "maximum_wall_seconds": 900,
