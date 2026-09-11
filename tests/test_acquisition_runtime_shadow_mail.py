@@ -31,6 +31,6 @@ def test_shadow_mail_contains_only_the_bait_facts_and_required_links() -> None:
     assert "Il leur faudra du béton prêt à l'emploi sur place." in mail.body
     assert "https://kivou.eu/a/token-1" in mail.body
     assert "Source : registres publics et avis d'attribution officiel" in mail.body
-    assert "https://www.boamp.fr/avis/1" in mail.body
+    assert "https://www.boamp.fr/avis/1" not in mail.body
     assert "Ne plus recevoir" in mail.body
     assert len(mail.body.split("\n\n—\n", maxsplit=1)[0].split()) <= 90

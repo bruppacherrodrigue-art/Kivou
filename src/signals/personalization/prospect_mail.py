@@ -194,7 +194,6 @@ def _render_html(
     family_sentence: str,
     attribution_url: str,
     footer_reason: str,
-    source_url: str,
     unsubscribe_url: str,
 ) -> str:
     return "".join(
@@ -209,7 +208,7 @@ def _render_html(
             "<p>Bien à vous,<br>Rodrigue Bruppacher<br>Kivou</p>",
             (
                 f"<p>—<br>{html.escape(footer_reason)} Source : registres publics et avis "
-                f"d'attribution officiel : {_linked(source_url)}<br>Ne plus recevoir : "
+                "d'attribution officiel.<br>Ne plus recevoir : "
                 f"{_linked(unsubscribe_url)}</p>"
             ),
         )
@@ -246,7 +245,6 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
         f"attribué le {date}."
     )
     attribution_url = str(row["attribution_url"])
-    source_url = str(row["signal_source_url"])
     unsubscribe_url = str(row["unsubscribe_url"])
     footer_reason = (
         "Vous recevez ce message parce que votre entreprise est référencée en "
@@ -262,8 +260,8 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
         )
     )
     footer = (
-        f"{footer_reason} Source : registres publics et avis d'attribution officiel : "
-        f"{source_url}\nNe plus recevoir : {unsubscribe_url}"
+        f"{footer_reason} Source : registres publics et avis d'attribution officiel.\n"
+        f"Ne plus recevoir : {unsubscribe_url}"
     )
     text = f"{body}{_FOOTER_SEPARATOR}{footer}"
     word_count = len(body.split())
@@ -276,7 +274,6 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
             family_sentence=family.sentence,
             attribution_url=attribution_url,
             footer_reason=footer_reason,
-            source_url=source_url,
             unsubscribe_url=unsubscribe_url,
         ),
         word_count=word_count,
@@ -337,7 +334,7 @@ def validate_prospect_mail(
     if "\n\nBien à vous,\nRodrigue Bruppacher\nKivou" not in body:
         return "signature_invalid"
     urls = _URL_PATTERN.findall(mail.text)
-    if len(urls) != 3:
+    if len(urls) != 2:
         return "url_count_invalid"
     if any(mail.html.count(f'href="{html.escape(url, quote=True)}"') != 1 for url in urls):
         return "html_link_count_invalid"

@@ -43,16 +43,15 @@ def test_renders_the_complete_arbonis_mail_from_the_single_catalog() -> None:
         "Bien à vous,\nRodrigue Bruppacher\nKivou\n\n"
         "—\n"
         "Vous recevez ce message parce que votre entreprise est référencée en charpente bois "
-        "en Isère. Source : registres publics et avis d'attribution officiel : "
-        "https://www.boamp.fr/avis/26A0076\n"
+        "en Isère. Source : registres publics et avis d'attribution officiel.\n"
         "Ne plus recevoir : https://kivou.eu/unsubscribe/unsubscribe-token"
     )
     assert mail.word_count <= 90
     assert mail.contract_status == "passed"
     assert mail.contract_failure is None
-    assert mail.html.count("href=") == 3
+    assert mail.html.count("href=") == 2
     assert mail.html.count('href="https://kivou.eu/a/kat1.signal-token"') == 1
-    assert mail.html.count('href="https://www.boamp.fr/avis/26A0076"') == 1
+    assert "https://www.boamp.fr/avis/26A0076" not in mail.html
     assert mail.html.count('href="https://kivou.eu/unsubscribe/unsubscribe-token"') == 1
 
 
