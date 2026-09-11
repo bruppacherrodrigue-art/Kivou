@@ -97,7 +97,15 @@ class MailSnapshot(_Contract):
     html: str = Field(min_length=1, max_length=50_000)
     attribution_url: str = Field(pattern=r"^https://[^/]+/a/", max_length=2048)
     unsubscribe_url: str = Field(pattern=r"^https://", max_length=2048)
-    word_count: int = Field(ge=1, le=120)
+    word_count: int = Field(ge=1, le=90)
+    contract_status: Literal["passed", "failed"]
+    contract_failure: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def contract_state_is_consistent(self) -> MailSnapshot:
+        if (self.contract_status == "passed") != (self.contract_failure is None):
+            raise ValueError("mail contract state is inconsistent")
+        return self
 
 
 class DeliverySnapshot(_Contract):

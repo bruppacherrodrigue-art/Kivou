@@ -51,6 +51,8 @@ def target_payload() -> dict[str, object]:
             "attribution_url": "https://kivou.eu/a/kat1.key.token.signature",
             "unsubscribe_url": "https://kivou.eu/unsubscribe/token",
             "word_count": 8,
+            "contract_status": "passed",
+            "contract_failure": None,
         },
         "delivery": {
             "status": "not_sent",

@@ -8,6 +8,7 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
 from functools import wraps
 from typing import Protocol
@@ -54,6 +55,7 @@ from signals.decision_engine.contracts import (
     DecisionAuthorizationInput,
     DecisionServiceResult,
 )
+from signals.domain.subdivisions import subdivision_label
 from signals.persistence.schema import (
     acquisition_campaign_member,
     acquisition_company_profile,
@@ -83,7 +85,10 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchNotActionable,
     SupplierTargetingConfig,
 )
-from signals.supplier_discovery.families import load_supplier_family_catalog
+from signals.supplier_discovery.families import (
+    department_from_subdivision,
+    load_supplier_family_catalog,
+)
 from signals.supplier_discovery.seed import (
     AcquisitionSeedNotFound,
     resolve_public_acquisition_context,
@@ -1205,20 +1210,34 @@ class AcquisitionDomainActions:
             for family in families
         }
         family_label = family_labels.get(family_key)
-        if family_label is None:
+        signal_date = public.award.award_date or public.event.event_date
+        place_value = public.award.place_of_performance
+        subdivision = place_value.subdivision_code if place_value else None
+        department_code = department_from_subdivision(subdivision)
+        department = subdivision_label(subdivision) or department_code
+        if family_label is None or amount is None or signal_date is None or department is None:
             return
         rendered = render_shadow_mail(
             ShadowMailInput(
-                supplier_family=family_label,
+                family_key=family_key,
                 object=title,
                 holder=holder,
-                amount=amount_text,
-                place=place,
-                date=date,
-                for_you=for_you,
-                attribution_url=f"/a/{context.cycle.opportunity_key}-{context.cycle.cycle_ref[:12]}",
+                amount_minor_units=int(
+                    (Decimal(amount.amount) * 100).quantize(
+                        Decimal("1"), rounding=ROUND_HALF_UP
+                    )
+                ),
+                currency=str(amount.currency).casefold(),
+                city=(str(place_value.locality).strip() if place_value and place_value.locality else None),
+                department=department,
+                date=signal_date,
+                director_name=str(contact["display_name"] or "").strip() or None,
+                attribution_url=(
+                    "https://kivou.eu/a/"
+                    f"{context.cycle.opportunity_key}-{context.cycle.cycle_ref[:12]}"
+                ),
                 source_url=public.event.provenance.source_url,
-                unsubscribe_url="/unsubscribe",
+                unsubscribe_url="https://kivou.eu/unsubscribe",
             )
         )
         write_shadow_mail(

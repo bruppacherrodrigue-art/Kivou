@@ -71,6 +71,7 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
         or subdivision_label(subdivision)
         or department
     )
+    city = str(place.locality).strip() if place and place.locality else None
     source_url = str(seed.event.provenance.source_url or "").strip()
     if not source_url:
         raise ValueError("assisted signal has no public source URL")
@@ -87,6 +88,7 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
         ),
         currency=str(amount.currency).casefold(),
         location=location,
+        city=city,
         department=department,
         decision_date=decision_date,
         source_url=source_url,

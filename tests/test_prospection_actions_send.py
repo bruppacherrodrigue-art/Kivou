@@ -134,6 +134,26 @@ def test_send_refuses_non_mx_verified_even_when_approved(sending) -> None:
     assert provider.calls == []
 
 
+def test_send_refuses_approved_mail_that_failed_the_render_contract(sending) -> None:
+    actions, provider, engine, _tmp = sending
+    approve(actions)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == TARGET_ID)
+            .values(
+                mail_contract_status="failed",
+                mail_contract_failure="signature_invalid",
+            )
+        )
+
+    with pytest.raises(ProspectionActionError) as caught:
+        actions.send(command(), actor="rodrigue@kivou.eu")
+
+    assert caught.value.code == "MAIL_CONTRACT_FAILED"
+    assert provider.calls == []
+
+
 def test_send_refuses_an_approved_target_quarantined_by_domain_audit(sending) -> None:
     actions, provider, engine, _tmp = sending
     approve(actions)

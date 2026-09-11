@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -20,6 +21,7 @@ from signals.persistence.schema import (
     prospect_target_history,
     supplier_directory,
 )
+from signals.personalization.prospect_mail import RenderedProspectMail, render_prospect_mail
 from signals.prospection_actions.contracts import (
     ApproveCommand,
     CompanySnapshot,
@@ -37,7 +39,6 @@ from signals.prospection_actions.contracts import (
     RejectionReason,
     SignalSnapshot,
 )
-from signals.prospection_actions.mail import render_assisted_mail
 
 
 class EmailVerifier(Protocol):
@@ -194,6 +195,8 @@ def _target(row: dict[str, object]) -> ProspectTarget:
             attribution_url=str(row["attribution_url"]),
             unsubscribe_url=str(row["unsubscribe_url"]),
             word_count=int(row["mail_word_count"]),
+            contract_status=str(row["mail_contract_status"]),
+            contract_failure=row.get("mail_contract_failure"),
         ),
         delivery=DeliverySnapshot(
             status=str(row["delivery_status"]),
@@ -235,6 +238,7 @@ class ProspectionActions:
         link_issuer: ProspectLinkIssuer,
         suppression_checker: SuppressionChecker | None = None,
         delivery_provider: DeliveryProvider | None = None,
+        mail_renderer: Callable[[dict[str, object]], RenderedProspectMail] = render_prospect_mail,
         kill_switch_path: Path = Path("/etc/kivou/acquisition.disabled"),
         clock=lambda: dt.datetime.now(dt.UTC),
     ) -> None:
@@ -243,6 +247,7 @@ class ProspectionActions:
         self._link_issuer = link_issuer
         self._suppression_checker = suppression_checker
         self._delivery_provider = delivery_provider
+        self._mail_renderer = mail_renderer
         self._kill_switch_path = kill_switch_path
         self._clock = clock
 
@@ -444,6 +449,13 @@ class ProspectionActions:
                     "seule une cible en attente peut être validée",
                     target_ids=(str(command.target_id),),
                 )
+            if row["mail_contract_status"] != "passed":
+                raise ProspectionActionError(
+                    "MAIL_CONTRACT_FAILED",
+                    "le mail ne respecte pas le contrat de rendu",
+                    target_ids=(str(command.target_id),),
+                    status_code=422,
+                )
             self._require_live_directory_contact(connection, row)
             values = {
                 "status": ProspectStatus.APPROVED.value,
@@ -548,15 +560,29 @@ class ProspectionActions:
                     )
                 )
                 token_reissued = True
-            rendered = render_assisted_mail({**row, **values})
+            render_row = {**row, **values}
+            render_row["signal_city"] = (
+                render_row.get("signal_location")
+                if render_row.get("signal_location") != render_row.get("signal_department")
+                else None
+            )
+            rendered = self._mail_renderer(render_row)
             values.update(
                 mail_subject=rendered.subject,
                 mail_text=rendered.text,
                 mail_html=rendered.html,
                 mail_word_count=rendered.word_count,
+                mail_contract_status=rendered.contract_status,
+                mail_contract_failure=rendered.contract_failure,
                 version=int(row["version"]) + 1,
                 updated_at=at,
             )
+            if rendered.contract_status == "failed":
+                values.update(
+                    status=ProspectStatus.PENDING_REVIEW.value,
+                    approved_at=None,
+                    approved_by=None,
+                )
             connection.execute(
                 sa.update(prospect_target)
                 .where(prospect_target.c.target_id == row["target_id"])
@@ -768,6 +794,13 @@ class ProspectionActions:
                         "INVALID_TARGET_STATUS",
                         "toutes les cibles doivent être validées",
                         target_ids=(target_id,),
+                    )
+                if row["mail_contract_status"] != "passed":
+                    raise ProspectionActionError(
+                        "MAIL_CONTRACT_FAILED",
+                        "le mail ne respecte pas le contrat de rendu",
+                        target_ids=(target_id,),
+                        status_code=422,
                     )
                 target_rows.append(dict(row))
 

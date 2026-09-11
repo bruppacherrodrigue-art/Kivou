@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
@@ -10,12 +11,13 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine
 
+from signals.domain.french_departments import DEPARTMENTS
 from signals.persistence.schema import (
     prospect_target,
     prospect_target_history,
     supplier_directory,
 )
-from signals.prospection_actions.mail import render_assisted_mail
+from signals.personalization.prospect_mail import RenderedProspectMail, render_prospect_mail
 from signals.prospection_actions.service import ProspectLinkIssuer, _history_id
 from signals.supplier_discovery.families import (
     department_and_neighbours,
@@ -39,6 +41,7 @@ class AssistedSignal(BaseModel):
     amount_minor_units: int = Field(ge=5_000_000)
     currency: str = Field(pattern=r"^(eur|chf)$")
     location: str = Field(min_length=1, max_length=512)
+    city: str | None = Field(default=None, min_length=1, max_length=512)
     department: str = Field(pattern=r"^(?:\d{2,3}|2[AB])$")
     decision_date: dt.date
     source_url: str = Field(min_length=8, max_length=2048)
@@ -73,10 +76,12 @@ class ProspectPreparationService:
         engine: Engine,
         *,
         link_issuer: ProspectLinkIssuer,
+        mail_renderer: Callable[[dict[str, object]], RenderedProspectMail] = render_prospect_mail,
         clock=lambda: dt.datetime.now(dt.UTC),
     ) -> None:
         self._engine = engine
         self._link_issuer = link_issuer
+        self._mail_renderer = mail_renderer
         self._clock = clock
 
     def prepare(self, signal: AssistedSignal, *, cycle_ref: str) -> PreparationResult:
@@ -234,6 +239,7 @@ class ProspectPreparationService:
                     "signal_amount_minor_units": signal.amount_minor_units,
                     "signal_currency": signal.currency,
                     "signal_location": signal.location,
+                    "signal_department": DEPARTMENTS.get(signal.department, signal.department),
                     "signal_decision_date": signal.decision_date,
                     "signal_source_url": signal.source_url,
                     "unsubscribe_url": "https://kivou.eu/unsubscribe/pending",
@@ -250,12 +256,14 @@ class ProspectPreparationService:
                     attribution_token_fingerprint=link.token_fingerprint,
                     unsubscribe_url=(link.unsubscribe_url or values["unsubscribe_url"]),
                 )
-                rendered = render_assisted_mail(values)
+                rendered = self._mail_renderer({**values, "signal_city": signal.city})
                 values.update(
                     mail_subject=rendered.subject,
                     mail_text=rendered.text,
                     mail_html=rendered.html,
                     mail_word_count=rendered.word_count,
+                    mail_contract_status=rendered.contract_status,
+                    mail_contract_failure=rendered.contract_failure,
                 )
                 connection.execute(sa.insert(prospect_target).values(**values))
                 connection.execute(
@@ -265,7 +273,11 @@ class ProspectPreparationService:
                         event_type="prepared",
                         actor="acquisition-runtime",
                         previous_values={},
-                        new_values={"status": "pending_review"},
+                        new_values={
+                            "status": "pending_review",
+                            "mail_contract_status": rendered.contract_status,
+                            "mail_contract_failure": rendered.contract_failure,
+                        },
                         created_at=now,
                     )
                 )

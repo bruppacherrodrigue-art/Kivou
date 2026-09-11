@@ -943,6 +943,7 @@ prospect_target = sa.Table(
     sa.Column("signal_amount_minor_units", sa.BigInteger, nullable=False),
     sa.Column("signal_currency", sa.String(3), nullable=False),
     sa.Column("signal_location", sa.Text, nullable=False),
+    sa.Column("signal_department", sa.Text),
     sa.Column("signal_decision_date", sa.Date, nullable=False),
     sa.Column("signal_source_url", sa.Text, nullable=False),
     sa.Column("mail_subject", sa.Text, nullable=False),
@@ -954,6 +955,13 @@ prospect_target = sa.Table(
     sa.Column("attribution_token_fingerprint", sa.String(64), nullable=False),
     sa.Column("unsubscribe_url", sa.Text, nullable=False),
     sa.Column("mail_word_count", sa.Integer, nullable=False),
+    sa.Column(
+        "mail_contract_status",
+        sa.String(16),
+        nullable=False,
+        server_default="failed",
+    ),
+    sa.Column("mail_contract_failure", sa.String(128), server_default="legacy_template"),
     sa.Column("status", sa.String(16), nullable=False, index=True),
     sa.Column("rejection_reason", sa.String(32)),
     sa.Column("rejection_comment", sa.Text),
@@ -996,7 +1004,12 @@ prospect_target = sa.Table(
         "email_verification_status IN ('mx_verified', 'mx_failed')",
         name="ck_prospect_target_email_verification",
     ),
-    sa.CheckConstraint("mail_word_count BETWEEN 1 AND 120", name="ck_prospect_target_words"),
+    sa.CheckConstraint("mail_word_count BETWEEN 1 AND 90", name="ck_prospect_target_words"),
+    sa.CheckConstraint(
+        "(mail_contract_status = 'passed' AND mail_contract_failure IS NULL) OR "
+        "(mail_contract_status = 'failed' AND mail_contract_failure IS NOT NULL)",
+        name="ck_prospect_target_mail_contract",
+    ),
     sa.CheckConstraint(
         "instantly_credit_units >= 0 AND instantly_request_count >= 0",
         name="ck_prospect_target_delivery_cost",

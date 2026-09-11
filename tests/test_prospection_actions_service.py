@@ -10,6 +10,7 @@ from signals.persistence.schema import (
     prospect_target_history,
     supplier_directory,
 )
+from signals.personalization.prospect_mail import RenderedProspectMail
 from signals.prospection_actions.contracts import (
     ApproveCommand,
     CorrectCommand,
@@ -57,7 +58,7 @@ def seed(engine) -> None:
                 siren="123456789",
                 legal_name="Béton du Bourbonnais",
                 legal_name_observed_at=NOW,
-                family_keys=["ready_mixed_concrete"],
+                family_keys=["ready_mix_concrete"],
                 families_observed_at=NOW,
                 department="03",
                 department_observed_at=NOW,
@@ -92,7 +93,7 @@ def seed(engine) -> None:
                 company_city="Saint-Victor",
                 company_employees=35,
                 vertical="general_building",
-                family_key="ready_mixed_concrete",
+                family_key="ready_mix_concrete",
                 family_label="béton prêt à l'emploi",
                 director_name=None,
                 director_title=None,
@@ -116,6 +117,8 @@ def seed(engine) -> None:
                 attribution_token_fingerprint="d" * 64,
                 unsubscribe_url="https://kivou.eu/unsubscribe/token",
                 mail_word_count=8,
+                mail_contract_status="passed",
+                mail_contract_failure=None,
                 status="pending_review",
                 delivery_status="not_sent",
                 created_at=NOW,
@@ -158,6 +161,71 @@ def test_approve_is_versioned_and_records_actor(service) -> None:
             actor="rodrigue@kivou.eu",
         )
     assert stale.value.code == "TARGET_VERSION_CONFLICT"
+
+
+def test_approve_refuses_mail_that_failed_the_render_contract(service) -> None:
+    actions, _verifier, _issuer, engine = service
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == TARGET_ID)
+            .values(
+                mail_contract_status="failed",
+                mail_contract_failure="body_contains_forbidden_fragment",
+            )
+        )
+
+    with pytest.raises(ProspectionActionError) as caught:
+        actions.approve(
+            ApproveCommand(target_id=TARGET_ID, expected_version=1),
+            actor="rodrigue@kivou.eu",
+        )
+
+    assert caught.value.code == "MAIL_CONTRACT_FAILED"
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(prospect_target)).mappings().one()
+    assert row["status"] == "pending_review"
+
+
+def test_correction_returns_an_approved_target_to_pending_when_render_contract_fails(
+    migrated_sqlite_engine,
+) -> None:
+    seed(migrated_sqlite_engine)
+
+    def invalid_renderer(_row: dict[str, object]) -> RenderedProspectMail:
+        return RenderedProspectMail(
+            subject="Copie invalide",
+            text="Bonjour,\n\nCopie invalide",
+            html="<p>Copie invalide</p>",
+            word_count=3,
+            contract_status="failed",
+            contract_failure="url_count_invalid",
+        )
+
+    actions = ProspectionActions(
+        migrated_sqlite_engine,
+        email_verifier=MxVerifier(),
+        link_issuer=LinkIssuer(),
+        mail_renderer=invalid_renderer,
+        clock=lambda: NOW + dt.timedelta(hours=1),
+    )
+    actions.approve(
+        ApproveCommand(target_id=TARGET_ID, expected_version=1),
+        actor="rodrigue@kivou.eu",
+    )
+
+    result = actions.correct(
+        CorrectCommand(
+            target_id=TARGET_ID,
+            expected_version=2,
+            changes=CorrectionChanges(company_name="Béton corrigé"),
+        ),
+        actor="rodrigue@kivou.eu",
+    )
+
+    assert result.target.status == "pending_review"
+    assert result.target.mail.contract_status == "failed"
+    assert result.target.mail.contract_failure == "url_count_invalid"
 
 
 def test_approve_refuses_a_target_whose_live_directory_domain_is_blocked(service) -> None:
@@ -317,4 +385,4 @@ def test_reject_propagates_closed_reason_to_directory(service, reason, expected_
     if reason == "wrong_address":
         assert directory["email_verification_status"] == "mx_failed"
     else:
-        assert directory["family_review_keys"] == ["ready_mixed_concrete"]
+        assert directory["family_review_keys"] == ["ready_mix_concrete"]

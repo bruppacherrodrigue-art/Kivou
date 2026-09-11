@@ -1,0 +1,157 @@
+version: prospect-mail-v1
+
+families:
+  ready_mix_concrete:
+    subject_label: béton
+    footer_label: béton prêt à l'emploi
+    sentence: Il leur faudra du béton prêt à l'emploi sur place.
+  reinforcement_steel:
+    subject_label: ferraillage
+    footer_label: armatures et ferraillage
+    sentence: Ils vont commander des armatures pour le gros œuvre.
+  subcontracted_structural_work:
+    subject_label: gros œuvre
+    footer_label: sous-traitance de gros œuvre
+    sentence: Ils vont sous-traiter une partie du gros œuvre.
+  formwork:
+    subject_label: coffrage
+    footer_label: coffrage
+    sentence: Ils vont avoir besoin de coffrage pour le gros œuvre.
+  scaffolding:
+    subject_label: échafaudage
+    footer_label: échafaudage
+    sentence: Ils vont avoir besoin d'un échafaudage pour ce chantier.
+  plastering:
+    subject_label: plâtrerie
+    footer_label: plâtrerie
+    sentence: Ils vont chercher une entreprise de plâtrerie pour ce chantier.
+  flooring:
+    subject_label: revêtements de sol
+    footer_label: revêtements de sol
+    sentence: Ils vont avoir des revêtements de sol à poser sur ce chantier.
+  exterior_joinery:
+    subject_label: menuiserie extérieure
+    footer_label: menuiserie extérieure
+    sentence: Ils vont avoir besoin de menuiseries extérieures pour ce chantier.
+  plumbing:
+    subject_label: plomberie
+    footer_label: plomberie
+    sentence: Ils vont chercher une entreprise de plomberie pour ce chantier.
+  electrical:
+    subject_label: électricité
+    footer_label: électricité
+    sentence: Ils vont chercher une entreprise d'électricité pour ce chantier.
+  hvac:
+    subject_label: chauffage et ventilation
+    footer_label: chauffage et ventilation
+    sentence: Ils vont avoir des équipements de chauffage et de ventilation à installer.
+  insulation:
+    subject_label: isolation
+    footer_label: isolation
+    sentence: Il y aura de l'isolation à fournir sur ce chantier.
+  road_construction:
+    subject_label: voirie
+    footer_label: travaux routiers
+    sentence: Ils vont sous-traiter une partie des travaux de voirie.
+  asphalt:
+    subject_label: enrobés
+    footer_label: enrobés et asphalte
+    sentence: Ils vont avoir besoin d'enrobés pour ce chantier.
+  road_markings:
+    subject_label: signalisation routière
+    footer_label: signalisation routière
+    sentence: Ils vont avoir de la signalisation routière à fournir et à poser.
+  earthmoving:
+    subject_label: terrassement
+    footer_label: terrassement
+    sentence: Ils vont sous-traiter une partie du terrassement.
+  demolition:
+    subject_label: démolition
+    footer_label: démolition
+    sentence: Ils vont chercher une entreprise de démolition pour ce chantier.
+  waste_removal:
+    subject_label: évacuation des déchets
+    footer_label: évacuation des déchets
+    sentence: Ils vont avoir des déchets de chantier à évacuer.
+  waterproofing:
+    subject_label: étanchéité
+    footer_label: étanchéité
+    sentence: Ils vont chercher une entreprise d'étanchéité pour ce chantier.
+  structural_steel:
+    subject_label: charpente métallique
+    footer_label: charpente métallique
+    sentence: Ils vont avoir besoin d'une charpente métallique pour ce chantier.
+  facade_cladding:
+    subject_label: bardage
+    footer_label: bardage et façade
+    sentence: Ils vont avoir du bardage et des éléments de façade à poser.
+  timber_carpentry:
+    subject_label: charpente
+    footer_label: charpente bois
+    sentence: Ils vont avoir besoin de bois et de charpente dans les prochaines semaines.
+  roofing:
+    subject_label: couverture
+    footer_label: couverture et zinguerie
+    sentence: Ils vont chercher un couvreur-zingueur pour ce lot.
+
+work_terms:
+  - key: timber_carpentry
+    rendered: la charpente
+    terms: [charpente, ossature bois]
+  - key: insulation
+    rendered: l'isolation
+    terms: [isolation, calorifuge]
+  - key: roofing
+    rendered: la couverture
+    terms: [couverture, zinguerie, toiture]
+  - key: structural_work
+    rendered: le gros œuvre
+    terms: [gros œuvre, gros oeuvre]
+  - key: networks
+    rendered: les réseaux
+    terms: [vrd, réseaux divers, reseaux divers]
+  - key: exterior_joinery
+    rendered: la menuiserie extérieure
+    terms: [menuiserie extérieure, menuiseries extérieures]
+  - key: electrical
+    rendered: l'électricité
+    terms: [électricité, electricite, courant fort]
+  - key: plumbing
+    rendered: la plomberie
+    terms: [plomberie, sanitaire]
+  - key: plastering
+    rendered: la plâtrerie
+    terms: [plâtrerie, platrerie]
+  - key: waterproofing
+    rendered: l'étanchéité
+    terms: [étanchéité, etancheite]
+  - key: earthmoving
+    rendered: le terrassement
+    terms: [terrassement, excavation]
+  - key: demolition
+    rendered: la démolition
+    terms: [démolition, demolition, déconstruction]
+  - key: road_construction
+    rendered: la voirie
+    terms: [voirie, travaux routiers]
+  - key: asphalt
+    rendered: les enrobés
+    terms: [enrobé, enrobe, asphalte]
+  - key: road_markings
+    rendered: la signalisation routière
+    terms: [signalisation routière, signalisation routiere, marquage routier]
+  - key: facade_cladding
+    rendered: le bardage
+    terms: [bardage, façade, facade]
+  - key: formwork
+    rendered: le coffrage
+    terms: [coffrage]
+  - key: scaffolding
+    rendered: l'échafaudage
+    terms: [échafaudage, echafaudage]
+  - key: hvac
+    rendered: le chauffage et la ventilation
+    terms: [chauffage, ventilation, climatisation]
+  - key: flooring
+    rendered: les revêtements de sol
+    terms: [revêtement de sol, revetement de sol, carrelage, parquet]

@@ -6,6 +6,7 @@ import hashlib
 import sqlalchemy as sa
 
 from signals.persistence.schema import prospect_target, supplier_directory
+from signals.personalization.prospect_mail import RenderedProspectMail
 from signals.prospection_actions.preparation import (
     AssistedSignal,
     ProspectPreparationService,
@@ -125,11 +126,51 @@ def test_assisted_preparation_builds_up_to_twenty_five_final_pending_targets(
         )
     assert len(rows) == 23
     assert all(row["status"] == "pending_review" for row in rows)
+    assert all(row["signal_department"] == "Allier" for row in rows)
+    assert all(row["mail_contract_status"] == "passed" for row in rows)
+    assert all(row["mail_contract_failure"] is None for row in rows)
     assert all(row["company_employees"] >= 10 for row in rows)
     assert all(row["email_verification_status"] == "mx_verified" for row in rows)
     no_director = next(row for row in rows if row["siren"] == "100000001")
     assert no_director["mail_text"].startswith("Bonjour,")
-    assert "Béton prêt à l'emploi" in "\n".join(row["mail_text"] for row in rows)
+    assert "béton prêt à l'emploi" in "\n".join(
+        row["mail_text"] for row in rows
+    ).casefold()
+    assert "Vous fournissez " + "ou réalisez" not in "\n".join(
+        row["mail_text"] for row in rows
+    )
+
+
+def test_assisted_preparation_persists_contract_failure_as_blocked_pending_review(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 2)
+
+    def invalid_renderer(_row: dict[str, object]) -> RenderedProspectMail:
+        return RenderedProspectMail(
+            subject="Copie invalide",
+            text="Bonjour,\n\nCopie invalide",
+            html="<p>Copie invalide</p>",
+            word_count=3,
+            contract_status="failed",
+            contract_failure="url_count_invalid",
+        )
+
+    service = ProspectPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=invalid_renderer,
+        clock=lambda: NOW,
+    )
+
+    result = service.prepare(signal(), cycle_ref="cycle-invalid-copy")
+
+    assert result.prepared == 1
+    with migrated_sqlite_engine.connect() as connection:
+        row = connection.execute(sa.select(prospect_target)).mappings().one()
+    assert row["status"] == "pending_review"
+    assert row["mail_contract_status"] == "failed"
+    assert row["mail_contract_failure"] == "url_count_invalid"
 
 
 def test_assisted_preparation_caps_daily_queue_at_twenty_five(migrated_sqlite_engine) -> None:
