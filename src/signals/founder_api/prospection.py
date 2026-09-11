@@ -31,6 +31,7 @@ from signals.persistence.schema import (
     contact_discovery_run,
     contract_award,
     opportunity_representation,
+    prospect_target,
     supplier_directory,
     supplier_discovery_run,
 )
@@ -301,14 +302,55 @@ class FounderProspectionReadService:
         return FounderProspection(
             generated_at=now,
             timer=self._timer_reader(now),
-            queue=FounderProspectionQueue(
-                available=False,
+            queue=self._queue(
                 last_cycle_at=targeting.updated_at if targeting is not None else None,
-                items=(),
             ),
             directory=directory,
             targeting=targeting,
             results=results,
+        )
+
+    def _queue(self, *, last_cycle_at: dt.datetime | None) -> FounderProspectionQueue:
+        with self._engine.connect() as connection:
+            rows = tuple(
+                connection.execute(
+                    sa.select(prospect_target)
+                    .where(prospect_target.c.status == "pending_review")
+                    .order_by(
+                        prospect_target.c.created_at.desc(),
+                        prospect_target.c.target_id,
+                    )
+                    .limit(25)
+                ).mappings()
+            )
+            if last_cycle_at is None:
+                last_cycle_at = connection.scalar(
+                    sa.select(sa.func.max(prospect_target.c.updated_at))
+                )
+        return FounderProspectionQueue(
+            available=True,
+            last_cycle_at=last_cycle_at,
+            items=tuple(
+                FounderQueueItem(
+                    target_ref=str(row["target_id"]),
+                    company_name=str(row["company_name"]),
+                    city=str(row["company_city"]),
+                    employees=int(row["company_employees"]),
+                    family_key=str(row["family_key"]),
+                    director_name=row["director_name"],
+                    director_title=row["director_title"],
+                    email_address=str(row["email_address"]),
+                    email_source=str(row["email_source"]),
+                    email_verification_status=str(row["email_verification_status"]),
+                    bait_holder=str(row["signal_holder"]),
+                    bait_subject=str(row["signal_subject"]),
+                    bait_amount_minor_units=int(row["signal_amount_minor_units"]),
+                    bait_currency=str(row["signal_currency"]),
+                    mail_subject=str(row["mail_subject"]),
+                    mail_body=str(row["mail_text"]),
+                )
+                for row in rows
+            ),
         )
 
     def _results(self) -> FounderProspectionResults:
@@ -319,6 +361,12 @@ class FounderProspectionReadService:
                     sa.func.count(sa.distinct(acquisition_campaign_member.c.member_ref))
                 ).where(acquisition_campaign_member.c.step_1_sent_at.is_not(None)),
             )
+            sent_count += _count(
+                connection,
+                sa.select(sa.func.count())
+                .select_from(prospect_target)
+                .where(prospect_target.c.sent_at.is_not(None)),
+            )
             opened_count = _count(
                 connection,
                 sa.select(
@@ -327,6 +375,12 @@ class FounderProspectionReadService:
                     acquisition_provider_event.c.provider_event_type == "email_opened",
                     acquisition_provider_event.c.resolution_state.in_(("ACCEPTED", "PROCESSED")),
                 ),
+            )
+            opened_count += _count(
+                connection,
+                sa.select(sa.func.count())
+                .select_from(prospect_target)
+                .where(prospect_target.c.opened_at.is_not(None)),
             )
             attribution_click_count = _count(
                 connection,

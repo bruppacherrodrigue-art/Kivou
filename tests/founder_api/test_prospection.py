@@ -32,6 +32,7 @@ from signals.persistence.schema import (
     contact_discovery_run,
     contract_award,
     opportunity_representation,
+    prospect_target,
     source_event,
     supplier_directory,
     supplier_discovery_run,
@@ -155,6 +156,83 @@ def test_directory_returns_real_global_counts_and_twenty_five_rows() -> None:
         "BÉTON ENTREPRISE 25",
         "BÉTON ENTREPRISE 26",
     ]
+
+
+def test_queue_reads_only_pending_review_targets_as_ready_mail() -> None:
+    engine = _engine()
+    with engine.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), _directory_row(0))
+        base = {
+            "version": 1,
+            "opportunity_key": "boamp-2026-assisted",
+            "procedure_award_key": "notice-assisted:lot-1",
+            "siren": "100000000",
+            "company_name": "BÉTON ENTREPRISE 00",
+            "company_city": "LYON",
+            "company_employees": 20,
+            "vertical": "general_building",
+            "family_key": "ready_mix_concrete",
+            "family_label": "béton prêt à l'emploi",
+            "director_name": "Camille Martin",
+            "director_title": "Gérante",
+            "director_source": "registry",
+            "email_source": "site",
+            "email_verification_status": "mx_verified",
+            "signal_holder": "SAS TITULAIRE",
+            "signal_subject": "Construction d'un groupe scolaire",
+            "signal_amount_minor_units": 125_000_000,
+            "signal_currency": "EUR",
+            "signal_location": "Rhône",
+            "signal_decision_date": NOW.date(),
+            "signal_source_url": "https://example.test/signal",
+            "mail_subject": "Un signal pour BÉTON ENTREPRISE 00",
+            "mail_text": "Bonjour Camille Martin,\n\nVous fournissez du béton prêt à l'emploi ?",
+            "mail_html": "<p>Bonjour Camille Martin,</p>",
+            "attribution_url": "https://kivou.eu/a/token",
+            "attribution_member_ref": "a" * 64,
+            "attribution_payload": {},
+            "attribution_token_fingerprint": "b" * 64,
+            "unsubscribe_url": "https://kivou.eu/unsubscribe/token",
+            "mail_word_count": 10,
+            "delivery_status": "not_sent",
+            "sent_at": None,
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+        connection.execute(
+            sa.insert(prospect_target),
+            [
+                {
+                    **base,
+                    "target_id": "51d144ca-d697-47e4-a4dc-ee86d0a9c8ac",
+                    "email_address": "camille@example.test",
+                    "status": "pending_review",
+                },
+                {
+                    **base,
+                    "target_id": "6b4ce58f-2537-4aac-9952-363430532477",
+                    "email_address": "sent@example.test",
+                    "attribution_member_ref": "c" * 64,
+                    "status": "sent",
+                    "delivery_status": "sent",
+                    "sent_at": NOW,
+                },
+            ],
+        )
+
+    result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(now=NOW)
+
+    assert result.queue.available is True
+    assert len(result.queue.items) == 1
+    item = result.queue.items[0]
+    assert item.target_ref == "51d144ca-d697-47e4-a4dc-ee86d0a9c8ac"
+    assert item.company_name == "BÉTON ENTREPRISE 00"
+    assert item.family_key == "ready_mix_concrete"
+    assert item.email_address == "camille@example.test"
+    assert item.bait_holder == "SAS TITULAIRE"
+    assert item.mail_body.startswith("Bonjour Camille Martin,")
+    assert result.results.sent_count == 1
+    assert result.results.no_sends_yet is False
 
 
 def test_directory_filters_before_pagination_without_changing_global_facets() -> None:
