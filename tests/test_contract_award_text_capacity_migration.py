@@ -52,6 +52,7 @@ REQUEUE_UNRESOLVED_SIRET_REVISION = "0033_requeue_unresolved_siret"
 COMPANY_ENGAGEMENT_REVISION = "0034_company_engagement"
 SUPPLIER_DOMAIN_REVISION = "0050_supplier_domain_validation"
 ASSISTED_PROSPECTION_REVISION = "0051_assisted_prospection"
+ASSISTED_OBSERVATION_REVISION = "0052_assisted_observation"
 CURRENT_HEAD = "0053_supplier_activity"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
@@ -141,7 +142,11 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == ASSISTED_PROSPECTION_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == ASSISTED_OBSERVATION_REVISION
+    assert (
+        script.get_revision(ASSISTED_OBSERVATION_REVISION).down_revision
+        == ASSISTED_PROSPECTION_REVISION
+    )
     assert (
         script.get_revision(ASSISTED_PROSPECTION_REVISION).down_revision
         == SUPPLIER_DOMAIN_REVISION
