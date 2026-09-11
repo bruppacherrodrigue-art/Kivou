@@ -89,6 +89,7 @@ class InstantlyProvider(Protocol):
         *,
         provider_campaign_id: str,
         leads: tuple[dict[str, object], ...],
+        verify_leads_on_import: bool = False,
     ) -> object: ...
     def list_leads(self, *, provider_campaign_id: str) -> object: ...
     def get_lead(self, provider_lead_id: str) -> object: ...
@@ -787,6 +788,7 @@ class HttpInstantlyProvider:
         *,
         provider_campaign_id: str,
         leads: tuple[dict[str, object], ...],
+        verify_leads_on_import: bool = False,
     ) -> object:
         if not 1 <= len(leads) <= 10:
             raise ValueError("Kivou micro-campaign lead batch must contain 1 to 10 leads")
@@ -800,6 +802,8 @@ class HttpInstantlyProvider:
         else:
             body = {"campaign_id": provider_campaign_id, "leads": list(leads)}
             path = "/leads/add"
+        if verify_leads_on_import:
+            body["verify_leads_on_import"] = True
         return self._call(
             "POST",
             path,

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import time
+from dataclasses import dataclass
 from typing import Protocol
 
 from signals.prospection_actions.service import (
@@ -22,10 +24,38 @@ class AssistedInstantlyProvider(Protocol):
     ): ...
 
     def create_lead_or_batch(
-        self, *, provider_campaign_id: str, leads: tuple[dict[str, object], ...]
+        self,
+        *,
+        provider_campaign_id: str,
+        leads: tuple[dict[str, object], ...],
+        verify_leads_on_import: bool = False,
     ) -> object: ...
 
+    def get_lead(self, provider_lead_id: str) -> object: ...
+
     def activate_campaign(self, provider_campaign_id: str) -> object: ...
+
+
+@dataclass
+class _ImportedLead:
+    target: DeliveryTarget
+    lead_id: str | None
+    verification_status: int | None
+    request_count: int
+    error: str | None = None
+
+
+def _verification_status(response: object) -> int | None:
+    value = response.get("verification_status") if isinstance(response, dict) else None
+    return value if type(value) is int else None
+
+
+_VERIFICATION_ERRORS = {
+    -1: "instantly_email_verification_invalid",
+    -2: "instantly_email_verification_risky",
+    -3: "instantly_email_verification_catch_all",
+    -4: "instantly_email_verification_job_change",
+}
 
 
 class AssistedInstantlyDelivery:
@@ -53,11 +83,12 @@ class AssistedInstantlyDelivery:
             execution_date=at.astimezone(dt.UTC).date(),
         )
         campaign_id = str(campaign.provider_campaign_id)
-        accepted: list[DeliveryAttempt] = []
+        imported: list[_ImportedLead] = []
         for target in targets:
             try:
                 response = self._provider.create_lead_or_batch(
                     provider_campaign_id=campaign_id,
+                    verify_leads_on_import=True,
                     leads=(
                         {
                             "email": target.email,
@@ -72,28 +103,52 @@ class AssistedInstantlyDelivery:
                 lead_id = response.get("id") if isinstance(response, dict) else None
                 if not lead_id:
                     raise RuntimeError("Instantly did not return a lead id")
-                accepted.append(
-                    DeliveryAttempt(
-                        target_id=target.target_id,
-                        status="sent",
-                        instantly_id=str(lead_id),
-                        provider_campaign_id=campaign_id,
-                        instantly_credit_units=1,
-                        instantly_request_count=1,
-                    )
+                imported.append(
+                    _ImportedLead(target, str(lead_id), _verification_status(response), 1)
                 )
             except Exception as error:  # noqa: BLE001 - one lead failure remains isolated
-                accepted.append(
-                    DeliveryAttempt(
-                        target_id=target.target_id,
-                        status="failed",
-                        instantly_id=None,
-                        provider_campaign_id=campaign_id,
-                        instantly_credit_units=0,
-                        instantly_request_count=1,
-                        error=str(error)[:1000],
-                    )
+                imported.append(
+                    _ImportedLead(target, None, None, 1, str(error)[:1000])
                 )
+        for poll in range(15):
+            pending = [item for item in imported if item.lead_id and item.verification_status in {None, 11, 12}]
+            if not pending:
+                break
+            if poll:
+                time.sleep(2)
+            for item in pending:
+                try:
+                    response = self._provider.get_lead(str(item.lead_id))
+                    item.request_count += 1
+                    item.verification_status = _verification_status(response)
+                    item.error = None
+                except Exception as error:  # noqa: BLE001 - retry the bounded verification poll
+                    item.request_count += 1
+                    item.error = str(error)[:1000]
+        accepted = [
+            DeliveryAttempt(
+                target_id=item.target.target_id,
+                status="sent" if item.verification_status == 1 and not item.error else "failed",
+                instantly_id=item.lead_id,
+                provider_campaign_id=campaign_id,
+                instantly_credit_units=1 if item.lead_id else 0,
+                instantly_request_count=item.request_count,
+                error=(
+                    item.error
+                    or _VERIFICATION_ERRORS.get(item.verification_status)
+                    or (
+                        None
+                        if item.verification_status == 1
+                        else "instantly_email_verification_pending"
+                    )
+                ),
+            )
+            for item in imported
+        ]
+        first = accepted[0]
+        accepted[0] = DeliveryAttempt(
+            **{**first.__dict__, "instantly_request_count": first.instantly_request_count + 1}
+        )
         successful = [item for item in accepted if item.status == "sent"]
         if successful:
             self._provider.activate_campaign(campaign_id)
@@ -104,8 +159,8 @@ class AssistedInstantlyDelivery:
                 instantly_id=first.instantly_id,
                 provider_campaign_id=first.provider_campaign_id,
                 instantly_credit_units=first.instantly_credit_units,
-                # Campaign creation and activation are charged to one delivery row.
-                instantly_request_count=first.instantly_request_count + 2,
+                # Campaign activation is charged to one delivery row; creation was above.
+                instantly_request_count=first.instantly_request_count + 1,
                 error=first.error,
             )
             accepted[accepted.index(first)] = replacement

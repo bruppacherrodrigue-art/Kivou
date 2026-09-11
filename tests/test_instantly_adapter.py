@@ -405,6 +405,7 @@ def test_single_lead_uses_official_v2_shape_and_transient_email_only() -> None:
 
     result = _provider(handler).create_lead_or_batch(
         provider_campaign_id="provider-campaign-1",
+        verify_leads_on_import=True,
         leads=(
             {
                 "email": "synthetic@example.invalid",
@@ -421,6 +422,7 @@ def test_single_lead_uses_official_v2_shape_and_transient_email_only() -> None:
         "email": "synthetic@example.invalid",
         "custom_variables": {"kivou_member_ref": "member-safe"},
         "skip_if_in_workspace": True,
+        "verify_leads_on_import": True,
         "campaign": "provider-campaign-1",
     }
 
