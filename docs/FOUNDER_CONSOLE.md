@@ -445,7 +445,10 @@ enabled nginx state:
 sudo rm -- /etc/nginx/sites-enabled/kivou-founder-bootstrap.conf
 sudo rm -- /etc/nginx/sites-available/kivou-founder-bootstrap.conf
 KIVOU_RELEASE_SHA="$(git rev-parse HEAD)"
-sudo /srv/kivou/source/ops/bin/kivou-deploy.sh production "$KIVOU_RELEASE_SHA"
+sudo systemd-run --wait --collect --pipe \
+  --property=Type=exec \
+  --property=EnvironmentFile=/etc/kivou/production.env \
+  /srv/kivou/source/ops/bin/kivou-deploy.sh production "$KIVOU_RELEASE_SHA"
 unset KIVOU_RELEASE_SHA
 ```
 
