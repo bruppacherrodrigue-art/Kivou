@@ -2799,7 +2799,7 @@ acquisition_runtime_observation = sa.Table(
         name="ck_acquisition_runtime_observation_name",
     ),
     sa.CheckConstraint(
-        "mode = 'SHADOW' AND native_tools = 0 AND ("
+        "mode IN ('SHADOW', 'ASSISTED') AND native_tools = 0 AND ("
         "(environment = 'STAGING' AND qa_only IS TRUE) OR "
         "(environment = 'PRODUCTION' AND qa_only IS FALSE))",
         name="ck_acquisition_runtime_observation_boundary",

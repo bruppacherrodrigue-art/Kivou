@@ -26,7 +26,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
-CURRENT_HEAD = "0051_assisted_prospection"
+CURRENT_HEAD = "0052_assisted_runtime_observation"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
@@ -179,6 +179,31 @@ def test_observation_boundary_accepts_staging_qa_only(tmp_path) -> None:
     _insert_observation(engine, _observation_values())
 
 
+def test_observation_boundary_accepts_assisted_in_both_environments(tmp_path) -> None:
+    for environment, qa_only in (("STAGING", True), ("PRODUCTION", False)):
+        engine = _engine(tmp_path, f"runtime-boundary-assisted-{environment}.db")
+        command.upgrade(alembic_config(engine), "head")
+
+        _insert_observation(
+            engine,
+            _observation_values(
+                environment=environment,
+                qa_only=qa_only,
+                mode="ASSISTED",
+            ),
+        )
+
+
+def test_declared_observation_boundary_accepts_assisted(tmp_path) -> None:
+    engine = _engine(tmp_path, "runtime-declared-assisted.db")
+    METADATA.create_all(
+        engine,
+        tables=[acquisition_runtime_cycle, acquisition_runtime_observation],
+    )
+
+    _insert_observation(engine, _observation_values(mode="ASSISTED"))
+
+
 def test_observation_boundary_rejects_staging_non_qa_only(tmp_path) -> None:
     engine = _engine(tmp_path, "runtime-boundary-staging-non-qa-only.db")
     command.upgrade(alembic_config(engine), "head")
@@ -218,15 +243,16 @@ def test_observation_boundary_rejects_production_qa_only(tmp_path) -> None:
 @pytest.mark.parametrize(
     ("field", "value"),
     (
-        pytest.param("mode", "LIVE", id="mode-not-shadow"),
+        pytest.param("mode", "LIVE", id="mode-live"),
         pytest.param("native_tools", 1, id="native-tools-not-zero"),
     ),
 )
 def test_observation_boundary_rejects_the_unconditional_prefix(
     tmp_path, environment, environment_overrides, field, value
 ) -> None:
-    """`ck_acquisition_runtime_observation_boundary`'s `mode = 'SHADOW' AND
-    native_tools = 0` prefix is unconditional — it must hold for a STAGING
+    """The observation boundary permits SHADOW/ASSISTED and no native tools.
+
+    That prefix is unconditional — it must hold for a STAGING
     row exactly as much as a PRODUCTION one. Every other boundary test above
     only ever varies `environment`/`qa_only`, so a regression that folded
     this prefix into only the STAGING branch (e.g. moving it inside the
