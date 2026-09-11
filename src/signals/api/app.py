@@ -40,6 +40,7 @@ from signals.api.routes_feedback import router as feedback_router
 from signals.api.routes_icp import router as icp_router
 from signals.api.routes_notes import router as notes_router
 from signals.api.routes_notifications import router as notifications_router
+from signals.api.routes_prospect_unsubscribe import router as prospect_unsubscribe_router
 from signals.api.routes_signals import router as signals_router
 from signals.api.routes_webhooks import router as webhooks_router
 from signals.cockpit.api import router as cockpit_router
@@ -85,6 +86,7 @@ def create_app(
     instantly_webhook_service: object | None = None,
     conversion_attribution_service: object | None = None,
     conversion_milestone_service: object | None = None,
+    prospect_unsubscribe_service: object | None = None,
     cockpit_service: object | None = None,
     operations_service: object | None = None,
     founding_accounts: frozenset[str] = frozenset(),
@@ -124,6 +126,7 @@ def create_app(
             ),
         )
     app.state.conversion_attribution_service = conversion_attribution_service
+    app.state.prospect_unsubscribe_service = prospect_unsubscribe_service
     # Pure local reconciliation; it only reads/writes the caller's database
     # transaction and does not start a worker or contact Stripe.
     app.state.conversion_milestone_service = (
@@ -143,6 +146,7 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(account_data_router)
     app.include_router(attribution_router)
+    app.include_router(prospect_unsubscribe_router)
     app.include_router(icp_router)
     app.include_router(signals_router)
     app.include_router(companies_router)
