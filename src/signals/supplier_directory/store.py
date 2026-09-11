@@ -119,6 +119,32 @@ def _fresh(observed_at: dt.datetime | None, at: dt.datetime) -> bool:
     return at - observed_at <= FRESHNESS
 
 
+def _reverification_values(*, reason: str, observed_at: dt.datetime) -> dict[str, object]:
+    return {
+        "domain": None,
+        "website_url": None,
+        "domain_source": None,
+        "domain_validation_method": None,
+        "domain_validation_evidence_url": None,
+        "domain_observed_at": None,
+        "apollo_organization_id": None,
+        "apollo_status": None,
+        "apollo_observed_at": None,
+        "professional_email": None,
+        "email_source": None,
+        "email_verification_status": None,
+        "email_contact_name": None,
+        "email_contact_title": None,
+        "email_evidence_url": None,
+        "email_observed_at": None,
+        "contact_form_url": None,
+        "contact_form_observed_at": None,
+        "reverification_required_at": observed_at,
+        "reverification_reason": reason[:128],
+        "updated_at": observed_at,
+    }
+
+
 class SupplierDirectoryStore:
     def __init__(self, engine: Engine, *, clock=lambda: dt.datetime.now(dt.UTC)) -> None:
         self._engine = engine
@@ -479,33 +505,33 @@ class SupplierDirectoryStore:
             else None
         )
 
-    def mark_for_reverification(self, siren: str, *, reason: str, observed_at: dt.datetime) -> bool:
-        return self._update(
-            siren,
-            {
-                "domain": None,
-                "website_url": None,
-                "domain_source": None,
-                "domain_validation_method": None,
-                "domain_validation_evidence_url": None,
-                "domain_observed_at": None,
-                "apollo_organization_id": None,
-                "apollo_status": None,
-                "apollo_observed_at": None,
-                "professional_email": None,
-                "email_source": None,
-                "email_verification_status": None,
-                "email_contact_name": None,
-                "email_contact_title": None,
-                "email_evidence_url": None,
-                "email_observed_at": None,
-                "contact_form_url": None,
-                "contact_form_observed_at": None,
-                "reverification_required_at": observed_at,
-                "reverification_reason": reason[:128],
-            },
-            observed_at,
+    def mark_for_reverification(
+        self,
+        siren: str,
+        *,
+        reason: str,
+        observed_at: dt.datetime,
+        expected_domain: str | None = None,
+        connection: sa.Connection | None = None,
+    ) -> bool:
+        _require_aware(observed_at)
+        predicate = supplier_directory.c.siren == siren
+        if expected_domain is not None:
+            predicate = sa.and_(
+                predicate,
+                sa.func.lower(supplier_directory.c.domain) == expected_domain.casefold(),
+                supplier_directory.c.domain_validation_method.is_not(None),
+                supplier_directory.c.suppressed_at.is_(None),
+            )
+        statement = (
+            sa.update(supplier_directory)
+            .where(predicate)
+            .values(**_reverification_values(reason=reason, observed_at=observed_at))
         )
+        if connection is not None:
+            return connection.execute(statement).rowcount == 1
+        with self._engine.begin() as owned_connection:
+            return owned_connection.execute(statement).rowcount == 1
 
     def fresh_apollo(self, siren: str, *, at: dt.datetime) -> SupplierDirectoryRecord | None:
         record = self.get(siren)

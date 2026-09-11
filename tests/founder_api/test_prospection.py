@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import subprocess
 from decimal import Decimal
 
 import pytest
@@ -11,13 +10,10 @@ from sqlalchemy.pool import StaticPool
 
 from signals.accounts.schema import account_landing_signal
 from signals.founder_api.access import FOUNDER_USER_HEADER, ORIGIN_SECRET_HEADER
+from signals.founder_api.acquisition_status import FounderAcquisitionActivity
 from signals.founder_api.app import create_founder_app
 from signals.founder_api.config import FounderApiConfig
-from signals.founder_api.prospection import (
-    FounderAcquisitionTimer,
-    FounderDirectoryStatus,
-    SystemdAcquisitionTimerReader,
-)
+from signals.founder_api.prospection import FounderDirectoryStatus
 from signals.founder_api.read_models import FounderReadService
 from signals.persistence.schema import (
     METADATA,
@@ -55,13 +51,10 @@ def _engine() -> sa.Engine:
     return engine
 
 
-def _stopped_timer(_: dt.datetime) -> FounderAcquisitionTimer:
-    return FounderAcquisitionTimer(
-        state="STOPPED",
-        unit="kivou-acquisition-production.timer",
-        inactive_since=NOW - dt.timedelta(hours=2),
-        last_triggered_at=NOW - dt.timedelta(hours=3),
-        next_trigger_at=None,
+def _stopped_timer(_: dt.datetime) -> FounderAcquisitionActivity:
+    return FounderAcquisitionActivity(
+        activity="STOPPED",
+        activity_since=NOW - dt.timedelta(hours=2),
     )
 
 
@@ -114,6 +107,8 @@ def _directory_row(index: int, *, suppressed: bool = False) -> dict[str, object]
         "contact_form_observed_at": None,
         "reverification_required_at": observed_at if needs_reverification else None,
         "reverification_reason": ("legacy_domain_not_validated" if needs_reverification else None),
+        "website_search_queries_completed": 0,
+        "website_search_results_examined": 0,
         "suppressed_at": observed_at if suppressed else None,
         "created_at": observed_at,
         "updated_at": observed_at,
@@ -136,6 +131,9 @@ def test_directory_returns_real_global_counts_and_twenty_five_rows() -> None:
 
     assert result.version == "founder-prospection-v1"
     assert result.read_only is True
+    assert result.acquisition_status.activity == "STOPPED"
+    assert result.acquisition_status.activity_since == NOW - dt.timedelta(hours=2)
+    assert "timer" not in result.model_dump()
     assert result.directory.summary.company_count == 27
     assert result.directory.summary.confirmed_domain_count == 9
     assert result.directory.summary.verified_email_count == 7
@@ -156,6 +154,121 @@ def test_directory_returns_real_global_counts_and_twenty_five_rows() -> None:
         "BÉTON ENTREPRISE 25",
         "BÉTON ENTREPRISE 26",
     ]
+
+
+def test_directory_hides_unconfirmed_domain_and_names_departments() -> None:
+    engine = _engine()
+    record = _directory_row(1)
+    record.update(
+        department="69",
+        domain="candidate.example",
+        website_url="https://candidate.example",
+        domain_validation_method=None,
+    )
+    with engine.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), record)
+
+    result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(now=NOW)
+
+    row = result.directory.rows[0]
+    assert row.confirmed_domain is False
+    assert row.domain is None
+    assert row.website_url is None
+    assert row.department == "69"
+    assert row.department_name == "Rhône"
+    assert result.directory.department_counts[0].label == "Rhône (69)"
+    assert result.directory.family_counts[0].label == "reinforcement_steel"
+
+
+def test_without_website_excludes_an_unconfirmed_raw_domain() -> None:
+    engine = _engine()
+    record = _directory_row(0)
+    record.update(
+        domain="candidate.example",
+        website_url="https://candidate.example",
+        domain_validation_method=None,
+        reverification_required_at=None,
+        reverification_reason=None,
+    )
+    with engine.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), record)
+
+    unfiltered = FounderReadService(engine, timer_reader=_stopped_timer).prospection(now=NOW)
+
+    assert len(unfiltered.directory.rows) == 1
+    assert unfiltered.directory.rows[0].domain is None
+    assert unfiltered.directory.rows[0].website_url is None
+    assert unfiltered.directory.rows[0].professional_email == "contact0@example.test"
+    assert unfiltered.directory.rows[0].qualification_status == "to_qualify"
+
+    without_website = FounderReadService(
+        engine, timer_reader=_stopped_timer
+    ).prospection(
+        now=NOW,
+        directory_status=FounderDirectoryStatus.WITHOUT_WEBSITE,
+    )
+
+    assert without_website.directory.rows == ()
+    assert without_website.directory.pagination.total_items == 0
+
+
+def test_directory_qualification_uses_durable_verdicts_and_priority() -> None:
+    engine = _engine()
+    reverification = _directory_row(0)
+    durable_without_website = _directory_row(1)
+    durable_without_website.update(
+        domain_source="no_website",
+        reverification_reason="no_website",
+        website_search_queries_completed=3,
+        website_search_results_examined=30,
+    )
+    never_searched = _directory_row(2)
+    confirmed = _directory_row(3)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(supplier_directory),
+            [reverification, durable_without_website, never_searched, confirmed],
+        )
+
+    service = FounderReadService(engine, timer_reader=_stopped_timer)
+    unfiltered = service.prospection(now=NOW)
+
+    assert {row.siren: row.qualification_status for row in unfiltered.directory.rows} == {
+        "100000000": "reverification_required",
+        "100000001": "without_website",
+        "100000002": "to_qualify",
+        "100000003": "confirmed_domain",
+    }
+
+    expected_by_filter = {
+        FounderDirectoryStatus.CONFIRMED_DOMAIN: "100000003",
+        FounderDirectoryStatus.WITHOUT_WEBSITE: "100000001",
+        FounderDirectoryStatus.REVERIFICATION_REQUIRED: "100000000",
+    }
+    for status, expected_siren in expected_by_filter.items():
+        filtered = service.prospection(
+            now=NOW,
+            page=1,
+            page_size=1,
+            directory_status=status,
+        )
+        assert [row.siren for row in filtered.directory.rows] == [expected_siren]
+        assert filtered.directory.pagination.total_items == 1
+        assert filtered.directory.pagination.total_pages == 1
+
+
+def test_directory_uses_department_code_as_label_when_name_is_unknown() -> None:
+    engine = _engine()
+    record = _directory_row(1)
+    record["department"] = "XX"
+    with engine.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), record)
+
+    result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(now=NOW)
+
+    assert result.directory.rows[0].department == "XX"
+    assert result.directory.rows[0].department_name is None
+    assert result.directory.department_counts[0].label == "XX"
 
 
 def test_queue_reads_only_pending_review_targets_as_ready_mail() -> None:
@@ -264,8 +377,8 @@ def test_directory_filters_before_pagination_without_changing_global_facets() ->
 @pytest.mark.parametrize(
     ("directory_status", "expected_count"),
     (
-        (FounderDirectoryStatus.CONFIRMED_DOMAIN, 9),
-        (FounderDirectoryStatus.WITHOUT_WEBSITE, 18),
+        (FounderDirectoryStatus.CONFIRMED_DOMAIN, 7),
+        (FounderDirectoryStatus.WITHOUT_WEBSITE, 0),
         (FounderDirectoryStatus.REVERIFICATION_REQUIRED, 6),
     ),
 )
@@ -286,60 +399,6 @@ def test_directory_supports_each_status_filter(
     )
 
     assert result.directory.pagination.total_items == expected_count
-
-
-def test_systemd_timer_reader_reports_when_the_timer_stopped() -> None:
-    output = (
-        "LoadState=loaded\n"
-        "ActiveState=inactive\n"
-        "SubState=dead\n"
-        "UnitFileState=enabled\n"
-        "InactiveEnterTimestamp=Thu 2026-09-10 07:48:16 UTC\n"
-        "LastTriggerUSec=Thu 2026-09-10 07:34:23 UTC\n"
-        "NextElapseUSecRealtime=\n"
-    )
-
-    call: dict[str, object] = {}
-
-    def run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        call["args"] = args
-        call["kwargs"] = kwargs
-        return subprocess.CompletedProcess([], 0, stdout=output, stderr="")
-
-    timer = SystemdAcquisitionTimerReader(run=run)(NOW)
-
-    assert timer.state == "STOPPED"
-    assert timer.inactive_since == dt.datetime(2026, 9, 10, 7, 48, 16, tzinfo=dt.UTC)
-    assert timer.last_triggered_at == dt.datetime(2026, 9, 10, 7, 34, 23, tzinfo=dt.UTC)
-    assert timer.next_trigger_at is None
-    assert isinstance(call["kwargs"], dict)
-    assert call["kwargs"]["env"]["TZ"] == "UTC"  # type: ignore[index]
-
-
-@pytest.mark.parametrize("active_state", ("failed", "activating", "deactivating"))
-def test_systemd_timer_reader_does_not_call_transitional_or_failed_units_stopped(
-    active_state: str,
-) -> None:
-    output = f"LoadState=loaded\nActiveState={active_state}\nSubState=dead\n"
-
-    def run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        del args, kwargs
-        return subprocess.CompletedProcess([], 0, stdout=output, stderr="")
-
-    timer = SystemdAcquisitionTimerReader(run=run)(NOW)
-
-    assert timer.state == "UNKNOWN"
-    assert timer.inactive_since is None
-
-
-def test_systemd_timer_reader_fails_closed_on_timeout() -> None:
-    def run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        del args, kwargs
-        raise subprocess.TimeoutExpired(cmd="systemctl", timeout=2)
-
-    timer = SystemdAcquisitionTimerReader(run=run)(NOW)
-
-    assert timer.state == "UNKNOWN"
 
 
 def test_targeting_uses_the_latest_cycle_and_its_existing_journals() -> None:
@@ -818,6 +877,8 @@ def test_prospection_route_is_authenticated_and_returns_the_versioned_contract()
     assert response.status_code == 200
     assert response.json()["version"] == "founder-prospection-v1"
     assert response.json()["read_only"] is True
+    assert response.json()["acquisition_status"]["activity"] == "STOPPED"
+    assert "timer" not in response.json()
     assert unauthenticated.status_code == 403
 
 

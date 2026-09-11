@@ -14,12 +14,21 @@ from sqlalchemy.engine import Engine
 from signals.cockpit.contracts import WeeklyCommercialCockpit, completed_week
 from signals.cockpit.service import WeeklyCommercialCockpitService
 from signals.engagement.schema import signal_feedback
+from signals.founder_api.acquisition_status import (
+    AcquisitionActivityReader,
+    FounderAcquisitionStatus,
+    FounderAcquisitionStatusReadService,
+)
+from signals.founder_api.commercial_tunnel import (
+    FounderCommercialTunnel,
+    FounderCommercialTunnelReadService,
+    FounderTunnelPeriod,
+)
 from signals.founder_api.contracts import FounderContract
 from signals.founder_api.prospection import (
     FounderDirectoryStatus,
     FounderProspection,
     FounderProspectionReadService,
-    TimerReader,
 )
 from signals.operations.contracts import (
     AcquisitionOperationalHealth,
@@ -110,9 +119,6 @@ class FounderTodaySummary(FounderContract):
     paid_accounts_last_completed_week: int = Field(ge=0)
     business_period_start: dt.datetime
     business_period_end: dt.datetime
-    system_status: HealthStatus
-    hermes_status: HealthStatus
-    highest_safe_mode: AutonomyMode
 
     _times = field_validator(
         "generated_at", "business_period_start", "business_period_end"
@@ -146,9 +152,11 @@ class FounderConsoleOverview(FounderContract):
     environment: Literal["PRODUCTION"] = "PRODUCTION"
     read_only: Literal[True] = True
     generated_at: dt.datetime
+    acquisition_status: FounderAcquisitionStatus
     today: FounderTodaySummary
     attention: tuple[FounderAttentionItem, ...]
     business: WeeklyCommercialCockpit
+    commercial_tunnel: FounderCommercialTunnel
     quality: FounderQualitySummary
     system: FounderSystemSummary
 
@@ -164,15 +172,17 @@ class FounderReadService:
         *,
         commercial: CommercialReader | None = None,
         operations: OperationsReader | None = None,
-        timer_reader: TimerReader | None = None,
+        timer_reader: AcquisitionActivityReader | None = None,
     ) -> None:
         self._engine = engine
         self._commercial = commercial or WeeklyCommercialCockpitService(engine)
         self._operations = operations or OperationsReadService(engine)
-        self._prospection = FounderProspectionReadService(
+        self._acquisition_status = FounderAcquisitionStatusReadService(
             engine,
             timer_reader=timer_reader,
         )
+        self._commercial_tunnel = FounderCommercialTunnelReadService(engine)
+        self._prospection = FounderProspectionReadService(engine)
 
     def prospection(
         self,
@@ -185,8 +195,11 @@ class FounderReadService:
         department: str | None = None,
         directory_status: FounderDirectoryStatus | None = None,
     ) -> FounderProspection:
+        now = _aware(now)
+        acquisition_status = self._acquisition_status.read(now=now)
         return self._prospection.read(
             now=now,
+            acquisition_status=acquisition_status,
             page=page,
             page_size=page_size,
             q=q,
@@ -200,13 +213,20 @@ class FounderReadService:
         *,
         now: dt.datetime,
         week_offset: int = 0,
+        period: FounderTunnelPeriod = FounderTunnelPeriod.LAST_7_DAYS,
         attention_limit: int = 20,
     ) -> FounderConsoleOverview:
         now = _aware(now)
         if not 1 <= attention_limit <= 50:
             raise ValueError("attention_limit must be between 1 and 50")
+        acquisition_status = self._acquisition_status.read(now=now)
         week = completed_week(now, week_offset=week_offset)
         business = self._commercial.generate(week=week)
+        commercial_tunnel = self._commercial_tunnel.read(
+            now=now,
+            period=period,
+            week_offset=week_offset,
+        )
         health = self._operations.health(observed_at=now)
         readiness = self._operations.readiness(evaluated_at=now)
         attention = self._attention(limit=attention_limit)
@@ -234,15 +254,14 @@ class FounderReadService:
             paid_accounts_last_completed_week=business.funnel.paid_account_count,
             business_period_start=business.week_start,
             business_period_end=business.week_end,
-            system_status=health.status,
-            hermes_status=health.hermes_runtime,
-            highest_safe_mode=readiness.highest_safe_mode,
         )
         return FounderConsoleOverview(
             generated_at=now,
+            acquisition_status=acquisition_status,
             today=today,
             attention=attention,
             business=business,
+            commercial_tunnel=commercial_tunnel,
             quality=quality,
             system=system,
         )

@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { loadFounderOverview, loadFounderProspection, loadFounderSession } from './api'
+import { AcquisitionStatus } from './AcquisitionStatus'
 import { ProspectionPage } from './ProspectionPage'
 import type {
   AttentionItem,
-  AutonomyMode,
   FounderOverview,
   FounderProspection,
   FounderProspectionFilters,
   FounderSession,
+  FounderTunnelPeriod,
   GateStatus,
   HealthStatus,
   MoneyTotal,
@@ -43,7 +44,6 @@ const STATUS_LABELS: Record<HealthStatus | GateStatus, string> = {
   INSUFFICIENT_EVIDENCE: 'Preuves insuffisantes',
 }
 const GATE_LABELS = {
-  h_a_runtime: 'Runtime Hermes',
   h_b_state: 'État durable',
   h_c_policy: 'Policy Gateway',
   h_d_shadow: 'Validation shadow',
@@ -55,11 +55,20 @@ const GATE_LABELS = {
 export function FounderApp() {
   const isProspectionRoute = normalizedPathname() === '/prospection'
   const [weekOffset, setWeekOffset] = useState(0)
+  const [period, setPeriod] = useState<FounderTunnelPeriod>('last_7_days')
   const [prospectionFilters, setProspectionFilters] = useState(INITIAL_PROSPECTION_FILTERS)
   const [refreshKey, setRefreshKey] = useState(0)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const changePeriod = (nextPeriod: FounderTunnelPeriod) => {
+    if (nextPeriod === period) {
+      setRefreshKey((value) => value + 1)
+      return
+    }
+    setPeriod(nextPeriod)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -75,7 +84,7 @@ export function FounderApp() {
       }
       const [session, overview] = await Promise.all([
         loadFounderSession(controller.signal),
-        loadFounderOverview(weekOffset, controller.signal),
+        loadFounderOverview(weekOffset, period, controller.signal),
       ])
       return { page: 'today', session, overview } satisfies TodaySnapshot
     }
@@ -97,6 +106,7 @@ export function FounderApp() {
     return () => controller.abort()
   }, [
     isProspectionRoute,
+    period,
     prospectionFilters,
     refreshKey,
     weekOffset,
@@ -173,6 +183,7 @@ export function FounderApp() {
               snapshot={snapshot}
               weekOffset={weekOffset}
               onWeekChange={setWeekOffset}
+              onPeriodChange={changePeriod}
               refreshing={loading}
             />
           ) : null}
@@ -199,32 +210,30 @@ function Console({
   snapshot,
   weekOffset,
   onWeekChange,
+  onPeriodChange,
   refreshing,
 }: {
   snapshot: TodaySnapshot
   weekOffset: number
   onWeekChange: (value: number) => void
+  onPeriodChange: (value: FounderTunnelPeriod) => void
   refreshing: boolean
 }) {
   const { overview } = snapshot
   return (
     <>
       <section id="overview" className="control-section control-overview">
-        <div className="control-hero">
+        <div className="control-hero control-hero--today">
           <div>
             <p className="control-eyebrow">Vue du moment</p>
-            <h1>Ce qui mérite ton attention.</h1>
+            <h1>Aujourd’hui</h1>
             <p>
-              Les états opérationnels sont observés au moment de la requête. Les chiffres
-              commerciaux ci-dessous concernent la dernière semaine terminée sélectionnée.
+              L’état de l’acquisition et les faits qui demandent ton attention,
+              observés au moment de la requête.
             </p>
           </div>
-          <div className="control-hero-status">
-            <span>État global</span>
-            <StatusBadge status={overview.today.system_status} />
-            <small>{formatDateTime(overview.today.generated_at)}</small>
-          </div>
         </div>
+        <AcquisitionStatus status={overview.acquisition_status} />
 
         <div className="control-summary-grid">
           <SummaryCard
@@ -247,20 +256,15 @@ function Console({
             value={formatCount(overview.today.paid_accounts_last_completed_week)}
             detail="Dernière semaine terminée"
           />
-          <SummaryCard
-            label="Hermes"
-            value={STATUS_LABELS[overview.today.hermes_status]}
-            detail={`Mode sûr : ${modeLabel(overview.today.highest_safe_mode)}`}
-            status={overview.today.hermes_status}
-          />
         </div>
       </section>
 
       <AttentionSection items={overview.attention} />
-      <BusinessSection
+      <CommercialTunnelSection
         overview={overview}
         weekOffset={weekOffset}
         onWeekChange={onWeekChange}
+        onPeriodChange={onPeriodChange}
         refreshing={refreshing}
       />
       <QualitySection overview={overview} />
@@ -316,154 +320,173 @@ function AttentionSection({ items }: { items: AttentionItem[] }) {
   )
 }
 
-function BusinessSection({
+function CommercialTunnelSection({
   overview,
   weekOffset,
   onWeekChange,
+  onPeriodChange,
   refreshing,
 }: {
   overview: FounderOverview
   weekOffset: number
   onWeekChange: (value: number) => void
+  onPeriodChange: (value: FounderTunnelPeriod) => void
   refreshing: boolean
 }) {
-  const report = overview.business
-  const funnel = report.funnel
+  const [view, setView] = useState<'period' | 'cohort'>('period')
+  const periodTabRef = useRef<HTMLButtonElement>(null)
+  const cohortTabRef = useRef<HTMLButtonElement>(null)
+  const tunnel = overview.commercial_tunnel
+  const displayedPeriod = tunnel.period_kind
+
+  const navigateTabs = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    event.preventDefault()
+    const nextView = event.key === 'ArrowRight'
+      ? view === 'period' ? 'cohort' : 'period'
+      : view === 'cohort' ? 'period' : 'cohort'
+    setView(nextView)
+    if (nextView === 'period') periodTabRef.current?.focus()
+    else cohortTabRef.current?.focus()
+  }
+
   return (
     <section id="business" className="control-section">
-      <div className="control-section-toolbar">
-        <SectionHeading
-          eyebrow="Revenu et acquisition"
-          title="Business"
-          description={`Période terminée : ${formatDateRange(report.week_start, report.week_end)}.`}
-        />
-        <label className="control-week-select">
-          <span>Semaine terminée</span>
-          <select
-            value={weekOffset}
-            disabled={refreshing}
-            onChange={(event) => onWeekChange(Number(event.target.value))}
-          >
-            {WEEK_OFFSETS.map((offset) => (
-              <option key={offset} value={offset}>
-                {offset === 0 ? 'Dernière semaine complète' : `Il y a ${offset} semaine(s)`}
-              </option>
-            ))}
-          </select>
-        </label>
+      <SectionHeading
+        eyebrow="Acquisition et revenu"
+        title="Tunnel commercial"
+        description="Deux lectures complémentaires des étapes commerciales, sans mélanger flux observé et situation courante."
+      />
+
+      <div className="control-tunnel-tabs" role="tablist" aria-label="Vue du tunnel commercial">
+        <button
+          ref={periodTabRef}
+          id="tunnel-period-tab"
+          type="button"
+          role="tab"
+          aria-controls="tunnel-period-panel"
+          aria-selected={view === 'period'}
+          tabIndex={view === 'period' ? 0 : -1}
+          onKeyDown={navigateTabs}
+          onClick={() => setView('period')}
+        >
+          Période
+        </button>
+        <button
+          ref={cohortTabRef}
+          id="tunnel-cohort-tab"
+          type="button"
+          role="tab"
+          aria-controls="tunnel-cohort-panel"
+          aria-selected={view === 'cohort'}
+          tabIndex={view === 'cohort' ? 0 : -1}
+          onKeyDown={navigateTabs}
+          onClick={() => setView('cohort')}
+        >
+          Par cohorte
+        </button>
       </div>
 
-      <div className="control-metric-grid">
-        <Metric label="Emails délivrés (proxy)" value={formatCount(funnel.delivered_proxy_count)} />
-        <Metric label="Réponses positives" value={formatCount(funnel.positive_reply_count)} />
-        <Metric label="Clics" value={formatCount(funnel.click_count)} />
-        <Metric label="Comptes activés" value={formatCount(funnel.activated_account_count)} />
-        <Metric label="Comptes payants" value={formatCount(funnel.paid_account_count)} />
-        <Metric label="MRR" value={<MoneyList values={funnel.mrr_by_currency} />} />
-        <Metric label="Churn" value={formatCount(funnel.churn_count)} />
-      </div>
-
-      <p className="control-truth-note">
-        “Délivrés” reste un proxy envoyé moins bounces. Les données MRR incomplètes sont
-        signalées plutôt que complétées par une estimation.
-      </p>
-
-      <div className="control-two-column">
-        <article className="control-panel">
-          <div className="control-panel-head">
-            <div>
-              <p className="control-panel-kicker">Efficacité retenue</p>
-              <h3>MRR M2 / 1 000 emails délivrés</h3>
+      {view === 'period' ? (
+        <div
+          id="tunnel-period-panel"
+          className="control-tunnel-panel"
+          role="tabpanel"
+          aria-labelledby="tunnel-period-tab"
+        >
+          <div className="control-tunnel-toolbar">
+            <div className="control-period-toggle" aria-label="Période observée">
+              <button
+                type="button"
+                aria-pressed={displayedPeriod === 'today'}
+                disabled={refreshing}
+                onClick={() => onPeriodChange('today')}
+              >
+                Aujourd’hui
+              </button>
+              <button
+                type="button"
+                aria-pressed={displayedPeriod === 'last_7_days'}
+                disabled={refreshing}
+                onClick={() => onPeriodChange('last_7_days')}
+              >
+                7 derniers jours
+              </button>
             </div>
+            <p>
+              Période observée : {formatDateTimeRange(tunnel.period.start_at, tunnel.period.end_at)}.
+            </p>
           </div>
-          {report.wedge_m2_efficiency.length === 0 ? (
-            <p className="control-muted">Pas encore de cohorte M2 exploitable.</p>
-          ) : (
-            <div className="control-wedge-list">
-              {report.wedge_m2_efficiency.map((row) => (
-                <div className="control-wedge-row" key={`${row.wedge}:${row.currency ?? 'unknown'}`}>
-                  <div>
-                    <strong>{humanizeCode(row.wedge)}</strong>
-                    <span>{formatCount(row.retained_m2_accounts)} compte(s) retenu(s) M2</span>
-                  </div>
-                  <div>
-                    {row.data_status === 'READY' && row.currency && row.retained_m2_mrr_per_1000_delivered
-                      ? formatMoney(
-                          Math.round(Number(row.retained_m2_mrr_per_1000_delivered)),
-                          row.currency,
-                        )
-                      : 'Preuves M2 insuffisantes'}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-
-        <article className="control-panel">
-          <p className="control-panel-kicker">Qualité du parcours revenu</p>
-          <h3>Données à interpréter avec prudence</h3>
-          <dl className="control-compact-list">
-            <div>
-              <dt>Secteurs non résolus</dt>
-              <dd>{formatCount(report.data_quality.unresolved_sector_count)}</dd>
-            </div>
-            <div>
-              <dt>Parcours MRR incomplets</dt>
-              <dd>{formatCount(report.data_quality.unknown_mrr_journey_count)}</dd>
-            </div>
-            <div>
-              <dt>Wedges sans preuve M2</dt>
-              <dd>{formatCount(report.data_quality.m2_insufficient_wedges.length)}</dd>
-            </div>
-          </dl>
-        </article>
-      </div>
-
-      <article className="control-panel control-table-panel">
-        <div className="control-panel-head">
-          <div>
-            <p className="control-panel-kicker">Détail analytique</p>
-            <h3>Pays × secteur × besoin × campagne</h3>
-          </div>
-          <span>{formatCount(report.analytical_rows.length)} ligne(s)</span>
+          <TunnelMetrics counts={tunnel.period} />
         </div>
-        {report.analytical_rows.length === 0 ? (
-          <p className="control-muted">Aucune activité sortante pour cette période.</p>
-        ) : (
-          <div className="control-table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Pays</th>
-                  <th>Secteur</th>
-                  <th>Besoin</th>
-                  <th>Campagne</th>
-                  <th>Délivrés</th>
-                  <th>Réponses</th>
-                  <th>Payants</th>
-                  <th>MRR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.analytical_rows.map((row) => (
-                  <tr key={`${row.country}:${row.sector_ref}:${row.need_ref}:${row.campaign_ref}`}>
-                    <td>{row.country}</td>
-                    <td>{humanizeCode(row.sector_ref)}</td>
-                    <td>{humanizeCode(row.need_ref)}</td>
-                    <td><code>{row.campaign_ref}</code></td>
-                    <td>{formatCount(row.delivered_proxy_count)}</td>
-                    <td>{formatCount(row.positive_reply_count)}</td>
-                    <td>{formatCount(row.paid_account_count)}</td>
-                    <td><MoneyList values={row.mrr_by_currency} /></td>
-                  </tr>
+      ) : (
+        <div
+          id="tunnel-cohort-panel"
+          className="control-tunnel-panel"
+          role="tabpanel"
+          aria-labelledby="tunnel-cohort-tab"
+        >
+          <div className="control-tunnel-toolbar">
+            <p>
+              Cohorte envoyée du {formatDate(tunnel.cohort.start_at)} au {formatDate(tunnel.cohort.end_at)}.
+              {' '}Étapes atteintes depuis l’envoi jusqu’au {formatDateTime(tunnel.current.observed_at)}.
+            </p>
+            <label className="control-week-select">
+              <span>Semaine terminée</span>
+              <select
+                value={weekOffset}
+                disabled={refreshing}
+                onChange={(event) => onWeekChange(Number(event.target.value))}
+              >
+                {WEEK_OFFSETS.map((offset) => (
+                  <option key={offset} value={offset}>
+                    {offset === 0 ? 'Dernière semaine complète' : `Il y a ${offset} semaine(s)`}
+                  </option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+            </label>
           </div>
-        )}
+          <TunnelMetrics counts={tunnel.cohort} />
+        </div>
+      )}
+
+      <article className="control-panel control-current-situation">
+        <div className="control-current-heading">
+          <div>
+            <p className="control-panel-kicker">À date</p>
+            <h3>Situation actuelle</h3>
+          </div>
+          <span>Observée le {formatDateTime(tunnel.current.observed_at)}</span>
+        </div>
+        <div className="control-current-metrics">
+          <div>
+            <span>MRR</span>
+            <strong><MoneyList values={tunnel.current.mrr_by_currency} /></strong>
+          </div>
+          <div>
+            <span>Churn</span>
+            <strong>{formatCount(tunnel.current.churn_count)}</strong>
+          </div>
+        </div>
       </article>
     </section>
+  )
+}
+
+function TunnelMetrics({
+  counts,
+}: {
+  counts: FounderOverview['commercial_tunnel']['period']
+}) {
+  return (
+    <div className="control-metric-grid control-tunnel-metric-grid">
+      <Metric label="Envoyés" value={formatCount(counts.sent_count)} />
+      <Metric label="Ouverts" value={formatCount(counts.opened_count)} />
+      <Metric label="Clics" value={formatCount(counts.click_count)} />
+      <Metric label="Atterrissages" value={formatCount(counts.landing_count)} />
+      <Metric label="Profils confirmés" value={formatCount(counts.confirmed_profile_count)} />
+      <Metric label="Payants" value={formatCount(counts.paid_count)} />
+    </div>
   )
 }
 
@@ -515,11 +538,10 @@ function QualitySection({ overview }: { overview: FounderOverview }) {
 }
 
 function SystemSection({ overview }: { overview: FounderOverview }) {
-  const { health, readiness, hermes } = overview.system
+  const { health, readiness } = overview.system
   const components: Array<[string, HealthStatus]> = [
     ['API', health.api],
     ['Base de données', health.database],
-    ['Runtime Hermes', health.hermes_runtime],
     ['Boucle superviseur', health.supervisor_loop],
     ['Policy Gateway', health.policy_control],
     ['Exécution campagnes', health.campaign_execution],
@@ -537,20 +559,8 @@ function SystemSection({ overview }: { overview: FounderOverview }) {
         title="Système"
         description="Santé et niveau d’autonomie calculés depuis l’état durable, sans appel fournisseur pendant la consultation."
       />
-      <div className="control-system-summary">
-        <article className="control-panel control-hermes-card">
-          <div>
-            <p className="control-panel-kicker">Agent autonome</p>
-            <h3>{hermes.name}</h3>
-            <p>Mode sûr actuel : <strong>{modeLabel(hermes.highest_safe_mode)}</strong></p>
-          </div>
-          <StatusBadge status={hermes.status} />
-          {hermes.reason_codes.length > 0 ? (
-            <ul className="control-code-list">
-              {hermes.reason_codes.map((reason) => <li key={reason}>{humanizeCode(reason)}</li>)}
-            </ul>
-          ) : null}
-        </article>
+      <AcquisitionStatus status={overview.acquisition_status} compact />
+      <div className="control-system-summary control-system-summary--single">
         <article className="control-panel">
           <p className="control-panel-kicker">Accès aux données</p>
           <h3>PostgreSQL</h3>
@@ -585,7 +595,6 @@ function SystemSection({ overview }: { overview: FounderOverview }) {
               <p className="control-panel-kicker">Readiness</p>
               <h3>Gates d’autonomie</h3>
             </div>
-            <span className="control-mode">{modeLabel(readiness.highest_safe_mode)}</span>
           </div>
           <div className="control-status-list">
             {gates.map(({ label, evidence }) => (
@@ -640,20 +649,17 @@ function SummaryCard({
   value,
   detail,
   tone = 'neutral',
-  status,
 }: {
   label: string
   value: string
   detail: string
   tone?: 'neutral' | 'critical'
-  status?: HealthStatus
 }) {
   return (
     <article className={`control-summary-card control-summary-${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{detail}</small>
-      {status ? <StatusBadge status={status} compact /> : null}
     </article>
   )
 }
@@ -773,23 +779,13 @@ function formatDate(value: string): string {
   }).format(parsed)
 }
 
-function formatDateRange(start: string, end: string): string {
-  return `${formatDate(start)} → ${formatDate(end)}`
+function formatDateTimeRange(start: string, end: string): string {
+  return `${formatDateTime(start)} → ${formatDateTime(end)}`
 }
 
 function humanizeCode(value: string): string {
   const words = value.replaceAll('-', ' ').replaceAll('_', ' ').toLowerCase()
   return words ? words[0].toUpperCase() + words.slice(1) : 'Inconnu'
-}
-
-function modeLabel(mode: AutonomyMode): string {
-  const labels: Record<AutonomyMode, string> = {
-    SHADOW: 'Shadow',
-    ASSISTED: 'Assisté',
-    AUTONOMOUS_CAPPED: 'Autonome plafonné',
-    ADAPTIVE_VOLUME: 'Échelle adaptative',
-  }
-  return labels[mode]
 }
 
 function severityLabel(severity: AttentionItem['severity']): string {

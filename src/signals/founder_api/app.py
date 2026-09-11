@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from signals.founder_api.access import FounderIdentityDependency
+from signals.founder_api.commercial_tunnel import FounderTunnelPeriod
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
 from signals.founder_api.prospection import FounderDirectoryStatus, FounderProspection
@@ -88,6 +89,7 @@ def create_founder_app(
     def founder_overview(
         identity: FounderIdentityDependency,
         week_offset: Annotated[int, Query(ge=0, le=51)] = 0,
+        period: FounderTunnelPeriod = FounderTunnelPeriod.LAST_7_DAYS,
     ) -> FounderConsoleOverview:
         del identity
         service: FounderReadService | None = app.state.read_service
@@ -97,7 +99,11 @@ def create_founder_app(
                 detail="les read models Founder ne sont pas configurés",
             )
         try:
-            return service.overview(now=now(), week_offset=week_offset)
+            return service.overview(
+                now=now(),
+                week_offset=week_offset,
+                period=period,
+            )
         except (SQLAlchemyError, RuntimeError) as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

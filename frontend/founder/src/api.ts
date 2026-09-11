@@ -3,6 +3,7 @@ import type {
   FounderProspection,
   FounderProspectionFilters,
   FounderSession,
+  FounderTunnelPeriod,
 } from './types'
 
 export class FounderApiError extends Error {
@@ -40,8 +41,24 @@ export function loadFounderSession(signal: AbortSignal): Promise<FounderSession>
 export function loadFounderOverview(
   weekOffset: number,
   signal: AbortSignal,
+): Promise<FounderOverview>
+export function loadFounderOverview(
+  weekOffset: number,
+  period: FounderTunnelPeriod,
+  signal: AbortSignal,
+): Promise<FounderOverview>
+export function loadFounderOverview(
+  weekOffset: number,
+  periodOrSignal: FounderTunnelPeriod | AbortSignal,
+  maybeSignal?: AbortSignal,
 ): Promise<FounderOverview> {
-  const query = new URLSearchParams({ week_offset: String(weekOffset) })
+  const period = typeof periodOrSignal === 'string' ? periodOrSignal : 'last_7_days'
+  const signal = typeof periodOrSignal === 'string' ? maybeSignal : periodOrSignal
+  if (!signal) throw new TypeError('An AbortSignal is required')
+  const query = new URLSearchParams({
+    week_offset: String(weekOffset),
+    period,
+  })
   return requestJson<FounderOverview>(`/api/founder/overview?${query}`, signal)
 }
 

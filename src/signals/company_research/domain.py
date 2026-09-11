@@ -51,6 +51,7 @@ _DIRECTORY_DOMAINS = frozenset(
         "lagazettefrance.fr",
         "lefigaro.fr",
         "linkedin.com",
+        "localbiz.fr",
         "manageo.fr",
         "mappy.com",
         "monartisan.info",
