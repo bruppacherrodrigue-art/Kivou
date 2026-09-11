@@ -122,34 +122,16 @@ export function loadFounderProspection(
   return requestJson<FounderProspection>(`/api/founder/prospection?${query}`, signal)
 }
 
-function loadFounderProspectionActionsPage(
+export function loadFounderProspectionActions(
   status: Extract<FounderProspectionActionStatus, 'pending_review' | 'approved'>,
-  page: number,
   signal: AbortSignal,
+  page = 1,
 ): Promise<FounderProspectionActionList> {
   const query = new URLSearchParams({ status, page: String(page), page_size: '25' })
   return requestJson<FounderProspectionActionList>(
     `/api/founder/actions/prospection/list?${query}`,
     signal,
   )
-}
-
-export async function loadFounderProspectionActions(
-  status: Extract<FounderProspectionActionStatus, 'pending_review' | 'approved'>,
-  signal: AbortSignal,
-): Promise<FounderProspectionActionList> {
-  const first = await loadFounderProspectionActionsPage(status, 1, signal)
-  if (first.pagination.total_pages <= 1) return first
-  const remaining = await Promise.all(
-    Array.from(
-      { length: first.pagination.total_pages - 1 },
-      (_, index) => loadFounderProspectionActionsPage(status, index + 2, signal),
-    ),
-  )
-  return {
-    ...first,
-    items: [first, ...remaining].flatMap((page) => page.items),
-  }
 }
 
 export async function approveFounderProspect(

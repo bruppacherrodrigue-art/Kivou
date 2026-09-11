@@ -319,6 +319,11 @@ function QueueSection({
 }) {
   const [items, setItems] = useState<FounderProspectionActionTarget[]>([])
   const [loaded, setLoaded] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [queuePages, setQueuePages] = useState({
+    pending_review: { next: null as number | null, remaining: 0 },
+    approved: { next: null as number | null, remaining: 0 },
+  })
   const [busyTargetIds, setBusyTargetIds] = useState<Set<string>>(new Set())
   const [killSwitchActive, setKillSwitchActive] = useState(false)
   const [correctingTarget, setCorrectingTarget] = useState<FounderProspectionActionTarget | null>(null)
@@ -342,6 +347,16 @@ function QueueSection({
       merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
     )))
     setKillSwitchActive(pending.kill_switch_active || approved.kill_switch_active)
+    setQueuePages({
+      pending_review: {
+        next: pending.pagination.total_pages > 1 ? 2 : null,
+        remaining: Math.max(0, pending.pagination.total_items - pending.items.length),
+      },
+      approved: {
+        next: approved.pagination.total_pages > 1 ? 2 : null,
+        remaining: Math.max(0, approved.pagination.total_items - approved.items.length),
+      },
+    })
     setLoaded(true)
   }, [])
 
@@ -357,6 +372,50 @@ function QueueSection({
     })
     return () => controller.abort()
   }, [data.generated_at, refreshQueue])
+
+  const loadMore = async () => {
+    if (loadingMore) return
+    const requests: Array<Promise<{
+      status: 'pending_review' | 'approved'
+      response: Awaited<ReturnType<typeof loadFounderProspectionActions>>
+    }>> = []
+    for (const status of ['pending_review', 'approved'] as const) {
+      const page = queuePages[status].next
+      if (page !== null) {
+        const controller = new AbortController()
+        requests.push(loadFounderProspectionActions(status, controller.signal, page)
+          .then((response) => ({ status, response })))
+      }
+    }
+    if (requests.length === 0) return
+    setLoadingMore(true)
+    setActionError(null)
+    try {
+      const pages = await Promise.all(requests)
+      setItems((current) => {
+        const merged = [...current, ...pages.flatMap(({ response }) => response.items)]
+        return merged.filter((item, index) => (
+          merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
+        ))
+      })
+      setQueuePages((current) => {
+        const next = { ...current }
+        for (const { status, response } of pages) {
+          next[status] = {
+            next: response.pagination.page < response.pagination.total_pages
+              ? response.pagination.page + 1
+              : null,
+            remaining: Math.max(0, current[status].remaining - response.items.length),
+          }
+        }
+        return next
+      })
+    } catch (error) {
+      setActionError(founderActionErrorMessage(error, 'Impossible de charger la suite de la file.'))
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const approve = async (target: FounderProspectionActionTarget) => {
     setActionError(null)
@@ -458,6 +517,7 @@ function QueueSection({
   }
   const approvedCount = items.filter((item) => item.status === 'approved').length
   const sendBatchCount = Math.min(approvedCount, 25)
+  const remainingQueueCount = queuePages.pending_review.remaining + queuePages.approved.remaining
   const visibleItems = items.filter((item) => item.status === 'pending_review' || item.status === 'approved')
   const sendApproved = async () => {
     const approved = items.filter((item) => item.status === 'approved').slice(0, 25)
@@ -624,15 +684,24 @@ function QueueSection({
         )}
         <footer className="prospection-queue-footer">
           <span>{approvedCount === 1 ? '1 cible validée' : `${formatCount(approvedCount)} cibles validées`}</span>
-          <button
-            type="button"
-            className="prospection-action-primary"
-            disabled={sendBatchCount === 0 || sendState === 'sending' || killSwitchActive}
-            aria-label={sendBatchLabel(approvedCount)}
-            onClick={() => setSendConfirmationOpen(true)}
-          >
-            {sendBatchLabel(approvedCount)}
-          </button>
+          <div className="prospection-queue-footer-actions">
+            {remainingQueueCount > 0 ? (
+              <button type="button" disabled={loadingMore} onClick={() => void loadMore()}>
+                {loadingMore
+                  ? 'Chargement de la suite…'
+                  : `Charger la suite · ${formatCount(remainingQueueCount)} restante${remainingQueueCount === 1 ? '' : 's'}`}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="prospection-action-primary"
+              disabled={sendBatchCount === 0 || sendState === 'sending' || killSwitchActive}
+              aria-label={sendBatchLabel(approvedCount)}
+              onClick={() => setSendConfirmationOpen(true)}
+            >
+              {sendBatchLabel(approvedCount)}
+            </button>
+          </div>
         </footer>
         {killSwitchActive ? (
           <p className="prospection-action-warning" role="status">

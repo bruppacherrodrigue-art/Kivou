@@ -808,6 +808,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   font-size: 11px;
 }
 .prospection-pagination > div { display: flex; align-items: center; gap: 10px; }
+.prospection-queue-footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .prospection-pagination button,
 .prospection-mail-button,
 .prospection-row-actions button { padding: 6px 9px; font-size: 10px; }

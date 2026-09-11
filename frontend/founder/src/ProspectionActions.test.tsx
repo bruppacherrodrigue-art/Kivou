@@ -684,7 +684,7 @@ describe('actions de prospection', () => {
     })
   })
 
-  it('charge toutes les pages et limite chaque lot d’envoi à 25 cibles', async () => {
+  it('charge la page suivante à la demande et limite chaque lot d’envoi à 25 cibles', async () => {
     const user = userEvent.setup()
     const approved = Array.from({ length: 26 }, (_, index) => target(index + 1, 'approved'))
     const requestId = 'a2083564-a5ea-48c1-89ad-467db95d78d8'
@@ -727,6 +727,7 @@ describe('actions de prospection', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Charger la suite · 1 restante' }))
     const sendButton = await screen.findByRole('button', { name: 'Envoyer les 25 premières cibles validées' })
     expect(screen.getByText('26 cibles validées')).toBeInTheDocument()
     await user.click(sendButton)

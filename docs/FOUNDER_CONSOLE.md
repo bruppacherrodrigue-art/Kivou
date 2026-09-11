@@ -77,10 +77,11 @@ previously validated batch. Every mutation carries the displayed
 `expected_version`; send also carries one stable UUID `request_id`. The UI
 applies the decision optimistically, rolls it back on failure, and displays the
 API message and code for `409`, `422` and `502` responses.
-The browser follows every queue page returned by the action contract. A send
-contains at most 25 approved targets; if more are waiting, the next batch stays
-visible. Every terminal provider result is reconciled from the server before a
-failed target can be retried with a new request UUID. Only an ambiguous proxy or
+The queue shows how many targets remain server-side and loads at most one next
+page per status after an explicit **Charger la suite** click. A send contains at
+most 25 approved targets; if more are waiting, the next batch stays visible.
+Every terminal provider result is reconciled from the server before a failed
+target can be retried with a new request UUID. Only an ambiguous proxy or
 transport failure keeps the same UUID for a safe idempotent replay.
 
 nginx keeps the `/api/founder/` prefix GET/HEAD-only. Four exact locations
