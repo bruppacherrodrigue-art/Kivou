@@ -131,11 +131,23 @@ def test_serper_retries_with_official_site_then_name_and_department() -> None:
                     ]
                 },
             )
+        if query.endswith("site officiel"):
+            return httpx.Response(
+                200,
+                json={
+                    "organic": [
+                        {"title": "Escolle Béton", "link": "https://societe.com/escolle"}
+                    ]
+                },
+            )
         return httpx.Response(
             200,
             json={
                 "organic": [
-                    {"title": "Escolle Béton", "link": "https://societe.com/escolle"}
+                    {
+                        "title": "Escolle Béton près de Grenoble",
+                        "link": "https://ciment-grenoble.fr",
+                    }
                 ]
             },
         )

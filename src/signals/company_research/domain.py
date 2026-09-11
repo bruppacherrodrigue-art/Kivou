@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from html.parser import HTMLParser
 from typing import Literal, Protocol
 from urllib.parse import urljoin, urlsplit
@@ -324,6 +324,14 @@ class SerperDomainSearchClient:
         return candidates[0] if candidates else None
 
     def candidates(self, identity: SireneOrganizationCandidate) -> tuple[DomainResolution, ...]:
+        for candidates in self.candidate_batches(identity):
+            if candidates:
+                return candidates
+        return ()
+
+    def candidate_batches(
+        self, identity: SireneOrganizationCandidate
+    ) -> Iterator[tuple[DomainResolution, ...]]:
         name = normalized_organization_name(identity.display_name)
         city = normalized_city(identity.location or "")
         queries = tuple(
@@ -373,8 +381,9 @@ class SerperDomainSearchClient:
                         )
                     )
             if candidates:
-                return tuple(candidates)
-        return ()
+                yield tuple(candidates)
+            else:
+                yield ()
 
 
 class CompanyDomainResolver:
@@ -393,49 +402,59 @@ class CompanyDomainResolver:
 
     def resolve(self, identity: SireneOrganizationCandidate) -> DomainResolution | None:
         for source in (self._official, self._serper):
+            batch_method = getattr(source, "candidate_batches", None)
             candidate_method = getattr(source, "candidates", None)
-            if callable(candidate_method):
-                candidates = candidate_method(identity)
+            if callable(batch_method):
+                candidate_batches = batch_method(identity)
+            elif callable(candidate_method):
+                candidate_batches = (candidate_method(identity),)
             else:
                 resolution = source(identity)
-                candidates = () if resolution is None else (resolution,)
-            for resolution in candidates:
-                if rejected_supplier_domain(resolution.domain):
-                    self._log(identity, resolution, accepted=False, criterion="blocklist")
-                    continue
-                if _domain_contains_company_word(resolution.domain, identity.display_name):
-                    self._log(identity, resolution, accepted=True, criterion="name_word")
-                    return resolution.model_copy(
-                        update={"observed_at": self._clock(), "validation_method": "name_word"}
+                candidate_batches = ((),) if resolution is None else ((resolution,),)
+            for candidates in candidate_batches:
+                for resolution in candidates:
+                    if rejected_supplier_domain(resolution.domain):
+                        self._log(identity, resolution, accepted=False, criterion="blocklist")
+                        continue
+                    if _domain_contains_company_word(resolution.domain, identity.display_name):
+                        self._log(identity, resolution, accepted=True, criterion="name_word")
+                        return resolution.model_copy(
+                            update={"observed_at": self._clock(), "validation_method": "name_word"}
+                        )
+                    inspect = getattr(self._registration, "inspect", None)
+                    evidence = inspect(resolution, identity) if callable(inspect) else None
+                    if evidence is not None:
+                        criterion, evidence_url = evidence
+                        validation_method = (
+                            "registration_number"
+                            if criterion == "registration_number"
+                            else "name_word"
+                        )
+                        self._log(identity, resolution, accepted=True, criterion=criterion)
+                        return resolution.model_copy(
+                            update={
+                                "observed_at": self._clock(),
+                                "validation_method": validation_method,
+                                "validation_evidence_url": evidence_url,
+                            }
+                        )
+                    evidence_url = (
+                        self._registration(resolution, identity) if not callable(inspect) else None
                     )
-                inspect = getattr(self._registration, "inspect", None)
-                evidence = inspect(resolution, identity) if callable(inspect) else None
-                if evidence is not None:
-                    criterion, evidence_url = evidence
-                    validation_method = (
-                        "registration_number" if criterion == "registration_number" else "name_word"
+                    if evidence_url is not None:
+                        self._log(
+                            identity, resolution, accepted=True, criterion="registration_number"
+                        )
+                        return resolution.model_copy(
+                            update={
+                                "observed_at": self._clock(),
+                                "validation_method": "registration_number",
+                                "validation_evidence_url": evidence_url,
+                            }
+                        )
+                    self._log(
+                        identity, resolution, accepted=False, criterion="identity_unconfirmed"
                     )
-                    self._log(identity, resolution, accepted=True, criterion=criterion)
-                    return resolution.model_copy(
-                        update={
-                            "observed_at": self._clock(),
-                            "validation_method": validation_method,
-                            "validation_evidence_url": evidence_url,
-                        }
-                    )
-                evidence_url = (
-                    self._registration(resolution, identity) if not callable(inspect) else None
-                )
-                if evidence_url is not None:
-                    self._log(identity, resolution, accepted=True, criterion="registration_number")
-                    return resolution.model_copy(
-                        update={
-                            "observed_at": self._clock(),
-                            "validation_method": "registration_number",
-                            "validation_evidence_url": evidence_url,
-                        }
-                    )
-                self._log(identity, resolution, accepted=False, criterion="identity_unconfirmed")
         return None
 
     @staticmethod
