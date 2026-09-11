@@ -8,6 +8,7 @@ verticals:
       cpv_prefixes: [452623]
       naf_codes: [23.63Z]
       object_terms: [gros œuvre, béton]
+      activity_terms: [béton, béton prêt à l'emploi, centrale à béton]
     - key: reinforcement_steel
       label_fr: Armatures et ferraillage
       apollo_tags: [reinforcing steel, rebar, steel reinforcement]
@@ -15,6 +16,7 @@ verticals:
       cpv_prefixes: [452623, 452624]
       naf_codes: [24.10Z, 25.11Z]
       object_terms: [armatures, ferraillage]
+      activity_terms: [armatures, ferraillage, treillis, acier pour béton]
     - key: subcontracted_structural_work
       label_fr: Sous-traitants gros œuvre
       apollo_tags: [structural works contractor, concrete works contractor]
@@ -22,6 +24,7 @@ verticals:
       cpv_prefixes: [45262]
       naf_codes: [43.99C]
       object_terms: [gros œuvre, maçonnerie]
+      activity_terms: [gros œuvre, maçonnerie]
     - key: formwork
       label_fr: Coffrage
       apollo_tags: [formwork, concrete formwork]
@@ -29,13 +32,15 @@ verticals:
       cpv_prefixes: [452623]
       naf_codes: [43.99C]
       object_terms: [coffrage]
+      activity_terms: [coffrage]
     - key: scaffolding
       label_fr: Échafaudage
       apollo_tags: [scaffolding, scaffold hire]
       priority: 5
-      cpv_prefixes: [442123]
+      cpv_prefixes: [442123, 45261]
       naf_codes: [43.99C]
       object_terms: [échafaudage]
+      activity_terms: [échafaudage]
   interior_finishing:
     - key: plastering
       label_fr: Plâtrerie
@@ -44,6 +49,7 @@ verticals:
       cpv_prefixes: [4541]
       naf_codes: [43.31Z]
       object_terms: [plâtrerie, placo]
+      activity_terms: [plâtrerie, plaquiste, placo]
     - key: flooring
       label_fr: Revêtements de sol
       apollo_tags: [flooring contractor, floor coverings]
@@ -51,6 +57,7 @@ verticals:
       cpv_prefixes: [4543]
       naf_codes: [43.33Z, 43.34Z]
       object_terms: [sol, revêtement]
+      activity_terms: [revêtement de sol, carrelage, parquet]
     - key: exterior_joinery
       label_fr: Menuiserie extérieure
       apollo_tags: [external joinery, windows and doors, fenestration]
@@ -58,6 +65,7 @@ verticals:
       cpv_prefixes: [4542]
       naf_codes: [43.32A, 43.32B]
       object_terms: [menuiserie extérieure, fenêtres]
+      activity_terms: [menuiserie, fenêtre, fermeture]
   technical_installation:
     - key: plumbing
       label_fr: Plomberie
@@ -66,6 +74,7 @@ verticals:
       cpv_prefixes: [4533]
       naf_codes: [43.22A, 43.22B, 43.29A]
       object_terms: [plomberie]
+      activity_terms: [plomberie, installation d'eau, installation de gaz]
     - key: electrical
       label_fr: Électricité
       apollo_tags: [electrical contractor, electrical installation]
@@ -73,6 +82,7 @@ verticals:
       cpv_prefixes: [4531]
       naf_codes: [43.21A]
       object_terms: [électricité, courant fort]
+      activity_terms: [électricité, installation électrique, électricien]
     - key: hvac
       label_fr: Chauffage et ventilation
       apollo_tags: [HVAC contractor, heating ventilation air conditioning]
@@ -80,6 +90,15 @@ verticals:
       cpv_prefixes: [4533]
       naf_codes: [43.22A, 43.22B]
       object_terms: [chauffage, ventilation, climatisation]
+      activity_terms: [chauffage, ventilation, climatisation, génie climatique]
+    - key: insulation
+      label_fr: Isolation
+      apollo_tags: [insulation contractor, thermal insulation]
+      priority: 4
+      cpv_prefixes: [4532]
+      naf_codes: [43.29A]
+      object_terms: [isolation, calorifuge]
+      activity_terms: [isolation, calorifuge]
   roadworks_civil:
     - key: road_construction
       label_fr: Travaux routiers
@@ -88,6 +107,7 @@ verticals:
       cpv_prefixes: [4523]
       naf_codes: [42.11Z]
       object_terms: [voirie, route]
+      activity_terms: [travaux routiers, route, voirie]
     - key: asphalt
       label_fr: Enrobés et asphalte
       apollo_tags: [asphalt contractor, asphalt paving]
@@ -95,6 +115,7 @@ verticals:
       cpv_prefixes: [4411]
       naf_codes: [42.11Z]
       object_terms: [enrobé, asphalte]
+      activity_terms: [enrobé, asphalte]
     - key: road_markings
       label_fr: Signalisation routière
       apollo_tags: [road markings, traffic signs]
@@ -102,6 +123,7 @@ verticals:
       cpv_prefixes: [4523]
       naf_codes: [42.11Z]
       object_terms: [signalisation]
+      activity_terms: [signalisation routière, marquage routier]
   earthworks_demolition:
     - key: earthmoving
       label_fr: Terrassement
@@ -110,6 +132,7 @@ verticals:
       cpv_prefixes: [4511]
       naf_codes: [43.12A, 43.12B]
       object_terms: [terrassement, excavation]
+      activity_terms: [terrassement, excavation]
     - key: demolition
       label_fr: Démolition
       apollo_tags: [demolition contractor, building demolition]
@@ -117,6 +140,7 @@ verticals:
       cpv_prefixes: [4511]
       naf_codes: [43.12A, 43.12B]
       object_terms: [démolition]
+      activity_terms: [démolition, déconstruction]
     - key: waste_removal
       label_fr: Évacuation des déchets
       apollo_tags: [construction waste removal, waste hauling]
@@ -124,6 +148,7 @@ verticals:
       cpv_prefixes: [9051]
       naf_codes: [38.11Z]
       object_terms: [déchets, évacuation]
+      activity_terms: [déchets, évacuation, collecte]
   special_civil:
     - key: waterproofing
       label_fr: Étanchéité
@@ -132,6 +157,7 @@ verticals:
       cpv_prefixes: [452614]
       naf_codes: [43.99C]
       object_terms: [étanchéité]
+      activity_terms: [étanchéité]
     - key: structural_steel
       label_fr: Charpente métallique
       apollo_tags: [structural steel, steel frame contractor]
@@ -139,6 +165,7 @@ verticals:
       cpv_prefixes: [452624]
       naf_codes: [43.91A, 43.91B]
       object_terms: [charpente métallique]
+      activity_terms: [charpente métallique, structure métallique]
     - key: facade_cladding
       label_fr: Bardage et façade
       apollo_tags: [cladding contractor, facade contractor, building cladding]
@@ -146,3 +173,20 @@ verticals:
       cpv_prefixes: [4526265]
       naf_codes: [43.91A, 43.91B]
       object_terms: [bardage, façade]
+      activity_terms: [bardage, façade]
+    - key: timber_carpentry
+      label_fr: Bois et charpente
+      apollo_tags: [timber frame, wood carpentry]
+      priority: 4
+      cpv_prefixes: [452611]
+      naf_codes: [16.23Z, 43.91A]
+      object_terms: [charpente, bois]
+      activity_terms: [charpente, ossature bois, construction bois]
+    - key: roofing
+      label_fr: Couverture et zinguerie
+      apollo_tags: [roofing contractor, zinc roofing]
+      priority: 5
+      cpv_prefixes: [45261]
+      naf_codes: [43.91B]
+      object_terms: [couverture, zinguerie]
+      activity_terms: [couverture, zinguerie, couvreur]

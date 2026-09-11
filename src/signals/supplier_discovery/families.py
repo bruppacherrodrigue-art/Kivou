@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,7 @@ class SupplierFamily:
     cpv_prefixes: tuple[str, ...]
     object_terms: tuple[str, ...]
     naf_codes: tuple[str, ...]
+    activity_terms: tuple[str, ...]
 
 
 def _catalog_path() -> Path:
@@ -56,6 +59,7 @@ def load_supplier_family_catalog(path: Path | None = None) -> dict[str, tuple[Su
                     cpv_prefixes=tuple(str(x) for x in entry["cpv_prefixes"]),
                     object_terms=tuple(str(x) for x in entry["object_terms"]),
                     naf_codes=tuple(str(x) for x in entry["naf_codes"]),
+                    activity_terms=tuple(str(x) for x in entry["activity_terms"]),
                 )
             except (KeyError, TypeError, ValueError) as exc:
                 raise ValueError(f"supplier family entry is invalid: {vertical}") from exc
@@ -64,6 +68,7 @@ def load_supplier_family_catalog(path: Path | None = None) -> dict[str, tuple[Su
                 or not family.label_fr
                 or not family.apollo_tags
                 or not family.naf_codes
+                or not family.activity_terms
                 or family.priority < 1
             ):
                 raise ValueError(f"supplier family fields are invalid: {vertical}/{family.key}")
@@ -81,7 +86,56 @@ def load_supplier_family_catalog(path: Path | None = None) -> dict[str, tuple[Su
     }
     if set(result) != expected:
         raise ValueError("supplier family catalog must cover the six PR7 verticals")
+    all_keys = [family.key for families in result.values() for family in families]
+    if len(all_keys) != len(set(all_keys)):
+        raise ValueError("supplier family keys must be globally unique")
     return result
+
+
+def _normalized_words(value: str) -> str:
+    folded = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value.casefold())
+        if not unicodedata.combining(character)
+    )
+    return " ".join(re.findall(r"[a-z0-9]+", folded))
+
+
+def supplier_matches_family(
+    family: SupplierFamily,
+    *,
+    naf_code: str | None,
+    activity_texts: tuple[str, ...],
+) -> bool:
+    """Require both the family NAF and explicit activity wording."""
+
+    normalized_naf = str(naf_code or "").strip().upper()
+    if normalized_naf not in {code.upper() for code in family.naf_codes}:
+        return False
+    evidence = f" {_normalized_words(' '.join(activity_texts))} "
+    return any(
+        f" {_normalized_words(term)} " in evidence
+        for term in family.activity_terms
+        if _normalized_words(term)
+    )
+
+
+def matching_supplier_family_keys(
+    *, naf_code: str | None, activity_texts: tuple[str, ...]
+) -> tuple[str, ...]:
+    catalog = load_supplier_family_catalog()
+    return tuple(
+        family.key
+        for family in sorted(
+            (family for families in catalog.values() for family in families),
+            key=lambda item: (item.priority, item.key),
+        )
+        if supplier_matches_family(
+            family,
+            naf_code=naf_code,
+            activity_texts=activity_texts,
+        )
+    )
 
 
 def families_for_signal(
@@ -90,10 +144,10 @@ def families_for_signal(
     """Return only catalog families supported by public signal facts."""
 
     catalog = load_supplier_family_catalog()
-    families = catalog.get(vertical)
-    if families is None:
+    if vertical not in catalog:
         raise ValueError(f"unknown supplier family vertical: {vertical}")
-    normalized = object_text.casefold()
+    families = tuple(family for values in catalog.values() for family in values)
+    normalized = f" {_normalized_words(object_text)} "
     matched = tuple(
         family
         for family in families
@@ -102,15 +156,13 @@ def families_for_signal(
             for code in cpv_codes
             for prefix in family.cpv_prefixes
         )
-        or any(term.casefold() in normalized for term in family.object_terms)
+        or any(
+            f" {_normalized_words(term)} " in normalized
+            for term in family.object_terms
+            if _normalized_words(term)
+        )
     )
-    selected = list(matched)
-    for family in families:
-        if len(selected) >= 3:
-            break
-        if family not in selected:
-            selected.append(family)
-    return tuple(sorted(selected[:5], key=lambda item: (item.priority, item.key)))
+    return tuple(sorted(matched[:5], key=lambda item: (item.priority, item.key)))
 
 
 _AURA_NEIGHBOURS: dict[str, tuple[str, ...]] = {
@@ -172,4 +224,6 @@ __all__ = [
     "department_from_subdivision",
     "families_for_signal",
     "load_supplier_family_catalog",
+    "matching_supplier_family_keys",
+    "supplier_matches_family",
 ]

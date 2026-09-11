@@ -5,6 +5,7 @@ from signals.supplier_discovery.families import (
     department_from_subdivision,
     families_for_signal,
     load_supplier_family_catalog,
+    supplier_matches_family,
 )
 
 
@@ -20,7 +21,9 @@ def test_catalog_covers_six_verticals_with_bounded_readable_families() -> None:
     }
     for families in catalog.values():
         assert 3 <= len(families) <= 5
-        assert all(f.label_fr and f.apollo_tags and f.priority > 0 for f in families)
+        assert all(
+            f.label_fr and f.apollo_tags and f.activity_terms and f.priority > 0 for f in families
+        )
     naf_codes = {code for families in catalog.values() for f in families for code in f.naf_codes}
     assert {
         "43.99C",
@@ -67,6 +70,39 @@ def test_family_queries_are_derived_from_signal_cpv_and_object() -> None:
         "formwork",
     }
     assert all("construction" not in tag for family in families for tag in family.apollo_tags)
+
+
+def test_roofing_lot_families_come_from_cpv_and_object_not_vertical_fallback() -> None:
+    families = families_for_signal(
+        "general_building",
+        cpv_codes=("45261920",),
+        object_text="LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
+    )
+
+    keys = {family.key for family in families}
+    assert keys == {"timber_carpentry", "roofing", "insulation", "scaffolding"}
+    assert "ready_mix_concrete" not in keys
+    assert "reinforcement_steel" not in keys
+
+
+def test_reinforcement_family_requires_naf_and_explicit_activity_words() -> None:
+    family = next(
+        family
+        for family in load_supplier_family_catalog()["general_building"]
+        if family.key == "reinforcement_steel"
+    )
+
+    for false_match in ("DENIOS", "GIFETAL ALUMINIUM", "BODARD", "NORMACADRE"):
+        assert not supplier_matches_family(
+            family,
+            naf_code="25.11Z",
+            activity_texts=(false_match, "Fabrication de structures métalliques"),
+        )
+    assert supplier_matches_family(
+        family,
+        naf_code="25.11Z",
+        activity_texts=("ACIER ARMATURES", "Treillis soudés et acier pour béton"),
+    )
 
 
 def test_aura_search_uses_signal_department_and_adjacent_departments() -> None:
