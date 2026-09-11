@@ -95,6 +95,7 @@ class DomainResolution(BaseModel):
     website_url: str = Field(min_length=8, max_length=2048)
     source: Literal["annuaire_entreprises", "serper"]
     query: str | None = Field(default=None, max_length=1024)
+    search_title: str | None = Field(default=None, max_length=1024)
     validation_method: Literal["name_word", "registration_number"] | None = None
     validation_evidence_url: str | None = Field(default=None, max_length=2048)
     observed_at: dt.datetime
@@ -343,8 +344,6 @@ class SerperDomainSearchClient:
                 )
             )
         )
-        expected_words = significant_name_words(name)
-        expected_anchor = expected_words[0] if expected_words else None
         for query in queries:
             response = self._client.post(
                 SERPER_SEARCH_URL,
@@ -368,18 +367,16 @@ class SerperDomainSearchClient:
                 title = str(item.get("title") or "")
                 if rejected_supplier_domain(domain, title):
                     continue
-                title_words = set(significant_name_words(title))
-                url_words = set(significant_name_words(website_url.replace(".", " ")))
-                if expected_anchor and expected_anchor in title_words | url_words:
-                    candidates.append(
-                        DomainResolution(
-                            domain=domain,
-                            website_url=website_url,
-                            source="serper",
-                            query=query,
-                            observed_at=identity.provider_observed_at,
-                        )
+                candidates.append(
+                    DomainResolution(
+                        domain=domain,
+                        website_url=website_url,
+                        source="serper",
+                        query=query,
+                        search_title=title[:1024] or None,
+                        observed_at=identity.provider_observed_at,
                     )
+                )
             if candidates:
                 yield tuple(candidates)
             else:
@@ -418,6 +415,13 @@ class CompanyDomainResolver:
                         continue
                     if _domain_contains_company_word(resolution.domain, identity.display_name):
                         self._log(identity, resolution, accepted=True, criterion="name_word")
+                        return resolution.model_copy(
+                            update={"observed_at": self._clock(), "validation_method": "name_word"}
+                        )
+                    if resolution.search_title and _homepage_title_contains_company_name(
+                        resolution.search_title, identity.display_name
+                    ):
+                        self._log(identity, resolution, accepted=True, criterion="search_title")
                         return resolution.model_copy(
                             update={"observed_at": self._clock(), "validation_method": "name_word"}
                         )

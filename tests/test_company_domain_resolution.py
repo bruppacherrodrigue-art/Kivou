@@ -15,6 +15,10 @@ from signals.company_research.domain import (
     SerperDomainSearchClient,
     rejected_supplier_domain,
 )
+from signals.company_research.identity import (
+    normalized_organization_name,
+    significant_name_words,
+)
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 
 NOW = dt.datetime(2026, 9, 10, 10, tzinfo=dt.UTC)
@@ -32,6 +36,13 @@ def _identity(**updates) -> SireneOrganizationCandidate:
     }
     values.update(updates)
     return SireneOrganizationCandidate(**values)
+
+
+def test_supplier_name_normalization_removes_business_prefixes_and_initials() -> None:
+    name = "ENT A. SOCIETE ETABLISSEMENTS GIRARD SARL"
+
+    assert normalized_organization_name(name) == "Girard"
+    assert significant_name_words(name) == ("girard",)
 
 
 def test_domain_resolver_prefers_official_website_without_serper() -> None:
@@ -95,12 +106,62 @@ def test_serper_rejects_directories_and_unrelated_results_then_accepts_name_matc
     assert resolution.query == "Escolle Beton Saint-Egreve"
 
 
+def test_serper_validates_all_ten_results_in_order_after_normalizing_name() -> None:
+    requests: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        query = str(json.loads(request.content)["q"])
+        requests.append(query)
+        return httpx.Response(
+            200,
+            json={
+                "organic": [
+                    {
+                        "title": f"ENT — résultat sans rapport {index}",
+                        "link": f"https://construction-{index}.fr",
+                    }
+                    for index in range(1, 10)
+                ]
+                + [
+                    {
+                        "title": "Entreprise Girard — site officiel",
+                        "link": "https://batiment-valence.fr",
+                    }
+                ]
+            },
+        )
+
+    resolution = CompanyDomainResolver(
+        official=lambda _identity: None,
+        serper=SerperDomainSearchClient(
+            api_key="secret", client=httpx.Client(transport=httpx.MockTransport(handler))
+        ),
+        clock=lambda: NOW,
+    ).resolve(
+        _identity(
+            display_name="ENT A. GIRARD SARL",
+            normalized_name="ent a girard sarl",
+            location="VALENCE",
+            department="26",
+        )
+    )
+
+    assert resolution is not None
+    assert resolution.domain == "batiment-valence.fr"
+    assert resolution.query == "Girard Valence"
+    assert requests == ["Girard Valence"]
+
+
 def test_serper_returns_none_when_no_result_contains_significant_name_words() -> None:
     client = httpx.Client(
         transport=httpx.MockTransport(
             lambda request: httpx.Response(
                 200,
-                json={"organic": [{"title": "Béton Grenoble", "link": "https://beton.fr"}]},
+                json={
+                    "organic": [
+                        {"title": "Construction Grenoble", "link": "https://ciment.fr"}
+                    ]
+                },
             )
         )
     )
@@ -145,7 +206,7 @@ def test_serper_retries_with_official_site_then_name_and_department() -> None:
             json={
                 "organic": [
                     {
-                        "title": "Escolle Béton près de Grenoble",
+                        "title": "Ciment près de Grenoble",
                         "link": "https://ciment-grenoble.fr",
                     }
                 ]

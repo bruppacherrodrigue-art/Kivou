@@ -5,7 +5,26 @@ from __future__ import annotations
 import re
 import unicodedata
 
-_LEGAL_FORMS = frozenset({"sa", "sarl", "sas", "sasu", "eurl", "snc", "sca", "scs"})
+_LEGAL_FORMS = frozenset(
+    {
+        "ent",
+        "entreprise",
+        "etablissement",
+        "etablissements",
+        "ets",
+        "eurl",
+        "groupe",
+        "sa",
+        "sarl",
+        "sas",
+        "sasu",
+        "sca",
+        "scs",
+        "snc",
+        "soc",
+        "societe",
+    }
+)
 _NAME_STOP_WORDS = frozenset(
     {"a", "au", "aux", "d", "de", "des", "du", "et", "l", "la", "le", "les"}
 )
@@ -22,13 +41,22 @@ def ascii_text(value: str) -> str:
 def significant_name_words(value: str) -> tuple[str, ...]:
     words = re.findall(r"[a-z0-9]+", ascii_text(value).casefold())
     return tuple(
-        word for word in words if word not in _LEGAL_FORMS and word not in _NAME_STOP_WORDS
+        word
+        for word in words
+        if word not in _LEGAL_FORMS
+        and word not in _NAME_STOP_WORDS
+        and not (len(word) == 1 and word.isalpha())
     )
 
 
 def normalized_organization_name(value: str) -> str:
     words = re.findall(r"[A-Za-z0-9]+", ascii_text(value))
-    without_legal_form = [word for word in words if word.casefold() not in _LEGAL_FORMS]
+    without_legal_form = [
+        word
+        for word in words
+        if word.casefold() not in _LEGAL_FORMS
+        and not (len(word) == 1 and word.isalpha())
+    ]
     return " ".join(without_legal_form).title()
 
 
