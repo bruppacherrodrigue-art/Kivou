@@ -276,3 +276,27 @@ def test_assisted_preparation_rechecks_naf_and_activity_before_queueing(
         assert tuple(connection.execute(sa.select(prospect_target.c.siren)).scalars()) == (
             "100000004",
         )
+
+
+def test_assisted_preparation_quarantines_placeholder_email(migrated_sqlite_engine) -> None:
+    seed_directory(migrated_sqlite_engine, 6)
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000001")
+            .values(professional_email="jean.dupont@gmail.com")
+        )
+
+    ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(signal(), cycle_ref="cycle-placeholder")
+
+    with migrated_sqlite_engine.connect() as connection:
+        directory = connection.execute(
+            sa.select(supplier_directory).where(supplier_directory.c.siren == "100000001")
+        ).mappings().one()
+        queued = set(connection.execute(sa.select(prospect_target.c.siren)).scalars())
+    assert "100000001" not in queued
+    assert directory["email_verification_status"] == "mx_failed"
+    assert directory["reverification_required_at"].replace(tzinfo=dt.UTC) == NOW
+    assert directory["reverification_reason"] == "placeholder_email"

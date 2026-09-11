@@ -134,6 +134,28 @@ def test_send_refuses_non_mx_verified_even_when_approved(sending) -> None:
     assert provider.calls == []
 
 
+def test_send_refuses_a_stale_placeholder_email_even_when_approved(sending) -> None:
+    actions, provider, engine, _tmp = sending
+    approve(actions)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == TARGET_ID)
+            .values(email_address="jean.dupont@gmail.com")
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "123456789")
+            .values(professional_email="jean.dupont@gmail.com")
+        )
+
+    with pytest.raises(ProspectionActionError) as caught:
+        actions.send(command(), actor="rodrigue@kivou.eu")
+
+    assert caught.value.code == "PLACEHOLDER_EMAIL"
+    assert provider.calls == []
+
+
 def test_send_refuses_approved_mail_that_failed_the_render_contract(sending) -> None:
     actions, provider, engine, _tmp = sending
     approve(actions)

@@ -147,6 +147,13 @@ def test_normalizes_compound_first_name_and_city_to_regular_case() -> None:
     assert mail.subject.endswith("à Saint-Étienne")
     assert mail.contract_status == "passed"
 
+
+def test_keeps_a_surname_particle_in_the_greeting() -> None:
+    mail = render_prospect_mail(arbonis_row(director_name="ADIL EL MANSOURI"))
+
+    assert mail.text.startswith("Bonjour Adil El Mansouri,")
+    assert mail.contract_status == "passed"
+
 def test_every_supplier_family_has_reviewed_mail_copy() -> None:
     from signals.supplier_discovery.families import load_supplier_family_catalog
 

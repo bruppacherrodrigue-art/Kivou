@@ -69,6 +69,7 @@ _BODY_TECHNICAL_PATTERN = re.compile(
     r"(?:\bLOT\b|\bCPV\b|\b\d{8}(?:-\d)?\b|\b\d{2}[A-Z]\d{4,}\b)"
 )
 _FOOTER_SEPARATOR = "\n\n—\n"
+_SURNAME_PARTICLES = frozenset({"al", "el", "de", "du", "des", "le", "la", "van", "von"})
 
 
 def _catalog_path() -> Path:
@@ -139,7 +140,12 @@ def normalize_director_name(value: object) -> str | None:
     parts = re.findall(r"[A-Za-zÀ-ÖØ-öø-ÿŒœ'’-]+", raw)
     if len(parts) < 2:
         return None
-    return _normal_case(f"{parts[0]} {parts[-1]}")
+    surname = [parts[-1]]
+    index = len(parts) - 2
+    while index > 0 and _fold(parts[index]) in _SURNAME_PARTICLES:
+        surname.insert(0, parts[index])
+        index -= 1
+    return _normal_case(" ".join((parts[0], *surname)))
 
 
 def _work_description(raw_subject: str, catalog: ProspectMailCatalog) -> str:
@@ -325,8 +331,7 @@ def validate_prospect_mail(
             greeting != f"Bonjour {director_name},"
             or "(" in director_name
             or ")" in director_name
-            or len(director_name.split()) > 2
-            or director_name != _normal_case(director_name)
+            or director_name != normalize_director_name(director_name)
         ):
             return "director_name_invalid"
     elif greeting != "Bonjour,":

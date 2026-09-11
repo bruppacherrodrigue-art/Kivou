@@ -39,6 +39,7 @@ from signals.prospection_actions.contracts import (
     RejectionReason,
     SignalSnapshot,
 )
+from signals.supplier_directory.email_quality import is_placeholder_email
 
 
 class EmailVerifier(Protocol):
@@ -829,6 +830,13 @@ class ProspectionActions:
                     row,
                     directories_by_siren.get(str(row["siren"])),
                 )
+                if is_placeholder_email(row["email_address"]):
+                    raise ProspectionActionError(
+                        "PLACEHOLDER_EMAIL",
+                        "l'adresse est une valeur de démonstration",
+                        target_ids=(target_id,),
+                        status_code=422,
+                    )
                 if row["email_verification_status"] != "mx_verified":
                     raise ProspectionActionError(
                         "EMAIL_NOT_MX_VERIFIED",

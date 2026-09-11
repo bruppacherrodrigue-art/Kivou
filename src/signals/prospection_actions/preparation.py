@@ -19,6 +19,7 @@ from signals.persistence.schema import (
 )
 from signals.personalization.prospect_mail import RenderedProspectMail, render_prospect_mail
 from signals.prospection_actions.service import ProspectLinkIssuer, _history_id
+from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
     department_and_neighbours,
     load_supplier_family_catalog,
@@ -169,6 +170,18 @@ class ProspectPreparationService:
             )
             eligible: list[tuple[dict[str, object], str]] = []
             for row in directory_rows:
+                if is_placeholder_email(row["professional_email"]):
+                    connection.execute(
+                        sa.update(supplier_directory)
+                        .where(supplier_directory.c.siren == row["siren"])
+                        .values(
+                            email_verification_status="mx_failed",
+                            reverification_required_at=now,
+                            reverification_reason="placeholder_email",
+                            updated_at=now,
+                        )
+                    )
+                    continue
                 if row["siren"] in recently_contacted:
                     continue
                 matches = sorted(
