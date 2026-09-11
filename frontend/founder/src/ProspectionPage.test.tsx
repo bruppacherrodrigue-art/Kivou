@@ -174,7 +174,7 @@ const PROSPECTION_WITH_QUEUE: FounderProspection = {
         company_name: 'Béton des Alpes',
         city: 'Grenoble',
         employees: 31,
-        family_key: 'scaffolding',
+        family_key: 'timber_carpentry',
         director_name: 'Sophie Durand',
         director_title: 'Présidente',
         email_address: 'sophie@beton-alpes.example',
@@ -307,7 +307,7 @@ describe('ProspectionPage', () => {
     expect(queue).not.toBeNull()
     expect(annuaire).not.toBeNull()
     expect(queue!.compareDocumentPosition(annuaire!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(within(queue!).getByText('Échafaudage')).toBeInTheDocument()
+    expect(within(queue!).getByText('Bois et charpente')).toBeInTheDocument()
 
     for (const name of ['Valider', 'Corriger', 'Écarter', 'Envoyer les 0 validées']) {
       const action = screen.getByRole('button', { name })

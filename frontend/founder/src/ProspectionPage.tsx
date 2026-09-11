@@ -32,6 +32,9 @@ const FAMILY_LABELS: Record<string, string> = {
   waterproofing: 'Étanchéité',
   structural_steel: 'Charpente métallique',
   facade_cladding: 'Bardage et façade',
+  timber_carpentry: 'Bois et charpente',
+  roofing: 'Couverture et zinguerie',
+  insulation: 'Isolation',
 }
 
 const DIRECTORY_STATUS_LABELS: Record<FounderDirectoryStatus, string> = {
