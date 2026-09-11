@@ -54,7 +54,7 @@ def render_unlocked_card(
     company_key: str | None,
     enrichment: WinnerEnrichmentView | None,
     status: str,
-    generated_for_you_enabled: bool = True,
+    generated_for_you_enabled: bool | None = None,
 ) -> dict[str, Any]:
     """The full card for a signal this account can already see (§16 unlocked).
 

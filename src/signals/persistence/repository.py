@@ -77,9 +77,9 @@ class StoredAward:
     contract_notification_date: dt.date | None
     contract_start_date: dt.date | None
     contract_end_date: dt.date | None
-    duration_value: int | None
-    duration_unit: str | None
     awardee_parties: list[dict[str, Any]]
+    duration_value: int | None = None
+    duration_unit: str | None = None
     lot_title: str | None = None
     contract_reference: str | None = None
     place_of_performance: dict[str, Any] | None = None

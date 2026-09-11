@@ -238,7 +238,7 @@ def _needs(item: FeedSignal, *, lang: str, full: bool) -> dict[str, Any]:
 
 
 def _fit(
-    item: FeedSignal, *, lang: str, generated_for_you_enabled: bool = True
+    item: FeedSignal, *, lang: str, generated_for_you_enabled: bool | None = None
 ) -> dict[str, Any]:
     """Pourquoi Kivou montre ceci à CE client — expliqué, jamais noté (§12).
 
@@ -291,9 +291,14 @@ def _fit(
         )
     )
     band = "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band)
+    stored_sentence = client_safe_sentence(item.for_you_sentence)
+    # `None` conserve le contrat historique des canaux e-mail, qui appellent
+    # cette vue sans configuration client. Un booléen explicite est réservé
+    # aux routes de l'app et applique alors la politique PR6b.
     generated_for_you = (
-        client_safe_sentence(item.for_you_sentence)
-        if generated_for_you_enabled and band == "strong" and item.model_fit != "none"
+        stored_sentence
+        if generated_for_you_enabled is None
+        or (generated_for_you_enabled and band == "strong" and item.model_fit != "none")
         else None
     )
     return {
@@ -314,7 +319,7 @@ def _analysis(
     *,
     lang: str,
     full: bool,
-    generated_for_you_enabled: bool = True,
+    generated_for_you_enabled: bool | None = None,
 ) -> dict[str, Any]:
     """Le bloc des INFÉRENCES. Séparé des faits, et nommé comme tel."""
     signal = item.signal
@@ -413,7 +418,7 @@ def feed_item(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None = None,
-    generated_for_you_enabled: bool = True,
+    generated_for_you_enabled: bool | None = None,
 ) -> dict[str, Any]:
     """La carte du feed : compacte, sans preuve, sans raisonnement long (§16)."""
     feed_copy.check_language(lang)
@@ -452,7 +457,7 @@ def signal_detail(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None = None,
-    generated_for_you_enabled: bool = True,
+    generated_for_you_enabled: bool | None = None,
 ) -> dict[str, Any]:
     """Le détail : la carte, plus de quoi VÉRIFIER (§15)."""
     detail = feed_item(
