@@ -182,9 +182,9 @@ def _date(value: object) -> str:
     return f"{value.day} {_MONTHS[value.month]}"
 
 
-def _linked(url: str) -> str:
+def _linked(url: str, label: str) -> str:
     escaped = html.escape(url, quote=True)
-    return f'<a href="{escaped}">{escaped}</a>'
+    return f'<a href="{escaped}">{html.escape(label)}</a>'
 
 
 def _render_html(
@@ -203,13 +203,13 @@ def _render_html(
             f"<p>{html.escape(family_sentence)}</p>",
             (
                 "<p>Si ça vous intéresse, le détail du marché est ici : "
-                f"{_linked(attribution_url)}</p>"
+                f"{_linked(attribution_url, 'Voir le marché')}</p>"
             ),
             "<p>Bien à vous,<br>Rodrigue Bruppacher<br>Kivou</p>",
             (
                 f"<p>—<br>{html.escape(footer_reason)} Source : registres publics et avis "
-                "d'attribution officiel.<br>Ne plus recevoir : "
-                f"{_linked(unsubscribe_url)}</p>"
+                "d'attribution officiel.<br>"
+                f"{_linked(unsubscribe_url, 'Ne plus recevoir')}</p>"
             ),
         )
     )
@@ -338,6 +338,8 @@ def validate_prospect_mail(
         return "url_count_invalid"
     if any(mail.html.count(f'href="{html.escape(url, quote=True)}"') != 1 for url in urls):
         return "html_link_count_invalid"
+    if ">Voir le marché</a>" not in mail.html or ">Ne plus recevoir</a>" not in mail.html:
+        return "html_link_label_invalid"
     actual_word_count = len(body.split())
     if actual_word_count != mail.word_count or actual_word_count > 90:
         return "body_word_limit_exceeded"

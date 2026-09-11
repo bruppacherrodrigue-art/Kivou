@@ -344,6 +344,7 @@ def test_queue_reads_only_pending_review_targets_as_ready_mail() -> None:
     assert item.email_address == "camille@example.test"
     assert item.bait_holder == "SAS TITULAIRE"
     assert item.mail_body.startswith("Bonjour Camille Martin,")
+    assert item.mail_html == "<p>Bonjour Camille Martin,</p>"
     assert result.results.sent_count == 1
     assert result.results.no_sends_yet is False
 

@@ -493,7 +493,12 @@ function MailDrawer({ item, onClose }: { item: FounderProspectionQueueItem; onCl
           <div><dt>À</dt><dd>{item.email_address}</dd></div>
           <div><dt>Objet</dt><dd>{item.mail_subject}</dd></div>
         </dl>
-        <pre>{item.mail_body}</pre>
+        <iframe
+          className="prospection-mail-preview"
+          title="Aperçu HTML du mail"
+          sandbox=""
+          srcDoc={item.mail_html}
+        />
         <footer>
           <span>{ASSISTED_TOOLTIP}</span>
           <LockedAction>Envoyer</LockedAction>

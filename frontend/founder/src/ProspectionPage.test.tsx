@@ -186,6 +186,7 @@ const PROSPECTION_WITH_QUEUE: FounderProspection = {
         bait_currency: 'EUR',
         mail_subject: 'Extension du tramway — capacité béton',
         mail_body: 'Bonjour Sophie,\n\nVoici le message complet préparé pour cette cible.',
+        mail_html: '<p>Bonjour Sophie,</p><p><a href="https://kivou.eu/a/token">Voir le marché</a></p>',
       },
     ],
   },
@@ -320,7 +321,9 @@ describe('ProspectionPage', () => {
     const drawer = screen.getByRole('dialog', { name: 'Mail préparé pour Béton des Alpes' })
     expect(drawer).not.toHaveAttribute('aria-modal')
     expect(within(drawer).getByText('Extension du tramway — capacité béton')).toBeInTheDocument()
-    expect(within(drawer).getByText(/message complet préparé/)).toBeInTheDocument()
+    const preview = within(drawer).getByTitle('Aperçu HTML du mail')
+    expect(preview).toHaveAttribute('srcdoc', PROSPECTION_WITH_QUEUE.queue.items[0].mail_html)
+    expect(within(drawer).queryByText(/message complet préparé/)).not.toBeInTheDocument()
     expect(within(drawer).getByRole('button', { name: 'Fermer' })).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

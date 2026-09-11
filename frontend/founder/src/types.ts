@@ -310,6 +310,7 @@ export interface FounderProspectionQueueItem {
   bait_currency: string | null
   mail_subject: string
   mail_body: string
+  mail_html: string
 }
 
 export interface FounderTargetingCycle {

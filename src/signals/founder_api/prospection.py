@@ -130,6 +130,7 @@ class FounderQueueItem(FounderContract):
     bait_currency: str | None = None
     mail_subject: str
     mail_body: str
+    mail_html: str
 
 
 class FounderProspectionQueue(FounderContract):
@@ -286,6 +287,7 @@ class FounderProspectionReadService:
                     bait_currency=str(row["signal_currency"]),
                     mail_subject=str(row["mail_subject"]),
                     mail_body=str(row["mail_text"]),
+                    mail_html=str(row["mail_html"]),
                 )
                 for row in rows
             ),

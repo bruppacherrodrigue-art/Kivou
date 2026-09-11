@@ -51,8 +51,12 @@ def test_renders_the_complete_arbonis_mail_from_the_single_catalog() -> None:
     assert mail.contract_failure is None
     assert mail.html.count("href=") == 2
     assert mail.html.count('href="https://kivou.eu/a/kat1.signal-token"') == 1
+    assert '>Voir le marché</a>' in mail.html
+    assert '>https://kivou.eu/a/kat1.signal-token</a>' not in mail.html
     assert "https://www.boamp.fr/avis/26A0076" not in mail.html
     assert mail.html.count('href="https://kivou.eu/unsubscribe/unsubscribe-token"') == 1
+    assert '>Ne plus recevoir</a>' in mail.html
+    assert '>https://kivou.eu/unsubscribe/unsubscribe-token</a>' not in mail.html
 
 
 def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:
@@ -104,6 +108,30 @@ def test_contract_rejects_a_retired_fragment_and_overlong_body() -> None:
             director_name=None,
         )
         == "body_contains_forbidden_fragment"
+    )
+
+
+def test_contract_rejects_raw_url_labels_in_html() -> None:
+    mail = render_prospect_mail(arbonis_row())
+    invalid = RenderedProspectMail(
+        subject=mail.subject,
+        text=mail.text,
+        html=mail.html.replace(
+            ">Voir le marché</a>",
+            ">Lien technique</a>",
+        ),
+        word_count=mail.word_count,
+        contract_status="passed",
+        contract_failure=None,
+    )
+
+    assert (
+        validate_prospect_mail(
+            invalid,
+            raw_subject=str(arbonis_row()["signal_subject"]),
+            director_name="Arnaud Lefebvre",
+        )
+        == "html_link_label_invalid"
     )
 
 
