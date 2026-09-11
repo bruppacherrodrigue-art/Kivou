@@ -198,10 +198,10 @@ class SupplierDirectoryStore:
         validation_method: Literal["name_word", "registration_number"],
         validation_evidence_url: str | None,
         observed_at: dt.datetime,
-    ) -> None:
-        self._update(
-            siren,
-            {
+    ) -> bool:
+        _require_aware(observed_at)
+        normalized_domain = domain.casefold()
+        trusted_values = {
                 "domain": domain,
                 "website_url": website_url,
                 "domain_source": source,
@@ -210,9 +210,59 @@ class SupplierDirectoryStore:
                 "domain_observed_at": observed_at,
                 "reverification_required_at": None,
                 "reverification_reason": None,
-            },
-            observed_at,
-        )
+        }
+        with self._engine.begin() as connection:
+            if connection.dialect.name == "postgresql":
+                connection.execute(
+                    sa.text("SELECT pg_advisory_xact_lock(hashtext(:domain))"),
+                    {"domain": normalized_domain},
+                )
+            conflict = connection.scalar(
+                sa.select(sa.literal(1)).where(
+                    sa.func.lower(supplier_directory.c.domain) == normalized_domain,
+                    supplier_directory.c.siren != siren,
+                ).limit(1)
+            )
+            if conflict:
+                untrusted_values = {
+                    "domain_validation_method": None,
+                    "domain_validation_evidence_url": None,
+                    "apollo_organization_id": None,
+                    "apollo_status": None,
+                    "apollo_observed_at": None,
+                    "professional_email": None,
+                    "email_source": None,
+                    "email_verification_status": None,
+                    "email_contact_name": None,
+                    "email_contact_title": None,
+                    "email_observed_at": None,
+                    "reverification_required_at": observed_at,
+                    "reverification_reason": "shared_domain_blocklist",
+                    "updated_at": observed_at,
+                }
+                connection.execute(
+                    sa.update(supplier_directory)
+                    .where(sa.func.lower(supplier_directory.c.domain) == normalized_domain)
+                    .values(**untrusted_values)
+                )
+                connection.execute(
+                    sa.update(supplier_directory)
+                    .where(supplier_directory.c.siren == siren)
+                    .values(
+                        domain=domain,
+                        website_url=website_url,
+                        domain_source=source,
+                        domain_observed_at=observed_at,
+                        **untrusted_values,
+                    )
+                )
+                return False
+            result = connection.execute(
+                sa.update(supplier_directory)
+                .where(supplier_directory.c.siren == siren)
+                .values(**trusted_values, updated_at=observed_at)
+            )
+        return result.rowcount == 1
 
     def record_apollo(
         self,

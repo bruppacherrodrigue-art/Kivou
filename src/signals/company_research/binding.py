@@ -188,7 +188,7 @@ class SireneApolloResolver:
                 else None
             )
             if self._directory is not None and domain_resolution is not None:
-                self._directory.record_domain(
+                recorded = self._directory.record_domain(
                     identity.provider_organization_id,
                     domain=domain_resolution.domain,
                     website_url=domain_resolution.website_url,
@@ -197,6 +197,8 @@ class SireneApolloResolver:
                     validation_evidence_url=domain_resolution.validation_evidence_url,
                     observed_at=domain_resolution.observed_at,
                 )
+                if not recorded:
+                    domain_resolution = None
         domain = domain_resolution.domain if domain_resolution is not None else None
         cached_apollo = (
             self._directory.fresh_apollo(identity.provider_organization_id, at=now)

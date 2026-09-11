@@ -96,6 +96,48 @@ def test_directory_reuses_fresh_domain_and_expires_it_after_90_days(tmp_path) ->
     assert store.fresh_domain("331364729", at=NOW + dt.timedelta(days=91)) is None
 
 
+def test_directory_rejects_a_domain_shared_by_two_distinct_sirens(tmp_path) -> None:
+    store = _store(tmp_path)
+    for siren, name in (("331364729", "ESCOLLE BETON"), ("350064226", "BETON LYON")):
+        store.upsert_identity(
+            siren=siren,
+            legal_name=name,
+            naf_code="23.63Z",
+            family_key="ready_mix_concrete",
+            department="38",
+            city="GRENOBLE",
+            employees=19,
+            observed_at=NOW,
+        )
+
+    assert store.record_domain(
+        "331364729",
+        domain="shared.example",
+        website_url="https://shared.example",
+        source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
+        observed_at=NOW,
+    )
+    assert not store.record_domain(
+        "350064226",
+        domain="shared.example",
+        website_url="https://shared.example",
+        source="serper",
+        validation_method="name_word",
+        validation_evidence_url=None,
+        observed_at=NOW + dt.timedelta(minutes=1),
+    )
+
+    for siren in ("331364729", "350064226"):
+        record = store.get(siren)
+        assert record is not None
+        assert record.domain == "shared.example"
+        assert record.domain_validation_method is None
+        assert record.reverification_reason == "shared_domain_blocklist"
+        assert store.fresh_domain(siren, at=NOW + dt.timedelta(minutes=2)) is None
+
+
 def test_directory_records_dated_contact_form(tmp_path) -> None:
     store = _store(tmp_path)
     store.upsert_identity(
