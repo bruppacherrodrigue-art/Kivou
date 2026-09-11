@@ -97,11 +97,7 @@ export function FounderApp() {
     return () => controller.abort()
   }, [
     isProspectionRoute,
-    prospectionFilters.department,
-    prospectionFilters.family,
-    prospectionFilters.page,
-    prospectionFilters.q,
-    prospectionFilters.status,
+    prospectionFilters,
     refreshKey,
     weekOffset,
   ])
