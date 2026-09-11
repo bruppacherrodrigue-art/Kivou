@@ -4,10 +4,15 @@ import datetime as dt
 import subprocess
 from decimal import Decimal
 
+import pytest
 import sqlalchemy as sa
+from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
 
 from signals.accounts.schema import account_landing_signal
+from signals.founder_api.access import FOUNDER_USER_HEADER, ORIGIN_SECRET_HEADER
+from signals.founder_api.app import create_founder_app
+from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.prospection import (
     FounderAcquisitionTimer,
     FounderDirectoryStatus,
@@ -33,6 +38,9 @@ from signals.persistence.schema import (
 )
 
 NOW = dt.datetime(2026, 9, 11, 8, 0, tzinfo=dt.UTC)
+ALLOWED_EMAIL = "rodrigue.bruppacher@gmail.com"
+ALLOWED_USER = "rodrigue"
+ORIGIN_SECRET = "s" * 40
 
 
 def _engine() -> sa.Engine:
@@ -54,6 +62,13 @@ def _stopped_timer(_: dt.datetime) -> FounderAcquisitionTimer:
         last_triggered_at=NOW - dt.timedelta(hours=3),
         next_trigger_at=None,
     )
+
+
+def _headers() -> dict[str, str]:
+    return {
+        FOUNDER_USER_HEADER: ALLOWED_USER,
+        ORIGIN_SECRET_HEADER: ORIGIN_SECRET,
+    }
 
 
 def _directory_row(index: int, *, suppressed: bool = False) -> dict[str, object]:
@@ -607,3 +622,76 @@ def test_results_read_persisted_events_and_keep_zero_capable_metrics() -> None:
     assert [(item.currency, item.minor_units) for item in result.results.mrr_by_currency] == [
         ("CHF", 9_900)
     ]
+
+
+def test_prospection_route_is_authenticated_and_returns_the_versioned_contract() -> None:
+    engine = _engine()
+    app = create_founder_app(
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
+            origin_secret=ORIGIN_SECRET,
+        ),
+        now_override=lambda: NOW,
+        read_service=FounderReadService(engine, timer_reader=_stopped_timer),
+    )
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/founder/prospection?page=1&page_size=25",
+            headers=_headers(),
+        )
+        unauthenticated = client.get("/api/founder/prospection")
+
+    assert response.status_code == 200
+    assert response.json()["version"] == "founder-prospection-v1"
+    assert response.json()["read_only"] is True
+    assert unauthenticated.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "query",
+    (
+        "page=0",
+        "page_size=26",
+        f"q={'x' * 101}",
+        "status=not-a-directory-status",
+    ),
+)
+def test_prospection_route_rejects_unbounded_queries(query: str) -> None:
+    engine = _engine()
+    app = create_founder_app(
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
+            origin_secret=ORIGIN_SECRET,
+        ),
+        now_override=lambda: NOW,
+        read_service=FounderReadService(engine, timer_reader=_stopped_timer),
+    )
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/founder/prospection?{query}", headers=_headers())
+
+    assert response.status_code == 422
+
+
+def test_prospection_route_fails_closed_without_reads_or_actions() -> None:
+    app = create_founder_app(
+        FounderApiConfig(
+            allowed_email=ALLOWED_EMAIL,
+            allowed_user=ALLOWED_USER,
+            origin_secret=ORIGIN_SECRET,
+        ),
+        now_override=lambda: NOW,
+    )
+
+    with TestClient(app) as client:
+        unavailable = client.get("/api/founder/prospection", headers=_headers())
+        action = client.post(
+            "/api/founder/actions/validate",
+            headers=_headers(),
+        )
+
+    assert unavailable.status_code == 503
+    assert action.status_code == 404
