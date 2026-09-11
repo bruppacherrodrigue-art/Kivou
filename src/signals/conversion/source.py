@@ -14,6 +14,7 @@ from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_campaign_member,
     acquisition_opportunity,
+    prospect_target,
 )
 from signals.supplier_discovery.seed import AcquisitionSeedNotFound, resolve_acquisition_seed
 
@@ -97,6 +98,18 @@ class AttributionSourceResolver:
     def for_member(
         self, connection: sa.Connection, member_ref: str
     ) -> AttributionTokenPayload:
+        prospect_payload = connection.scalar(
+            sa.select(prospect_target.c.attribution_payload).where(
+                prospect_target.c.attribution_member_ref == member_ref
+            )
+        )
+        if prospect_payload is not None:
+            try:
+                return AttributionTokenPayload.model_validate(prospect_payload)
+            except (TypeError, ValueError) as error:
+                raise AttributionSourceUnavailable(
+                    "assisted attribution target is invalid"
+                ) from error
         row = connection.execute(
             sa.select(
                 acquisition_campaign.c.campaign_ref,

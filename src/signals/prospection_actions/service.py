@@ -49,6 +49,7 @@ class IssuedProspectLink:
     member_ref: str
     token_fingerprint: str
     payload: dict[str, object]
+    unsubscribe_url: str | None = None
 
 
 class ProspectLinkIssuer(Protocol):
@@ -456,6 +457,8 @@ class ProspectionActions:
                     attribution_payload=link.payload,
                     attribution_token_fingerprint=link.token_fingerprint,
                 )
+                if link.unsubscribe_url is not None:
+                    values["unsubscribe_url"] = link.unsubscribe_url
                 connection.execute(
                     sa.update(supplier_directory)
                     .where(supplier_directory.c.siren == row["siren"])

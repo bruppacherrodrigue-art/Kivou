@@ -29,6 +29,7 @@ from signals.acquisition_connectivity.contracts import (
     ConnectivityFailure,
 )
 from signals.acquisition_connectivity.instantly import InstantlyConnectivityProbe
+from signals.acquisition_runtime.assisted import build_assisted_preparation_action
 from signals.acquisition_runtime.composition import (
     AcquisitionDomainComposition,
     build_acquisition_domain_composition,
@@ -42,6 +43,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeActionResult,
     RuntimeCapabilityEvidence,
     RuntimeDependencyState,
+    RuntimeExecutionMode,
     RuntimeHermesIdentityEvidence,
     RuntimeQaScope,
     RuntimeRunRequest,
@@ -110,6 +112,8 @@ from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.database import create_database_engine
 from signals.policy.contracts import AutonomyMode, PolicyControlSnapshot, Scope
 from signals.policy.store import PolicyStore
+from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
+from signals.prospection_actions.preparation import ProspectPreparationService
 from signals.supervisor.contracts import SupervisorLimits
 from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.pin import load_hermes_pin
@@ -531,7 +535,7 @@ def _runtime_capability(
     pin = load_hermes_pin()
     return RuntimeCapabilityEvidence(
         environment=runtime_config.environment,
-        mode="SHADOW",
+        mode=runtime_config.deployment.mode,
         qa_only=runtime_config.deployment.qa_only,
         hermes=RuntimeHermesIdentityEvidence(
             repository=pin.repository,
@@ -684,12 +688,13 @@ def build_runtime_execution_composition(
             directory=supplier_directory,
         )
     suppression_keyring = webhook_configuration.suppression_keyring
+    attribution_keyring = AttributionTokenKeyring(
+        current_key_version=links.attribution_key_version,
+        keys={links.attribution_key_version: links.attribution_hmac_key},
+    )
     link_builder = AttributionLinkBuilder(
         public_site_url=links.public_app_url,
-        keyring=AttributionTokenKeyring(
-            current_key_version=links.attribution_key_version,
-            keys={links.attribution_key_version: links.attribution_hmac_key},
-        ),
+        keyring=attribution_keyring,
     )
     supplier_location = (
         selection.region
@@ -766,7 +771,22 @@ def build_runtime_execution_composition(
         company_domain_resolver=company_domain_resolver,
         website_contact_provider=website_contact_provider,
     )
-    registry = AcquisitionActionRegistry(domain.handlers)
+    handlers = dict(domain.handlers)
+    if runtime_config.deployment.mode is RuntimeExecutionMode.ASSISTED:
+        handlers[AcquisitionRuntimeStage.SUPPLIER_DISCOVERY] = (
+            build_assisted_preparation_action(
+                engine,
+                preparation=ProspectPreparationService(
+                    engine,
+                    link_issuer=AttributionProspectLinkIssuer(
+                        public_site_url=links.public_app_url,
+                        keyring=attribution_keyring,
+                    ),
+                    clock=clock,
+                ),
+            )
+        )
+    registry = AcquisitionActionRegistry(handlers)
     if registry.identity != empty_registry.identity:
         raise RuntimeExecutionConfigurationError("REGISTRY_IDENTITY_MISMATCH")
     supervisor_runtime = hermes_runtime or _default_hermes_runtime(connectivity_config)

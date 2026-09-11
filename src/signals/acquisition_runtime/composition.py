@@ -13,6 +13,7 @@ from signals.acquisition_runtime.actions import build_kivou_stage_handlers
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
     AcquisitionRuntimeStage,
+    RuntimeExecutionMode,
     RuntimeRunResult,
 )
 from signals.acquisition_runtime.domain import (
@@ -205,7 +206,10 @@ def build_acquisition_domain_composition(
         clock=clock,
         expected_contact_profile_version=RUNTIME_QA_CONTACT_PROFILE_VERSION,
     )
-    if runtime_config.environment == "PRODUCTION":
+    if runtime_config.deployment.mode in {
+        RuntimeExecutionMode.SHADOW,
+        RuntimeExecutionMode.ASSISTED,
+    }:
         instantly_provider = ShadowInstantlyProvider(instantly_provider)
     campaign_service = CampaignService(
         engine,
@@ -226,6 +230,7 @@ def build_acquisition_domain_composition(
             transport_keyring=suppression_keyring,
         )
         if runtime_config.environment == "STAGING"
+        and runtime_config.deployment.mode is RuntimeExecutionMode.SHADOW
         else None
     )
     campaign_worker = CampaignWorker(

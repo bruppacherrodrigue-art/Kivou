@@ -41,6 +41,7 @@ def upgrade() -> None:
         sa.Column("company_name", sa.Text, nullable=False),
         sa.Column("company_city", sa.Text, nullable=False),
         sa.Column("company_employees", sa.Integer, nullable=False),
+        sa.Column("vertical", sa.String(100), nullable=False),
         sa.Column("family_key", sa.String(100), nullable=False),
         sa.Column("family_label", sa.Text, nullable=False),
         sa.Column("director_name", sa.Text),
@@ -137,6 +138,31 @@ def upgrade() -> None:
         sa.CheckConstraint("reserved_count BETWEEN 1 AND 25 AND sent_count BETWEEN 0 AND reserved_count", name="ck_prospect_send_request_counts"),
     )
     op.create_index("ix_prospect_send_request_request_day", "prospect_send_request", ["request_day"])
+
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute(
+            """
+            DO $grants$
+            BEGIN
+              IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'kivou_founder_rw') THEN
+                GRANT USAGE ON SCHEMA public TO kivou_founder_rw;
+                GRANT SELECT, INSERT, UPDATE ON prospect_target,
+                  prospect_target_history, prospect_send_request TO kivou_founder_rw;
+                GRANT SELECT ON supplier_directory,
+                  acquisition_contact_suppression TO kivou_founder_rw;
+                GRANT UPDATE (
+                  legal_name, legal_name_observed_at, directors,
+                  directors_observed_at, professional_email, email_source,
+                  email_verification_status, email_observed_at,
+                  reverification_required_at, reverification_reason,
+                  family_review_keys, updated_at
+                ) ON supplier_directory TO kivou_founder_rw;
+                REVOKE CREATE ON SCHEMA public FROM kivou_founder_rw;
+              END IF;
+            END
+            $grants$;
+            """
+        )
 
 
 def downgrade() -> None:

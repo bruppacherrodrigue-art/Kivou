@@ -91,6 +91,7 @@ def seed(engine) -> None:
                 company_name="Béton du Bourbonnais",
                 company_city="Saint-Victor",
                 company_employees=35,
+                vertical="general_building",
                 family_key="ready_mixed_concrete",
                 family_label="béton prêt à l'emploi",
                 director_name=None,

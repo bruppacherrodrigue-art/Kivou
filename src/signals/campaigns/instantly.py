@@ -75,6 +75,9 @@ class InstantlyProvider(Protocol):
     def create_campaign(
         self, *, name: str, provider_config: dict[str, object]
     ) -> ProviderCampaign: ...
+    def create_assisted_campaign(
+        self, *, name: str, provider_account_id: str, execution_date: dt.date
+    ) -> ProviderCampaign: ...
     def configure_campaign(
         self, provider_campaign_id: str, *, provider_config: dict[str, object]
     ) -> ProviderCampaign: ...
@@ -109,6 +112,9 @@ class ShadowInstantlyProvider:
 
     def create_campaign(self, **_kwargs):
         raise ShadowSendForbidden("SHADOW forbids Instantly campaign creation")
+
+    def create_assisted_campaign(self, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids assisted Instantly campaign creation")
 
     def configure_campaign(self, *_args, **_kwargs):
         raise ShadowSendForbidden("SHADOW forbids Instantly campaign configuration")
@@ -656,6 +662,66 @@ class HttpInstantlyProvider:
         self, *, name: str, provider_config: dict[str, object]
     ) -> ProviderCampaign:
         body = {"name": name, **_validate_campaign_config(provider_config)}
+        return self._campaign(
+            self._call("POST", "/campaigns", json_body=body, mutation=True),
+            mutation=True,
+        )
+
+    def create_assisted_campaign(
+        self,
+        *,
+        name: str,
+        provider_account_id: str,
+        execution_date: dt.date,
+    ) -> ProviderCampaign:
+        """Create the one-message campaign allowed only by a Founder send permit."""
+
+        if not name or not provider_account_id:
+            raise ValueError("assisted campaign identity is incomplete")
+        body = {
+            "name": name,
+            "campaign_schedule": {
+                "start_date": execution_date.isoformat(),
+                "end_date": execution_date.isoformat(),
+                "schedules": [
+                    {
+                        "name": "Kivou assisted daily window",
+                        "timing": {"from": "08:00", "to": "18:00"},
+                        "days": _expected_weekdays(execution_date, execution_date),
+                        "timezone": "Europe/Paris",
+                    }
+                ],
+            },
+            "sequences": [
+                {
+                    "steps": [
+                        {
+                            "type": "email",
+                            "variants": [
+                                {
+                                    "subject": "{{kivou_subject}}",
+                                    "body": "{{kivou_envelope}}",
+                                    "v_disabled": False,
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ],
+            "stop_on_reply": True,
+            "stop_on_auto_reply": True,
+            "stop_for_company": False,
+            "email_list": [provider_account_id],
+            "daily_limit": 25,
+            "open_tracking": True,
+            "link_tracking": True,
+            "text_only": False,
+            "first_email_text_only": False,
+            "insert_unsubscribe_header": True,
+            "allow_risky_contacts": False,
+            "disable_bounce_protect": False,
+            "auto_variant_select": None,
+        }
         return self._campaign(
             self._call("POST", "/campaigns", json_body=body, mutation=True),
             mutation=True,

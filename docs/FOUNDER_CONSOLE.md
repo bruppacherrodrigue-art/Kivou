@@ -189,6 +189,29 @@ Expected production URL:
 KIVOU_FOUNDER_DATABASE_URL=postgresql+psycopg://kivou_founder_ro:REPLACE@127.0.0.1:5432/kivou
 ```
 
+The assisted-prospection actions use a second credential. Create it before the
+`0051_assisted_prospection` migration so that the migration can grant only the
+review queue, send audit, suppression lookup, and the explicitly mutable
+supplier-directory fields:
+
+```sql
+CREATE ROLE kivou_founder_rw
+  LOGIN PASSWORD 'REPLACE_WITH_A_RANDOM_PASSWORD'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION;
+ALTER ROLE kivou_founder_rw SET statement_timeout = '10s';
+GRANT CONNECT ON DATABASE kivou TO kivou_founder_rw;
+```
+
+Set the distinct URL in `/etc/kivou/founder.env`:
+
+```dotenv
+KIVOU_FOUNDER_WRITE_DATABASE_URL=postgresql+psycopg://kivou_founder_rw:REPLACE@127.0.0.1:5432/kivou
+```
+
+The Founder process verifies `current_user=kivou_founder_rw` on every new
+writer connection. The migration grants no access to customer, billing, or
+general application writes.
+
 A non-PostgreSQL URL is refused by the production Founder entrypoint.
 
 ## DNS handoff

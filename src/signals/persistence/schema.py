@@ -924,6 +924,7 @@ prospect_target = sa.Table(
     sa.Column("company_name", sa.Text, nullable=False),
     sa.Column("company_city", sa.Text, nullable=False),
     sa.Column("company_employees", sa.Integer, nullable=False),
+    sa.Column("vertical", sa.String(100), nullable=False),
     sa.Column("family_key", sa.String(100), nullable=False),
     sa.Column("family_label", sa.Text, nullable=False),
     sa.Column("director_name", sa.Text),

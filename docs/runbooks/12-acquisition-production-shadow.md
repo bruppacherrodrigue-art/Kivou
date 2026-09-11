@@ -1,6 +1,10 @@
 # Runtime Acquisition PRODUCTION/SHADOW — phase 1
 
 Le coupe-circuit immédiat est `systemctl stop kivou-acquisition-production.timer`.
+Le fichier `/etc/kivou/acquisition.disabled` bloque également chaque cycle et
+chaque action Founder d'envoi. En mode `assisted`, le timer ne transporte aucun
+message : seul `POST /api/founder/actions/prospection/send`, après validation,
+obtient une autorisation bornée aux identifiants demandés.
 Chaque cycle relit aussi `/etc/kivou/acquisition.disabled`; sa présence bloque
 le cycle avant tout appel fournisseur. Pour reprendre, supprimer ce fichier
 après contrôle opérateur puis démarrer le timer.
