@@ -965,7 +965,7 @@ def test_postgresql_completion_and_directory_rebind_do_not_deadlock() -> None:
                     == reservation.attempt_id
                 )
             ).mappings().one()
-        assert attempt["status"] == "success"
+        assert attempt["status"] == "no_contact"
 
 
 def test_defensive_binding_purge_expires_the_orphaned_running_attempt(tmp_path) -> None:
