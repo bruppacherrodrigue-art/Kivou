@@ -639,6 +639,7 @@ export interface DirectoryCompany {
   city?: string
   employees?: number
   website_url?: string
+  website_source?: string
   directors?: DirectoryDirector[]
   resolution_note?: 'rapprochement par nom'
   source: 'registre'

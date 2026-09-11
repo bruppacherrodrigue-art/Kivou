@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import json
 import os
 import re
+from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from signals.campaigns.runtime_webhook import (
@@ -50,6 +52,9 @@ ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
 ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
 GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
+COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = (
+    "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
+)
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -79,6 +84,34 @@ def _duration(name: str, default: dt.timedelta) -> dt.timedelta:
     if seconds <= 0:
         raise ValueError(f"{name} doit être un nombre de secondes positif")
     return dt.timedelta(seconds=seconds)
+
+
+def _cpv_start_delays(name: str) -> dict[str, int]:
+    raw = os.environ.get(name)
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} doit être un objet JSON") from error
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} doit être un objet JSON")
+    result: dict[str, int] = {}
+    for prefix, months in value.items():
+        if (
+            not isinstance(prefix, str)
+            or not prefix.isdigit()
+            or not 1 <= len(prefix) <= 8
+            or isinstance(months, bool)
+            or not isinstance(months, int)
+            or not 0 <= months <= 60
+        ):
+            raise ValueError(
+                f"{name} attend des préfixes CPV de 1 à 8 chiffres "
+                "et des délais entiers de 0 à 60 mois"
+            )
+        result[prefix] = months
+    return result
 
 
 @dataclasses.dataclass(frozen=True)
@@ -171,7 +204,10 @@ class ApiConfig:
     acquisition_environment: str = "UNCONFIGURED"
     # PR6b — coupe seulement la phrase rédigée dans l'app client. Le repli
     # déterministe reste toujours disponible et les e-mails ne changent pas.
-    generated_for_you_enabled: bool = True
+    generated_for_you_enabled: bool = False
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] = (
+        dataclasses.field(default_factory=dict)
+    )
 
     @property
     def stripe_livemode(self) -> bool:
@@ -345,6 +381,9 @@ class ApiConfig:
             # borné des comptes actifs. Le défaut fermé empêche un déploiement
             # d'afficher un mélange involontaire de phrases générées et de replis.
             generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=False),
+            commercial_start_delay_months_by_cpv_prefix=_cpv_start_delays(
+                COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV
+            ),
         )
 
 

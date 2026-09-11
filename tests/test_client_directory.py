@@ -92,6 +92,7 @@ def test_directory_company_prefers_siren_and_never_exposes_professional_email(tm
         "city": "Grenoble",
         "employees": 20,
         "website_url": "https://example.test/",
+        "website_source": "registre",
         "directors": [{"name": "Alice Martin", "title": "Gérante"}],
         "source": "registre",
         "removal_path": "/contact",
@@ -127,6 +128,26 @@ def test_directory_company_discloses_name_matching_and_omits_suppressed_or_unsaf
     assert result["resolution_note"] == "rapprochement par nom"
     assert "website_url" not in result
     assert "directors" not in result
+
+
+def test_directory_company_keeps_the_website_source_distinct_from_register_facts(
+    tmp_path,
+) -> None:
+    db = engine(tmp_path)
+    value = row("331364729", "ESCOLLE BETON")
+    value["domain_source"] = "serper"
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), value)
+        result = directory_company(
+            connection,
+            siren="331364729",
+            legal_name=None,
+            department=None,
+        )
+
+    assert result is not None
+    assert result["website_url"] == "https://example.test/"
+    assert result["website_source"] == "serper"
 
 
 def test_local_circuit_filters_the_profile_families_and_orders_proximity_then_size(

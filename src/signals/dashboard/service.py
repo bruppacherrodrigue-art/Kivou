@@ -27,7 +27,7 @@ semaine — ce module ne fait que les assembler à une seule date de lecture.
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import sqlalchemy as sa
@@ -83,6 +83,7 @@ def _render_items(
     lang: str,
     resolve_status: Callable[[str], str],
     generated_for_you_enabled: bool,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None,
 ) -> dict[str, dict[str, Any]]:
     """Rend la carte complète de chaque item, en une seule volée de lectures.
 
@@ -112,6 +113,9 @@ def _render_items(
             enrichment=enrichments.get(item.signal.signal_key),
             status=resolve_status(item.signal.signal_key),
             generated_for_you_enabled=generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                commercial_start_delay_months_by_cpv_prefix
+            ),
         )
         for item in items
     }
@@ -166,6 +170,7 @@ def _to_follow_up(
     lang: str,
     resolve_status: Callable[[str], str],
     generated_for_you_enabled: bool,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None,
 ) -> tuple[list[dict[str, Any]], bool, bool]:
     """Entreprises `contacted` depuis au moins 7 jours, la plus ancienne relance d'abord.
 
@@ -231,6 +236,9 @@ def _to_follow_up(
         lang=lang,
         resolve_status=resolve_status,
         generated_for_you_enabled=generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            commercial_start_delay_months_by_cpv_prefix
+        ),
     )
 
     results: list[dict[str, Any]] = []
@@ -260,6 +268,7 @@ def build_dashboard(
     lang: str,
     previous_seen: dt.datetime | None,
     generated_for_you_enabled: bool = True,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """L'agrégat entier de `GET /dashboard`, à `as_of`.
 
@@ -355,6 +364,9 @@ def build_dashboard(
         lang=lang,
         resolve_status=resolve_status,
         generated_for_you_enabled=generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            commercial_start_delay_months_by_cpv_prefix
+        ),
     )
     top3 = [top3_cards[item.signal.signal_key] for item in top3_items]
 
@@ -368,6 +380,9 @@ def build_dashboard(
         lang=lang,
         resolve_status=resolve_status,
         generated_for_you_enabled=generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            commercial_start_delay_months_by_cpv_prefix
+        ),
     )
 
     # Fix round 1 (I2) — `week.new` réutilise `feed_page`, PAS un décompte SQL

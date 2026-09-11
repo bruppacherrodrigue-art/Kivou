@@ -18,6 +18,7 @@ réévaluée est la FRAÎCHEUR, parce que c'est la seule qui change toute seule.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
@@ -419,6 +420,7 @@ def feed_item(
     lang: str,
     presentation: PublishedCardPresentation | None = None,
     generated_for_you_enabled: bool | None = None,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """La carte du feed : compacte, sans preuve, sans raisonnement long (§16)."""
     feed_copy.check_language(lang)
@@ -446,6 +448,8 @@ def feed_item(
         cpv_code=item.signal.award.cpv_main,
         duration_value=item.signal.award.duration_value,
         duration_unit=item.signal.award.duration_unit,
+        delay_months_by_cpv_prefix=commercial_start_delay_months_by_cpv_prefix,
+        contract_start_date=item.signal.award.contract_start_date,
     )
     if calendar is not None:
         rendered["commercial_calendar"] = calendar
@@ -458,6 +462,7 @@ def signal_detail(
     lang: str,
     presentation: PublishedCardPresentation | None = None,
     generated_for_you_enabled: bool | None = None,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Le détail : la carte, plus de quoi VÉRIFIER (§15)."""
     detail = feed_item(
@@ -465,6 +470,9 @@ def signal_detail(
         lang=lang,
         presentation=presentation,
         generated_for_you_enabled=generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            commercial_start_delay_months_by_cpv_prefix
+        ),
     )
     detail["analysis"] = _analysis(
         item,

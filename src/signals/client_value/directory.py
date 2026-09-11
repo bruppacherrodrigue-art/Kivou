@@ -100,6 +100,8 @@ def _company_view(row: Mapping[str, Any], *, matched_by_name: bool) -> dict[str,
         "website_url": _safe_website(row["website_url"]),
     }
     result.update({key: value for key, value in optional.items() if value is not None})
+    if result.get("website_url") and row["domain_source"]:
+        result["website_source"] = row["domain_source"]
     if family_labels:
         result["family_labels"] = family_labels
     if row["suppressed_at"] is None:

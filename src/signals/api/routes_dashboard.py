@@ -84,6 +84,9 @@ def get_dashboard(request: Request) -> dict[str, Any]:
             lang=lang,
             previous_seen=previous_seen,
             generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+            ),
         )
         profiles = accounts.list_target_icps(connection, account_id=session.account_id)
         active_profile = next((profile for profile in profiles if profile.status == "active"), None)

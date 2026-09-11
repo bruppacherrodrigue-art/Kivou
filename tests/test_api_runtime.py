@@ -103,6 +103,8 @@ def _configure_instantly(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_generated_for_you_is_disabled_until_backfill_activation(
     base_environment, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    assert ApiConfig().generated_for_you_enabled is False
+
     monkeypatch.delenv("KIVOU_GENERATED_FOR_YOU_ENABLED", raising=False)
 
     assert ApiConfig.from_environment().generated_for_you_enabled is False
@@ -110,6 +112,20 @@ def test_generated_for_you_is_disabled_until_backfill_activation(
     monkeypatch.setenv("KIVOU_GENERATED_FOR_YOU_ENABLED", "true")
 
     assert ApiConfig.from_environment().generated_for_you_enabled is True
+
+
+def test_commercial_calendar_cpv_delays_are_explicit_configuration(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(
+        "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON",
+        '{"45": 3, "452331": 5}',
+    )
+
+    assert ApiConfig.from_environment().commercial_start_delay_months_by_cpv_prefix == {
+        "45": 3,
+        "452331": 5,
+    }
 
 
 # ─── configuration Instantly atomique et expurgée ────────────────────────────

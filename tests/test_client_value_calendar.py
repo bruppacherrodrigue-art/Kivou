@@ -32,6 +32,21 @@ def test_the_longest_configured_cpv_prefix_wins() -> None:
     }
 
 
+def test_a_published_contract_start_takes_precedence_over_the_probable_delay() -> None:
+    assert commercial_calendar(
+        contract_start_date=dt.date(2026, 10, 15),
+        notification_date=dt.date(2026, 8, 31),
+        cpv_code="45233120-6",
+        duration_value=2,
+        duration_unit="year",
+        delay_months_by_cpv_prefix={"452331": 5},
+    ) == {
+        "start_month": "2026-10",
+        "duration_months": 24,
+        "source": "public_notice",
+    }
+
+
 def test_an_unconvertible_or_missing_duration_is_omitted() -> None:
     assert commercial_calendar(
         notification_date=dt.date(2026, 9, 10),

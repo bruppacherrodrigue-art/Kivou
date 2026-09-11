@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Annotated, Any, Literal
 
 import sqlalchemy as sa
@@ -19,8 +20,8 @@ from signals.card_intelligence.store import published_for_signals
 from signals.client_value.directory import directory_company
 from signals.client_value.history import (
     department_for_place,
+    directory_history_and_markets,
     history_for_company,
-    markets_for_company,
 )
 from signals.companies.contracts import CompanyProfile
 from signals.companies.enrichment import winner_enrichments_for_signals
@@ -111,6 +112,7 @@ def _company_signals(
     account_id: str,
     lang: str,
     generated_for_you_enabled: bool,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int],
 ) -> tuple[dict[str, Any], ...]:
     """The same card `GET /signals` would render for each item — same
     presentation, same winner enrichment — so this list can never drift from
@@ -137,6 +139,9 @@ def _company_signals(
             enrichment=enrichments.get(item.signal.signal_key),
             status=resolve_status(item.signal.signal_key),
             generated_for_you_enabled=generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                commercial_start_delay_months_by_cpv_prefix
+            ),
         )
         for item in ordered
     )
@@ -288,6 +293,9 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             account_id=session.account_id,
             lang=lang,
             generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+            ),
         )
         contact = company_engagement.get_contact(
             connection, account_id=session.account_id, company_key=company_key
@@ -356,17 +364,11 @@ def get_directory_company(siren: str, request: Request) -> dict[str, Any]:
         )
         if directory is None:
             raise api_error(404, "company_not_found", "entreprise introuvable")
-        holder_history = history_for_company(
-            connection,
-            company_key=None,
-            winner_name=directory["name"],
-            department=directory.get("department"),
-            as_of=now.date(),
-        )
-        markets = markets_for_company(
+        holder_history, markets = directory_history_and_markets(
             connection,
             winner_name=directory["name"],
             department=directory.get("department", ""),
+            as_of=now.date(),
         )
     result: dict[str, Any] = {"directory": directory, "markets": list(markets)}
     if holder_history is not None:

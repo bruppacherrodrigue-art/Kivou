@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Annotated, Any, Literal, get_args
 
@@ -371,6 +372,9 @@ def list_signals(
                 enrichment=enrichments.get(item.signal.signal_key),
                 status=resolve_status(item.signal.signal_key),
                 generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+                commercial_start_delay_months_by_cpv_prefix=(
+                    request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+                ),
             )
             for item in page.items
         ],
@@ -445,6 +449,7 @@ def _render(
     enrichment: WinnerEnrichmentView | None,
     status: str,
     generated_for_you_enabled: bool,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int],
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
@@ -456,6 +461,9 @@ def _render(
             enrichment=enrichment,
             status=status,
             generated_for_you_enabled=generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                commercial_start_delay_months_by_cpv_prefix
+            ),
         )
     return paywall.locked_teaser(item, lang=lang, status=status)
 
@@ -629,6 +637,9 @@ def get_signal(
         lang=lang,
         presentation=presentation,
         generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+        ),
     )
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang

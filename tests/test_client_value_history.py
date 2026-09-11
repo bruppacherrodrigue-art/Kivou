@@ -3,9 +3,18 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-from signals.client_value.history import AwardFact, history_for_company, summarize_awards
+import sqlalchemy as sa
+
+from signals.client_value.history import (
+    AwardFact,
+    directory_history_and_markets,
+    history_for_company,
+    markets_for_company,
+    summarize_awards,
+)
 from signals.companies.service import ensure_companies_for_signal_keys
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import source_event
 
 AS_OF = dt.date(2026, 9, 11)
 
@@ -123,8 +132,25 @@ def test_database_reader_prefers_company_key_then_supports_name_and_department(t
             department="38",
             as_of=AS_OF,
         )
+        connection.execute(
+            sa.update(source_event).values(source_url="javascript:alert(1)")
+        )
+        markets = markets_for_company(
+            connection,
+            winner_name="SARL ALCIS TRANSPORTS",
+            department="31",
+        )
+        combined_history, combined_markets = directory_history_and_markets(
+            connection,
+            winner_name="SARL ALCIS TRANSPORTS",
+            department="31",
+            as_of=AS_OF,
+        )
 
     assert exact is not None and exact["resolution"] == "company_key"
     assert fallback is not None
     assert fallback["resolution_note"] == "rapprochement par nom"
     assert wrong_department is None
+    assert markets and "source_url" not in markets[0]
+    assert combined_history == fallback
+    assert combined_markets == markets

@@ -32,32 +32,57 @@ function safeWebsite(value: string | null | undefined): string | null {
   }
 }
 
+function sourceLabel(source: string): string {
+  if (source === 'public_notice') return 'avis public'
+  if (source === 'serper') return 'moteur de recherche'
+  if (source === 'apollo') return 'Apollo'
+  if (source === 'official_register' || source === 'registre') return 'registre'
+  return source
+}
+
 export function DirectoryFacts({
   directory,
   identityIdentifier,
   city,
   officialWebsite,
+  identitySource = 'public_notice',
 }: {
   directory?: DirectoryCompany | null
   identityIdentifier?: string | null
   city?: string | null
   officialWebsite?: string | null
+  identitySource?: 'public_notice' | 'official_register' | 'registre'
 }) {
-  const website = safeWebsite(directory?.website_url ?? officialWebsite)
-  const location = [directory?.city ?? city, directory?.department].filter(Boolean).join(' · ')
-  const facts = [
+  const directoryWebsite = safeWebsite(directory?.website_url)
+  const officialWebsiteUrl = directoryWebsite ? null : safeWebsite(officialWebsite)
+  const website = directoryWebsite ?? officialWebsiteUrl
+  const websiteSource = directoryWebsite
+    ? directory?.website_source ?? directory?.source
+    : officialWebsiteUrl
+      ? identitySource
+      : null
+  const identityFacts = [
     identityIdentifier,
+    directory?.city ? null : city,
+  ].filter((value): value is string => Boolean(value))
+  const directoryLocation = [directory?.city, directory?.department].filter(Boolean).join(' · ')
+  const directoryFacts = [
     directory?.naf_code ? `NAF ${directory.naf_code}` : null,
     ...(directory?.family_labels ?? []),
     directory?.employees === undefined ? null : `${directory.employees} salariés`,
-    location || null,
+    directoryLocation || null,
   ].filter((value): value is string => Boolean(value))
 
   return (
     <section className={styles.valueSection}>
       <h3>Identité</h3>
-      {facts.length ? <ul className={styles.factChips}>{facts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}
-      {website ? <a className={styles.website} href={website} target="_blank" rel="noreferrer">Site internet ↗</a> : null}
+      {identityFacts.length ? (
+        <>
+          <ul className={styles.factChips}>{identityFacts.map((fact) => <li key={fact}>{fact}</li>)}</ul>
+          <p className={styles.dataSource}>Source : {sourceLabel(identitySource)}</p>
+        </>
+      ) : null}
+      {directoryFacts.length ? <ul className={styles.factChips}>{directoryFacts.map((fact) => <li key={fact}>{fact}</li>)}</ul> : null}
       {directory?.directors?.length ? (
         <div className={styles.directors}>
           <h4>Dirigeants</h4>
@@ -73,11 +98,15 @@ export function DirectoryFacts({
       ) : null}
       {directory ? (
         <p className={styles.dataSource}>
-          Source : registre
-          {directory.resolution_note ? ` · ${directory.resolution_note}` : ''}
+          <span>
+            Source : registre
+            {directory.resolution_note ? ` · ${directory.resolution_note}` : ''}
+          </span>
           {' · '}<Link to={directory.removal_path}>Retrait</Link>
         </p>
       ) : null}
+      {website ? <a className={styles.website} href={website} target="_blank" rel="noreferrer">Site internet ↗</a> : null}
+      {websiteSource ? <p className={styles.dataSource}>Source du site : {sourceLabel(websiteSource)}</p> : null}
     </section>
   )
 }
@@ -195,6 +224,7 @@ export function CompanyDrawer({
           identityIdentifier={identifier(profile)}
           city={city}
           officialWebsite={identity.website_url}
+          identitySource={identity.source}
         />
         <MarketSummaryBlock summary={profile.market_summary} />
 

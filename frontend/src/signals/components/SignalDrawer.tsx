@@ -1,17 +1,13 @@
 import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import type { PlausibleNeed, UnifiedStatus, UnlockedFeedItem } from '../../api/types'
+import type { UnifiedStatus, UnlockedFeedItem } from '../../api/types'
 import { interpolate, useI18n } from '../../i18n'
 import { MatchDots } from './MatchDots'
 import { StatusPill } from './StatusPill'
 import { MISSING, placeLabel, signalObject } from './SignalRow'
 import { monthLabel } from '../valueFormat'
 import styles from './signals.module.css'
-
-/** Le nombre de raisons, et de besoins, que le tiroir montre. Au-delà, on ne
- *  lit plus. */
-const MAX_ITEMS = 3
 
 function Fact({
   label,
@@ -29,16 +25,6 @@ function Fact({
       <dd className={className}>{children}</dd>
     </>
   )
-}
-
-/* Les besoins que le marché IMPLIQUE, dans l'ordre où ils servent le lecteur :
- * ceux que son profil vise d'abord, l'ordre du backend ensuite. Un besoin sans
- * libellé n'est pas affichable ; il sort. */
-function orderedNeeds(needs: PlausibleNeed[]): PlausibleNeed[] {
-  const named = needs.filter((need) => need.label !== null)
-  const targeted = named.filter((need) => need.targeted_by_your_profile)
-  const rest = named.filter((need) => !need.targeted_by_your_profile)
-  return [...targeted, ...rest].slice(0, MAX_ITEMS)
 }
 
 export function SignalDrawer({
@@ -111,9 +97,6 @@ export function SignalDrawer({
   const reasons = item.analysis.fit.for_you_sentence
     ? [item.analysis.fit.for_you_sentence]
     : []
-  const needs = orderedNeeds(item.analysis.plausible_needs.items).filter((need) =>
-    need.timing_status === 'determined' || need.quantity_status === 'determined',
-  )
   const calendarMonth = item.commercial_calendar
     ? monthLabel(item.commercial_calendar.start_month, locale)
     : null
@@ -249,19 +232,6 @@ export function SignalDrawer({
             <small>{item.holder_history.resolution_note}</small>
           ) : null}
           <small>{copy.publicAwardsSource}</small>
-        </section>
-      ) : null}
-
-      {needs.length > 0 ? (
-        <section className={styles.needs}>
-          <h3 className="section-label">{copy.needs}</h3>
-          <ul>
-            {needs.map((need) => (
-              <li key={`${need.category ?? 'need'}-${need.label}`}>
-                {need.timing_label ? `${need.label} · ${need.timing_label}` : need.label}
-              </li>
-            ))}
-          </ul>
         </section>
       ) : null}
 

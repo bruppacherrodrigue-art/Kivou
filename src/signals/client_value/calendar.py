@@ -52,14 +52,18 @@ def commercial_calendar(
     duration_value: int | None,
     duration_unit: str | None,
     delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
+    contract_start_date: dt.date | None = None,
 ) -> CommercialCalendar | None:
-    """Rend le calendrier probable, ou rien quand la notification manque."""
-    if notification_date is None:
+    """Rend le calendrier publié ou probable, sans compléter une date absente."""
+    if contract_start_date is not None:
+        start = contract_start_date
+    elif notification_date is not None:
+        start = _add_months(
+            notification_date,
+            _delay_for_cpv(cpv_code, delay_months_by_cpv_prefix or {}),
+        )
+    else:
         return None
-    start = _add_months(
-        notification_date,
-        _delay_for_cpv(cpv_code, delay_months_by_cpv_prefix or {}),
-    )
     result: CommercialCalendar = {
         "start_month": start.strftime("%Y-%m"),
         "source": "public_notice",

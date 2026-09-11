@@ -337,6 +337,7 @@ describe('CompaniesPage', () => {
         city: 'Villeneuve',
         employees: 48,
         website_url: 'https://constructions-bertrand.example/',
+        website_source: 'serper',
         directors: [{ name: 'Alice Martin', title: 'Présidente' }],
         source: 'registre',
         removal_path: '/contact',
@@ -364,6 +365,8 @@ describe('CompaniesPage', () => {
       'href',
       'https://constructions-bertrand.example/',
     )
+    expect(screen.getByText('Source du site : moteur de recherche')).toBeVisible()
+    expect(screen.getByText('Source : registre')).toBeVisible()
     expect(screen.getByText('Alice Martin')).toBeVisible()
     expect(screen.getByText('Présidente')).toBeVisible()
     expect(screen.getByText('1,5 marché par trimestre')).toBeVisible()

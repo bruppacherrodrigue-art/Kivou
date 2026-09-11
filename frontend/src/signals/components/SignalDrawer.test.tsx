@@ -89,12 +89,6 @@ function fact(label: string): string {
   return flat(value.textContent)
 }
 
-function listOf(heading: string): string[] {
-  const block = screen.getByText(heading).closest('section')
-  if (!block) throw new Error(`Aucun bloc « ${heading} »`)
-  return within(block).getAllByRole('listitem').map((entry) => flat(entry.textContent))
-}
-
 describe('SignalDrawer', () => {
   it('masque le bloc des besoins quand timing et quantité sont indéterminés', () => {
     renderDrawer({ signal: withNeeds([need({ timing: null, timing_label: null, timing_status: null, quantity_status: null })]) })
@@ -293,7 +287,6 @@ describe('SignalDrawer', () => {
     expect(headings).toEqual([
       'Calendrier',
       'Historique du titulaire',
-      'Ce que le titulaire va devoir faire',
       'Le circuit local',
       'Pour vous',
     ])
@@ -427,7 +420,7 @@ describe('SignalDrawer', () => {
     expect(container.querySelector('aside')).toHaveAttribute('aria-label', label)
   })
 
-  it('rend les besoins impliqués, ceux que le profil vise en premier', () => {
+  it('ne présente pas les inférences métier comme des exigences du dossier', () => {
     renderDrawer({
       signal: withNeeds([
         need({ label: 'Transport', targeted_by_your_profile: false, timing_label: 'Moyen terme' }),
@@ -437,22 +430,7 @@ describe('SignalDrawer', () => {
       ]),
     })
 
-    expect(listOf('Ce que le titulaire va devoir faire')).toEqual([
-      'Matériaux · Court terme',
-      'Transport · Moyen terme',
-      'Protections',
-    ])
-  })
-
-  it('écarte un besoin sans libellé', () => {
-    renderDrawer({
-      signal: withNeeds([
-        need({ label: null, targeted_by_your_profile: true }),
-        need({ label: 'Matériaux', targeted_by_your_profile: false, timing_label: null }),
-      ]),
-    })
-
-    expect(listOf('Ce que le titulaire va devoir faire')).toEqual(['Matériaux'])
+    expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
   })
 
   it('retire le bloc des besoins quand aucun n’est publié', () => {

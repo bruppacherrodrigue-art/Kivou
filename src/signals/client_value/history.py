@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from statistics import median
@@ -11,6 +12,7 @@ from typing import Any, Literal
 
 import sqlalchemy as sa
 
+from signals.companies.contracts import safe_https_url
 from signals.companies.schema import saas_company
 from signals.domain.french_departments import NUTS3_DEPARTMENTS, location_subdivision
 from signals.feed.text import normalize_text
@@ -124,6 +126,13 @@ def _normalized(value: str | None) -> str:
     return " ".join(normalize_text(value or "").split())
 
 
+def _safe_source_url(value: str | None) -> str | None:
+    try:
+        return safe_https_url(value)
+    except ValueError:
+        return None
+
+
 def _winner_names(parties: list[dict[str, Any]] | None) -> tuple[str, ...]:
     return tuple(
         name
@@ -185,6 +194,71 @@ def _award_rows(connection: sa.Connection, *, identity_fingerprint: str | None):
     return connection.execute(statement.order_by(contract_award.c.award_key)).mappings()
 
 
+def _fallback_award_rows(
+    connection: sa.Connection,
+    *,
+    winner_name: str,
+    department: str,
+) -> tuple[Mapping[str, Any], ...]:
+    wanted_name = _normalized(winner_name)
+    if not wanted_name or not department:
+        return ()
+    return tuple(
+        row
+        for row in _award_rows(connection, identity_fingerprint=None)
+        if department_for_place(row["place_of_performance"]) == department
+        and wanted_name
+        in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
+    )
+
+
+def _award_facts(rows: Iterable[Mapping[str, Any]]) -> tuple[AwardFact, ...]:
+    return tuple(
+        AwardFact(
+            award_key=row["award_key"],
+            known_date=(
+                row["award_date"]
+                or row["contract_notification_date"]
+                or row["published_on"]
+            ),
+            amount=(None if row["amount"] is None else Decimal(str(row["amount"]))),
+            currency=row["currency"],
+            buyer_names=_buyer_names(row["procedure_buyers"]),
+            is_consortium=_is_consortium(row["awardee_parties"]),
+        )
+        for row in rows
+    )
+
+
+def _markets_from_rows(
+    rows: Iterable[Mapping[str, Any]], *, limit: int
+) -> tuple[dict[str, Any], ...]:
+    matches: list[tuple[dt.date | None, str, dict[str, Any]]] = []
+    for row in rows:
+        known_date = row["award_date"] or row["contract_notification_date"] or row["published_on"]
+        market: dict[str, Any] = {
+            "market_id": row["award_key"],
+            "source": "public_awards",
+        }
+        optional = {
+            "title": row["title"],
+            "date": known_date.isoformat() if known_date is not None else None,
+            "source_url": _safe_source_url(row["source_url"]),
+        }
+        market.update({key: value for key, value in optional.items() if value})
+        if row["amount"] is not None and row["currency"]:
+            market["amount"] = {
+                "value": _decimal(Decimal(str(row["amount"]))),
+                "currency": row["currency"],
+            }
+        buyers = _buyer_names(row["procedure_buyers"])
+        if buyers:
+            market["buyers"] = list(buyers)
+        matches.append((known_date, row["award_key"], market))
+    matches.sort(key=lambda item: (item[0] or dt.date.min, item[1]), reverse=True)
+    return tuple(market for _date, _key, market in matches[:limit])
+
+
 def history_for_company(
     connection: sa.Connection,
     *,
@@ -207,27 +281,16 @@ def history_for_company(
     if fingerprint is None and (not _normalized(winner_name) or not department):
         return None
 
-    selected: dict[str, AwardFact] = {}
-    wanted_name = _normalized(winner_name)
-    for row in _award_rows(connection, identity_fingerprint=fingerprint):
-        if fingerprint is None and (
-            department_for_place(row["place_of_performance"]) != department
-            or wanted_name not in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
-        ):
-            continue
-        selected[row["award_key"]] = AwardFact(
-            award_key=row["award_key"],
-            known_date=(
-                row["award_date"]
-                or row["contract_notification_date"]
-                or row["published_on"]
-            ),
-            amount=(None if row["amount"] is None else Decimal(str(row["amount"]))),
-            currency=row["currency"],
-            buyer_names=_buyer_names(row["procedure_buyers"]),
-            is_consortium=_is_consortium(row["awardee_parties"]),
+    rows = (
+        tuple(_award_rows(connection, identity_fingerprint=fingerprint))
+        if fingerprint is not None
+        else _fallback_award_rows(
+            connection,
+            winner_name=winner_name or "",
+            department=department or "",
         )
-    return summarize_awards(tuple(selected.values()), as_of=as_of, resolution=resolution)
+    )
+    return summarize_awards(_award_facts(rows), as_of=as_of, resolution=resolution)
 
 
 def markets_for_company(
@@ -239,43 +302,43 @@ def markets_for_company(
 ) -> tuple[dict[str, Any], ...]:
     """List the public awards matched to a name and department."""
 
-    wanted_name = _normalized(winner_name)
-    if not wanted_name or not department:
-        return ()
-    matches: list[tuple[dt.date | None, str, dict[str, Any]]] = []
-    for row in _award_rows(connection, identity_fingerprint=None):
-        if (
-            department_for_place(row["place_of_performance"]) != department
-            or wanted_name not in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
-        ):
-            continue
-        known_date = row["award_date"] or row["contract_notification_date"] or row["published_on"]
-        market: dict[str, Any] = {
-            "market_id": row["award_key"],
-            "source": "public_awards",
-        }
-        optional = {
-            "title": row["title"],
-            "date": known_date.isoformat() if known_date is not None else None,
-            "source_url": row["source_url"],
-        }
-        market.update({key: value for key, value in optional.items() if value})
-        if row["amount"] is not None and row["currency"]:
-            market["amount"] = {
-                "value": _decimal(Decimal(str(row["amount"]))),
-                "currency": row["currency"],
-            }
-        buyers = _buyer_names(row["procedure_buyers"])
-        if buyers:
-            market["buyers"] = list(buyers)
-        matches.append((known_date, row["award_key"], market))
-    matches.sort(key=lambda item: (item[0] or dt.date.min, item[1]), reverse=True)
-    return tuple(market for _date, _key, market in matches[:limit])
+    rows = _fallback_award_rows(
+        connection,
+        winner_name=winner_name,
+        department=department,
+    )
+    return _markets_from_rows(rows, limit=limit)
+
+
+def directory_history_and_markets(
+    connection: sa.Connection,
+    *,
+    winner_name: str,
+    department: str,
+    as_of: dt.date,
+    limit: int = 100,
+) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
+    """Read a directory company's summary and list from one award scan."""
+
+    rows = _fallback_award_rows(
+        connection,
+        winner_name=winner_name,
+        department=department,
+    )
+    return (
+        summarize_awards(
+            _award_facts(rows),
+            as_of=as_of,
+            resolution="normalized_name_department",
+        ),
+        _markets_from_rows(rows, limit=limit),
+    )
 
 
 __all__ = [
     "AwardFact",
     "department_for_place",
+    "directory_history_and_markets",
     "history_for_company",
     "markets_for_company",
     "summarize_awards",

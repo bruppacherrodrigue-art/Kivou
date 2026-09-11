@@ -29,7 +29,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
-from signals.persistence.schema import for_you_sentence, materialized_signal
+from signals.persistence.schema import contract_award, for_you_sentence, materialized_signal
 
 #: §8 — aucun de ces mots n'a le droit d'apparaître dans une réponse client.
 FORBIDDEN_CERTAINTY = (
@@ -71,7 +71,11 @@ def engine(migrated_sqlite_engine):
 
 
 def app_for(
-    engine, locale: str = "fr", *, generated_for_you_enabled: bool = True
+    engine,
+    locale: str = "fr",
+    *,
+    generated_for_you_enabled: bool = True,
+    commercial_start_delay_months_by_cpv_prefix: dict[str, int] | None = None,
 ) -> TestClient:
     app = create_app(
         engine,
@@ -80,6 +84,9 @@ def app_for(
             allowed_origin=ORIGIN,
             session_ttl=dt.timedelta(days=365),
             generated_for_you_enabled=generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                commercial_start_delay_months_by_cpv_prefix or {}
+            ),
         ),
         now_override=Clock(),
     )
@@ -313,6 +320,27 @@ def test_generated_for_you_sentence_falls_back_when_the_flag_is_disabled(engine)
     sentence = detail(client, signal.signal_key)["analysis"]["fit"]["for_you_sentence"]
 
     assert sentence != "Votre offre accompagne les besoins vérifiés de ce titulaire."
+
+
+def test_configured_cpv_delay_reaches_the_feed_and_signal_detail(engine) -> None:
+    client = app_for(
+        engine,
+        commercial_start_delay_months_by_cpv_prefix={"60": 5},
+    )
+    icp = icp_of(client)
+    with engine.begin() as connection:
+        signal = materialize_boamp(connection, BOAMP_AGING, target_icp_id=icp)
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == signal.materialization_award_key)
+            .values(contract_notification_date=dt.date(2026, 8, 20))
+        )
+
+    feed = client.get("/signals?freshness=all").json()
+    feed_item = next(item for item in feed["items"] if item["signal_id"] == signal.signal_key)
+
+    assert feed_item["commercial_calendar"]["start_month"] == "2027-01"
+    assert detail(client, signal.signal_key)["commercial_calendar"]["start_month"] == "2027-01"
 
 
 def test_generated_for_you_sentence_requires_a_strong_match(client, engine, rich):

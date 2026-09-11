@@ -8,7 +8,7 @@ Le bloc Contact est volontairement séparé. Il ne sera construit qu'après conf
 
 ## Read-models
 
-`signals.client_value.calendar` calcule un mois de démarrage depuis la date de notification et un délai configurable par préfixe CPV, avec deux mois par défaut. Il restitue la durée publiée en mois lorsqu'elle est convertible. Le bloc est absent si aucune date de notification ou de démarrage n'est publiée.
+`signals.client_value.calendar` utilise d'abord la date de démarrage publiée. À défaut, il calcule un mois depuis la date de notification et un délai configurable par préfixe CPV avec `KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON` (par exemple `{"45": 3, "452331": 5}`), avec deux mois par défaut. Il restitue la durée publiée en mois lorsqu'elle est convertible. Le bloc est absent si aucune date de notification ou de démarrage n'est publiée.
 
 `signals.client_value.history` lit les attributions existantes. Avec une `company_key`, il utilise l'empreinte d'identité déjà projetée; sinon il rapproche le nom normalisé et le département et marque explicitement ce repli. Il déduplique les contrats, calcule le nombre et les montants des douze derniers mois, la première attribution connue, la cadence trimestrielle, la médiane par devise, la part des groupements et les acheteurs récurrents. Une valeur impossible à établir est omise.
 
@@ -18,7 +18,7 @@ Le bloc Contact est volontairement séparé. Il ne sera construit qu'après conf
 
 Les cartes déverrouillées reçoivent un objet `commercial_calendar` facultatif afin que la carte Aujourd'hui et le drawer partagent la même donnée. Le détail d'un signal ajoute `holder_history` et `local_circuit`; la fiche titulaire ajoute `directory` et `market_summary`. Une route `/companies/directory/{siren}` sert la fiche non titulaire aux seuls comptes connectés. Les réponses verrouillées ne reçoivent aucun de ces champs.
 
-Chaque bloc nomme une seule source. Les données d'attribution pointent vers les avis publics; les données d'annuaire affichent « registre » et une procédure de suppression. Aucun e-mail nominatif de l'annuaire ne traverse cette API. Les URL non HTTPS et les champs absents sont omis.
+Chaque groupe de données nomme sa propre source. Les données d'attribution pointent vers les avis publics; les données d'annuaire affichent « registre » et une procédure de suppression; le site indique séparément sa provenance enregistrée. Aucun e-mail nominatif de l'annuaire ne traverse cette API. Les URL non HTTPS et les champs absents sont omis dès la réponse backend.
 
 ## Phrase « Pour vous »
 
@@ -26,7 +26,7 @@ Chaque bloc nomme une seule source. Les données d'attribution pointent vers les
 
 ## Interface
 
-Le drawer conserve ses composants et suit cet ordre : statut et correspondance, titre, grille, calendrier, historique du titulaire, exigences existantes, circuit local, Pour vous, actions, source. Chaque section disparaît quand son read-model est absent.
+Le drawer conserve ses composants et suit cet ordre : statut et correspondance, titre, grille, calendrier, historique du titulaire, exigences du dossier lorsqu'une preuve DCE avec document et page existe, circuit local, Pour vous, actions, source. Chaque section disparaît quand son read-model est absent. L'audit de production du 11 septembre 2026 a trouvé 634 documents, mais aucun lien document-procédure et aucune exigence classifiée : l'ancien bloc dérivé des seules métadonnées est donc retiré pour ne pas présenter une inférence comme une exigence du dossier.
 
 La fiche titulaire suit l'ordre identité et annuaire, synthèse des marchés, Contact lorsqu'il sera disponible, marchés, notes, historique. La fiche annuaire réutilise le bloc d'identité et d'annuaire et affiche les marchés publics trouvés, sans contrôles CRM propres à un titulaire du compte.
 

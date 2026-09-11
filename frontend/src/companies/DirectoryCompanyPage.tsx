@@ -46,6 +46,7 @@ export function DirectoryCompanyPage() {
         <DirectoryFacts
           directory={profile.directory}
           identityIdentifier={`SIREN ${profile.directory.siren}`}
+          identitySource="registre"
         />
         <MarketSummaryBlock summary={profile.market_summary} />
         <section>

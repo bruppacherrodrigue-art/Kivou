@@ -8,6 +8,7 @@ exactement le défaut que ce module ferme.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 import sqlalchemy as sa
@@ -55,6 +56,7 @@ def render_unlocked_card(
     enrichment: WinnerEnrichmentView | None,
     status: str,
     generated_for_you_enabled: bool | None = None,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """The full card for a signal this account can already see (§16 unlocked).
 
@@ -67,6 +69,9 @@ def render_unlocked_card(
         lang=lang,
         presentation=presentation,
         generated_for_you_enabled=generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            commercial_start_delay_months_by_cpv_prefix
+        ),
     )
     card["locked"] = False
     card["status"] = status
