@@ -977,3 +977,43 @@ def test_one_hundred_company_fixture_processing_is_measured_without_sla(engine) 
     assert result.run.opportunities_created == 100
     assert len(result.opportunity_ids) == 100
     print(f"supplier_discovery_100_elapsed_seconds={elapsed:.6f}")
+
+
+def test_resolver_continues_until_the_cycle_has_twenty_five_usable_suppliers(engine) -> None:
+    candidates = tuple(
+        ApolloOrganizationCandidate(
+            provider_organization_id=f"apollo-org-{index:03d}",
+            display_name=f"Supplier {index:03d} SA",
+            normalized_name=f"supplier {index:03d} sa",
+            primary_domain=f"supplier-{index:03d}.example",
+            provider_observed_at=NOW,
+            source_fingerprint=f"{index:064x}",
+        )
+        for index in range(30)
+    )
+    examined: list[str] = []
+
+    def usable(candidate) -> bool:
+        examined.append(candidate.provider_organization_id)
+        return int(candidate.provider_organization_id.rsplit("-", 1)[-1]) >= 5
+
+    service = SupplierDiscoveryService(
+        engine,
+        provider=FakeProvider([page(*candidates, total_entries=30)]),
+        profile_resolver=profile_resolver,
+        organization_resolver=usable,
+    )
+    result = service.discover(
+        "public-1",
+        SupplierTargetingConfig(max_pages=1, per_page=100, candidate_cap=25),
+        authorization("eval-fill-cycle-25"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-fill-cycle-25",
+        correlation_id="corr-fill-cycle-25",
+    )
+
+    assert result.run is not None
+    assert result.run.records_accepted == 25
+    assert len(result.opportunity_ids) == 25
+    assert len(examined) == 30

@@ -393,8 +393,6 @@ class SupplierDiscoveryService:
                     opportunity_created
                 )
                 opportunity_ids.append(opportunity_id)
-                if self._organization_resolver is not None:
-                    break
             if (
                 int(counters["records_accepted"]) >= profile.candidate_cap
                 or page_number >= page.total_pages
