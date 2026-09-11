@@ -116,7 +116,6 @@ def test_capability_is_exactly_staging_qa_shadow_with_eleven_dependencies() -> N
     "updates",
     (
         {"environment": "UNCONFIGURED"},
-        {"mode": "ASSISTED"},
         {"native_tools": 1},
         {"commands": tuple(stage.command for stage in AcquisitionRuntimeStage)[:-1]},
         {
@@ -151,6 +150,12 @@ def test_production_capability_evidence_is_now_representable() -> None:
     )
     assert all(item.status is RuntimeDependencyState.READY for item in observed.dependencies)
     assert len(observed.fingerprint) == 64
+
+
+def test_assisted_capability_evidence_is_representable() -> None:
+    observed = capability(mode="ASSISTED")
+
+    assert observed.mode.value == "ASSISTED"
 
 
 def test_dependency_status_is_closed_and_requires_a_bounded_failure_reason() -> None:

@@ -15,6 +15,8 @@ NGINX_DIR = ROOT / "ops" / "nginx"
 PUBLIC_ASGI_ROUTES = frozenset(
     {
         ("GET", "/a/{token}"),
+        ("GET", "/unsubscribe/{token}"),
+        ("POST", "/unsubscribe/{token}"),
         ("GET", "/account/export"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
@@ -75,6 +77,7 @@ EXPECTED_PROXY_SELECTORS = frozenset(
         "= /webhooks/stripe",
         "= /webhooks/instantly",
         "^~ /a/",
+        "^~ /unsubscribe/",
     }
 )
 
@@ -497,6 +500,24 @@ def test_https_attribution_is_sensitive_and_preserves_its_proxy_contract() -> No
     )
 
 
+def test_unsubscribe_link_is_public_redacted_and_not_kill_switched() -> None:
+    no_referrer = 'add_header Referrer-Policy "no-referrer" always;'
+    for listen_directive in ("listen 80;", "listen 443 ssl http2;"):
+        location = _only_location(
+            _only_server(listen_directive), "^~ /unsubscribe/"
+        )
+        directives = _directives(location.body)
+        assert not any("sensitive-links-gate" in item for item in directives)
+        assert "error_log /dev/null crit;" in directives
+        if listen_directive == "listen 80;":
+            assert no_referrer in directives
+            assert "return 301 https://STAGING_HOST$request_uri;" in directives
+        else:
+            assert "include /etc/nginx/kivou-sensitive-link-security-headers.conf;" in directives
+            assert "proxy_hide_header Referrer-Policy;" in directives
+            assert "proxy_pass http://127.0.0.1:KIVOU_API_PORT;" in directives
+
+
 def test_https_reset_page_is_sensitive_no_cache_and_not_a_generic_spa_route() -> None:
     https = _only_server("listen 443 ssl http2;")
     reset = _only_location(https, "= /reset-password")
@@ -534,7 +555,7 @@ def test_sensitive_locations_have_one_effective_no_referrer_policy() -> None:
         server = _only_server(listen_directive)
         locations.extend(
             _only_location(server, selector)
-            for selector in ("^~ /a/", "= /reset-password")
+            for selector in ("^~ /a/", "^~ /unsubscribe/", "= /reset-password")
         )
 
     for location in locations:
@@ -592,7 +613,7 @@ def test_sensitive_routes_leave_ordinary_location_contracts_unchanged() -> None:
     )
 
     for location in _proxy_locations():
-        if location.selector == "^~ /a/":
+        if location.selector in {"^~ /a/", "^~ /unsubscribe/"}:
             continue
         directives = _directives(location.body)
         assert not any(
@@ -901,6 +922,7 @@ def test_safe_path_map_redacts_attribution_and_uses_normalized_uri_elsewhere() -
         limits, "$uri", "$kivou_safe_path_map"
     ) == (
         "~^/a/ /a/[redacted];",
+        "~^/unsubscribe/ /unsubscribe/[redacted];",
         "/reset-password /reset-password;",
         "default $uri;",
     )
