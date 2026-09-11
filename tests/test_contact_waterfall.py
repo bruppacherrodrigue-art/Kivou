@@ -501,6 +501,53 @@ def test_website_records_contact_form_without_published_email() -> None:
     assert recorded == [("123456789", "https://beton-alpes.fr/contact", NOW)]
 
 
+def test_website_accepts_cross_domain_address_published_on_confirmed_site() -> None:
+    recorded = []
+
+    class Directors:
+        def find(self, _siren):
+            return ()
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://altrad-prezioso.fr/contact",
+                    text="Contact : accueil@altrad.com",
+                    published_emails=("accueil@altrad.com",),
+                ),
+            )
+
+    class Directory:
+        def record_email(self, siren, **values):
+            recorded.append((siren, values))
+            return True
+
+    class Deliverability:
+        def verify(self, _email):
+            return True
+
+    contact = PublishedWebsiteContactProvider(
+        directors=Directors(),
+        pages=Pages(),
+        extractor=object(),
+        deliverability=Deliverability(),
+        directory=Directory(),
+    ).find(
+        _profile().model_copy(
+            update={
+                "organization_name": "ALTRAD PREZIOSO",
+                "organization_domain": "altrad-prezioso.fr",
+            }
+        ),
+        observed_at=NOW,
+    )
+
+    assert contact is not None
+    assert contact.business_email == "accueil@altrad.com"
+    assert recorded[0][1]["evidence_url"] == "https://altrad-prezioso.fr/contact"
+
+
 def test_website_does_not_record_third_party_contact_form() -> None:
     recorded = []
 

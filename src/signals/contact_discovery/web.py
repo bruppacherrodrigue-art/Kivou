@@ -282,22 +282,22 @@ class PublishedWebsiteContactProvider:
         evidence = self._pages.fetch(profile.organization_domain)
         if not evidence:
             return None
-        candidates = tuple(
-            str(email)
+        published = tuple(
+            (str(email), page.url)
             for page in evidence
             for email in page.published_emails
-            if coherent_email_domain(str(email), evidence)
         )
-        email = next(
+        selected = next(
             (
                 candidate
-                for candidate in dict.fromkeys(candidates)
-                if self._deliverability.verify(candidate)
+                for candidate in dict.fromkeys(published)
+                if self._deliverability.verify(candidate[0])
             ),
             None,
         )
+        email, evidence_url = selected if selected is not None else (None, None)
         extracted_email = None
-        if email is None and not candidates:
+        if email is None and not published:
             extract = getattr(self._extractor, "extract", None)
             extraction = (
                 extract(
@@ -315,6 +315,10 @@ class PublishedWebsiteContactProvider:
                 and self._deliverability.verify(extracted_email)
             ):
                 email = extracted_email
+                evidence_url = next(
+                    (page.url for page in evidence if extracted_email in page.published_emails),
+                    None,
+                )
         if email is None:
             form = next((page for page in evidence if page.has_contact_form), None)
             form_recorded = False
@@ -334,7 +338,7 @@ class PublishedWebsiteContactProvider:
                     "siren": profile.supplier_siren,
                     "reason": (
                         "mx invalide"
-                        if candidates or extracted_email
+                        if published or extracted_email
                         else "contact par formulaire"
                         if form_recorded
                         else "pas d'adresse publiée"
@@ -342,6 +346,17 @@ class PublishedWebsiteContactProvider:
                 },
             )
             return None
+        if self._directory is not None:
+            self._directory.record_email(
+                profile.supplier_siren,
+                email=email,
+                source="site",
+                verification_status="mx_verified",
+                contact_name=(directors[0].name if directors else profile.organization_name or "Entreprise"),
+                contact_title=(directors[0].title if directors else "Entreprise"),
+                evidence_url=evidence_url,
+                observed_at=observed_at,
+            )
         physical_directors = tuple(
             item for item in directors if item.entity_type == "personne physique"
         )

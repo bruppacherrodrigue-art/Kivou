@@ -76,6 +76,7 @@ class SupplierDirectoryPrivacyService:
                     email_verification_status=None,
                     email_contact_name=None,
                     email_contact_title=None,
+                    email_evidence_url=None,
                     email_observed_at=received_at,
                     suppressed_at=received_at,
                     updated_at=received_at,

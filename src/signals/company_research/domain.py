@@ -101,6 +101,10 @@ class DomainResolution(BaseModel):
     observed_at: dt.datetime
 
 
+class DomainResolutionTemporaryFailure(RuntimeError):
+    """A lookup could not complete; it is not evidence that no website exists."""
+
+
 class DomainSource(Protocol):
     def __call__(self, identity: SireneOrganizationCandidate) -> DomainResolution | None: ...
 
@@ -319,6 +323,8 @@ class SerperDomainSearchClient:
             raise ValueError("Serper API key is required")
         self._api_key = api_key
         self._client = client or httpx.Client(timeout=15.0, follow_redirects=False)
+        self.search_queries_completed = 0
+        self.search_results_examined = 0
 
     def __call__(self, identity: SireneOrganizationCandidate) -> DomainResolution | None:
         candidates = self.candidates(identity)
@@ -333,6 +339,8 @@ class SerperDomainSearchClient:
     def candidate_batches(
         self, identity: SireneOrganizationCandidate
     ) -> Iterator[tuple[DomainResolution, ...]]:
+        self.search_queries_completed = 0
+        self.search_results_examined = 0
         name = normalized_organization_name(identity.display_name)
         city = normalized_city(identity.location or "")
         queries = tuple(
@@ -345,17 +353,23 @@ class SerperDomainSearchClient:
             )
         )
         for query in queries:
-            response = self._client.post(
-                SERPER_SEARCH_URL,
-                json={"q": query, "gl": "fr", "hl": "fr", "num": 10},
-                headers={"x-api-key": self._api_key, "content-type": "application/json"},
-            )
-            if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
-                continue
-            payload = response.json()
+            try:
+                response = self._client.post(
+                    SERPER_SEARCH_URL,
+                    json={"q": query, "gl": "fr", "hl": "fr", "num": 10},
+                    headers={"x-api-key": self._api_key, "content-type": "application/json"},
+                )
+                if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
+                    raise DomainResolutionTemporaryFailure("Serper lookup did not complete")
+                payload = response.json()
+            except (httpx.HTTPError, ValueError) as error:
+                raise DomainResolutionTemporaryFailure("Serper lookup did not complete") from error
             organic = payload.get("organic") if isinstance(payload, dict) else None
-            if not isinstance(organic, list) or len(organic) > 10:
-                continue
+            if not isinstance(organic, list):
+                raise DomainResolutionTemporaryFailure("Serper response is invalid")
+            organic = organic[:10]
+            self.search_queries_completed += 1
+            self.search_results_examined += len(organic)
             candidates: list[DomainResolution] = []
             for item in organic:
                 if not isinstance(item, dict):
@@ -396,6 +410,14 @@ class CompanyDomainResolver:
         self._serper = serper
         self._registration = registration or (lambda _resolution, _identity: None)
         self._clock = clock
+
+    @property
+    def search_queries_completed(self) -> int:
+        return int(getattr(self._serper, "search_queries_completed", 0))
+
+    @property
+    def search_results_examined(self) -> int:
+        return int(getattr(self._serper, "search_results_examined", 0))
 
     def resolve(self, identity: SireneOrganizationCandidate) -> DomainResolution | None:
         for source in (self._official, self._serper):
@@ -479,6 +501,7 @@ __all__ = [
     "CompanyDomainResolver",
     "CompanyWebsiteRegistrationClient",
     "DomainResolution",
+    "DomainResolutionTemporaryFailure",
     "SerperDomainSearchClient",
     "rejected_supplier_domain",
 ]
