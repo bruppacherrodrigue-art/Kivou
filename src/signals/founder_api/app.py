@@ -13,11 +13,13 @@ from signals.founder_api.access import FounderIdentityDependency
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
 from signals.founder_api.prospection import FounderDirectoryStatus, FounderProspection
+from signals.founder_api.prospection_actions import build_prospection_actions_router
 from signals.founder_api.read_models import (
     FounderConsoleOverview,
     FounderProcedureDocumentReview,
     FounderReadService,
 )
+from signals.prospection_actions.service import ProspectionActions
 
 
 def create_founder_app(
@@ -25,8 +27,9 @@ def create_founder_app(
     *,
     now_override: Callable[[], dt.datetime] | None = None,
     read_service: FounderReadService | None = None,
+    prospection_actions: ProspectionActions | None = None,
 ) -> FastAPI:
-    """Build the Founder API without mounting any customer or write route."""
+    """Build the isolated Founder API with an optional least-privilege action service."""
 
     app = FastAPI(
         title="Kivou Founder Control",
@@ -38,6 +41,9 @@ def create_founder_app(
     app.state.config = config
     app.state.now_override = now_override
     app.state.read_service = read_service
+    app.state.prospection_actions = prospection_actions
+    if prospection_actions is not None:
+        app.include_router(build_prospection_actions_router(prospection_actions))
 
     def now() -> dt.datetime:
         return now_override() if now_override is not None else dt.datetime.now(dt.UTC)
