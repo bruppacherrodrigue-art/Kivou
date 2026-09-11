@@ -205,11 +205,12 @@ sync_systemd_units() {
   if [[ "$KIVOU_ENVIRONMENT" == "production" ]]; then
     unit_dir="$unit_dir/production"
   else
-    [[ -x "$release_dir/ops/bin/kivou-disk-maintenance" ]] \
-      || fail "helper de maintenance disque introuvable"
-    install -o root -g root -m 0755 \
-      "$release_dir/ops/bin/kivou-disk-maintenance" \
-      /usr/local/sbin/kivou-disk-maintenance
+    for helper in kivou-disk-alert kivou-disk-maintenance; do
+      [[ -x "$release_dir/ops/bin/$helper" ]] \
+        || fail "helper disque introuvable : $helper"
+      install -o root -g root -m 0755 \
+        "$release_dir/ops/bin/$helper" "/usr/local/sbin/$helper"
+    done
   fi
   [[ -d "$unit_dir" ]] || fail "unités systemd introuvables : $unit_dir"
 
