@@ -146,11 +146,16 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == PROSPECT_MAIL_REVISION
+    assert set(script.get_revision(CURRENT_HEAD).down_revision) == {
+        COMPANY_ENRICHMENT_REVISION,
+        COMPANY_CONTACT_REVISION,
+    }
     assert (
-        script.get_revision(PROSPECT_MAIL_REVISION).down_revision
-        == SUPPLIER_ACTIVITY_REVISION
+        script.get_revision(COMPANY_ENRICHMENT_REVISION).down_revision
+        == PROSPECT_MAIL_REVISION
     )
+    assert script.get_revision(PROSPECT_MAIL_REVISION).down_revision == SUPPLIER_ACTIVITY_REVISION
+    assert script.get_revision(COMPANY_CONTACT_REVISION).down_revision == SUPPLIER_ACTIVITY_REVISION
     assert (
         script.get_revision(SUPPLIER_ACTIVITY_REVISION).down_revision
         == ASSISTED_OBSERVATION_REVISION
