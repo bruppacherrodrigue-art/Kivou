@@ -172,3 +172,44 @@ def test_sirene_search_paginates_until_limit_after_invalid_matches() -> None:
 
     assert pages == [1, 2]
     assert [company.legal_name for company in result] == ["Centrale locale"]
+
+
+def test_sirene_search_accepts_one_hundred_and_sorts_by_employee_count() -> None:
+    pages: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        page = int(request.url.params["page"])
+        pages.append(page)
+        start = (page - 1) * 25
+        results = []
+        for index in range(start, min(start + 25, 100)):
+            tranche = ("03", "11", "12", "21")[index % 4]
+            siren = f"{100_000_000 + index:09d}"
+            results.append(
+                {
+                    "nom_raison_sociale": f"Entreprise {index:03d}",
+                    "siren": siren,
+                    "activite_principale": "43.99C",
+                    "tranche_effectif_salarie": tranche,
+                    "matching_etablissements": [
+                        {
+                            "siret": f"{siren}00010",
+                            "code_postal": "69001",
+                            "libelle_commune": "Lyon",
+                            "activite_principale": "43.99C",
+                            "etat_administratif": "A",
+                        }
+                    ],
+                }
+            )
+        return httpx.Response(200, json={"results": results, "total_results": 100})
+
+    result = SireneCompanySearch(transport=httpx.MockTransport(handler)).find(
+        SireneSearchCriteria(naf_codes=("43.99C",), departments=("69",), limit=100)
+    )
+
+    assert pages == [1, 2, 3, 4]
+    assert len(result) == 100
+    assert [company.employees or 0 for company in result] == sorted(
+        (company.employees or 0 for company in result), reverse=True
+    )

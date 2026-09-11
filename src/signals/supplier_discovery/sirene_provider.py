@@ -70,7 +70,7 @@ class SireneOrganizationSearchProvider:
                         departments=profile.sirene_departments,
                         min_employees=5,
                         max_employees=250,
-                        limit=25,
+                        limit=100,
                     )
                 )
             )

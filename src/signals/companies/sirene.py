@@ -104,8 +104,8 @@ class SireneCompanySearch:
     def find(self, criteria: SireneSearchCriteria) -> tuple[SireneCompany, ...]:
         if not criteria.naf_codes or not criteria.departments:
             raise ValueError("SIRENE search requires NAF codes and departments")
-        if not 1 <= criteria.limit <= 25:
-            raise ValueError("SIRENE search limit must be between 1 and 25")
+        if not 1 <= criteria.limit <= 100:
+            raise ValueError("SIRENE search limit must be between 1 and 100")
         ranges = tuple(
             code
             for code, upper in _TRANCHE_MAX.items()
@@ -194,8 +194,8 @@ class SireneCompanySearch:
         }
         found.sort(
             key=lambda company: (
-                department_rank.get(company.department or "", len(department_rank)),
                 -(company.employees or 0),
+                department_rank.get(company.department or "", len(department_rank)),
                 company.legal_name.casefold(),
                 company.siren,
             )
