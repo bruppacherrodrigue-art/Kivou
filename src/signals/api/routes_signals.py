@@ -55,6 +55,7 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.client_value.directory import local_circuit
 from signals.client_value.history import department_for_place, history_for_company
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.companies.enrichment import winner_enrichments_for_signals
@@ -505,6 +506,7 @@ def get_signal(
     enrichment = None
     presentation = None
     holder_history = None
+    circuit = ()
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
@@ -594,6 +596,13 @@ def get_signal(
                     department=department_for_place(item.signal.award.place_of_performance),
                     as_of=as_of,
                 )
+                place = item.signal.award.place_of_performance or {}
+                circuit = local_circuit(
+                    connection,
+                    target_icp_id=item.signal.target_icp_id,
+                    department=department_for_place(item.signal.award.place_of_performance),
+                    city=place.get("locality"),
+                )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -625,6 +634,8 @@ def get_signal(
             detail["company"]["name"] = enrichment.official_name
     if holder_history is not None:
         detail["holder_history"] = holder_history
+    if circuit:
+        detail["local_circuit"] = list(circuit)
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.

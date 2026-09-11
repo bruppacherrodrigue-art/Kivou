@@ -180,5 +180,6 @@ class CompanyProfile(CompanyContract):
     signals: tuple[dict[str, Any], ...] = Field(default=(), max_length=MAX_RELATED_SIGNALS)
     history: tuple[dict[str, Any], ...] = Field(default=(), max_length=500)
     market_summary: dict[str, Any] | None = None
+    directory: dict[str, Any] | None = None
 
     _aware_contacted_at = field_validator("contacted_at")(aware_optional_datetime)

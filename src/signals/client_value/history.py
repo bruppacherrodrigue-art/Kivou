@@ -156,6 +156,7 @@ def _buyer_names(buyers: list[dict[str, Any]] | None) -> tuple[str, ...]:
 def _award_rows(connection: sa.Connection, *, identity_fingerprint: str | None):
     columns = (
         contract_award.c.award_key,
+        contract_award.c.title,
         contract_award.c.award_date,
         contract_award.c.contract_notification_date,
         contract_award.c.amount,
@@ -164,6 +165,7 @@ def _award_rows(connection: sa.Connection, *, identity_fingerprint: str | None):
         contract_award.c.place_of_performance,
         source_event.c.published_on,
         source_event.c.procedure_buyers,
+        source_event.c.source_url,
     )
     if identity_fingerprint is None:
         statement = sa.select(*columns).select_from(
@@ -228,9 +230,53 @@ def history_for_company(
     return summarize_awards(tuple(selected.values()), as_of=as_of, resolution=resolution)
 
 
+def markets_for_company(
+    connection: sa.Connection,
+    *,
+    winner_name: str,
+    department: str,
+    limit: int = 100,
+) -> tuple[dict[str, Any], ...]:
+    """List the public awards matched to a name and department."""
+
+    wanted_name = _normalized(winner_name)
+    if not wanted_name or not department:
+        return ()
+    matches: list[tuple[dt.date | None, str, dict[str, Any]]] = []
+    for row in _award_rows(connection, identity_fingerprint=None):
+        if (
+            department_for_place(row["place_of_performance"]) != department
+            or wanted_name not in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
+        ):
+            continue
+        known_date = row["award_date"] or row["contract_notification_date"] or row["published_on"]
+        market: dict[str, Any] = {
+            "market_id": row["award_key"],
+            "source": "public_awards",
+        }
+        optional = {
+            "title": row["title"],
+            "date": known_date.isoformat() if known_date is not None else None,
+            "source_url": row["source_url"],
+        }
+        market.update({key: value for key, value in optional.items() if value})
+        if row["amount"] is not None and row["currency"]:
+            market["amount"] = {
+                "value": _decimal(Decimal(str(row["amount"]))),
+                "currency": row["currency"],
+            }
+        buyers = _buyer_names(row["procedure_buyers"])
+        if buyers:
+            market["buyers"] = list(buyers)
+        matches.append((known_date, row["award_key"], market))
+    matches.sort(key=lambda item: (item[0] or dt.date.min, item[1]), reverse=True)
+    return tuple(market for _date, _key, market in matches[:limit])
+
+
 __all__ = [
     "AwardFact",
     "department_for_place",
     "history_for_company",
+    "markets_for_company",
     "summarize_awards",
 ]

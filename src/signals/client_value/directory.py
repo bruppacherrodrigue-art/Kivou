@@ -1,0 +1,211 @@
+"""Read-only client views over the supplier directory."""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Mapping
+from typing import Any
+
+import sqlalchemy as sa
+
+from signals.accounts.schema import target_icp
+from signals.companies.contracts import safe_https_url
+from signals.feed.text import normalize_text
+from signals.persistence.schema import supplier_directory
+from signals.supplier_discovery.families import (
+    SupplierFamily,
+    load_supplier_family_catalog,
+)
+
+_TRADE_VERTICALS = {
+    "earthworks_and_demolition": "earthworks_demolition",
+    "building_construction": "general_building",
+    "roads_and_civil_works": "roadworks_civil",
+    "rail_infrastructure": "rail_infrastructure",
+    "special_civil_engineering": "special_civil",
+    "technical_installations": "technical_installation",
+    "interior_finishing": "interior_finishing",
+    "equipment_hire": "equipment_hire",
+}
+
+
+def _normalized_name(value: str | None) -> str:
+    return " ".join(normalize_text(value or "").split())
+
+
+def _family_index() -> dict[str, SupplierFamily]:
+    return {
+        family.key: family
+        for families in load_supplier_family_catalog().values()
+        for family in families
+    }
+
+
+def _selected_families(customer_input: Mapping[str, Any]) -> tuple[SupplierFamily, ...]:
+    catalog = load_supplier_family_catalog()
+    trades = (
+        *(customer_input.get("buyer_trades") or ()),
+        *(customer_input.get("secondary_buyer_trades") or ()),
+    )
+    families = {
+        family.key: family
+        for trade in trades
+        for family in catalog.get(_TRADE_VERTICALS.get(str(trade), ""), ())
+    }
+    return tuple(sorted(families.values(), key=lambda item: (item.priority, item.key)))
+
+
+def _safe_website(value: str | None) -> str | None:
+    try:
+        return safe_https_url(value)
+    except ValueError:
+        return None
+
+
+def _clean_directors(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    result: list[dict[str, str]] = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        director = {"name": name.strip()}
+        title = entry.get("title")
+        if isinstance(title, str) and title.strip():
+            director["title"] = title.strip()
+        result.append(director)
+    return result
+
+
+def _company_view(row: Mapping[str, Any], *, matched_by_name: bool) -> dict[str, Any]:
+    families = _family_index()
+    family_labels = [
+        families[key].label_fr
+        for key in row["family_keys"] or ()
+        if key in families
+    ]
+    result: dict[str, Any] = {
+        "siren": row["siren"],
+        "name": row["legal_name"],
+        "source": "registre",
+        "removal_path": "/contact",
+    }
+    optional = {
+        "naf_code": row["naf_code"],
+        "department": row["department"],
+        "city": row["city"],
+        "employees": row["employees"],
+        "website_url": _safe_website(row["website_url"]),
+    }
+    result.update({key: value for key, value in optional.items() if value is not None})
+    if family_labels:
+        result["family_labels"] = family_labels
+    if row["suppressed_at"] is None:
+        directors = _clean_directors(row["directors"])
+        if directors:
+            result["directors"] = directors
+    if matched_by_name:
+        result["resolution_note"] = "rapprochement par nom"
+    return result
+
+
+def directory_company(
+    connection: sa.Connection,
+    *,
+    siren: str | None,
+    legal_name: str | None,
+    department: str | None,
+) -> dict[str, Any] | None:
+    """Return public directory facts, preferring the stable SIREN."""
+
+    if siren:
+        exact = connection.execute(
+            sa.select(supplier_directory).where(supplier_directory.c.siren == siren)
+        ).mappings().first()
+        if exact is not None:
+            return _company_view(exact, matched_by_name=False)
+
+    wanted_name = _normalized_name(legal_name)
+    if not wanted_name or not department:
+        return None
+    candidates = connection.execute(
+        sa.select(supplier_directory).where(supplier_directory.c.department == department)
+    ).mappings()
+    match = next(
+        (row for row in candidates if _normalized_name(row["legal_name"]) == wanted_name),
+        None,
+    )
+    return None if match is None else _company_view(match, matched_by_name=True)
+
+
+def _matching_family(
+    keys: Iterable[str], selected: tuple[SupplierFamily, ...]
+) -> SupplierFamily | None:
+    available = set(keys)
+    return next((family for family in selected if family.key in available), None)
+
+
+def local_circuit(
+    connection: sa.Connection,
+    *,
+    target_icp_id: str,
+    department: str | None,
+    city: str | None,
+) -> tuple[dict[str, Any], ...]:
+    """Return up to eight nearby directory companies matching the target profile."""
+
+    if not department:
+        return ()
+    customer_input = connection.execute(
+        sa.select(target_icp.c.customer_input).where(target_icp.c.target_icp_id == target_icp_id)
+    ).scalar_one_or_none()
+    if not isinstance(customer_input, dict):
+        return ()
+    selected = _selected_families(customer_input)
+    if not selected:
+        return ()
+
+    matches: list[tuple[Mapping[str, Any], SupplierFamily]] = []
+    rows = connection.execute(
+        sa.select(supplier_directory).where(supplier_directory.c.department == department)
+    ).mappings()
+    for row in rows:
+        family = _matching_family(row["family_keys"] or (), selected)
+        if family is not None:
+            matches.append((row, family))
+
+    wanted_city = _normalized_name(city)
+    matches.sort(
+        key=lambda pair: (
+            0 if wanted_city and _normalized_name(pair[0]["city"]) == wanted_city else 1,
+            -(pair[0]["employees"] if pair[0]["employees"] is not None else -1),
+            _normalized_name(pair[0]["legal_name"]),
+            pair[0]["siren"],
+        )
+    )
+    result: list[dict[str, Any]] = []
+    for row, family in matches[:8]:
+        item: dict[str, Any] = {
+            "siren": row["siren"],
+            "name": row["legal_name"],
+            "trade": family.label_fr,
+            "href": f"/app/companies/directory/{row['siren']}",
+            "source": "registre",
+        }
+        item.update(
+            {
+                key: value
+                for key, value in {
+                    "city": row["city"],
+                    "employees": row["employees"],
+                }.items()
+                if value is not None
+            }
+        )
+        result.append(item)
+    return tuple(result)
+
+
+__all__ = ["directory_company", "local_circuit"]

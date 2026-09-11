@@ -16,7 +16,12 @@ from signals.api.errors import api_error
 from signals.billing import service as billing
 from signals.billing.access import FeedAccess, feed_access
 from signals.card_intelligence.store import published_for_signals
-from signals.client_value.history import department_for_place, history_for_company
+from signals.client_value.directory import directory_company
+from signals.client_value.history import (
+    department_for_place,
+    history_for_company,
+    markets_for_company,
+)
 from signals.companies.contracts import CompanyProfile
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
@@ -35,6 +40,7 @@ from signals.feed.history import history_sort_key
 router = APIRouter()
 
 _COMPANY_KEY = re.compile(r"^cmp_[A-Za-z0-9_-]{12,60}$")
+_SIREN = re.compile(r"^\d{9}$")
 
 
 class CompanyContactRequest(BaseModel):
@@ -169,6 +175,17 @@ def _company_history(connection, *, account_id: str, company_key: str, items) ->
     return tuple(sorted(events, key=lambda event: event["occurred_at"], reverse=True))
 
 
+def _siren_for_profile(profile: CompanyProfile) -> str | None:
+    for identifier in profile.official_identity.identifiers:
+        digits = "".join(character for character in identifier.value if character.isdigit())
+        scheme = identifier.scheme.casefold()
+        if scheme == "siren" and len(digits) == 9:
+            return digits
+        if scheme == "siret" and len(digits) == 14:
+            return digits[:9]
+    return None
+
+
 @router.get("/companies")
 def list_companies_route(
     request: Request,
@@ -299,6 +316,12 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             }
             if "resolution_note" in holder_history:
                 market_summary["resolution_note"] = holder_history["resolution_note"]
+        directory = directory_company(
+            connection,
+            siren=_siren_for_profile(profile),
+            legal_name=profile.official_identity.name,
+            department=department_for_place(most_recent.signal.award.place_of_performance),
+        )
     return profile.model_copy(
         update={
             "city": place.get("locality"),
@@ -308,8 +331,53 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             "signals": signals,
             "history": history,
             "market_summary": market_summary,
+            "directory": directory,
         }
     )
+
+
+@router.get("/companies/directory/{siren}")
+def get_directory_company(siren: str, request: Request) -> dict[str, Any]:
+    """Read one public directory profile for an authenticated client."""
+
+    now = request_now(request)
+    if _SIREN.fullmatch(siren) is None:
+        raise api_error(404, "company_not_found", "entreprise introuvable")
+    with request.app.state.engine.begin() as connection:
+        current_session(request, connection, now)
+        directory = directory_company(
+            connection,
+            siren=siren,
+            legal_name=None,
+            department=None,
+        )
+        if directory is None:
+            raise api_error(404, "company_not_found", "entreprise introuvable")
+        holder_history = history_for_company(
+            connection,
+            company_key=None,
+            winner_name=directory["name"],
+            department=directory.get("department"),
+            as_of=now.date(),
+        )
+        markets = markets_for_company(
+            connection,
+            winner_name=directory["name"],
+            department=directory.get("department", ""),
+        )
+    result: dict[str, Any] = {"directory": directory, "markets": list(markets)}
+    if holder_history is not None:
+        result["market_summary"] = {
+            **holder_history["summary"],
+            "resolution": holder_history["resolution"],
+            "source": holder_history["source"],
+            **(
+                {"resolution_note": holder_history["resolution_note"]}
+                if "resolution_note" in holder_history
+                else {}
+            ),
+        }
+    return result
 
 
 @router.post("/companies/{company_key}/contact")

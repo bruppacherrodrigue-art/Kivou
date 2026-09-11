@@ -3,22 +3,62 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+import sqlalchemy as sa
 from billing_helpers import subscribe
 from engagement_helpers import events
 from fastapi.testclient import TestClient
 from feed_helpers import (
+    BOAMP_AGING,
     COMPLETE_ICP_INPUT,
     ORIGIN,
     PASSWORD,
     SIMAP_RICH,
+    boamp_award,
+    materialize,
     materialize_simap,
 )
 
 from signals.api import ApiConfig, create_app
 from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.companies.schema import saas_company
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import contract_award, materialized_signal, supplier_directory
 
 NOW = dt.datetime(2026, 8, 25, 9, tzinfo=dt.UTC)
+
+
+def _insert_directory_company(
+    connection,
+    *,
+    siren: str,
+    name: str,
+    department: str = "38",
+    city: str = "Grenoble",
+) -> None:
+    connection.execute(
+        sa.insert(supplier_directory).values(
+            siren=siren,
+            legal_name=name,
+            legal_name_observed_at=NOW,
+            naf_code="23.63Z",
+            naf_observed_at=NOW,
+            family_keys=["ready_mix_concrete"],
+            families_observed_at=NOW,
+            department=department,
+            department_observed_at=NOW,
+            city=city,
+            city_observed_at=NOW,
+            employees=24,
+            employees_observed_at=NOW,
+            website_url="https://egli.example/",
+            domain_source="registre",
+            domain_observed_at=NOW,
+            directors=[{"name": "Anna Egli", "title": "Présidente"}],
+            directors_observed_at=NOW,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
 
 
 @pytest.fixture
@@ -137,6 +177,110 @@ def test_signal_and_company_expose_the_same_holder_market_history(app, engine) -
         "resolution": "company_key",
         "source": "public_awards",
     }
+
+
+def test_company_profile_adds_matching_directory_facts_without_contact_data(app, engine) -> None:
+    client = _signup(app, email="company-directory@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+
+    profile = client.get(f"/companies/{company_key}").json()
+
+    assert profile["directory"] == {
+        "siren": "331364729",
+        "name": "Egli Gartenbau AG Sursee",
+        "naf_code": "23.63Z",
+        "family_labels": ["Béton prêt à l'emploi"],
+        "department": "38",
+        "city": "Grenoble",
+        "employees": 24,
+        "website_url": "https://egli.example/",
+        "directors": [{"name": "Anna Egli", "title": "Présidente"}],
+        "source": "registre",
+        "removal_path": "/contact",
+    }
+    assert "professional_email" not in profile
+
+
+def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, engine) -> None:
+    client = _signup(app, email="signal-local-circuit@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    with engine.begin() as connection:
+        award_key = connection.scalar(
+            sa.select(materialized_signal.c.materialization_award_key).where(
+                materialized_signal.c.signal_key == signal_key
+            )
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == award_key)
+            .values(
+                place_country="FR",
+                place_of_performance={
+                    "country": "FR",
+                    "subdivision_code": "FR-38",
+                    "locality": "Grenoble",
+                },
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Fournisseur local",
+        )
+
+    detail = client.get(f"/signals/{signal_key}").json()
+
+    assert detail["local_circuit"] == [
+        {
+            "siren": "331364729",
+            "name": "Fournisseur local",
+            "trade": "Béton prêt à l'emploi",
+            "city": "Grenoble",
+            "employees": 24,
+            "href": "/app/companies/directory/331364729",
+            "source": "registre",
+        }
+    ]
+
+
+def test_authenticated_directory_profile_has_a_closed_not_found_shape(app, engine) -> None:
+    client = _signup(app, email="directory-route@example.com")
+    icp_id = _icp(client)
+    with engine.begin() as connection:
+        event, awards = boamp_award(BOAMP_AGING)
+        materialize(connection, event, awards[0], target_icp_id=icp_id)
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="SARL ALCIS TRANSPORTS",
+            department="31",
+            city="Toulouse",
+        )
+
+    profile = client.get("/companies/directory/331364729")
+    missing = client.get("/companies/directory/000000000")
+
+    assert profile.status_code == 200
+    assert profile.json()["directory"]["name"] == "SARL ALCIS TRANSPORTS"
+    assert profile.json()["markets"][0]["title"]
+    assert profile.json()["markets"][0]["source"] == "public_awards"
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "company_not_found"
 
 
 def test_company_list_projects_a_named_holder_even_before_enrichment(app, engine) -> None:
