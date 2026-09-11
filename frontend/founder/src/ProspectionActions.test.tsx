@@ -209,6 +209,47 @@ describe('actions de prospection', () => {
     await waitFor(() => expect(screen.getByText('1 cible validée')).toBeInTheDocument())
   })
 
+  it('repart de la première page après validation pour ne pas masquer la 26e cible', async () => {
+    const user = userEvent.setup()
+    const pending = Array.from({ length: 26 }, (_, index) => target(index + 1))
+    let approved = false
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input), 'http://founder.test')
+      if (url.pathname.endsWith('/list') && url.searchParams.get('status') === 'pending_review') {
+        const items = approved ? pending.slice(1) : pending.slice(0, 25)
+        return {
+          ok: true,
+          status: 200,
+          json: async () => approved ? list(items) : paginatedList(items, 1, 26, 2),
+        }
+      }
+      if (url.pathname.endsWith('/list') && url.searchParams.get('status') === 'approved') {
+        const items = approved ? [{ ...pending[0], version: pending[0].version + 1, status: 'approved' as const }] : []
+        return { ok: true, status: 200, json: async () => list(items) }
+      }
+      if (url.pathname.endsWith('/approve')) {
+        approved = true
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 'founder-prospection-actions-v1',
+            target: { ...pending[0], version: pending[0].version + 1, status: 'approved' },
+          }),
+        }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    const firstRow = await screen.findByRole('row', { name: /^Entreprise 1\b/ })
+    await user.click(within(firstRow).getByRole('button', { name: 'Valider' }))
+
+    expect(await screen.findByRole('row', { name: /Entreprise 26/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Charger la suite/ })).not.toBeInTheDocument()
+  })
+
   it.each([
     [409, 'TARGET_VERSION_CONFLICT', 'La cible a été modifiée.'],
     [422, 'EMAIL_NOT_MX_VERIFIED', 'L’adresse n’a pas de MX vérifié.'],
@@ -365,6 +406,50 @@ describe('actions de prospection', () => {
       directory_effect: 'email_invalidated',
     })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('repart de la première page après écartement pour ne pas masquer la 26e cible', async () => {
+    const user = userEvent.setup()
+    const pending = Array.from({ length: 26 }, (_, index) => target(index + 1))
+    let rejected = false
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input), 'http://founder.test')
+      if (url.pathname.endsWith('/list') && url.searchParams.get('status') === 'pending_review') {
+        const items = rejected ? pending.slice(1) : pending.slice(0, 25)
+        return {
+          ok: true,
+          status: 200,
+          json: async () => rejected ? list(items) : paginatedList(items, 1, 26, 2),
+        }
+      }
+      if (url.pathname.endsWith('/list') && url.searchParams.get('status') === 'approved') {
+        return { ok: true, status: 200, json: async () => list([]) }
+      }
+      if (url.pathname.endsWith('/reject')) {
+        rejected = true
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 'founder-prospection-actions-v1',
+            target: { ...pending[0], version: pending[0].version + 1, status: 'rejected' },
+            directory_effect: 'none',
+          }),
+        }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    const firstRow = await screen.findByRole('row', { name: /^Entreprise 1\b/ })
+    await user.click(within(firstRow).getByRole('button', { name: 'Écarter' }))
+    const drawer = screen.getByRole('dialog', { name: 'Écarter Entreprise 1' })
+    await user.selectOptions(within(drawer).getByRole('combobox', { name: 'Motif' }), 'off_topic')
+    await user.click(within(drawer).getByRole('button', { name: 'Confirmer l’écartement' }))
+
+    expect(await screen.findByRole('row', { name: /Entreprise 26/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Charger la suite/ })).not.toBeInTheDocument()
   })
 
   it('exige un commentaire pour le motif Autre', async () => {

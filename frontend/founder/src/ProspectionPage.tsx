@@ -417,6 +417,21 @@ function QueueSection({
     }
   }
 
+  const refreshAfterStatusMutation = async () => {
+    const hasUnloadedPages = queuePages.pending_review.remaining > 0
+      || queuePages.approved.remaining > 0
+    if (!hasUnloadedPages) return
+    try {
+      await refreshQueue()
+    } catch {
+      setQueuePages({
+        pending_review: { next: null, remaining: 0 },
+        approved: { next: null, remaining: 0 },
+      })
+      setActionError('La décision est enregistrée, mais la file n’a pas pu être actualisée. Recharge la page.')
+    }
+  }
+
   const approve = async (target: FounderProspectionActionTarget) => {
     setActionError(null)
     setBusyTargetIds((current) => new Set(current).add(target.target_id))
@@ -428,6 +443,7 @@ function QueueSection({
       setItems((current) => current.map((item) => item.target_id === target.target_id
         ? response.target
         : item))
+      await refreshAfterStatusMutation()
     } catch (error) {
       setItems((current) => current.map((item) => item.target_id === target.target_id
         ? target
@@ -473,6 +489,7 @@ function QueueSection({
       setItems((current) => current.map((item) => item.target_id === target.target_id
         ? response.target
         : item))
+      await refreshAfterStatusMutation()
       return true
     } catch (error) {
       setItems((current) => current.map((item) => item.target_id === target.target_id
@@ -500,6 +517,7 @@ function QueueSection({
       : item))
     try {
       await rejectFounderProspect(target.target_id, target.version, reason, comment)
+      await refreshAfterStatusMutation()
       return true
     } catch (error) {
       setItems((current) => current.map((item) => item.target_id === target.target_id
