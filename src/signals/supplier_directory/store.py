@@ -282,6 +282,31 @@ class SupplierDirectoryStore:
             observed_at,
         )
 
+    def mark_without_website(self, siren: str, *, observed_at: dt.datetime) -> bool:
+        return self._update(
+            siren,
+            {
+                "domain": None,
+                "website_url": None,
+                "domain_source": "no_website",
+                "domain_validation_method": None,
+                "domain_validation_evidence_url": None,
+                "domain_observed_at": observed_at,
+                "reverification_required_at": None,
+                "reverification_reason": "no_website",
+            },
+            observed_at,
+        )
+
+    def permanently_without_website(self, siren: str) -> bool:
+        record = self.get(siren)
+        return bool(
+            record is not None
+            and record.domain is None
+            and record.domain_source == "no_website"
+            and record.reverification_reason == "no_website"
+        )
+
     def record_directors(
         self,
         siren: str,

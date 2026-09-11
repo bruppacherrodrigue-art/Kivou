@@ -21,6 +21,7 @@ from signals.company_research.contracts import (
 from signals.company_research.domain import DomainResolution
 from signals.company_research.profile import build_company_research_profile
 from signals.persistence.database import alembic_config, create_database_engine
+from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import SireneOrganizationCandidate
 
 NOW = dt.datetime(2026, 9, 9, 12, tzinfo=dt.UTC)
@@ -121,6 +122,45 @@ def test_resolver_persists_domain_journal_when_apollo_is_unresolved(tmp_path) ->
     assert result.domain_source == "serper"
     assert result.domain_query == "Beton Alpes Lyon"
     assert result.domain_observed_at == NOW
+
+
+def test_missing_website_is_permanent_and_skips_serper_and_apollo_on_replay(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    directory = SupplierDirectoryStore(engine, clock=lambda: NOW)
+    directory.upsert_identity(
+        siren="123456789",
+        legal_name="BETON ALPES",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="69",
+        city="Lyon",
+        employees=19,
+        observed_at=NOW,
+    )
+    provider = Provider()
+
+    class MissingDomainResolver:
+        calls = 0
+
+        def resolve(self, identity):
+            self.calls += 1
+
+    domains = MissingDomainResolver()
+    resolver = SireneApolloResolver(
+        engine,
+        provider=provider,
+        domain_resolver=domains,
+        directory=directory,
+        clock=lambda: NOW,
+    )
+
+    first = resolver.resolve(_identity())
+    second = resolver.resolve(_identity())
+
+    assert first.status is second.status is BindingStatus.UNRESOLVED
+    assert first.resolution_method == second.resolution_method == "no_website"
+    assert domains.calls == 1
+    assert provider.calls == 0
 
 
 def test_binding_store_rejects_no_implicit_legacy_lookup(tmp_path) -> None:

@@ -159,6 +159,24 @@ def test_directory_records_dated_contact_form(tmp_path) -> None:
     assert record.contact_form_observed_at == NOW
 
 
+def test_directory_marks_missing_website_without_expiration(tmp_path) -> None:
+    store = _store(tmp_path)
+    store.upsert_identity(
+        siren="331364729",
+        legal_name="ESCOLLE BETON",
+        naf_code="23.63Z",
+        family_key="ready_mix_concrete",
+        department="38",
+        city="SAINT-EGREVE",
+        employees=19,
+        observed_at=NOW,
+    )
+
+    assert store.mark_without_website("331364729", observed_at=NOW)
+    assert store.permanently_without_website("331364729")
+    assert store.permanently_without_website("331364729")
+
+
 def test_directory_suppression_clears_only_personal_contact_fields(tmp_path) -> None:
     store = _store(tmp_path)
     store.upsert_identity(

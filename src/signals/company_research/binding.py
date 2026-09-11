@@ -168,7 +168,17 @@ class SireneApolloResolver:
             if self._directory is not None
             else None
         )
-        if cached_domain is not None:
+        permanently_without_website = bool(
+            self._directory is not None
+            and self._directory.permanently_without_website(identity.provider_organization_id)
+        )
+        if permanently_without_website:
+            logger.info(
+                "supplier_directory_provider_call_avoided",
+                extra={"provider": "serper", "siren": identity.provider_organization_id},
+            )
+            domain_resolution = None
+        elif cached_domain is not None:
             logger.info(
                 "supplier_directory_provider_call_avoided",
                 extra={"provider": "serper", "siren": identity.provider_organization_id},
@@ -199,7 +209,26 @@ class SireneApolloResolver:
                 )
                 if not recorded:
                     domain_resolution = None
+            elif (
+                self._directory is not None
+                and self._domain_resolver is not None
+                and domain_resolution is None
+            ):
+                self._directory.mark_without_website(
+                    identity.provider_organization_id, observed_at=now
+                )
         domain = domain_resolution.domain if domain_resolution is not None else None
+        if self._directory is not None and self._directory.permanently_without_website(
+            identity.provider_organization_id
+        ):
+            return self._store.put(
+                siren=identity.provider_organization_id,
+                apollo_organization_id=None,
+                resolution_method="no_website",
+                confidence_score=None,
+                status=BindingStatus.UNRESOLVED,
+                domain_resolution=None,
+            )
         cached_apollo = (
             self._directory.fresh_apollo(identity.provider_organization_id, at=now)
             if self._directory is not None
