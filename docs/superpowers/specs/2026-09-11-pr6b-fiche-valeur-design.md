@@ -22,7 +22,7 @@ Chaque bloc nomme une seule source. Les données d'attribution pointent vers les
 
 ## Phrase « Pour vous »
 
-`KIVOU_FOR_YOU_GENERATED_ENABLED` est désactivé par défaut. Une fois activé, une phrase persistée n'est choisie que pour une correspondance forte et un `model_fit` différent de `none`; tous les autres cas utilisent le repli déterministe. Le backfill existant reste borné par `--limit` et sélectionne uniquement les profils actifs. Le contenu des quatre canaux existants ne reçoit aucun des nouveaux blocs.
+`KIVOU_GENERATED_FOR_YOU_ENABLED` est désactivé par défaut. Une fois activé, une phrase persistée n'est choisie que pour une correspondance forte et un `model_fit` différent de `none`; tous les autres cas utilisent le repli déterministe. Le backfill existant reste borné par `--limit` et sélectionne uniquement les signaux courants, non invalidés, rattachés à la révision courante de leur profil. Le contenu des quatre canaux existants ne reçoit aucun des nouveaux blocs.
 
 ## Interface
 
