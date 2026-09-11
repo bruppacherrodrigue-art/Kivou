@@ -119,6 +119,23 @@ function list(items: FounderProspectionActionTarget[]): FounderProspectionAction
   }
 }
 
+function paginatedList(
+  items: FounderProspectionActionTarget[],
+  page: number,
+  totalItems: number,
+  totalPages: number,
+): FounderProspectionActionList {
+  return {
+    ...list(items),
+    pagination: {
+      page,
+      page_size: 25,
+      total_items: totalItems,
+      total_pages: totalPages,
+    },
+  }
+}
+
 function target(index: number, status: FounderProspectionActionTarget['status'] = 'pending_review') {
   const suffix = String(index).padStart(12, '0')
   return {
@@ -456,6 +473,79 @@ describe('actions de prospection', () => {
     expect(await screen.findByText('5 cibles envoyées.')).toBeInTheDocument()
   })
 
+  it('recharge la version serveur et change de request_id après un échec fournisseur terminal', async () => {
+    const user = userEvent.setup()
+    const approved = target(1, 'approved')
+    const firstRequestId = '2483f230-563f-469d-9f3c-20b3eabbe2c2'
+    const secondRequestId = 'aa856878-5ac9-45bf-8261-b7a652a8ed23'
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce(firstRequestId)
+      .mockReturnValueOnce(secondRequestId)
+    let terminalFailureRecorded = false
+    let sendAttempt = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      void init
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) {
+        return { ok: true, status: 200, json: async () => list([]) }
+      }
+      if (url.includes('/list?status=approved')) {
+        const current = terminalFailureRecorded ? { ...approved, version: approved.version + 1 } : approved
+        return { ok: true, status: 200, json: async () => list([current]) }
+      }
+      if (url.endsWith('/send')) {
+        sendAttempt += 1
+        if (sendAttempt === 1) {
+          terminalFailureRecorded = true
+          return {
+            ok: false,
+            status: 502,
+            json: async () => ({
+              detail: {
+                code: 'INSTANTLY_SEND_FAILED',
+                message: 'Le fournisseur n’a accepté aucune cible.',
+                target_ids: [approved.target_id],
+              },
+            }),
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 'founder-prospection-actions-v1',
+            request_id: secondRequestId,
+            results: [{ target_id: approved.target_id, status: 'sent', instantly_id: 'fake-new-attempt' }],
+            daily_sent_count: 1,
+            daily_remaining: 24,
+          }),
+        }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Le fournisseur n’a accepté aucune cible. (INSTANTLY_SEND_FAILED)',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Envoyer la cible validée' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+    await waitFor(() => expect(sendAttempt).toBe(2))
+
+    const bodies = fetchMock.mock.calls
+      .filter(([url]) => String(url).endsWith('/send'))
+      .map(([, init]) => JSON.parse(String(init?.body)))
+    expect(bodies[0].request_id).toBe(firstRequestId)
+    expect(bodies[1]).toEqual({
+      request_id: secondRequestId,
+      targets: [{ target_id: approved.target_id, expected_version: approved.version + 1 }],
+    })
+  })
+
   it('réutilise le request_id lorsque le même lot est repris après une erreur ambiguë', async () => {
     const user = userEvent.setup()
     const approved = [target(1, 'approved')]
@@ -476,13 +566,7 @@ describe('actions de prospection', () => {
           return {
             ok: false,
             status: 502,
-            json: async () => ({
-              detail: {
-                code: 'INSTANTLY_SEND_FAILED',
-                message: 'Résultat du fournisseur inconnu.',
-                target_ids: [approved[0].target_id],
-              },
-            }),
+            json: async () => ({ proxy_error: 'upstream response lost' }),
           }
         }
         return {
@@ -508,7 +592,7 @@ describe('actions de prospection', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Résultat du fournisseur inconnu. (INSTANTLY_SEND_FAILED)')
+    expect(await screen.findByRole('alert')).toHaveTextContent('L’envoi a échoué. (HTTP 502)')
 
     await user.click(screen.getByRole('button', { name: 'Envoyer la cible validée' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
@@ -521,5 +605,137 @@ describe('actions de prospection', () => {
     expect(sendBodies[0].request_id).toBe(requestId)
     expect(sendBodies[1].request_id).toBe(requestId)
     expect(randomUUID).toHaveBeenCalledTimes(1)
+  })
+
+  it('réconcilie un envoi partiel puis crée une nouvelle requête pour la cible échouée', async () => {
+    const user = userEvent.setup()
+    const approved = [target(1, 'approved'), target(2, 'approved')]
+    const firstRequestId = '18fc22c2-628d-4ca1-a934-8a546bcedfa3'
+    const secondRequestId = '3bd1d445-a035-42f2-bc41-bd1e98f1bcbc'
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce(firstRequestId)
+      .mockReturnValueOnce(secondRequestId)
+    let firstAttemptFinished = false
+    let sendAttempt = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) {
+        return { ok: true, status: 200, json: async () => list([]) }
+      }
+      if (url.includes('/list?status=approved')) {
+        const items = firstAttemptFinished ? [{ ...approved[1], version: approved[1].version + 1 }] : approved
+        return { ok: true, status: 200, json: async () => list(items) }
+      }
+      if (url.endsWith('/send')) {
+        sendAttempt += 1
+        if (sendAttempt === 1) {
+          firstAttemptFinished = true
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              version: 'founder-prospection-actions-v1',
+              request_id: firstRequestId,
+              results: [
+                { target_id: approved[0].target_id, status: 'sent', instantly_id: 'fake-lead-1' },
+                { target_id: approved[1].target_id, status: 'failed', instantly_id: null },
+              ],
+              daily_sent_count: 1,
+              daily_remaining: 24,
+            }),
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 'founder-prospection-actions-v1',
+            request_id: secondRequestId,
+            results: [{ target_id: approved[1].target_id, status: 'sent', instantly_id: 'fake-lead-2' }],
+            daily_sent_count: 2,
+            daily_remaining: 23,
+          }),
+        }
+      }
+      throw new Error(`requête inattendue: ${url} ${init?.method ?? 'GET'}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Envoyer les 2 cibles validées' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+
+    expect(await screen.findByText('1 cible non envoyée.')).toBeInTheDocument()
+    expect(await screen.findByRole('row', { name: /Entreprise 2/ })).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: /Entreprise 1/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Envoyer la cible validée' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+    await waitFor(() => expect(sendAttempt).toBe(2))
+
+    const secondBody = JSON.parse(String(fetchMock.mock.calls
+      .filter(([url]) => String(url).endsWith('/send'))[1][1]?.body))
+    expect(secondBody).toEqual({
+      request_id: secondRequestId,
+      targets: [{
+        target_id: approved[1].target_id,
+        expected_version: approved[1].version + 1,
+      }],
+    })
+  })
+
+  it('charge toutes les pages et limite chaque lot d’envoi à 25 cibles', async () => {
+    const user = userEvent.setup()
+    const approved = Array.from({ length: 26 }, (_, index) => target(index + 1, 'approved'))
+    const requestId = 'a2083564-a5ea-48c1-89ad-467db95d78d8'
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(requestId)
+    let firstBatchSent = false
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(String(input), 'http://founder.test')
+      if (url.pathname.endsWith('/list') && url.searchParams.get('status') === 'pending_review') {
+        return { ok: true, status: 200, json: async () => list([]) }
+      }
+      if (url.pathname.endsWith('/list') && url.searchParams.get('status') === 'approved') {
+        if (firstBatchSent) {
+          return { ok: true, status: 200, json: async () => list([approved[25]]) }
+        }
+        return url.searchParams.get('page') === '2'
+          ? { ok: true, status: 200, json: async () => paginatedList([approved[25]], 2, 26, 2) }
+          : { ok: true, status: 200, json: async () => paginatedList(approved.slice(0, 25), 1, 26, 2) }
+      }
+      if (url.pathname.endsWith('/send')) {
+        const body = JSON.parse(String(init?.body))
+        firstBatchSent = true
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 'founder-prospection-actions-v1',
+            request_id: requestId,
+            results: body.targets.map((item: { target_id: string }) => ({
+              target_id: item.target_id,
+              status: 'sent',
+              instantly_id: `fake-${item.target_id}`,
+            })),
+            daily_sent_count: 25,
+            daily_remaining: 0,
+          }),
+        }
+      }
+      throw new Error(`requête inattendue: ${url} ${init?.method ?? 'GET'}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    const sendButton = await screen.findByRole('button', { name: 'Envoyer les 25 premières cibles validées' })
+    expect(screen.getByText('26 cibles validées')).toBeInTheDocument()
+    await user.click(sendButton)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+
+    expect(await screen.findByText('25 cibles envoyées.')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Envoyer la cible validée' })).toBeEnabled()
+    const sentBody = JSON.parse(String(fetchMock.mock.calls.find(([url]) => String(url).endsWith('/send'))?.[1]?.body))
+    expect(sentBody.targets).toHaveLength(25)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('status=approved&page=2'))).toBe(true)
   })
 })

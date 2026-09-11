@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AcquisitionStatus } from './AcquisitionStatus'
 import {
   approveFounderProspect,
@@ -330,29 +330,33 @@ function QueueSection({
   const [actionError, setActionError] = useState<string | null>(null)
   const sendRequestRef = useRef<{ fingerprint: string; requestId: string } | null>(null)
 
+  const refreshQueue = useCallback(async (signal?: AbortSignal) => {
+    const activeSignal = signal ?? new AbortController().signal
+    const [pending, approved] = await Promise.all([
+      loadFounderProspectionActions('pending_review', activeSignal),
+      loadFounderProspectionActions('approved', activeSignal),
+    ])
+    if (activeSignal.aborted) return
+    const merged = [...pending.items, ...approved.items]
+    setItems(merged.filter((item, index) => (
+      merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
+    )))
+    setKillSwitchActive(pending.kill_switch_active || approved.kill_switch_active)
+    setLoaded(true)
+  }, [])
+
   useEffect(() => {
     const controller = new AbortController()
     setLoaded(false)
     setActionError(null)
-    void Promise.all([
-      loadFounderProspectionActions('pending_review', controller.signal),
-      loadFounderProspectionActions('approved', controller.signal),
-    ]).then(([pending, approved]) => {
-      if (controller.signal.aborted) return
-      const merged = [...pending.items, ...approved.items]
-      setItems(merged.filter((item, index) => (
-        merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
-      )))
-      setKillSwitchActive(pending.kill_switch_active || approved.kill_switch_active)
-      setLoaded(true)
-    }).catch((error: unknown) => {
+    void refreshQueue(controller.signal).catch((error: unknown) => {
       if (!controller.signal.aborted) {
         setLoaded(true)
         setActionError(founderActionErrorMessage(error, 'Impossible de charger la file de prospection.'))
       }
     })
     return () => controller.abort()
-  }, [data.generated_at])
+  }, [data.generated_at, refreshQueue])
 
   const approve = async (target: FounderProspectionActionTarget) => {
     setActionError(null)
@@ -453,9 +457,10 @@ function QueueSection({
     }
   }
   const approvedCount = items.filter((item) => item.status === 'approved').length
+  const sendBatchCount = Math.min(approvedCount, 25)
   const visibleItems = items.filter((item) => item.status === 'pending_review' || item.status === 'approved')
   const sendApproved = async () => {
-    const approved = items.filter((item) => item.status === 'approved')
+    const approved = items.filter((item) => item.status === 'approved').slice(0, 25)
     if (approved.length === 0 || sendState === 'sending') return
     const fingerprint = approved
       .map((item) => `${item.target_id}:${item.version}`)
@@ -470,7 +475,8 @@ function QueueSection({
     setSendNotice(null)
     setSendingCount(approved.length)
     setSendState('sending')
-    setItems((current) => current.map((item) => item.status === 'approved'
+    const batchIds = new Set(approved.map((item) => item.target_id))
+    setItems((current) => current.map((item) => batchIds.has(item.target_id)
       ? { ...item, status: 'sent', version: item.version + 1 }
       : item))
     try {
@@ -481,23 +487,38 @@ function QueueSection({
       const failedIds = new Set(response.results
         .filter((result) => result.status === 'failed')
         .map((result) => result.target_id))
+      sendRequestRef.current = null
       if (failedIds.size > 0) {
-        setItems((current) => current.map((item) => {
-          const original = approved.find((candidate) => candidate.target_id === item.target_id)
-          return original && failedIds.has(item.target_id) ? original : item
-        }))
         setSendNotice(`${failedIds.size} cible${failedIds.size === 1 ? '' : 's'} non envoyée${failedIds.size === 1 ? '' : 's'}.`)
       } else {
-        sendRequestRef.current = null
         setSendNotice(`${approved.length} cible${approved.length === 1 ? '' : 's'} envoyée${approved.length === 1 ? '' : 's'}.`)
       }
+      try {
+        await refreshQueue()
+      } catch (error) {
+        setActionError(founderActionErrorMessage(
+          error,
+          'L’envoi est enregistré, mais la file n’a pas pu être actualisée. Recharge la page.',
+        ))
+      }
     } catch (error) {
-      setItems((current) => current.map((item) => (
-        item.status === 'sent'
-          ? approved.find((candidate) => candidate.target_id === item.target_id) ?? item
-          : item
-      )))
-      setActionError(founderActionErrorMessage(error, 'L’envoi a échoué.'))
+      const message = founderActionErrorMessage(error, 'L’envoi a échoué.')
+      if (error instanceof FounderApiError && error.code) {
+        sendRequestRef.current = null
+        try {
+          await refreshQueue()
+          setActionError(message)
+        } catch {
+          setActionError(`${message} La file n’a pas pu être actualisée ; recharge la page.`)
+        }
+      } else {
+        setItems((current) => current.map((item) => (
+          batchIds.has(item.target_id)
+            ? approved.find((candidate) => candidate.target_id === item.target_id) ?? item
+            : item
+        )))
+        setActionError(message)
+      }
     } finally {
       setSendState('idle')
     }
@@ -606,11 +627,11 @@ function QueueSection({
           <button
             type="button"
             className="prospection-action-primary"
-            disabled={approvedCount === 0 || sendState === 'sending' || killSwitchActive}
-            aria-label={approvedCount === 1 ? 'Envoyer la cible validée' : `Envoyer les ${approvedCount} cibles validées`}
+            disabled={sendBatchCount === 0 || sendState === 'sending' || killSwitchActive}
+            aria-label={sendBatchLabel(approvedCount)}
             onClick={() => setSendConfirmationOpen(true)}
           >
-            {approvedCount === 1 ? 'Envoyer la cible validée' : `Envoyer les ${approvedCount} cibles validées`}
+            {sendBatchLabel(approvedCount)}
           </button>
         </footer>
         {killSwitchActive ? (
@@ -643,13 +664,19 @@ function QueueSection({
       ) : null}
       {sendConfirmationOpen ? (
         <SendConfirmationDrawer
-          count={approvedCount}
+          count={sendBatchCount}
           onClose={() => setSendConfirmationOpen(false)}
           onConfirm={() => void sendApproved()}
         />
       ) : null}
     </section>
   )
+}
+
+function sendBatchLabel(approvedCount: number): string {
+  if (approvedCount === 1) return 'Envoyer la cible validée'
+  if (approvedCount > 25) return 'Envoyer les 25 premières cibles validées'
+  return `Envoyer les ${approvedCount} cibles validées`
 }
 
 function founderActionErrorMessage(error: unknown, fallback: string): string {

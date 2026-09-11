@@ -77,6 +77,11 @@ previously validated batch. Every mutation carries the displayed
 `expected_version`; send also carries one stable UUID `request_id`. The UI
 applies the decision optimistically, rolls it back on failure, and displays the
 API message and code for `409`, `422` and `502` responses.
+The browser follows every queue page returned by the action contract. A send
+contains at most 25 approved targets; if more are waiting, the next batch stays
+visible. Every terminal provider result is reconciled from the server before a
+failed target can be retried with a new request UUID. Only an ambiguous proxy or
+transport failure keeps the same UUID for a safe idempotent replay.
 
 nginx keeps the `/api/founder/` prefix GET/HEAD-only. Four exact locations
 allow POST: `/approve`, `/correct`, `/reject` and `/send` below
@@ -159,7 +164,9 @@ only the address, director and company name fields from the public contract.
 **Écarter** requires one closed reason and a comment for `other`. **Envoyer** is
 disabled when no target is approved or when the acquisition kill switch is
 active; clicking it opens a second confirmation and performs no request until
-the operator clicks **Envoyer maintenant**. Loading the page never sends mail.
+the operator clicks **Envoyer maintenant**. Each confirmed batch contains at
+most 25 targets, then the queue is reloaded from its authoritative versions.
+Loading the page never sends mail.
 
 **Annuaire** reads the active real supplier directory and returns pages of 25
 rows. Search, supplier-family, French-department and qualification filters are
