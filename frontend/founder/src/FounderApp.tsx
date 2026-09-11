@@ -1,18 +1,38 @@
 import { useEffect, useState } from 'react'
-import { loadFounderOverview, loadFounderSession } from './api'
+import { loadFounderOverview, loadFounderProspection, loadFounderSession } from './api'
+import { ProspectionPage } from './ProspectionPage'
 import type {
   AttentionItem,
   AutonomyMode,
   FounderOverview,
+  FounderProspection,
+  FounderProspectionFilters,
   FounderSession,
   GateStatus,
   HealthStatus,
   MoneyTotal,
 } from './types'
 
-type Snapshot = {
+type TodaySnapshot = {
+  page: 'today'
   session: FounderSession
   overview: FounderOverview
+}
+
+type ProspectionSnapshot = {
+  page: 'prospection'
+  session: FounderSession
+  prospection: FounderProspection
+}
+
+type Snapshot = TodaySnapshot | ProspectionSnapshot
+
+const INITIAL_PROSPECTION_FILTERS: FounderProspectionFilters = {
+  page: 1,
+  q: '',
+  family: '',
+  department: '',
+  status: '',
 }
 
 const WEEK_OFFSETS = Array.from({ length: 52 }, (_, index) => index)
@@ -33,7 +53,9 @@ const GATE_LABELS = {
 } as const
 
 export function FounderApp() {
+  const isProspectionRoute = normalizedPathname() === '/prospection'
   const [weekOffset, setWeekOffset] = useState(0)
+  const [prospectionFilters, setProspectionFilters] = useState(INITIAL_PROSPECTION_FILTERS)
   const [refreshKey, setRefreshKey] = useState(0)
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null)
   const [loading, setLoading] = useState(true)
@@ -43,12 +65,23 @@ export function FounderApp() {
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    void Promise.all([
-      loadFounderSession(controller.signal),
-      loadFounderOverview(weekOffset, controller.signal),
-    ])
-      .then(([session, overview]) => {
-        if (!controller.signal.aborted) setSnapshot({ session, overview })
+    const readSnapshot = async () => {
+      if (isProspectionRoute) {
+        const [session, prospection] = await Promise.all([
+          loadFounderSession(controller.signal),
+          loadFounderProspection(prospectionFilters, controller.signal),
+        ])
+        return { page: 'prospection', session, prospection } satisfies ProspectionSnapshot
+      }
+      const [session, overview] = await Promise.all([
+        loadFounderSession(controller.signal),
+        loadFounderOverview(weekOffset, controller.signal),
+      ])
+      return { page: 'today', session, overview } satisfies TodaySnapshot
+    }
+    void readSnapshot()
+      .then((nextSnapshot) => {
+        if (!controller.signal.aborted) setSnapshot(nextSnapshot)
       })
       .catch((reason: unknown) => {
         if (controller.signal.aborted) return
@@ -62,7 +95,16 @@ export function FounderApp() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [refreshKey, weekOffset])
+  }, [
+    isProspectionRoute,
+    prospectionFilters.department,
+    prospectionFilters.family,
+    prospectionFilters.page,
+    prospectionFilters.q,
+    prospectionFilters.status,
+    refreshKey,
+    weekOffset,
+  ])
 
   return (
     <div className="control-shell">
@@ -79,11 +121,9 @@ export function FounderApp() {
         </a>
         <nav aria-label="Navigation de la console">
           <p>Console</p>
-          <a href="#overview">Vue du moment</a>
-          <a href="#attention">À traiter</a>
-          <a href="#business">Business</a>
-          <a href="#quality">Qualité</a>
-          <a href="#system">Système</a>
+          <a href="/" aria-current={isProspectionRoute ? undefined : 'page'}>Aujourd’hui</a>
+          <a href="/prospection" aria-current={isProspectionRoute ? 'page' : undefined}>Prospection</a>
+          <a href="/#system">Système</a>
         </nav>
         <div className="control-sidebar-footer">
           <span className="control-environment">
@@ -104,7 +144,11 @@ export function FounderApp() {
           <div className="control-topbar-actions">
             {snapshot ? (
               <span className="control-updated">
-                Actualisé {formatDateTime(snapshot.overview.generated_at)}
+                Actualisé {formatDateTime(
+                  snapshot.page === 'today'
+                    ? snapshot.overview.generated_at
+                    : snapshot.prospection.generated_at,
+                )}
               </span>
             ) : null}
             <button
@@ -128,12 +172,20 @@ export function FounderApp() {
 
           {!snapshot && loading ? <LoadingState /> : null}
           {!snapshot && !loading && error ? <UnavailableState /> : null}
-          {snapshot ? (
+          {snapshot?.page === 'today' ? (
             <Console
               snapshot={snapshot}
               weekOffset={weekOffset}
               onWeekChange={setWeekOffset}
               refreshing={loading}
+            />
+          ) : null}
+          {snapshot?.page === 'prospection' ? (
+            <ProspectionPage
+              data={snapshot.prospection}
+              filters={prospectionFilters}
+              refreshing={loading}
+              onFiltersChange={setProspectionFilters}
             />
           ) : null}
         </main>
@@ -142,13 +194,18 @@ export function FounderApp() {
   )
 }
 
+function normalizedPathname(): string {
+  const pathname = window.location.pathname.replace(/\/+$/, '')
+  return pathname || '/'
+}
+
 function Console({
   snapshot,
   weekOffset,
   onWeekChange,
   refreshing,
 }: {
-  snapshot: Snapshot
+  snapshot: TodaySnapshot
   weekOffset: number
   onWeekChange: (value: number) => void
   refreshing: boolean

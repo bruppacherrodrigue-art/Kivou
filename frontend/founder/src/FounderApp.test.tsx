@@ -156,6 +156,7 @@ const OVERVIEW: FounderOverview = {
 }
 
 afterEach(() => {
+  window.history.replaceState({}, '', '/')
   vi.unstubAllGlobals()
 })
 

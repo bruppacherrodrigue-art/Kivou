@@ -168,3 +168,126 @@ export interface FounderOverview {
     database_access: 'READ_ONLY'
   }
 }
+
+export type FounderDirectoryStatus =
+  | 'confirmed_domain'
+  | 'without_website'
+  | 'reverification_required'
+
+export interface FounderProspectionFilters {
+  page: number
+  q: string
+  family: string
+  department: string
+  status: FounderDirectoryStatus | ''
+}
+
+export interface FounderProspection {
+  version: 'founder-prospection-v1'
+  generated_at: string
+  read_only: true
+  timer: {
+    state: 'RUNNING' | 'STOPPED' | 'UNKNOWN'
+    unit: 'kivou-acquisition-production.timer'
+    inactive_since: string | null
+    last_triggered_at: string | null
+    next_trigger_at: string | null
+  }
+  queue: {
+    available: boolean
+    last_cycle_at: string | null
+    items: FounderProspectionQueueItem[]
+  }
+  directory: {
+    summary: {
+      company_count: number
+      confirmed_domain_count: number
+      verified_email_count: number
+      reverification_required_count: number
+    }
+    family_counts: FounderCountFacet[]
+    department_counts: FounderCountFacet[]
+    rows: FounderDirectoryRow[]
+    pagination: {
+      page: number
+      page_size: number
+      total_items: number
+      total_pages: number
+    }
+  }
+  targeting: FounderTargetingCycle | null
+  results: {
+    sent_count: number
+    opened_count: number
+    attribution_click_count: number
+    landing_count: number
+    confirmed_profile_count: number
+    paid_account_count: number
+    mrr_by_currency: MoneyTotal[]
+    no_sends_yet: boolean
+  }
+}
+
+export interface FounderCountFacet {
+  key: string
+  count: number
+}
+
+export interface FounderDirectoryRow {
+  siren: string
+  legal_name: string
+  family_keys: string[]
+  department: string | null
+  city: string | null
+  employees: number | null
+  domain: string | null
+  website_url: string | null
+  confirmed_domain: boolean
+  professional_email: string | null
+  email_source: string | null
+  email_verification_status: string | null
+  email_contact_name: string | null
+  email_contact_title: string | null
+  reverification_required_at: string | null
+  reverification_reason: string | null
+  updated_at: string
+}
+
+export interface FounderProspectionQueueItem {
+  target_ref: string
+  status: 'pending_review'
+  company_name: string
+  city: string | null
+  employees: number | null
+  family_key: string
+  director_name: string | null
+  director_title: string | null
+  email_address: string
+  email_source: 'apollo' | 'site' | 'manual'
+  email_verification_status: string
+  bait_holder: string
+  bait_subject: string
+  bait_amount_minor_units: number | null
+  bait_currency: string | null
+  mail_subject: string
+  mail_body: string
+}
+
+export interface FounderTargetingCycle {
+  cycle_ref: string
+  status: string
+  started_at: string
+  updated_at: string
+  completed_at: string | null
+  recent: boolean
+  signal: {
+    title: string | null
+    amount_minor_units: number | null
+    currency: string | null
+  }
+  family_keys: string[]
+  sirene_account_count: number
+  confirmed_domain_count: number
+  email_counts_by_level: Array<{ level: number; count: number }>
+  deviation_counts: Array<{ reason_code: string; count: number }>
+}
