@@ -126,7 +126,7 @@ export function FounderApp() {
             <span aria-hidden="true" />
             Production
           </span>
-          <span className="control-readonly">Lecture seule</span>
+          <span className="control-readonly">Consultation</span>
           {snapshot ? <small>{snapshot.session.operator_email}</small> : null}
         </div>
       </aside>
@@ -275,7 +275,7 @@ function AttentionSection({ items }: { items: AttentionItem[] }) {
       <SectionHeading
         eyebrow="Décisions et incidents"
         title="À traiter"
-        description="File en lecture seule issue des incidents non résolus et de la dead-letter queue."
+        description="File de consultation issue des incidents non résolus et de la dead-letter queue."
       />
       {items.length === 0 ? (
         <EmptyState title="Aucun élément ouvert" body="Le système ne remonte actuellement aucun incident ou échec durable à examiner." />
@@ -535,7 +535,7 @@ function SystemSection({ overview }: { overview: FounderOverview }) {
       <SectionHeading
         eyebrow="Exploitation"
         title="Système"
-        description="Santé et niveau d’autonomie calculés depuis l’état durable, sans appel fournisseur pendant la lecture."
+        description="Santé et niveau d’autonomie calculés depuis l’état durable, sans appel fournisseur pendant la consultation."
       />
       <div className="control-system-summary">
         <article className="control-panel control-hermes-card">
@@ -555,7 +555,7 @@ function SystemSection({ overview }: { overview: FounderOverview }) {
           <p className="control-panel-kicker">Accès aux données</p>
           <h3>PostgreSQL</h3>
           <div className="control-read-boundary">
-            <strong>{overview.system.database_access === 'READ_ONLY' ? 'Lecture seule' : 'État inconnu'}</strong>
+            <strong>{overview.system.database_access === 'READ_ONLY' ? 'Consultation' : 'État inconnu'}</strong>
             <span>Aucune mutation n’est montée dans cette API.</span>
           </div>
         </article>

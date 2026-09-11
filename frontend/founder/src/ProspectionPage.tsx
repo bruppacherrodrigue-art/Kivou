@@ -90,7 +90,7 @@ function ProspectionHero({ data }: { data: FounderProspection }) {
         <h1 id="prospection-title">Prospection</h1>
         <p>
           L’annuaire réel, le dernier cycle d’acquisition et le parcours commercial réunis
-          dans une vue en lecture seule.
+          dans une vue de consultation.
         </p>
       </div>
       <div className="prospection-runtime-card">
@@ -398,13 +398,13 @@ function TargetingSection({ data }: { data: FounderProspection }) {
     <section id="targeting" className="control-section prospection-section prospection-compact-section" aria-labelledby="targeting-title">
       <ProspectionSectionHeading
         eyebrow="Dernier passage"
-        title="Ciblage"
+        title="Sélection"
         titleId="targeting-title"
         description="Signal, volume et écarts lus dans les journaux du dernier cycle d’acquisition."
         meta={`${cycleDateLabel(cycle?.updated_at ?? null)} · ${timerShortLabel(data)}`}
       />
       {!cycle ? (
-        <CompactEmpty title="Aucun cycle enregistré." body="Le runtime n’a produit aucun journal de ciblage." />
+        <CompactEmpty title="Aucun cycle enregistré." body="Le runtime n’a produit aucun journal de sélection." />
       ) : !cycle.recent ? (
         <CompactEmpty title="Aucun cycle récent." body={`Dernier cycle le ${formatDateTime(cycle.updated_at)} · ${humanizeCode(cycle.status)}.`} />
       ) : (
@@ -482,7 +482,7 @@ function MailDrawer({ item, onClose }: { item: FounderProspectionQueueItem; onCl
       >
         <header>
           <div>
-            <small>Mail préparé · lecture seule</small>
+            <small>Mail préparé · consultation</small>
             <h2 id="prospection-mail-title">{item.company_name}</h2>
           </div>
           <button ref={closeButtonRef} type="button" aria-label="Fermer" onClick={onClose}>×</button>
