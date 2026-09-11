@@ -13,7 +13,10 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchPage,
     SupplierSearchProfile,
 )
-from signals.supplier_discovery.families import load_supplier_family_catalog
+from signals.supplier_discovery.families import (
+    load_supplier_family_catalog,
+    supplier_matches_family,
+)
 
 
 class SireneOrganizationSearchProvider:
@@ -76,8 +79,12 @@ class SireneOrganizationSearchProvider:
             )
         candidates = []
         for family_key, company in companies:
+            family = by_key.get(family_key)
+            if family is None:
+                continue
+            activity_texts = (company.legal_name, company.naf_label or "")
             if self._directory is not None:
-                self._directory.upsert_identity(
+                directory_record = self._directory.upsert_identity(
                     siren=company.siren,
                     legal_name=company.legal_name,
                     naf_code=company.naf_code,
@@ -86,7 +93,16 @@ class SireneOrganizationSearchProvider:
                     city=company.city,
                     employees=company.employees,
                     observed_at=company.observed_at,
+                    naf_label=company.naf_label,
                 )
+                if directory_record is None or family_key not in directory_record.family_keys:
+                    continue
+            elif not supplier_matches_family(
+                family,
+                naf_code=company.naf_code,
+                activity_texts=activity_texts,
+            ):
+                continue
             canonical = {
                 "provider": "sirene",
                 "provider_organization_id": company.siren,

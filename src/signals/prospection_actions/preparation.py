@@ -17,7 +17,11 @@ from signals.persistence.schema import (
 )
 from signals.prospection_actions.mail import render_assisted_mail
 from signals.prospection_actions.service import ProspectLinkIssuer, _history_id
-from signals.supplier_discovery.families import department_and_neighbours
+from signals.supplier_discovery.families import (
+    department_and_neighbours,
+    load_supplier_family_catalog,
+    supplier_matches_family,
+)
 
 DAILY_PENDING_CAP = 25
 DAILY_SIGNAL_CAP = 5
@@ -83,6 +87,11 @@ class ProspectPreparationService:
         day_end = day_start + dt.timedelta(days=1)
         family_order = {key: index for index, (key, _label) in enumerate(signal.families)}
         family_labels = dict(signal.families)
+        catalog_by_key = {
+            family.key: family
+            for families in load_supplier_family_catalog().values()
+            for family in families
+        }
         departments = set(department_and_neighbours(signal.department))
         with self._engine.begin() as connection:
             if connection.dialect.name == "postgresql":
@@ -103,8 +112,7 @@ class ProspectPreparationService:
                 )
             )
             if any(
-                row.procedure_award_key == signal.procedure_key
-                and row.cycle_ref != cycle_ref
+                row.procedure_award_key == signal.procedure_key and row.cycle_ref != cycle_ref
                 for row in daily
             ):
                 return PreparationResult(
@@ -138,7 +146,8 @@ class ProspectPreparationService:
             directory_rows = tuple(
                 dict(row)
                 for row in connection.execute(
-                    sa.select(supplier_directory).where(
+                    sa.select(supplier_directory)
+                    .where(
                         supplier_directory.c.department.in_(departments),
                         supplier_directory.c.employees >= 10,
                         supplier_directory.c.professional_email.is_not(None),
@@ -146,7 +155,8 @@ class ProspectPreparationService:
                         supplier_directory.c.domain_validation_method.is_not(None),
                         supplier_directory.c.reverification_required_at.is_(None),
                         supplier_directory.c.suppressed_at.is_(None),
-                    ).order_by(
+                    )
+                    .order_by(
                         supplier_directory.c.employees.desc(),
                         supplier_directory.c.siren,
                     )
@@ -157,7 +167,20 @@ class ProspectPreparationService:
                 if row["siren"] in recently_contacted:
                     continue
                 matches = sorted(
-                    set(row.get("family_keys") or ()).intersection(family_order),
+                    (
+                        key
+                        for key in set(row.get("family_keys") or ()).intersection(family_order)
+                        if key in catalog_by_key
+                        and supplier_matches_family(
+                            catalog_by_key[key],
+                            naf_code=str(row.get("naf_code") or ""),
+                            activity_texts=(
+                                str(row.get("legal_name") or ""),
+                                str(row.get("naf_label") or ""),
+                                str(row.get("website_title") or ""),
+                            ),
+                        )
+                    ),
                     key=family_order.__getitem__,
                 )
                 review = set(row.get("family_review_keys") or ())
@@ -165,10 +188,12 @@ class ProspectPreparationService:
                 if family_key is None:
                     continue
                 duplicate = connection.scalar(
-                    sa.select(sa.literal(1)).where(
+                    sa.select(sa.literal(1))
+                    .where(
                         prospect_target.c.opportunity_key == signal.opportunity_key,
                         prospect_target.c.email_address == row["professional_email"],
-                    ).limit(1)
+                    )
+                    .limit(1)
                 )
                 if duplicate:
                     continue

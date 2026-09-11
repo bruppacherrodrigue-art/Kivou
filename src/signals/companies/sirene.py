@@ -32,6 +32,7 @@ class SireneCompany:
     employees: int | None
     naf_code: str | None
     observed_at: dt.datetime
+    naf_label: str | None = None
 
 
 _TRANCHE_MAX = {
@@ -182,6 +183,14 @@ class SireneCompanySearch:
                             employees=employees,
                             naf_code=str(establishment.get("activite_principale") or "") or None,
                             observed_at=self._clock(),
+                            naf_label=(
+                                str(
+                                    establishment.get("libelle_activite_principale")
+                                    or item.get("libelle_activite_principale")
+                                    or ""
+                                ).strip()
+                                or None
+                            ),
                         )
                     )
                     if len(found) >= criteria.limit:

@@ -842,6 +842,8 @@ supplier_directory = sa.Table(
     sa.Column("legal_name_observed_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("naf_code", sa.String(8)),
     sa.Column("naf_observed_at", sa.DateTime(timezone=True)),
+    sa.Column("naf_label", sa.Text),
+    sa.Column("naf_label_observed_at", sa.DateTime(timezone=True)),
     sa.Column("family_keys", sa.JSON, nullable=False),
     sa.Column("family_review_keys", sa.JSON, nullable=False, server_default="[]"),
     sa.Column("families_observed_at", sa.DateTime(timezone=True), nullable=False),
@@ -853,6 +855,8 @@ supplier_directory = sa.Table(
     sa.Column("employees_observed_at", sa.DateTime(timezone=True)),
     sa.Column("domain", sa.String(253), index=True),
     sa.Column("website_url", sa.Text),
+    sa.Column("website_title", sa.Text),
+    sa.Column("website_title_observed_at", sa.DateTime(timezone=True)),
     sa.Column("domain_source", sa.String(32)),
     sa.Column("domain_validation_method", sa.String(32)),
     sa.Column("domain_validation_evidence_url", sa.Text),
@@ -997,9 +1001,7 @@ prospect_target = sa.Table(
         "instantly_credit_units >= 0 AND instantly_request_count >= 0",
         name="ck_prospect_target_delivery_cost",
     ),
-    sa.UniqueConstraint(
-        "opportunity_key", "email_address", name="uq_prospect_target_signal_email"
-    ),
+    sa.UniqueConstraint("opportunity_key", "email_address", name="uq_prospect_target_signal_email"),
     sa.Index("ix_prospect_target_daily_status", "created_at", "status"),
 )
 

@@ -23,6 +23,11 @@ class FakeSearch:
                 employees=20,
                 naf_code=criteria.naf_codes[0],
                 observed_at=dt.datetime(2026, 9, 9, tzinfo=dt.UTC),
+                naf_label=(
+                    "Fabrication de béton prêt à l'emploi"
+                    if criteria.naf_codes[0] == "23.63Z"
+                    else "Travaux de coffrage"
+                ),
             ),
         )
 

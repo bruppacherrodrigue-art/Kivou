@@ -35,6 +35,12 @@ class FakeSireneCompanySearch:
                     employees=25,
                     naf_code=naf_code,
                     observed_at=dt.datetime.now(dt.UTC),
+                    naf_label=(
+                        "Béton prêt à l'emploi armatures ferraillage gros œuvre maçonnerie "
+                        "coffrage échafaudage étanchéité charpente couverture zinguerie "
+                        "isolation menuiserie plomberie électricité chauffage ventilation "
+                        "travaux routiers enrobé signalisation terrassement démolition déchets"
+                    ),
                 )
             )
         return tuple(companies[: criteria.limit])

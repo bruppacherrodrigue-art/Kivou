@@ -52,7 +52,7 @@ REQUEUE_UNRESOLVED_SIRET_REVISION = "0033_requeue_unresolved_siret"
 COMPANY_ENGAGEMENT_REVISION = "0034_company_engagement"
 SUPPLIER_DOMAIN_REVISION = "0050_supplier_domain_validation"
 ASSISTED_PROSPECTION_REVISION = "0051_assisted_prospection"
-CURRENT_HEAD = "0052_assisted_observation"
+CURRENT_HEAD = "0053_supplier_activity"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 

@@ -33,7 +33,9 @@ def _store(tmp_path) -> SupplierDirectoryStore:
     return SupplierDirectoryStore(engine, clock=lambda: NOW)
 
 
-def test_directory_unions_families_and_dates_each_identity_field(tmp_path) -> None:
+def test_directory_derives_families_from_naf_and_activity_and_dates_identity_fields(
+    tmp_path,
+) -> None:
     store = _store(tmp_path)
     store.upsert_identity(
         siren="331364729",
@@ -59,10 +61,7 @@ def test_directory_unions_families_and_dates_each_identity_field(tmp_path) -> No
     record = store.get("331364729")
 
     assert record is not None
-    assert record.family_keys == (
-        "ready_mix_concrete",
-        "subcontracted_structural_work",
-    )
+    assert record.family_keys == ("ready_mix_concrete",)
     assert record.legal_name_observed_at == NOW + dt.timedelta(hours=1)
     assert record.naf_observed_at == NOW + dt.timedelta(hours=1)
     assert record.department_observed_at == NOW + dt.timedelta(hours=1)
@@ -506,9 +505,7 @@ def test_directory_does_not_reuse_email_after_validated_domain_changes(tmp_path)
         observed_at=NOW + dt.timedelta(hours=1),
     )
 
-    assert store.fresh_email(
-        "331364729", at=NOW + dt.timedelta(hours=1)
-    ) is None
+    assert store.fresh_email("331364729", at=NOW + dt.timedelta(hours=1)) is None
 
 
 def test_resolver_avoids_serper_and_apollo_for_fresh_directory_binding(tmp_path, caplog) -> None:

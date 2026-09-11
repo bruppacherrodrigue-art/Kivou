@@ -27,6 +27,7 @@ def test_sirene_search_sends_naf_department_size_and_active_filters() -> None:
                             "code_postal": "75001",
                             "libelle_commune": "Paris",
                             "activite_principale": "43.99C",
+                            "libelle_activite_principale": "Travaux de maçonnerie générale",
                         },
                         "matching_etablissements": [
                             {
@@ -34,6 +35,7 @@ def test_sirene_search_sends_naf_department_size_and_active_filters() -> None:
                                 "code_postal": "69001",
                                 "libelle_commune": "Lyon",
                                 "activite_principale": "43.99C",
+                                "libelle_activite_principale": "Travaux de maçonnerie générale",
                                 "etat_administratif": "A",
                             }
                         ],
@@ -62,6 +64,7 @@ def test_sirene_search_sends_naf_department_size_and_active_filters() -> None:
     assert result[0].siren == "123456789"
     assert result[0].siret == "12345678900028"
     assert result[0].city == "Lyon"
+    assert result[0].naf_label == "Travaux de maçonnerie générale"
     assert requests[0].url.path == "/search"
     query = dict(requests[0].url.params.multi_items())
     assert query["activite_principale"] == "43.99C"

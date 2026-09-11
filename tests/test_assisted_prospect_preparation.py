@@ -54,13 +54,21 @@ def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 
     rows = []
     for index in range(count):
         family = "ready_mix_concrete" if index % 2 == 0 else "reinforcement_steel"
+        naf_code = "23.63Z" if family == "ready_mix_concrete" else "25.11Z"
+        naf_label = (
+            "Fabrication de béton prêt à l'emploi"
+            if family == "ready_mix_concrete"
+            else "Fabrication d'armatures et de treillis pour béton"
+        )
         rows.append(
             {
                 "siren": f"{100_000_000 + index:09d}",
-                "legal_name": f"FOURNISSEUR {index:02d}",
+                "legal_name": f"FOURNISSEUR {naf_label} {index:02d}",
                 "legal_name_observed_at": NOW,
-                "naf_code": "23.63Z",
+                "naf_code": naf_code,
                 "naf_observed_at": NOW,
+                "naf_label": naf_label,
+                "naf_label_observed_at": NOW,
                 "family_keys": [family],
                 "families_observed_at": NOW,
                 "department": "03" if index < eligible_department_count else "75",
@@ -73,7 +81,13 @@ def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 
                 "domain_validation_method": "name_word",
                 "domain_observed_at": NOW,
                 "directors": (
-                    [{"name": f"Alice Martin {index}", "title": "Gérante", "entity_type": "personne physique"}]
+                    [
+                        {
+                            "name": f"Alice Martin {index}",
+                            "title": "Gérante",
+                            "entity_type": "personne physique",
+                        }
+                    ]
                     if index != 1
                     else []
                 ),
@@ -173,9 +187,7 @@ def test_assisted_preparation_skips_contacted_in_last_ninety_days(
             .where(prospect_target.c.siren == "100000001")
             .values(status="sent", delivery_status="sent", sent_at=NOW)
         )
-        connection.execute(
-            sa.delete(prospect_target).where(prospect_target.c.siren != "100000001")
-        )
+        connection.execute(sa.delete(prospect_target).where(prospect_target.c.siren != "100000001"))
 
     replay = service.prepare(
         signal(
@@ -188,8 +200,38 @@ def test_assisted_preparation_skips_contacted_in_last_ninety_days(
 
     assert replay.prepared == 1
     with migrated_sqlite_engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(prospect_target)
-            .where(prospect_target.c.siren == "100000001")
-        ) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(prospect_target)
+                .where(prospect_target.c.siren == "100000001")
+            )
+            == 1
+        )
+
+
+def test_assisted_preparation_rechecks_naf_and_activity_before_queueing(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 5)
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000001")
+            .values(
+                legal_name="DENIOS",
+                naf_code="25.11Z",
+                naf_label="Fabrication de structures métalliques",
+                website_title="Solutions de stockage industriel",
+            )
+        )
+
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(signal(), cycle_ref="cycle-family-check")
+
+    assert result.prepared == 1
+    with migrated_sqlite_engine.connect() as connection:
+        assert tuple(connection.execute(sa.select(prospect_target.c.siren)).scalars()) == (
+            "100000004",
+        )

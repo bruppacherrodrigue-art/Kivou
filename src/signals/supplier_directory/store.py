@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 from sqlalchemy.engine import Engine
 
 from signals.persistence.schema import supplier_directory
+from signals.supplier_discovery.families import matching_supplier_family_keys
 
 FRESHNESS = dt.timedelta(days=90)
 
@@ -24,6 +25,8 @@ class SupplierDirectoryRecord(BaseModel):
     legal_name_observed_at: dt.datetime
     naf_code: str | None = None
     naf_observed_at: dt.datetime | None = None
+    naf_label: str | None = None
+    naf_label_observed_at: dt.datetime | None = None
     family_keys: tuple[str, ...] = Field(default=())
     family_review_keys: tuple[str, ...] = Field(default=())
     families_observed_at: dt.datetime
@@ -35,6 +38,8 @@ class SupplierDirectoryRecord(BaseModel):
     employees_observed_at: dt.datetime | None = None
     domain: str | None = None
     website_url: str | None = None
+    website_title: str | None = None
+    website_title_observed_at: dt.datetime | None = None
     domain_source: str | None = None
     domain_validation_method: Literal["name_word", "registration_number"] | None = None
     domain_validation_evidence_url: str | None = None
@@ -77,11 +82,13 @@ class SupplierDirectoryRecord(BaseModel):
     @field_validator(
         "legal_name_observed_at",
         "naf_observed_at",
+        "naf_label_observed_at",
         "families_observed_at",
         "department_observed_at",
         "city_observed_at",
         "employees_observed_at",
         "domain_observed_at",
+        "website_title_observed_at",
         "apollo_observed_at",
         "directors_observed_at",
         "email_observed_at",
@@ -123,6 +130,8 @@ def _reverification_values(*, reason: str, observed_at: dt.datetime) -> dict[str
     return {
         "domain": None,
         "website_url": None,
+        "website_title": None,
+        "website_title_observed_at": None,
         "domain_source": None,
         "domain_validation_method": None,
         "domain_validation_evidence_url": None,
@@ -172,6 +181,7 @@ class SupplierDirectoryStore:
         city: str | None,
         employees: int | None,
         observed_at: dt.datetime,
+        naf_label: str | None = None,
     ) -> SupplierDirectoryRecord:
         _require_aware(observed_at)
         with self._engine.begin() as connection:
@@ -182,15 +192,22 @@ class SupplierDirectoryStore:
                 .mappings()
                 .one_or_none()
             )
-            families = sorted(
-                set((current["family_keys"] if current is not None else ()) or ()) | {family_key}
+            families = matching_supplier_family_keys(
+                naf_code=naf_code,
+                activity_texts=(
+                    legal_name,
+                    naf_label or "",
+                    str(current["website_title"] or "") if current is not None else "",
+                ),
             )
             values = {
                 "legal_name": legal_name,
                 "legal_name_observed_at": observed_at,
                 "naf_code": naf_code,
                 "naf_observed_at": observed_at if naf_code else None,
-                "family_keys": families,
+                "naf_label": naf_label,
+                "naf_label_observed_at": observed_at if naf_label else None,
+                "family_keys": list(families),
                 "families_observed_at": observed_at,
                 "department": department,
                 "department_observed_at": observed_at if department else None,
@@ -234,16 +251,19 @@ class SupplierDirectoryStore:
         validation_method: Literal["name_word", "registration_number"],
         validation_evidence_url: str | None,
         observed_at: dt.datetime,
+        website_title: str | None = None,
     ) -> bool:
         _require_aware(observed_at)
         normalized_domain = domain.casefold()
         trusted_values = {
-                "domain": domain,
-                "website_url": website_url,
-                "domain_source": source,
-                "domain_validation_method": validation_method,
-                "domain_validation_evidence_url": validation_evidence_url,
-                "domain_observed_at": observed_at,
+            "domain": domain,
+            "website_url": website_url,
+            "website_title": website_title,
+            "website_title_observed_at": observed_at if website_title else None,
+            "domain_source": source,
+            "domain_validation_method": validation_method,
+            "domain_validation_evidence_url": validation_evidence_url,
+            "domain_observed_at": observed_at,
             "reverification_required_at": None,
             "reverification_reason": None,
             "website_failure_count": 0,
@@ -257,10 +277,12 @@ class SupplierDirectoryStore:
                     {"domain": normalized_domain},
                 )
             conflict = connection.scalar(
-                sa.select(sa.literal(1)).where(
+                sa.select(sa.literal(1))
+                .where(
                     sa.func.lower(supplier_directory.c.domain) == normalized_domain,
                     supplier_directory.c.siren != siren,
-                ).limit(1)
+                )
+                .limit(1)
             )
             if conflict:
                 untrusted_values = {
@@ -297,6 +319,29 @@ class SupplierDirectoryStore:
                     )
                 )
                 return False
+            identity = (
+                connection.execute(
+                    sa.select(
+                        supplier_directory.c.legal_name,
+                        supplier_directory.c.naf_code,
+                        supplier_directory.c.naf_label,
+                    ).where(supplier_directory.c.siren == siren)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if identity is not None:
+                trusted_values["family_keys"] = list(
+                    matching_supplier_family_keys(
+                        naf_code=identity["naf_code"],
+                        activity_texts=(
+                            str(identity["legal_name"]),
+                            str(identity["naf_label"] or ""),
+                            website_title or "",
+                        ),
+                    )
+                )
+                trusted_values["families_observed_at"] = observed_at
             result = connection.execute(
                 sa.update(supplier_directory)
                 .where(supplier_directory.c.siren == siren)
@@ -360,9 +405,7 @@ class SupplierDirectoryStore:
             and record.website_search_results_examined >= 30
         )
 
-    def record_website_connection_failure(
-        self, siren: str, *, observed_at: dt.datetime
-    ) -> bool:
+    def record_website_connection_failure(self, siren: str, *, observed_at: dt.datetime) -> bool:
         _require_aware(observed_at)
         with self._engine.begin() as connection:
             row = connection.execute(
@@ -452,8 +495,8 @@ class SupplierDirectoryStore:
         with self._engine.begin() as connection:
             matching_site_evidence = sa.false()
             if source == "site" and evidence_url:
-                evidence_domain = (urlsplit(evidence_url).hostname or "").casefold().removeprefix(
-                    "www."
+                evidence_domain = (
+                    (urlsplit(evidence_url).hostname or "").casefold().removeprefix("www.")
                 )
                 if evidence_domain:
                     matching_site_evidence = (
@@ -548,8 +591,7 @@ class SupplierDirectoryStore:
             and record.domain_validation_method
             and record.reverification_required_at is None
             and (
-                record.professional_email.rsplit("@", 1)[-1].casefold()
-                == record.domain.casefold()
+                record.professional_email.rsplit("@", 1)[-1].casefold() == record.domain.casefold()
                 or record.email_source == "manual"
                 or (
                     record.email_source == "site"
