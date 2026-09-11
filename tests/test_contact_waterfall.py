@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 
 import httpx
 
@@ -179,6 +180,170 @@ def test_website_extracts_text_email_after_mailto_addresses() -> None:
         "contact@beton-alpes.fr",
     )
     assert pages[0].has_contact_form is True
+
+
+def test_website_checks_fixed_contact_paths_menu_links_and_obfuscated_addresses() -> None:
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(request.url.path)
+        pages = {
+            "/": (
+                '<nav><a href="/equipe">Contact</a></nav>'
+                "<footer>accueil [at] beton-alpes [dot] fr</footer>"
+            ),
+            "/contact": "Page absente",
+            "/contactez-nous": "direction (at) beton-alpes (dot) fr",
+            "/nous-contacter": "Page absente",
+            "/contacts": "Page absente",
+            "/equipe": "commercial [arrobase] beton-alpes [point] fr",
+        }
+        status = 404 if pages[request.url.path] == "Page absente" else 200
+        return httpx.Response(
+            status,
+            headers={"content-type": "text/html"},
+            text=pages[request.url.path],
+        )
+
+    evidence = CompanyWebsiteClient(
+        client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    ).fetch("beton-alpes.fr")
+
+    assert requested == [
+        "/",
+        "/contact",
+        "/contactez-nous",
+        "/nous-contacter",
+        "/contacts",
+        "/equipe",
+    ]
+    assert tuple(str(email) for page in evidence for email in page.published_emails) == (
+        "accueil@beton-alpes.fr",
+        "direction@beton-alpes.fr",
+        "commercial@beton-alpes.fr",
+    )
+
+
+def test_website_uses_model_last_on_full_contact_text() -> None:
+    calls = []
+
+    class Directors:
+        def find(self, _siren):
+            return ()
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://beton-alpes.fr/contact",
+                    text=(
+                        "Pour écrire : devis, suivi du signe arobase, puis beton-alpes, "
+                        "puis point fr."
+                    ),
+                    published_emails=(),
+                ),
+            )
+
+    class Extractor:
+        def extract(self, **kwargs):
+            from signals.contact_discovery.providers import PublishedContactExtraction
+
+            calls.append(kwargs)
+            return PublishedContactExtraction(
+                email="devis@beton-alpes.fr",
+                dirigeant="BETON ALPES",
+                confiance=0.9,
+            )
+
+    class Deliverability:
+        def verify(self, email):
+            assert email == "devis@beton-alpes.fr"
+            return True
+
+    contact = PublishedWebsiteContactProvider(
+        directors=Directors(),
+        pages=Pages(),
+        extractor=Extractor(),
+        deliverability=Deliverability(),
+    ).find(_profile(), observed_at=NOW)
+
+    assert contact is not None
+    assert contact.business_email == "devis@beton-alpes.fr"
+    assert calls[0]["evidence"][0].text.startswith("Pour écrire")
+
+
+def test_website_reports_mx_failure_when_published_email_is_not_deliverable(caplog) -> None:
+    class Directors:
+        def find(self, _siren):
+            return ()
+
+    class Pages:
+        def fetch(self, _domain):
+            return (
+                WebsiteEvidence(
+                    url="https://beton-alpes.fr/contact",
+                    text="contact@beton-alpes.fr",
+                    published_emails=("contact@beton-alpes.fr",),
+                ),
+            )
+
+    class Deliverability:
+        def verify(self, _email):
+            return False
+
+    caplog.set_level(logging.INFO)
+    contact = PublishedWebsiteContactProvider(
+        directors=Directors(),
+        pages=Pages(),
+        extractor=object(),
+        deliverability=Deliverability(),
+    ).find(_profile(), observed_at=NOW)
+
+    assert contact is None
+    decision = next(record for record in caplog.records if record.message == "website_contact_rejected")
+    assert decision.reason == "mx invalide"
+
+
+def test_model_can_normalize_textually_published_email_without_director() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = __import__("json").loads(request.content)
+        assert payload["max_tokens"] == 1000
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '{"email":"devis@beton-alpes.fr",'
+                                '"dirigeant":"BETON ALPES","confiance":0.9}'
+                            )
+                        }
+                    }
+                ]
+            },
+        )
+
+    result = OpenRouterPublishedContactExtractor(
+        api_key="test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    ).extract(
+        company_name="BETON ALPES",
+        directors=(),
+        evidence=(
+            WebsiteEvidence(
+                url="https://beton-alpes.fr/contact",
+                text=(
+                    "Pour écrire : devis, suivi du signe arobase, puis beton-alpes, "
+                    "puis point fr."
+                ),
+                published_emails=(),
+            ),
+        ),
+    )
+
+    assert result is not None
+    assert str(result.email) == "devis@beton-alpes.fr"
 
 
 def test_registry_keeps_operational_directors_and_rejects_auditors() -> None:

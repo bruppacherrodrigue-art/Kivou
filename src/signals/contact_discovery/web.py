@@ -22,10 +22,23 @@ from signals.supplier_directory.store import SupplierDirectoryStore
 
 logger = logging.getLogger(__name__)
 
-_CONTACT_WORDS = ("contact", "nous-contacter", "coordonnees")
+_CONTACT_WORDS = ("contact", "contactez-nous", "nous-contacter", "coordonnees")
+_CONTACT_PATHS = ("/contact", "/contactez-nous", "/nous-contacter", "/contacts")
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _TEXT_EMAIL = re.compile(
     r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,63})(?![A-Za-z0-9-])"
+)
+_OBFUSCATED_EMAIL = re.compile(
+    r"(?<![A-Za-z0-9._%+-])"
+    r"([A-Za-z0-9._%+-]+)\s*"
+    r"(?:@|\[\s*(?:at|arrobase)\s*\]|\(\s*(?:at|arrobase)\s*\)|\bat\b|\barrobase\b)"
+    r"\s*([A-Za-z0-9-]+(?:\s*(?:\.|\[\s*(?:dot|point)\s*\]|"
+    r"\(\s*(?:dot|point)\s*\)|\bdot\b|\bpoint\b)\s*[A-Za-z0-9-]+)+)",
+    re.IGNORECASE,
+)
+_OBFUSCATED_DOT = re.compile(
+    r"\s*(?:\.|\[\s*(?:dot|point)\s*\]|\(\s*(?:dot|point)\s*\)|\bdot\b|\bpoint\b)\s*",
+    re.IGNORECASE,
 )
 _OPERATIONAL_TITLES = (
     "gerant",
@@ -151,8 +164,10 @@ class _PageParser(HTMLParser):
         super().__init__()
         self.text: list[str] = []
         self.emails: set[str] = set()
-        self.links: list[str] = []
+        self.links: list[tuple[str, str]] = []
         self.has_form = False
+        self._anchor_href: str | None = None
+        self._anchor_text: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         if tag == "form":
@@ -165,12 +180,31 @@ class _PageParser(HTMLParser):
                 if _EMAIL.fullmatch(email):
                     self.emails.add(email)
             else:
-                self.links.append(href)
+                self._anchor_href = href
+                self._anchor_text = []
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._anchor_href is not None:
+            self.links.append((self._anchor_href, " ".join(self._anchor_text)))
+            self._anchor_href = None
+            self._anchor_text = []
 
     def handle_data(self, data):
         cleaned = " ".join(data.split())
         if cleaned:
             self.text.append(cleaned)
+            if self._anchor_href is not None:
+                self._anchor_text.append(cleaned)
+
+
+def _emails_in_text(text: str) -> tuple[str, ...]:
+    output = [match.casefold() for match in _TEXT_EMAIL.findall(text)]
+    for match in _OBFUSCATED_EMAIL.finditer(text):
+        domain = ".".join(_OBFUSCATED_DOT.split(match.group(2)))
+        candidate = f"{match.group(1)}@{domain}".casefold()
+        if _EMAIL.fullmatch(candidate):
+            output.append(candidate)
+    return tuple(dict.fromkeys(output))
 
 
 class CompanyWebsiteClient:
@@ -191,9 +225,7 @@ class CompanyWebsiteClient:
             parser = _PageParser()
             parser.feed(response.text)
             text = " ".join(parser.text)[:40_000]
-            text_emails = {
-                match.casefold() for match in _TEXT_EMAIL.findall(text) if _EMAIL.fullmatch(match)
-            }
+            text_emails = set(_emails_in_text(text))
             ordered_emails = tuple(sorted(parser.emails)) + tuple(
                 sorted(text_emails.difference(parser.emails))
             )
@@ -210,17 +242,19 @@ class CompanyWebsiteClient:
         home_url = f"https://{domain}/"
         home, links = self._one(home_url, domain)
         evidence = [home] if home is not None else []
-        contact_url = None
-        for link in links:
+        contact_urls = [urljoin(home_url, path) for path in _CONTACT_PATHS]
+        for link, label in links:
             absolute = urljoin(home_url, link)
             parsed = urlsplit(absolute)
             target_domain = (parsed.hostname or "").casefold().removeprefix("www.")
             if target_domain == domain and any(
-                word in parsed.path.casefold() for word in _CONTACT_WORDS
+                word in parsed.path.casefold() or word in ascii_text(label).casefold()
+                for word in _CONTACT_WORDS
             ):
-                contact_url = absolute
-                break
-        if contact_url and (home is None or contact_url != home.url):
+                contact_urls.append(absolute)
+        for contact_url in dict.fromkeys(contact_urls):
+            if home is not None and contact_url == home.url:
+                continue
             contact, _ = self._one(contact_url, domain)
             if contact is not None:
                 evidence.append(contact)
@@ -246,7 +280,42 @@ class PublishedWebsiteContactProvider:
             return None
         directors = self._directors.find(profile.supplier_siren)
         evidence = self._pages.fetch(profile.organization_domain)
-        if not evidence or not any(page.published_emails for page in evidence):
+        if not evidence:
+            return None
+        candidates = tuple(
+            str(email)
+            for page in evidence
+            for email in page.published_emails
+            if coherent_email_domain(str(email), evidence)
+        )
+        email = next(
+            (
+                candidate
+                for candidate in dict.fromkeys(candidates)
+                if self._deliverability.verify(candidate)
+            ),
+            None,
+        )
+        extracted_email = None
+        if email is None and not candidates:
+            extract = getattr(self._extractor, "extract", None)
+            extraction = (
+                extract(
+                    company_name=profile.organization_name or profile.supplier_siren,
+                    directors=directors,
+                    evidence=evidence,
+                )
+                if callable(extract)
+                else None
+            )
+            extracted_email = str(extraction.email) if extraction is not None else None
+            if (
+                extracted_email is not None
+                and coherent_email_domain(extracted_email, evidence)
+                and self._deliverability.verify(extracted_email)
+            ):
+                email = extracted_email
+        if email is None:
             form = next((page for page in evidence if page.has_contact_form), None)
             form_recorded = False
             if (
@@ -263,30 +332,14 @@ class PublishedWebsiteContactProvider:
                 "website_contact_rejected",
                 extra={
                     "siren": profile.supplier_siren,
-                    "reason": "contact par formulaire"
-                    if form_recorded
-                    else "pas d'adresse publiée",
+                    "reason": (
+                        "mx invalide"
+                        if candidates or extracted_email
+                        else "contact par formulaire"
+                        if form_recorded
+                        else "pas d'adresse publiée"
+                    ),
                 },
-            )
-            return None
-        candidates = tuple(
-            str(email)
-            for page in evidence
-            for email in page.published_emails
-            if coherent_email_domain(str(email), evidence)
-        )
-        email = next(
-            (
-                candidate
-                for candidate in dict.fromkeys(candidates)
-                if self._deliverability.verify(candidate)
-            ),
-            None,
-        )
-        if email is None:
-            logger.info(
-                "website_contact_rejected",
-                extra={"siren": profile.supplier_siren, "reason": "mx invalide"},
             )
             return None
         physical_directors = tuple(
