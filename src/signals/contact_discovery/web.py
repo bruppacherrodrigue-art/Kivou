@@ -247,9 +247,9 @@ class CompanyWebsiteClient:
             absolute = urljoin(home_url, link)
             parsed = urlsplit(absolute)
             target_domain = (parsed.hostname or "").casefold().removeprefix("www.")
+            normalized_label = ascii_text(label).casefold()
             if target_domain == domain and any(
-                word in parsed.path.casefold() or word in ascii_text(label).casefold()
-                for word in _CONTACT_WORDS
+                word in normalized_label for word in ("contact", "coordonnee")
             ):
                 contact_urls.append(absolute)
         for contact_url in dict.fromkeys(contact_urls):

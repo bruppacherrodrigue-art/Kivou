@@ -190,6 +190,7 @@ def test_website_checks_fixed_contact_paths_menu_links_and_obfuscated_addresses(
         pages = {
             "/": (
                 '<nav><a href="/equipe">Contact</a></nav>'
+                '<a href="/local-contact/brazil">Brésil</a>'
                 "<footer>accueil [at] beton-alpes [dot] fr</footer>"
             ),
             "/contact": "Page absente",
