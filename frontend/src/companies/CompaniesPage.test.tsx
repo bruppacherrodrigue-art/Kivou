@@ -43,6 +43,7 @@ function routes(profile: CompanyProfile = COMPANY_PROFILE) {
   return {
     'GET /companies': { body: page() },
     [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: selectedProfile },
+    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_ITEM },
     [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: {
       body: { company_key: COMPANY_PROFILE.company_key, contact_status: 'contacted', contacted_at: '2026-09-03T12:00:00Z', updated_at: '2026-09-03T12:00:00Z' },
     },
@@ -131,7 +132,7 @@ describe('CompaniesPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Charger plus' }))
     expect(await screen.findByText('Deuxième SA')).toBeInTheDocument()
     expect(screen.getAllByText('H. Hüther GmbH')).toHaveLength(1)
-    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3)
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
   })
 
   it.each([
@@ -322,5 +323,88 @@ describe('CompaniesPage', () => {
     expect(screen.getAllByRole('complementary')).toHaveLength(2)
     expect(screen.getByRole('heading', { name: 'H. Hüther GmbH' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Voirie' })).toBeInTheDocument()
+  })
+
+  it('place les données du registre et la synthèse avant les marchés', async () => {
+    const enriched: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      directory: {
+        siren: '123456789',
+        name: 'Constructions Bertrand SA',
+        naf_code: '42.11Z',
+        family_labels: ['Travaux routiers'],
+        department: '31',
+        city: 'Villeneuve',
+        employees: 48,
+        website_url: 'https://constructions-bertrand.example/',
+        directors: [{ name: 'Alice Martin', title: 'Présidente' }],
+        source: 'registre',
+        removal_path: '/contact',
+      },
+      market_summary: {
+        first_award_at: '2024-01-10',
+        awards_per_quarter: '1.5',
+        median_amounts: [{ value: '240000', currency: 'EUR' }],
+        consortium_share: '0.25',
+        recurring_buyers: ['Commune de Villeneuve'],
+        resolution: 'company_key',
+        source: 'public_awards',
+      },
+    }
+    mockApi(routes(enriched))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByText('NAF 42.11Z')).toBeVisible()
+    expect(screen.getByText('Travaux routiers')).toBeVisible()
+    expect(screen.getByText('48 salariés')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Site internet ↗' })).toHaveAttribute(
+      'href',
+      'https://constructions-bertrand.example/',
+    )
+    expect(screen.getByText('Alice Martin')).toBeVisible()
+    expect(screen.getByText('Présidente')).toBeVisible()
+    expect(screen.getByText('1,5 marché par trimestre')).toBeVisible()
+    expect(screen.getByText('240 000 € de montant médian')).toBeVisible()
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)
+    expect(headings.indexOf('Identité')).toBeLessThan(headings.indexOf('Synthèse des marchés'))
+    expect(headings.indexOf('Synthèse des marchés')).toBeLessThan(headings.indexOf('Ses marchés'))
+  })
+
+  it('ouvre une entreprise du circuit local depuis son SIREN', async () => {
+    mockApi({
+      ...routes(),
+      'GET /companies/directory/331364729': {
+        body: {
+          directory: {
+            siren: '331364729',
+            name: 'Bétons du Midi',
+            naf_code: '23.63Z',
+            family_labels: ['Béton prêt à l’emploi'],
+            department: '31',
+            city: 'Toulouse',
+            source: 'registre',
+            removal_path: '/contact',
+          },
+          markets: [{
+            market_id: 'award-1',
+            title: 'Fourniture de béton',
+            date: '2026-08-04',
+            source: 'public_awards',
+          }],
+        },
+      },
+    })
+    renderApp(<AppRoutes />, {
+      route: '/app/companies/directory/331364729',
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Bétons du Midi' })).toBeVisible()
+    expect(screen.getByText('NAF 23.63Z')).toBeVisible()
+    expect(screen.getByText('Fourniture de béton')).toBeVisible()
+    expect(callsTo('/companies/directory/331364729', 'GET')).toHaveLength(1)
   })
 })

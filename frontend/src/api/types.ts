@@ -206,6 +206,42 @@ export interface Money {
   currency: string
 }
 
+export interface CommercialCalendar {
+  start_month: string
+  duration_months?: number
+  source: 'public_notice'
+}
+
+export interface HolderMarketSummary {
+  first_award_at?: string
+  awards_per_quarter?: string
+  median_amounts?: Money[]
+  consortium_share: string
+  recurring_buyers?: string[]
+}
+
+export interface HolderHistory {
+  resolution: 'company_key' | 'normalized_name_department'
+  resolution_note?: 'rapprochement par nom'
+  last_12_months: {
+    awards_count: number
+    total_amounts?: Money[]
+    recurring_buyers?: string[]
+  }
+  summary: HolderMarketSummary
+  source: 'public_awards'
+}
+
+export interface LocalCircuitCompany {
+  siren: string
+  name: string
+  trade: string
+  city?: string
+  employees?: number
+  href: string
+  source: 'registre'
+}
+
 export interface Place {
   country: string | null
   locality: string | null
@@ -457,6 +493,9 @@ export interface UnlockedFeedItem {
   analysis: Analysis
   source: SignalSource
   presentation: CardPresentation | null
+  commercial_calendar?: CommercialCalendar
+  holder_history?: HolderHistory
+  local_circuit?: LocalCircuitCompany[]
 }
 
 export interface LockedFeedItem {
@@ -583,7 +622,47 @@ export interface CompanyOfficialIdentity {
   identifiers: CompanyOfficialIdentifier[]
   website_url: string | null
   observed_at: string
-  source: 'public_notice'
+  source: 'public_notice' | 'official_register'
+}
+
+export interface DirectoryDirector {
+  name: string
+  title?: string
+}
+
+export interface DirectoryCompany {
+  siren: string
+  name: string
+  naf_code?: string
+  family_labels?: string[]
+  department?: string
+  city?: string
+  employees?: number
+  website_url?: string
+  directors?: DirectoryDirector[]
+  resolution_note?: 'rapprochement par nom'
+  source: 'registre'
+  removal_path: '/contact'
+}
+
+export interface PublicMarket {
+  market_id: string
+  title?: string
+  date?: string
+  amount?: Money
+  buyers?: string[]
+  source_url?: string
+  source: 'public_awards'
+}
+
+export interface DirectoryCompanyProfile {
+  directory: DirectoryCompany
+  market_summary?: HolderMarketSummary & {
+    resolution: HolderHistory['resolution']
+    resolution_note?: HolderHistory['resolution_note']
+    source: HolderHistory['source']
+  }
+  markets: PublicMarket[]
 }
 
 export interface CompanyRelatedSignal {
@@ -628,6 +707,8 @@ export interface CompanyProfile {
   }>
   note: string | null
   signals: UnlockedFeedItem[]
+  market_summary?: DirectoryCompanyProfile['market_summary'] | null
+  directory?: DirectoryCompany | null
 }
 
 export type CompanyContactStatus = 'to_contact' | 'contacted' | 'replied'
@@ -688,7 +769,7 @@ export interface DashboardResponse {
   to_follow_up_truncated: boolean
   week: { new: number; saved: number; contacted: number; replied: number }
   scan_truncated: boolean
-  profile: { name: string; sector_label: string; zone_labels: string[] }
+  profile: { name: string; sector_label: string; zone_labels: string[] } | null
   plan: { name: string; opened: number; quota: number | null; period_end: string | null }
 }
 

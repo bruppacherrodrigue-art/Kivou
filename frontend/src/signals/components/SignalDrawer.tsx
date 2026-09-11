@@ -6,6 +6,7 @@ import { interpolate, useI18n } from '../../i18n'
 import { MatchDots } from './MatchDots'
 import { StatusPill } from './StatusPill'
 import { MISSING, placeLabel, signalObject } from './SignalRow'
+import { monthLabel } from '../valueFormat'
 import styles from './signals.module.css'
 
 /** Le nombre de raisons, et de besoins, que le tiroir montre. Au-delà, on ne
@@ -113,6 +114,29 @@ export function SignalDrawer({
   const needs = orderedNeeds(item.analysis.plausible_needs.items).filter((need) =>
     need.timing_status === 'determined' || need.quantity_status === 'determined',
   )
+  const calendarMonth = item.commercial_calendar
+    ? monthLabel(item.commercial_calendar.start_month, locale)
+    : null
+  const calendarText = calendarMonth
+    ? [
+        interpolate(copy.calendarStart, { month: calendarMonth }),
+        item.commercial_calendar?.duration_months
+          ? interpolate(copy.calendarDuration, { count: item.commercial_calendar.duration_months })
+          : null,
+      ].filter(Boolean).join(' · ')
+    : null
+  const history = item.holder_history?.last_12_months
+  const historyParts = history
+    ? [
+        interpolate(history.awards_count === 1 ? copy.marketWonOne : copy.marketWonOther, {
+          count: history.awards_count,
+        }),
+        history.total_amounts?.map((moneyItem) => amount(moneyItem.value, moneyItem.currency)).filter(Boolean).join(' · '),
+        history.recurring_buyers?.length
+          ? interpolate(copy.recurringBuyers, { buyers: history.recurring_buyers.join(', ') })
+          : null,
+      ].filter((part): part is string => Boolean(part))
+    : []
 
   /* Trois horloges, une seule vérité affichée : l'attribution prime, la
    * notification la remplace, la publication ferme la marche. L'intitulé
@@ -204,6 +228,30 @@ export function SignalDrawer({
         <Fact label={copy.cpv}>{item.contract.cpv ?? null}</Fact>
       </dl>
 
+      {calendarText ? (
+        <section className={styles.valueBlock}>
+          <h3 className="section-label">{copy.calendar}</h3>
+          <p>{calendarText}</p>
+          <small>{copy.publicNoticeSource}</small>
+        </section>
+      ) : null}
+
+      {historyParts.length > 0 ? (
+        <section className={styles.valueBlock}>
+          <h3 className="section-label">{copy.holderHistory}</h3>
+          <p>{historyParts.join(' · ')}</p>
+          {item.company_key ? (
+            <Link className={styles.valueLink} to={`/app/companies/${item.company_key}`}>
+              {copy.companyProfile}
+            </Link>
+          ) : null}
+          {item.holder_history?.resolution_note ? (
+            <small>{item.holder_history.resolution_note}</small>
+          ) : null}
+          <small>{copy.publicAwardsSource}</small>
+        </section>
+      ) : null}
+
       {needs.length > 0 ? (
         <section className={styles.needs}>
           <h3 className="section-label">{copy.needs}</h3>
@@ -214,6 +262,27 @@ export function SignalDrawer({
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {item.local_circuit?.length ? (
+        <section className={styles.valueBlock}>
+          <h3 className="section-label">{copy.localCircuit}</h3>
+          <ul className={styles.localCircuit}>
+            {item.local_circuit.map((company) => (
+              <li key={company.siren}>
+                <Link to={company.href}>{company.name}</Link>
+                <span>
+                  {[company.trade, company.city, company.employees === undefined
+                    ? null
+                    : interpolate(copy.employees, { count: company.employees })]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <small>{copy.registerSource}</small>
         </section>
       ) : null}
 

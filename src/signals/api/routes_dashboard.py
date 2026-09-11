@@ -83,6 +83,7 @@ def get_dashboard(request: Request) -> dict[str, Any]:
             access=access,
             lang=lang,
             previous_seen=previous_seen,
+            generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
         )
         profiles = accounts.list_target_icps(connection, account_id=session.account_id)
         active_profile = next((profile for profile in profiles if profile.status == "active"), None)
@@ -116,10 +117,10 @@ def get_dashboard(request: Request) -> dict[str, Any]:
                 ),
             }
             if active_profile is not None
-            else {"name": "—", "sector_label": "—", "zone_labels": []}
+            else None
         )
         result["plan"] = {
-            "name": _PLAN_NAMES.get(billing_state.plan_code, "—"),
+            "name": _PLAN_NAMES.get(billing_state.plan_code, billing_state.plan_code),
             "opened": len(grants) if billing_state.plan_code == "discovery" else paid_opened,
             "quota": entitlements.granted_signals or None,
             "period_end": (

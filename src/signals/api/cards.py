@@ -54,6 +54,7 @@ def render_unlocked_card(
     company_key: str | None,
     enrichment: WinnerEnrichmentView | None,
     status: str,
+    generated_for_you_enabled: bool = True,
 ) -> dict[str, Any]:
     """The full card for a signal this account can already see (§16 unlocked).
 
@@ -61,7 +62,12 @@ def render_unlocked_card(
     surface (the company profile's `signals`) cannot drift from the feed's
     notion of what an unlocked card contains.
     """
-    card = view.feed_item(item, lang=lang, presentation=presentation)
+    card = view.feed_item(
+        item,
+        lang=lang,
+        presentation=presentation,
+        generated_for_you_enabled=generated_for_you_enabled,
+    )
     card["locked"] = False
     card["status"] = status
     if company_key is not None:

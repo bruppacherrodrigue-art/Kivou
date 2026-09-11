@@ -370,6 +370,7 @@ def list_signals(
                 company_key=company_keys.get(item.signal.signal_key),
                 enrichment=enrichments.get(item.signal.signal_key),
                 status=resolve_status(item.signal.signal_key),
+                generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
             )
             for item in page.items
         ],
@@ -443,6 +444,7 @@ def _render(
     company_key: str | None,
     enrichment: WinnerEnrichmentView | None,
     status: str,
+    generated_for_you_enabled: bool,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
@@ -453,6 +455,7 @@ def _render(
             company_key=company_key,
             enrichment=enrichment,
             status=status,
+            generated_for_you_enabled=generated_for_you_enabled,
         )
     return paywall.locked_teaser(item, lang=lang, status=status)
 
@@ -621,7 +624,12 @@ def get_signal(
         locked["language"] = lang
         return locked
 
-    detail = view.signal_detail(item, lang=lang, presentation=presentation)
+    detail = view.signal_detail(
+        item,
+        lang=lang,
+        presentation=presentation,
+        generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+    )
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False

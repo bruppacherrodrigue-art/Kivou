@@ -29,7 +29,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
-from signals.persistence.schema import for_you_sentence
+from signals.persistence.schema import for_you_sentence, materialized_signal
 
 #: §8 — aucun de ces mots n'a le droit d'apparaître dans une réponse client.
 FORBIDDEN_CERTAINTY = (
@@ -70,10 +70,17 @@ def engine(migrated_sqlite_engine):
     return migrated_sqlite_engine
 
 
-def app_for(engine, locale: str = "fr") -> TestClient:
+def app_for(
+    engine, locale: str = "fr", *, generated_for_you_enabled: bool = True
+) -> TestClient:
     app = create_app(
         engine,
-        ApiConfig(cookie_secure=False, allowed_origin=ORIGIN, session_ttl=dt.timedelta(days=365)),
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            generated_for_you_enabled=generated_for_you_enabled,
+        ),
         now_override=Clock(),
     )
     client = TestClient(app, headers={"Origin": ORIGIN})
@@ -261,7 +268,19 @@ def test_the_fit_explains_rather_than_scores(client, rich):
 def test_feed_and_detail_read_the_same_persisted_for_you_sentence(client, engine, rich):
     sentence = "Votre offre accompagne les besoins vérifiés de ce titulaire."
     with engine.begin() as connection:
-        connection.execute(sa.update(for_you_sentence).values(sentence=sentence, provenance="generated", state="completed"))
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == rich.signal_key)
+            .values(icp_match_band="strong")
+        )
+        connection.execute(
+            sa.update(for_you_sentence).values(
+                sentence=sentence,
+                provenance="generated",
+                state="completed",
+                model_fit="strong",
+            )
+        )
 
     detail_fit = detail(client, rich.signal_key)["analysis"]["fit"]
     feed = client.get("/signals?freshness=all").json()
@@ -270,6 +289,52 @@ def test_feed_and_detail_read_the_same_persisted_for_you_sentence(client, engine
     assert detail_fit["for_you_sentence"] == sentence
     assert feed_item["analysis"]["fit"]["for_you_sentence"] == sentence
     assert detail_fit["reasons"]
+
+
+def test_generated_for_you_sentence_falls_back_when_the_flag_is_disabled(engine):
+    client = app_for(engine, generated_for_you_enabled=False)
+    icp = icp_of(client)
+    with engine.begin() as connection:
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp)
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == signal.signal_key)
+            .values(icp_match_band="strong")
+        )
+        connection.execute(
+            sa.update(for_you_sentence).values(
+                sentence="Votre offre accompagne les besoins vérifiés de ce titulaire.",
+                provenance="generated",
+                state="completed",
+                model_fit="strong",
+            )
+        )
+
+    sentence = detail(client, signal.signal_key)["analysis"]["fit"]["for_you_sentence"]
+
+    assert sentence != "Votre offre accompagne les besoins vérifiés de ce titulaire."
+
+
+def test_generated_for_you_sentence_requires_a_strong_match(client, engine, rich):
+    generated = "Votre offre accompagne les besoins vérifiés de ce titulaire."
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == rich.signal_key)
+            .values(icp_match_band="promising")
+        )
+        connection.execute(
+            sa.update(for_you_sentence).values(
+                sentence=generated,
+                provenance="generated",
+                state="completed",
+                model_fit="strong",
+            )
+        )
+
+    sentence = detail(client, rich.signal_key)["analysis"]["fit"]["for_you_sentence"]
+
+    assert sentence != generated
 
 
 # ─── §13, §14 — la preuve, groupée par le fait qu'elle étaye ──────────────────

@@ -202,7 +202,7 @@ describe('SignalDrawer', () => {
     for (const value of drawer.querySelectorAll('dd')) expect(value).not.toHaveTextContent('—')
   })
 
-  it('rend uniquement la phrase persistée sous « Pourquoi ça vous concerne »', () => {
+  it('rend uniquement la phrase persistée sous « Pour vous »', () => {
     renderDrawer({
       signal: item({
         analysis: {
@@ -215,7 +215,7 @@ describe('SignalDrawer', () => {
       }),
     })
 
-    const block = screen.getByText('Pourquoi ça vous concerne').closest('section')
+    const block = screen.getByText('Pour vous').closest('section')
     expect(block).not.toBeNull()
     expect(within(block as HTMLElement).getAllByRole('listitem')).toHaveLength(1)
     expect(screen.queryByText('Raison 1')).not.toBeInTheDocument()
@@ -224,7 +224,7 @@ describe('SignalDrawer', () => {
   it('rend la même phrase Pour vous à la place du premier libellé de règle', () => {
     renderDrawer()
 
-    const block = screen.getByText('Pourquoi ça vous concerne').closest('section')
+    const block = screen.getByText('Pour vous').closest('section')
     expect(block).not.toBeNull()
     expect(within(block as HTMLElement).getAllByRole('listitem')[0]).toHaveTextContent(
       'Votre offre répond aux besoins de matériaux de ce titulaire.',
@@ -232,7 +232,7 @@ describe('SignalDrawer', () => {
     expect(screen.queryByText('Besoin visé : Matériaux ou composants')).not.toBeInTheDocument()
   })
 
-  it('retire le bloc « Pourquoi ça vous concerne » quand aucune raison n’est publiée', () => {
+  it('retire le bloc « Pour vous » quand aucune raison n’est publiée', () => {
     renderDrawer({
       signal: item({
         analysis: {
@@ -242,7 +242,69 @@ describe('SignalDrawer', () => {
       }),
     })
 
-    expect(screen.queryByText('Pourquoi ça vous concerne')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pour vous')).not.toBeInTheDocument()
+  })
+
+  it('affiche le calendrier, l’historique et le circuit local dans l’ordre de valeur', () => {
+    renderDrawer({
+      signal: item({
+        commercial_calendar: {
+          start_month: '2026-10',
+          duration_months: 18,
+          source: 'public_notice',
+        },
+        holder_history: {
+          resolution: 'company_key',
+          last_12_months: {
+            awards_count: 3,
+            total_amounts: [{ value: '1240000', currency: 'EUR' }],
+            recurring_buyers: ['Commune de Villeneuve', 'Département 31'],
+          },
+          summary: { consortium_share: '0.3' },
+          source: 'public_awards',
+        },
+        local_circuit: [{
+          siren: '331364729',
+          name: 'Bétons du Midi',
+          trade: 'Béton prêt à l’emploi',
+          city: 'Villeneuve',
+          employees: 24,
+          href: '/app/companies/directory/331364729',
+          source: 'registre',
+        }],
+      }),
+    })
+
+    expect(screen.getByText('Démarrage probable octobre 2026 · durée 18 mois')).toBeVisible()
+    expect(screen.getByText(/3 marchés gagnés sur 12 mois/)).toHaveTextContent(
+      '3 marchés gagnés sur 12 mois · 1 240 000 € · acheteurs récurrents : Commune de Villeneuve, Département 31',
+    )
+    expect(screen.getByRole('link', { name: 'Voir la fiche entreprise' })).toHaveAttribute(
+      'href',
+      '/app/companies/cmp_0123456789abcdefghijklmnop',
+    )
+    expect(screen.getByRole('heading', { name: 'Le circuit local' })).toBeVisible()
+    expect(screen.getByRole('link', { name: /Bétons du Midi/ })).toHaveAttribute(
+      'href',
+      '/app/companies/directory/331364729',
+    )
+
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)
+    expect(headings).toEqual([
+      'Calendrier',
+      'Historique du titulaire',
+      'Ce que le titulaire va devoir faire',
+      'Le circuit local',
+      'Pour vous',
+    ])
+  })
+
+  it('omet les nouveaux blocs quand aucune donnée n’est disponible', () => {
+    renderDrawer()
+
+    expect(screen.queryByText('Calendrier')).not.toBeInTheDocument()
+    expect(screen.queryByText('Historique du titulaire')).not.toBeInTheDocument()
+    expect(screen.queryByText('Le circuit local')).not.toBeInTheDocument()
   })
 
   it('appelle les trois actions', async () => {

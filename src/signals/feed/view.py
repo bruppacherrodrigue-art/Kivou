@@ -237,7 +237,9 @@ def _needs(item: FeedSignal, *, lang: str, full: bool) -> dict[str, Any]:
     return {"note": feed_copy.PLAUSIBLE_NEEDS_NOTE[lang], "items": entries}
 
 
-def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
+def _fit(
+    item: FeedSignal, *, lang: str, generated_for_you_enabled: bool = True
+) -> dict[str, Any]:
     """Pourquoi Kivou montre ceci à CE client — expliqué, jamais noté (§12).
 
     Les raisons sont dérivées de ce qui est stocké : les besoins de l'ICP
@@ -288,25 +290,41 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
             cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
         )
     )
+    band = "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band)
+    generated_for_you = (
+        client_safe_sentence(item.for_you_sentence)
+        if generated_for_you_enabled and band == "strong" and item.model_fit != "none"
+        else None
+    )
     return {
         "label": feed_copy.FIT_LABELS[key][lang],
         # PR2b — même table que `companies.listing` (§45) : `feed.policy.fit_band`
         # est l'UNIQUE source du vocabulaire, pour que les deux surfaces ne
         # divergent jamais.
-        "band": "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band),
+        "band": band,
         "target_icp_id": signal.target_icp_id,
         "target_icp_label": item.target_icp_label,
         "reasons": rendered_reasons,
-        "for_you_sentence": client_safe_sentence(item.for_you_sentence) or deterministic_for_you,
+        "for_you_sentence": generated_for_you or deterministic_for_you,
     }
 
 
-def _analysis(item: FeedSignal, *, lang: str, full: bool) -> dict[str, Any]:
+def _analysis(
+    item: FeedSignal,
+    *,
+    lang: str,
+    full: bool,
+    generated_for_you_enabled: bool = True,
+) -> dict[str, Any]:
     """Le bloc des INFÉRENCES. Séparé des faits, et nommé comme tel."""
     signal = item.signal
     analysis: dict[str, Any] = {
         "plausible_needs": _needs(item, lang=lang, full=full),
-        "fit": _fit(item, lang=lang),
+        "fit": _fit(
+            item,
+            lang=lang,
+            generated_for_you_enabled=generated_for_you_enabled,
+        ),
     }
     if full:
         analysis["contract_reading"] = {
@@ -395,6 +413,7 @@ def feed_item(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None = None,
+    generated_for_you_enabled: bool = True,
 ) -> dict[str, Any]:
     """La carte du feed : compacte, sans preuve, sans raisonnement long (§16)."""
     feed_copy.check_language(lang)
@@ -408,7 +427,12 @@ def feed_item(
         "factual_display": factual_display(item, lang=lang),
         "event": _event(item, lang=lang),
         "contract": _contract(item, lang=lang),
-        "analysis": _analysis(item, lang=lang, full=False),
+        "analysis": _analysis(
+            item,
+            lang=lang,
+            full=False,
+            generated_for_you_enabled=generated_for_you_enabled,
+        ),
         "source": _source(item),
         "presentation": (None if presentation is None else presentation.model_dump(mode="json")),
     }
@@ -428,10 +452,21 @@ def signal_detail(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None = None,
+    generated_for_you_enabled: bool = True,
 ) -> dict[str, Any]:
     """Le détail : la carte, plus de quoi VÉRIFIER (§15)."""
-    detail = feed_item(item, lang=lang, presentation=presentation)
-    detail["analysis"] = _analysis(item, lang=lang, full=True)
+    detail = feed_item(
+        item,
+        lang=lang,
+        presentation=presentation,
+        generated_for_you_enabled=generated_for_you_enabled,
+    )
+    detail["analysis"] = _analysis(
+        item,
+        lang=lang,
+        full=True,
+        generated_for_you_enabled=generated_for_you_enabled,
+    )
     detail["evidence"] = _evidence(item, lang=lang)
     detail["opportunity_id"] = item.signal.opportunity_key
     detail["customer_ready"] = item.display is not None

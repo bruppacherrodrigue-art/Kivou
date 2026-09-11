@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { companies } from '../api/endpoints'
 import type { CompanyContactStatus, CompanyListItem, CompanyProfile } from '../api/types'
 import { useI18n } from '../i18n'
-import { MISSING } from '../signals/components/SignalRow'
 import { CompanyDrawer } from './CompanyDrawer'
 import styles from './CompaniesPage.module.css'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
@@ -152,8 +151,8 @@ export function CompaniesPage() {
             <tbody>{items.map((item) => (
               <tr key={item.company_key} aria-current={item.company_key === companyKey ? 'true' : undefined} onClick={() => navigate(`/app/companies/${item.company_key}`)}>
                 <td><button type="button">{item.name}</button></td>
-                {profile ? null : <><td>{item.city ?? MISSING}</td><td className={styles.numeric}>{item.awards_count}</td><td className={styles.numeric}>{item.total_amount.length ? item.total_amount.map((money) => amount(money.value, money.currency)).join(' · ') : MISSING}</td><td>{shortDate(item.last_award_at) ?? MISSING}</td></>}
-                <td><span className={styles.status}>{SEGMENTS.find((segment) => segment.status === item.contact_status)?.label ?? MISSING}</span></td>
+                {profile ? null : <><td>{item.city}</td><td className={styles.numeric}>{item.awards_count}</td><td className={styles.numeric}>{item.total_amount.map((money) => amount(money.value, money.currency)).filter(Boolean).join(' · ')}</td><td>{shortDate(item.last_award_at)}</td></>}
+                <td><span className={styles.status}>{SEGMENTS.find((segment) => segment.status === item.contact_status)?.label}</span></td>
               </tr>
             ))}</tbody>
           </table>

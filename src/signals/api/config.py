@@ -49,6 +49,7 @@ ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
 ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
 ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
+GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -168,6 +169,9 @@ class ApiConfig:
     # SPEC-031 — workers never infer production. The absent default is deliberately
     # unusable as autonomous-readiness evidence.
     acquisition_environment: str = "UNCONFIGURED"
+    # PR6b — coupe seulement la phrase rédigée dans l'app client. Le repli
+    # déterministe reste toujours disponible et les e-mails ne changent pas.
+    generated_for_you_enabled: bool = True
 
     @property
     def stripe_livemode(self) -> bool:
@@ -337,6 +341,7 @@ class ApiConfig:
                 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV
             ),
             acquisition_environment=acquisition_environment,
+            generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=True),
         )
 
 
@@ -552,10 +557,10 @@ def resolve_acquisition_environment() -> str:
     return value
 
 
-def _flag(name: str) -> bool:
-    """Un drapeau d'environnement. Absent vaut faux : aucun défaut permissif."""
+def _flag(name: str, *, default: bool = False) -> bool:
+    """Un drapeau d'environnement avec un défaut explicite par fonctionnalité."""
     raw = os.environ.get(name)
-    return bool(raw) and raw.lower() in {"1", "true", "yes"}
+    return default if raw is None else raw.lower() in {"1", "true", "yes"}
 
 
 def _account_ref_allowlist(name: str) -> frozenset[str]:

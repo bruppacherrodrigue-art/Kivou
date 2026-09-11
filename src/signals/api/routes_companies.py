@@ -110,6 +110,7 @@ def _company_signals(
     company_key: str,
     account_id: str,
     lang: str,
+    generated_for_you_enabled: bool,
 ) -> tuple[dict[str, Any], ...]:
     """The same card `GET /signals` would render for each item — same
     presentation, same winner enrichment — so this list can never drift from
@@ -135,6 +136,7 @@ def _company_signals(
             company_key=company_key,
             enrichment=enrichments.get(item.signal.signal_key),
             status=resolve_status(item.signal.signal_key),
+            generated_for_you_enabled=generated_for_you_enabled,
         )
         for item in ordered
     )
@@ -285,6 +287,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             company_key=company_key,
             account_id=session.account_id,
             lang=lang,
+            generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
         )
         contact = company_engagement.get_contact(
             connection, account_id=session.account_id, company_key=company_key

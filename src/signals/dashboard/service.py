@@ -82,6 +82,7 @@ def _render_items(
     account_id: str,
     lang: str,
     resolve_status: Callable[[str], str],
+    generated_for_you_enabled: bool,
 ) -> dict[str, dict[str, Any]]:
     """Rend la carte complète de chaque item, en une seule volée de lectures.
 
@@ -110,6 +111,7 @@ def _render_items(
             company_key=company_key_of(item),
             enrichment=enrichments.get(item.signal.signal_key),
             status=resolve_status(item.signal.signal_key),
+            generated_for_you_enabled=generated_for_you_enabled,
         )
         for item in items
     }
@@ -163,6 +165,7 @@ def _to_follow_up(
     now: dt.datetime,
     lang: str,
     resolve_status: Callable[[str], str],
+    generated_for_you_enabled: bool,
 ) -> tuple[list[dict[str, Any]], bool, bool]:
     """Entreprises `contacted` depuis au moins 7 jours, la plus ancienne relance d'abord.
 
@@ -227,6 +230,7 @@ def _to_follow_up(
         account_id=account_id,
         lang=lang,
         resolve_status=resolve_status,
+        generated_for_you_enabled=generated_for_you_enabled,
     )
 
     results: list[dict[str, Any]] = []
@@ -255,6 +259,7 @@ def build_dashboard(
     access: FeedAccess,
     lang: str,
     previous_seen: dt.datetime | None,
+    generated_for_you_enabled: bool = True,
 ) -> dict[str, Any]:
     """L'agrégat entier de `GET /dashboard`, à `as_of`.
 
@@ -349,6 +354,7 @@ def build_dashboard(
         account_id=account_id,
         lang=lang,
         resolve_status=resolve_status,
+        generated_for_you_enabled=generated_for_you_enabled,
     )
     top3 = [top3_cards[item.signal.signal_key] for item in top3_items]
 
@@ -361,6 +367,7 @@ def build_dashboard(
         now=now,
         lang=lang,
         resolve_status=resolve_status,
+        generated_for_you_enabled=generated_for_you_enabled,
     )
 
     # Fix round 1 (I2) — `week.new` réutilise `feed_page`, PAS un décompte SQL
