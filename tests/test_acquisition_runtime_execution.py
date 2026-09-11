@@ -292,6 +292,59 @@ def test_execute_runtime_run_once_has_the_closed_cli_signature() -> None:
     assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
 
 
+def test_execute_runtime_run_once_passes_its_http_client_to_composition(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    runtime_config = SimpleNamespace(
+        environment="STAGING",
+        deployment=SimpleNamespace(
+            providers=SimpleNamespace(mode="fake"),
+            selection=SimpleNamespace(mode="fixed"),
+        ),
+    )
+    connectivity = _connectivity_config(tmp_path)
+    engine = SimpleNamespace(dispose=lambda: None)
+    expected = SimpleNamespace(status=RuntimeRunStatus.BLOCKED)
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(runtime_execution, "load_runtime_config", lambda: runtime_config)
+    monkeypatch.setattr(
+        runtime_execution, "load_connectivity_config", lambda: connectivity
+    )
+    monkeypatch.setattr(
+        runtime_execution, "validate_hermes_shadow_config", lambda _config: None
+    )
+    monkeypatch.setattr(runtime_execution, "load_runtime_link_config", _links)
+    monkeypatch.setattr(
+        runtime_execution,
+        "load_instantly_webhook_runtime_config",
+        lambda *, required: _webhook_configuration(),
+    )
+    monkeypatch.setattr(runtime_execution, "create_database_engine", lambda: engine)
+    monkeypatch.setattr(
+        runtime_execution, "build_fake_apollo_components", lambda: object()
+    )
+    monkeypatch.setattr(runtime_execution, "_default_hermes_runtime", lambda _config: object())
+
+    def build_composition(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            runner=SimpleNamespace(run_once=lambda _request: expected)
+        )
+
+    monkeypatch.setattr(
+        runtime_execution, "build_runtime_execution_composition", build_composition
+    )
+
+    result = runtime_execution.execute_runtime_run_once(
+        allow_qa_provider_mutations=False
+    )
+
+    assert result is expected
+    assert captured["client"] is not None
+
+
 def test_link_configuration_is_required_and_never_exposes_key_material() -> None:
     secret = "synthetic-private-attribution-key"
     with pytest.raises(RuntimeExecutionConfigurationError) as missing:

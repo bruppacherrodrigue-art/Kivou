@@ -928,6 +928,7 @@ def execute_runtime_run_once(
                 connectivity_config=connectivity_config,
                 links=links,
                 webhook_configuration=webhook_configuration,
+                client=client,
                 apollo=None,
                 instantly_provider=instantly,
                 hermes_runtime=hermes,
