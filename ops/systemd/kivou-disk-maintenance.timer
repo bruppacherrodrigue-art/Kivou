@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Kivou staging disk maintenance daily
+
+[Timer]
+OnCalendar=*-*-* 04:20:00
+Persistent=true
+AccuracySec=5min
+Unit=kivou-disk-maintenance.service
+
+[Install]
+WantedBy=timers.target

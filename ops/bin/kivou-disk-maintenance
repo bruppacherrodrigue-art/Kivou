@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+[[ "${KIVOU_ENVIRONMENT:-}" == "staging" ]] || {
+  printf 'disk_maintenance=refused environment=%s\n' "${KIVOU_ENVIRONMENT:-unset}" >&2
+  exit 64
+}
+[[ -n "${KIVOU_DATABASE_URL:-}" ]] || {
+  printf 'disk_maintenance=refused reason=missing_database_url\n' >&2
+  exit 64
+}
+
+releases_dir=/srv/kivou/releases
+active_release=$(readlink -f /srv/kivou/app)
+mapfile -t releases < <(
+  find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -name 'staging-*' \
+    -printf '%T@ %p\n' | sort -nr | cut -d' ' -f2-
+)
+deleted_releases=0
+for ((index = 3; index < ${#releases[@]}; index++)); do
+  release=${releases[$index]}
+  case "$release" in
+    ("$releases_dir"/staging-*) ;;
+    (*) printf 'disk_maintenance=refused release=%s\n' "$release" >&2; exit 64 ;;
+  esac
+  [[ "$release" != "$active_release" ]] || continue
+  rm -rf -- "$release"
+  deleted_releases=$((deleted_releases + 1))
+done
+
+dce_result=$(
+  /srv/kivou/app/.venv/bin/python - <<'PY'
+import os
+import sqlalchemy as sa
+
+engine = sa.create_engine(os.environ["KIVOU_DATABASE_URL"], future=True)
+with engine.begin() as connection:
+    result = connection.execute(
+        sa.text(
+            "UPDATE procedure_documents SET archive_content = NULL, byte_size = 0 "
+            "WHERE captured_at < now() - interval '14 days' "
+            "AND archive_content IS NOT NULL"
+        )
+    )
+print(int(result.rowcount or 0))
+PY
+)
+
+for cache_root in /srv/kivou/.cache /srv/kivou/validation; do
+  [[ -d "$cache_root" ]] || continue
+  find "$cache_root" -xdev -type f \
+    \( -path '*/.pytest_cache/*' -o -path '*/.ruff_cache/*' -o -path '*/__pycache__/*' \) \
+    -mtime +14 -delete
+  find "$cache_root" -xdev -depth -type d -empty -delete
+done
+apt-get clean
+
+printf 'disk_maintenance=complete releases_deleted=%s dce_archives_cleared=%s\n' \
+  "$deleted_releases" "$dce_result"

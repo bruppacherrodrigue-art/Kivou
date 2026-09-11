@@ -710,7 +710,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         fake_bin,
         "git",
         recorder
-            + 'if [[ "$*" == *"worktree add"* ]]; then release="$KIVOU_RELEASES_DIR/staging-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; mkdir -p "$release/frontend" "$release/ops/systemd"; touch "$release/ops/systemd/kivou-api.service" "$release/ops/systemd/kivou-founder-api.service"; fi\n'
+            + 'if [[ "$*" == *"worktree add"* ]]; then release="$KIVOU_RELEASES_DIR/staging-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; mkdir -p "$release/frontend" "$release/ops/systemd" "$release/ops/bin"; touch "$release/ops/systemd/kivou-api.service" "$release/ops/systemd/kivou-founder-api.service" "$release/ops/bin/kivou-disk-maintenance"; /bin/chmod +x "$release/ops/bin/kivou-disk-maintenance"; fi\n'
         + 'if [[ "$*" == *"rev-parse HEAD"* ]]; then printf "%s\\n" "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; fi\n',
     )
     _fake_bin(
@@ -776,7 +776,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         fake_bin,
         "git",
         recorder
-            + 'if [[ "$*" == *"worktree add"* ]]; then release="$KIVOU_RELEASES_DIR/staging-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; mkdir -p "$release/frontend/dist" "$release/ops/systemd"; touch "$release/ops/systemd/kivou-api.service" "$release/ops/systemd/kivou-founder-api.service"; fi\n'
+            + 'if [[ "$*" == *"worktree add"* ]]; then release="$KIVOU_RELEASES_DIR/staging-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; mkdir -p "$release/frontend/dist" "$release/ops/systemd" "$release/ops/bin"; touch "$release/ops/systemd/kivou-api.service" "$release/ops/systemd/kivou-founder-api.service" "$release/ops/bin/kivou-disk-maintenance"; /bin/chmod +x "$release/ops/bin/kivou-disk-maintenance"; fi\n'
         + 'if [[ "$*" == *"rev-parse HEAD"* ]]; then printf "%s\\n" "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; fi\n',
     )
     success = subprocess.run(
