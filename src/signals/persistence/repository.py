@@ -77,6 +77,8 @@ class StoredAward:
     contract_notification_date: dt.date | None
     contract_start_date: dt.date | None
     contract_end_date: dt.date | None
+    duration_value: int | None
+    duration_unit: str | None
     awardee_parties: list[dict[str, Any]]
     lot_title: str | None = None
     contract_reference: str | None = None
@@ -251,6 +253,8 @@ def _award(row: sa.Row) -> StoredAward:
         contract_notification_date=_as_date(row.contract_notification_date),
         contract_start_date=_as_date(row.contract_start_date),
         contract_end_date=_as_date(row.contract_end_date),
+        duration_value=row.duration_value,
+        duration_unit=row.duration_unit,
         awardee_parties=row.awardee_parties,
         lot_title=row.lot_title,
         contract_reference=row.contract_reference,

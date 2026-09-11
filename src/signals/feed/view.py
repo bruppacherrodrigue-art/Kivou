@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import Any
 
 from signals.card_intelligence.contracts import PublishedCardPresentation
+from signals.client_value.calendar import commercial_calendar
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import copy as feed_copy
 from signals.feed import policy
@@ -397,7 +398,7 @@ def feed_item(
 ) -> dict[str, Any]:
     """La carte du feed : compacte, sans preuve, sans raisonnement long (§16)."""
     feed_copy.check_language(lang)
-    return {
+    rendered = {
         "signal_id": item.signal.signal_key,
         "target_icp_id": item.signal.target_icp_id,
         # PR2b §46 — fait PUBLIC (un groupement se lit dans l'avis lui-même) :
@@ -411,6 +412,15 @@ def feed_item(
         "source": _source(item),
         "presentation": (None if presentation is None else presentation.model_dump(mode="json")),
     }
+    calendar = commercial_calendar(
+        notification_date=item.signal.award.contract_notification_date,
+        cpv_code=item.signal.award.cpv_main,
+        duration_value=item.signal.award.duration_value,
+        duration_unit=item.signal.award.duration_unit,
+    )
+    if calendar is not None:
+        rendered["commercial_calendar"] = calendar
+    return rendered
 
 
 def signal_detail(
