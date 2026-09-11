@@ -61,22 +61,19 @@ _DIRECTORY_DOMAINS = frozenset(
 )
 
 _PUBLIC_TITLE_WORDS = frozenset({"mairie", "commune", "municipalite"})
-_GENERIC_COMPANY_WORDS = frozenset(
-    {
-        "batiment",
-        "beton",
-        "construction",
-        "constructions",
-        "entreprise",
-        "etablissement",
-        "etablissements",
-        "groupe",
-        "industrie",
-        "societe",
-        "travaux",
-    }
+_IGNORED_COMPANY_WORDS = frozenset(
+    {"etablissement", "etablissements", "ets", "groupe", "societe"}
 )
 _LEGAL_PATH_WORDS = ("mention", "legal", "juridique", "impressum")
+_REGISTRATION_PATHS = (
+    "/mentions-legales",
+    "/mentions-legales.html",
+    "/cgv",
+    "/conditions-generales",
+    "/contact",
+    "/a-propos",
+    "/legal",
+)
 _REGISTRATION_NUMBER = re.compile(r"(?<!\d)(?:\d[ .-]?){8,13}\d(?!\d)")
 
 
@@ -142,14 +139,29 @@ def rejected_supplier_domain(domain: str, title: str = "") -> bool:
     return _directory(normalized) or _public_or_municipal(normalized, title)
 
 
-def _domain_contains_company_word(domain: str, company_name: str) -> bool:
-    domain_words = set(re.findall(r"[a-z0-9]+", domain.casefold()))
-    company_words = {
+def _normalized_company_words(company_name: str) -> tuple[str, ...]:
+    return tuple(
         word
         for word in significant_name_words(company_name)
-        if len(word) >= 4 and word not in _GENERIC_COMPANY_WORDS
-    }
-    return bool(domain_words.intersection(company_words))
+        if word not in _IGNORED_COMPANY_WORDS
+    )
+
+
+def _domain_contains_company_word(domain: str, company_name: str) -> bool:
+    compact_domain = "".join(re.findall(r"[a-z0-9]+", domain.casefold().rsplit(".", 1)[0]))
+    company_words = _normalized_company_words(company_name)
+    if any(len(word) >= 4 and word in compact_domain for word in company_words):
+        return True
+    initials = "".join(word[0] for word in company_words if word)
+    return len(initials) >= 2 and initials in compact_domain
+
+
+def _homepage_title_contains_company_name(title: str, company_name: str) -> bool:
+    company_words = _normalized_company_words(company_name)
+    if not company_words:
+        return False
+    title_words = significant_name_words(title)
+    return " ".join(company_words) in " ".join(title_words)
 
 
 def _contains_registration_number(text: str, siren: str) -> bool:
@@ -164,13 +176,17 @@ class _RegistrationPageParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
         self._footer_depth = 0
+        self._title_depth = 0
         self.all_text: list[str] = []
         self.footer_text: list[str] = []
+        self.title_text: list[str] = []
         self.legal_links: list[str] = []
 
     def handle_starttag(self, tag, attrs):
         if tag == "footer":
             self._footer_depth += 1
+        if tag == "title":
+            self._title_depth += 1
         if tag == "a":
             href = dict(attrs).get("href")
             if isinstance(href, str) and any(word in href.casefold() for word in _LEGAL_PATH_WORDS):
@@ -179,11 +195,15 @@ class _RegistrationPageParser(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "footer" and self._footer_depth:
             self._footer_depth -= 1
+        if tag == "title" and self._title_depth:
+            self._title_depth -= 1
 
     def handle_data(self, data):
         self.all_text.append(data)
         if self._footer_depth:
             self.footer_text.append(data)
+        if self._title_depth:
+            self.title_text.append(data)
 
 
 class CompanyWebsiteRegistrationClient:
@@ -192,7 +212,9 @@ class CompanyWebsiteRegistrationClient:
     def __init__(self, *, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(timeout=10.0, follow_redirects=True)
 
-    def _get(self, url: str, domain: str) -> tuple[str, str, str, tuple[str, ...]] | None:
+    def _get(
+        self, url: str, domain: str
+    ) -> tuple[str, str, str, str, tuple[str, ...]] | None:
         try:
             response = self._client.get(url, headers={"user-agent": "Kivou/1.0"})
             final_domain = (response.url.host or "").casefold().removeprefix("www.")
@@ -209,6 +231,7 @@ class CompanyWebsiteRegistrationClient:
                 str(response.url),
                 " ".join(parser.all_text),
                 " ".join(parser.footer_text),
+                " ".join(parser.title_text),
                 tuple(parser.legal_links[:3]),
             )
         except (httpx.HTTPError, UnicodeError, ValueError):
@@ -217,22 +240,31 @@ class CompanyWebsiteRegistrationClient:
     def __call__(
         self, resolution: DomainResolution, identity: SireneOrganizationCandidate
     ) -> str | None:
+        evidence = self.inspect(resolution, identity)
+        return evidence[1] if evidence is not None and evidence[0] == "registration_number" else None
+
+    def inspect(
+        self, resolution: DomainResolution, identity: SireneOrganizationCandidate
+    ) -> tuple[Literal["registration_number", "homepage_title"], str] | None:
         home_url = f"https://{resolution.domain}/"
         home = self._get(home_url, resolution.domain)
         if home is None:
             return None
-        final_url, _home_text, footer_text, links = home
+        final_url, _home_text, footer_text, title, links = home
         siren = identity.provider_organization_id
         if _contains_registration_number(footer_text, siren):
-            return final_url
-        for link in links:
+            return "registration_number", final_url
+        candidate_links = tuple(dict.fromkeys((*_REGISTRATION_PATHS, *links)))
+        for link in candidate_links:
             legal_url = urljoin(final_url, link)
             legal = self._get(legal_url, resolution.domain)
             if legal is None:
                 continue
-            evidence_url, legal_text, _legal_footer, _ = legal
+            evidence_url, legal_text, _legal_footer, _legal_title, _ = legal
             if _contains_registration_number(legal_text, siren):
-                return evidence_url
+                return "registration_number", evidence_url
+        if _homepage_title_contains_company_name(title, identity.display_name):
+            return "homepage_title", final_url
         return None
 
 
@@ -354,7 +386,24 @@ class CompanyDomainResolver:
                     return resolution.model_copy(
                         update={"observed_at": self._clock(), "validation_method": "name_word"}
                     )
-                evidence_url = self._registration(resolution, identity)
+                inspect = getattr(self._registration, "inspect", None)
+                evidence = inspect(resolution, identity) if callable(inspect) else None
+                if evidence is not None:
+                    criterion, evidence_url = evidence
+                    validation_method = (
+                        "registration_number" if criterion == "registration_number" else "name_word"
+                    )
+                    self._log(identity, resolution, accepted=True, criterion=criterion)
+                    return resolution.model_copy(
+                        update={
+                            "observed_at": self._clock(),
+                            "validation_method": validation_method,
+                            "validation_evidence_url": evidence_url,
+                        }
+                    )
+                evidence_url = (
+                    self._registration(resolution, identity) if not callable(inspect) else None
+                )
                 if evidence_url is not None:
                     self._log(identity, resolution, accepted=True, criterion="registration_number")
                     return resolution.model_copy(

@@ -239,6 +239,87 @@ def test_domain_resolver_accepts_unmatched_domain_only_when_legal_page_contains_
     assert resolution.validation_evidence_url == "https://centrale-grenoble.fr/mentions-legales"
 
 
+def test_registration_probes_fixed_legal_paths_and_accepts_rcs_number() -> None:
+    requested: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested.append(request.url.path)
+        text = (
+            "RCS Grenoble 331 364 729"
+            if request.url.path == "/conditions-generales"
+            else "Aucune identité légale"
+        )
+        return httpx.Response(200, headers={"content-type": "text/html"}, text=text)
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True)
+    evidence = domain_module.CompanyWebsiteRegistrationClient(client=client)(
+        DomainResolution(
+            domain="centrale-grenoble.fr",
+            website_url="https://centrale-grenoble.fr",
+            source="serper",
+            observed_at=NOW,
+        ),
+        _identity(),
+    )
+
+    assert evidence == "https://centrale-grenoble.fr/conditions-generales"
+    assert requested == [
+        "/",
+        "/mentions-legales",
+        "/mentions-legales.html",
+        "/cgv",
+        "/conditions-generales",
+    ]
+
+
+def test_domain_name_match_accepts_word_inside_domain_and_company_initials() -> None:
+    for name, candidate_domain in (
+        ("MEYNET BETON SAS", "livraisonbeton.fr"),
+        ("SOCIETE TRAVAUX GROS OEUVRE", "stgo.eu"),
+    ):
+        resolution = CompanyDomainResolver(
+            official=lambda _identity, domain=candidate_domain: DomainResolution(
+                domain=domain,
+                website_url=f"https://{domain}",
+                source="annuaire_entreprises",
+                observed_at=NOW,
+            ),
+            serper=lambda _identity: None,
+            clock=lambda: NOW,
+        ).resolve(_identity(display_name=name, normalized_name=name.casefold()))
+
+        assert resolution is not None
+        assert resolution.validation_method == "name_word"
+
+
+def test_domain_resolver_accepts_normalized_company_name_in_homepage_title() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(
+                200,
+                headers={"content-type": "text/html"},
+                text="<html><head><title>Escolle Béton — Saint-Égrève</title></head></html>",
+            )
+        ),
+        follow_redirects=True,
+    )
+    resolution = CompanyDomainResolver(
+        official=lambda _identity: DomainResolution(
+            domain="centrale-grenoble.fr",
+            website_url="https://centrale-grenoble.fr",
+            source="annuaire_entreprises",
+            observed_at=NOW,
+        ),
+        serper=lambda _identity: None,
+        registration=domain_module.CompanyWebsiteRegistrationClient(client=client),
+        clock=lambda: NOW,
+    ).resolve(_identity())
+
+    assert resolution is not None
+    assert resolution.validation_method == "name_word"
+    assert resolution.validation_evidence_url == "https://centrale-grenoble.fr/"
+
+
 def test_domain_resolver_rejects_unmatched_domain_without_registration_number(caplog) -> None:
     caplog.set_level(logging.INFO)
     client = httpx.Client(
