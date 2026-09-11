@@ -19,6 +19,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.billing.schema import discovery_signal_grant
 from signals.client_value.contact_lookup import ContactLookupQuotaExceeded
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.companies.schema import saas_company
@@ -217,6 +218,43 @@ def test_company_contact_lookup_fails_closed_without_a_provider(app, engine) -> 
 
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "contact_lookup_unavailable"
+
+
+def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
+    app, engine
+) -> None:
+    client = _signup(app, email="company-contact-discovery@example.com")
+    icp_id = _icp(client)
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        signal = materialize_simap(
+            connection, SIMAP_RICH, target_icp_id=icp_id
+        )
+        signal_key = signal.signal_key
+        connection.execute(
+            sa.insert(discovery_signal_grant).values(
+                account_id=account_id,
+                signal_key=signal.signal_key,
+                opportunity_key=signal.opportunity_key,
+                granted_at=NOW,
+                created_at=NOW,
+            )
+        )
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="company-contact-discovery", limit=10
+        )
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    response = client.get(f"/companies/{company_key}")
+
+    assert response.status_code == 200
+    assert response.json()["contact_lookup"] == {
+        "state": "locked",
+        "remaining": 0,
+        "monthly_quota": 0,
+        "source": "apollo",
+        "removal_path": "/contact",
+    }
 
 
 def test_paid_company_contact_lookup_reports_monthly_quota_exhaustion(engine) -> None:

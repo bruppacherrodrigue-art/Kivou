@@ -362,6 +362,18 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
         )
         if lookup is not None:
             update["contact_lookup"] = lookup
+    elif access.plan_code == "discovery":
+        # L'invitation vers les offres est un droit produit, pas une donnée
+        # Apollo : elle doit rester visible même si le fournisseur n'est pas
+        # configuré sur cette instance. Aucun autre plan ne promet un état
+        # exploitable sans service de recherche.
+        update["contact_lookup"] = {
+            "state": "locked",
+            "remaining": 0,
+            "monthly_quota": 0,
+            "source": "apollo",
+            "removal_path": "/contact",
+        }
     # Re-validate the optional provider projection instead of letting
     # `model_copy(update=...)` bypass the closed response contract.
     return CompanyProfile.model_validate({**profile.model_dump(), **update})
