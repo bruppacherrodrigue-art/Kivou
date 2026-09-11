@@ -15,6 +15,12 @@ from signals.cockpit.contracts import WeeklyCommercialCockpit, completed_week
 from signals.cockpit.service import WeeklyCommercialCockpitService
 from signals.engagement.schema import signal_feedback
 from signals.founder_api.contracts import FounderContract
+from signals.founder_api.prospection import (
+    FounderDirectoryStatus,
+    FounderProspection,
+    FounderProspectionReadService,
+    TimerReader,
+)
 from signals.operations.contracts import (
     AcquisitionOperationalHealth,
     AutonomousReadiness,
@@ -158,10 +164,36 @@ class FounderReadService:
         *,
         commercial: CommercialReader | None = None,
         operations: OperationsReader | None = None,
+        timer_reader: TimerReader | None = None,
     ) -> None:
         self._engine = engine
         self._commercial = commercial or WeeklyCommercialCockpitService(engine)
         self._operations = operations or OperationsReadService(engine)
+        self._prospection = FounderProspectionReadService(
+            engine,
+            timer_reader=timer_reader,
+        )
+
+    def prospection(
+        self,
+        *,
+        now: dt.datetime,
+        page: int = 1,
+        page_size: int = 25,
+        q: str | None = None,
+        family: str | None = None,
+        department: str | None = None,
+        directory_status: FounderDirectoryStatus | None = None,
+    ) -> FounderProspection:
+        return self._prospection.read(
+            now=now,
+            page=page,
+            page_size=page_size,
+            q=q,
+            family=family,
+            department=department,
+            directory_status=directory_status,
+        )
 
     def overview(
         self,
