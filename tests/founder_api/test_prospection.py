@@ -145,6 +145,17 @@ def test_directory_returns_real_global_counts_and_twenty_five_rows() -> None:
     assert result.directory.rows[0].legal_name == "BÉTON ENTREPRISE 00"
     assert result.directory.rows[-1].legal_name == "BÉTON ENTREPRISE 24"
 
+    second_page = FounderReadService(engine, timer_reader=_stopped_timer).prospection(
+        now=NOW,
+        page=2,
+        page_size=25,
+    )
+    assert second_page.directory.pagination.page == 2
+    assert [row.legal_name for row in second_page.directory.rows] == [
+        "BÉTON ENTREPRISE 25",
+        "BÉTON ENTREPRISE 26",
+    ]
+
 
 def test_directory_filters_before_pagination_without_changing_global_facets() -> None:
     engine = _engine()
@@ -172,6 +183,33 @@ def test_directory_filters_before_pagination_without_changing_global_facets() ->
     assert [row.siren for row in result.directory.rows] == ["100000006"]
 
 
+@pytest.mark.parametrize(
+    ("directory_status", "expected_count"),
+    (
+        (FounderDirectoryStatus.CONFIRMED_DOMAIN, 9),
+        (FounderDirectoryStatus.WITHOUT_WEBSITE, 18),
+        (FounderDirectoryStatus.REVERIFICATION_REQUIRED, 6),
+    ),
+)
+def test_directory_supports_each_status_filter(
+    directory_status: FounderDirectoryStatus,
+    expected_count: int,
+) -> None:
+    engine = _engine()
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(supplier_directory),
+            [_directory_row(index) for index in range(27)],
+        )
+
+    result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(
+        now=NOW,
+        directory_status=directory_status,
+    )
+
+    assert result.directory.pagination.total_items == expected_count
+
+
 def test_systemd_timer_reader_reports_when_the_timer_stopped() -> None:
     output = (
         "LoadState=loaded\n"
@@ -183,8 +221,11 @@ def test_systemd_timer_reader_reports_when_the_timer_stopped() -> None:
         "NextElapseUSecRealtime=\n"
     )
 
+    call: dict[str, object] = {}
+
     def run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
-        del args, kwargs
+        call["args"] = args
+        call["kwargs"] = kwargs
         return subprocess.CompletedProcess([], 0, stdout=output, stderr="")
 
     timer = SystemdAcquisitionTimerReader(run=run)(NOW)
@@ -193,6 +234,34 @@ def test_systemd_timer_reader_reports_when_the_timer_stopped() -> None:
     assert timer.inactive_since == dt.datetime(2026, 9, 10, 7, 48, 16, tzinfo=dt.UTC)
     assert timer.last_triggered_at == dt.datetime(2026, 9, 10, 7, 34, 23, tzinfo=dt.UTC)
     assert timer.next_trigger_at is None
+    assert isinstance(call["kwargs"], dict)
+    assert call["kwargs"]["env"]["TZ"] == "UTC"  # type: ignore[index]
+
+
+@pytest.mark.parametrize("active_state", ("failed", "activating", "deactivating"))
+def test_systemd_timer_reader_does_not_call_transitional_or_failed_units_stopped(
+    active_state: str,
+) -> None:
+    output = f"LoadState=loaded\nActiveState={active_state}\nSubState=dead\n"
+
+    def run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args, kwargs
+        return subprocess.CompletedProcess([], 0, stdout=output, stderr="")
+
+    timer = SystemdAcquisitionTimerReader(run=run)(NOW)
+
+    assert timer.state == "UNKNOWN"
+    assert timer.inactive_since is None
+
+
+def test_systemd_timer_reader_fails_closed_on_timeout() -> None:
+    def run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        del args, kwargs
+        raise subprocess.TimeoutExpired(cmd="systemctl", timeout=2)
+
+    timer = SystemdAcquisitionTimerReader(run=run)(NOW)
+
+    assert timer.state == "UNKNOWN"
 
 
 def test_targeting_uses_the_latest_cycle_and_its_existing_journals() -> None:
@@ -440,6 +509,31 @@ def test_targeting_uses_the_latest_cycle_and_its_existing_journals() -> None:
         "contact_identity_unresolved": 5,
         "VERIFIED_CONTACT_NOT_FOUND": 1,
     }
+
+    stale = FounderReadService(engine, timer_reader=_stopped_timer).prospection(
+        now=NOW + dt.timedelta(days=3),
+    )
+    assert stale.targeting is not None
+    assert stale.targeting.updated_at == cycle_completed_at
+    assert stale.targeting.recent is False
+
+
+def test_empty_prospection_keeps_numeric_results_and_no_cycle() -> None:
+    result = FounderReadService(
+        _engine(),
+        timer_reader=_stopped_timer,
+    ).prospection(now=NOW)
+
+    assert result.targeting is None
+    assert result.queue.last_cycle_at is None
+    assert result.results.sent_count == 0
+    assert result.results.opened_count == 0
+    assert result.results.attribution_click_count == 0
+    assert result.results.landing_count == 0
+    assert result.results.confirmed_profile_count == 0
+    assert result.results.paid_account_count == 0
+    assert result.results.mrr_by_currency == ()
+    assert result.results.no_sends_yet is True
 
 
 def test_results_read_persisted_events_and_keep_zero_capable_metrics() -> None:

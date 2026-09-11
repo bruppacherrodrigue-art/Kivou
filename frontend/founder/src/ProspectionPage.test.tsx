@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FounderApp } from './FounderApp'
@@ -193,16 +193,74 @@ describe('ProspectionPage', () => {
       expect(action).toHaveAttribute('title', 'Disponible quand le mode assisté sera livré')
     }
 
-    await user.click(screen.getByRole('button', { name: 'Voir le mail de Béton des Alpes' }))
+    const mailButton = screen.getByRole('button', { name: 'Voir le mail de Béton des Alpes' })
+    await user.click(mailButton)
     const drawer = screen.getByRole('dialog', { name: 'Mail préparé pour Béton des Alpes' })
+    expect(drawer).not.toHaveAttribute('aria-modal')
     expect(within(drawer).getByText('Extension du tramway — capacité béton')).toBeInTheDocument()
     expect(within(drawer).getByText(/message complet préparé/)).toBeInTheDocument()
-    await user.click(within(drawer).getByRole('button', { name: 'Fermer' }))
+    expect(within(drawer).getByRole('button', { name: 'Fermer' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(mailButton).toHaveFocus()
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Famille' }), 'reinforcement_steel')
-    expect(fetchMock).toHaveBeenCalledWith(
+    const family = screen.getByRole('combobox', { name: 'Famille' })
+    await user.selectOptions(family, 'reinforcement_steel')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('family=reinforcement_steel'),
       expect.objectContaining({ credentials: 'same-origin' }),
-    )
+    ))
+
+    const department = screen.getByRole('combobox', { name: 'Département' })
+    await waitFor(() => expect(department).not.toBeDisabled())
+    await user.selectOptions(department, '69')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('department=69'),
+      expect.objectContaining({ credentials: 'same-origin' }),
+    ))
+
+    const status = screen.getByRole('combobox', { name: 'Statut' })
+    await waitFor(() => expect(status).not.toBeDisabled())
+    await user.selectOptions(status, 'confirmed_domain')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('status=confirmed_domain'),
+      expect.objectContaining({ credentials: 'same-origin' }),
+    ))
+
+    const search = screen.getByRole('searchbox')
+    await waitFor(() => expect(search).not.toBeDisabled())
+    await user.type(search, 'acier & béton')
+    await user.click(screen.getByRole('button', { name: 'Rechercher' }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('q=acier+%26+b%C3%A9ton'),
+      expect.objectContaining({ credentials: 'same-origin' }),
+    ))
+
+    const next = screen.getByRole('button', { name: 'Suivant' })
+    await waitFor(() => expect(next).not.toBeDisabled())
+    await user.click(next)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('page=2&page_size=25'),
+      expect.objectContaining({ credentials: 'same-origin' }),
+    ))
+  })
+
+  it('does not invent a stopped-since date when systemd has none', async () => {
+    window.history.replaceState({}, '', '/prospection')
+    const response: FounderProspection = {
+      ...PROSPECTION,
+      timer: { ...PROSPECTION.timer, inactive_since: null },
+    }
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => ({
+      ok: true,
+      status: 200,
+      json: async () => (String(input).includes('/prospection') ? response : SESSION),
+    })))
+
+    render(<FounderApp />)
+
+    expect(await screen.findByRole('heading', { name: 'Prospection' })).toBeInTheDocument()
+    expect(screen.queryByText(/Arrêté depuis le/)).not.toBeInTheDocument()
+    expect(screen.getByText('Arrêté')).toBeInTheDocument()
   })
 })

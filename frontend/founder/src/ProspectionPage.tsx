@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type {
   FounderDirectoryRow,
   FounderDirectoryStatus,
@@ -36,6 +36,7 @@ export function ProspectionPage({
   onFiltersChange,
 }: ProspectionPageProps) {
   const [openMail, setOpenMail] = useState<FounderProspectionQueueItem | null>(null)
+  const mailTriggerRef = useRef<HTMLButtonElement | null>(null)
   const hasPreparedTargets = data.queue.items.length > 0
 
   useEffect(() => {
@@ -47,6 +48,10 @@ export function ProspectionPage({
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [openMail])
 
+  useEffect(() => {
+    if (!openMail) mailTriggerRef.current?.focus()
+  }, [openMail])
+
   const directory = (
     <DirectorySection
       data={data}
@@ -55,7 +60,15 @@ export function ProspectionPage({
       onFiltersChange={onFiltersChange}
     />
   )
-  const queue = <QueueSection data={data} onOpenMail={setOpenMail} />
+  const queue = (
+    <QueueSection
+      data={data}
+      onOpenMail={(item, trigger) => {
+        mailTriggerRef.current = trigger
+        setOpenMail(item)
+      }}
+    />
+  )
 
   return (
     <>
@@ -291,7 +304,7 @@ function QueueSection({
   onOpenMail,
 }: {
   data: FounderProspection
-  onOpenMail: (item: FounderProspectionQueueItem) => void
+  onOpenMail: (item: FounderProspectionQueueItem, trigger: HTMLButtonElement) => void
 }) {
   const lockedId = useId()
   const items = data.queue.items
@@ -352,7 +365,7 @@ function QueueSection({
                         type="button"
                         className="prospection-mail-button"
                         aria-label={`Voir le mail de ${item.company_name}`}
-                        onClick={() => onOpenMail(item)}
+                        onClick={(event) => onOpenMail(item, event.currentTarget)}
                       >
                         Voir
                       </button>
@@ -452,6 +465,12 @@ function ResultsSection({ data }: { data: FounderProspection }) {
 }
 
 function MailDrawer({ item, onClose }: { item: FounderProspectionQueueItem; onClose: () => void }) {
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    closeButtonRef.current?.focus()
+  }, [])
+
   return (
     <div className="prospection-drawer-backdrop" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose()
@@ -459,7 +478,6 @@ function MailDrawer({ item, onClose }: { item: FounderProspectionQueueItem; onCl
       <aside
         className="prospection-drawer"
         role="dialog"
-        aria-modal="true"
         aria-label={`Mail préparé pour ${item.company_name}`}
       >
         <header>
@@ -467,7 +485,7 @@ function MailDrawer({ item, onClose }: { item: FounderProspectionQueueItem; onCl
             <small>Mail préparé · lecture seule</small>
             <h2 id="prospection-mail-title">{item.company_name}</h2>
           </div>
-          <button type="button" aria-label="Fermer" onClick={onClose}>×</button>
+          <button ref={closeButtonRef} type="button" aria-label="Fermer" onClick={onClose}>×</button>
         </header>
         <dl>
           <div><dt>À</dt><dd>{item.email_address}</dd></div>
@@ -620,7 +638,7 @@ function timerLabel(data: FounderProspection): string {
       : 'Actif'
   }
   if (data.timer.state === 'STOPPED') {
-    const stoppedAt = data.timer.inactive_since ?? data.timer.last_triggered_at
+    const stoppedAt = data.timer.inactive_since
     return stoppedAt ? `Arrêté depuis le ${formatDateTime(stoppedAt)}` : 'Arrêté'
   }
   return 'État indisponible'
@@ -629,7 +647,7 @@ function timerLabel(data: FounderProspection): string {
 function timerShortLabel(data: FounderProspection): string {
   if (data.timer.state === 'RUNNING') return 'timer actif'
   if (data.timer.state === 'STOPPED') {
-    const stoppedAt = data.timer.inactive_since ?? data.timer.last_triggered_at
+    const stoppedAt = data.timer.inactive_since
     return stoppedAt ? `arrêté depuis le ${formatDateTime(stoppedAt)}` : 'timer arrêté'
   }
   return 'timer inconnu'

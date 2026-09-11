@@ -240,14 +240,20 @@ class SystemdAcquisitionTimerReader:
                 check=False,
                 text=True,
                 timeout=2,
-                env={**os.environ, "LANG": "C", "LC_ALL": "C"},
+                env={**os.environ, "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
             )
         except (OSError, subprocess.TimeoutExpired):
             return FounderAcquisitionTimer(state="UNKNOWN")
-        values = _systemd_properties(completed.stdout)
+        values = _systemd_properties(completed.stdout, allowed=frozenset(self._PROPERTIES))
         if completed.returncode != 0 or values.get("LoadState") != "loaded":
             return FounderAcquisitionTimer(state="UNKNOWN")
-        state = "RUNNING" if values.get("ActiveState") == "active" else "STOPPED"
+        active_state = values.get("ActiveState")
+        if active_state == "active":
+            state = "RUNNING"
+        elif active_state == "inactive":
+            state = "STOPPED"
+        else:
+            return FounderAcquisitionTimer(state="UNKNOWN")
         return FounderAcquisitionTimer(
             state=state,
             inactive_since=_systemd_time(values.get("InactiveEnterTimestamp")),
@@ -723,12 +729,17 @@ def _searchable(value: str) -> str:
     return "".join(character for character in decomposed if not unicodedata.combining(character))
 
 
-def _systemd_properties(output: str) -> dict[str, str]:
+def _systemd_properties(
+    output: str,
+    *,
+    allowed: frozenset[str] | None = None,
+) -> dict[str, str]:
     return {
         key: value
         for line in output.splitlines()
         if "=" in line
         for key, value in (line.split("=", 1),)
+        if allowed is None or key in allowed
     }
 
 
