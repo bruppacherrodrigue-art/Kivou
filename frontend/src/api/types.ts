@@ -666,6 +666,31 @@ export interface DirectoryCompanyProfile {
   markets: PublicMarket[]
 }
 
+export interface CompanyContactLookup {
+  state: 'locked' | 'available' | 'researching' | 'ready' | 'no_contact' | 'failed' | 'quota_exhausted' | 'identity_unavailable'
+  remaining: number
+  monthly_quota: number
+  source: 'apollo'
+  removal_path: '/contact'
+  researched_at?: string
+  refresh_after?: string
+  next_reset_at?: string
+  can_refresh?: boolean
+  organization?: {
+    employees?: number
+    website_url?: string
+    phone?: string
+    linkedin_url?: string
+  }
+  contacts?: Array<{
+    name: string
+    title: string
+    email: string
+    email_status: 'verified'
+    linkedin_url?: string
+  }>
+}
+
 export interface CompanyRelatedSignal {
   signal_id: string
   contract_title: string | null
@@ -710,6 +735,7 @@ export interface CompanyProfile {
   signals: UnlockedFeedItem[]
   market_summary?: DirectoryCompanyProfile['market_summary'] | null
   directory?: DirectoryCompany | null
+  contact_lookup?: CompanyContactLookup | null
 }
 
 export type CompanyContactStatus = 'to_contact' | 'contacted' | 'replied'

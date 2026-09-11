@@ -58,6 +58,7 @@ EXHAUSTIVE_MIGRATION_SUITES = frozenset(
         "test_campaign_factory_migration.py",
         "test_card_presentation_migration.py",
         "test_company_engagement_migration.py",
+        "test_company_contact_lookup_migration.py",
         "test_company_research_migration.py",
         "test_compliance_migration.py",
         "test_contact_discovery_migration.py",

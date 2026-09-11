@@ -34,6 +34,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("GET", "/companies/directory/{siren}"),
         ("GET", "/companies/{company_key}"),
         ("POST", "/companies/{company_key}/contact"),
+        ("POST", "/companies/{company_key}/contact-lookup"),
         ("PUT", "/companies/{company_key}/note"),
         ("GET", "/dashboard"),
         ("GET", "/me"),

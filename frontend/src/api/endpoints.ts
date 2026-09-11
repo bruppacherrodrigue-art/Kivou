@@ -13,6 +13,7 @@ import type {
   CompanyProfile,
   CompanyListPage,
   CompanyContactResult,
+  CompanyContactLookup,
   CompanyContactStatus,
   DirectoryCompanyProfile,
   DashboardResponse,
@@ -153,6 +154,11 @@ export const companies = {
     request<CompanyContactResult>(`/companies/${encodeURIComponent(companyKey)}/contact`, {
       method: 'POST',
       body: { status },
+    }),
+
+  contactLookup: (companyKey: string) =>
+    request<CompanyContactLookup>(`/companies/${encodeURIComponent(companyKey)}/contact-lookup`, {
+      method: 'POST',
     }),
 
   note: (companyKey: string, body: string) =>

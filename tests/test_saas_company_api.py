@@ -19,6 +19,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.client_value.contact_lookup import ContactLookupQuotaExceeded
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.companies.schema import saas_company
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -137,6 +138,120 @@ def test_company_endpoint_requires_authentication(app) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "not_authenticated"
+
+
+def test_company_contact_lookup_is_injected_and_receives_the_scoped_identity(engine) -> None:
+    class LookupService:
+        def __init__(self) -> None:
+            self.views = []
+            self.researches = []
+
+        def view(self, **values):
+            self.views.append(values)
+            return {
+                "state": "available",
+                "remaining": 100,
+                "monthly_quota": 100,
+                "source": "apollo",
+                "removal_path": "/contact",
+            }
+
+        def research(self, **values):
+            self.researches.append(values)
+            return {
+                "state": "no_contact",
+                "remaining": 99,
+                "monthly_quota": 100,
+                "source": "apollo",
+                "removal_path": "/contact",
+                "researched_at": NOW.isoformat(),
+            }
+
+    lookup = LookupService()
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+        ),
+        now_override=lambda: NOW,
+        company_contact_lookup_service=lookup,
+    )
+    client = _signup(configured, email="company-contact-lookup@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    profile = client.get(f"/companies/{company_key}")
+    response = client.post(f"/companies/{company_key}/contact-lookup")
+
+    assert profile.json()["contact_lookup"] == {
+        "state": "available",
+        "remaining": 100,
+        "monthly_quota": 100,
+        "source": "apollo",
+        "removal_path": "/contact",
+    }
+    assert response.status_code == 200
+    assert response.json() == {
+        "state": "no_contact",
+        "remaining": 99,
+        "monthly_quota": 100,
+        "source": "apollo",
+        "removal_path": "/contact",
+        "researched_at": NOW.isoformat().replace("+00:00", "Z"),
+    }
+    assert lookup.views[0]["plan_code"] == "pro"
+    assert lookup.researches[0]["plan_code"] == "pro"
+    assert lookup.researches[0]["identity"].company_key == company_key
+    assert lookup.researches[0]["identity"].name == "Egli Gartenbau AG Sursee"
+    assert lookup.researches[0]["identity"].city is None
+
+
+def test_company_contact_lookup_fails_closed_without_a_provider(app, engine) -> None:
+    client = _signup(app, email="company-contact-unavailable@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    response = client.post(f"/companies/{company_key}/contact-lookup")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "contact_lookup_unavailable"
+
+
+def test_paid_company_contact_lookup_reports_monthly_quota_exhaustion(engine) -> None:
+    class ExhaustedLookup:
+        def view(self, **_values):
+            return {
+                "state": "quota_exhausted",
+                "remaining": 0,
+                "monthly_quota": 100,
+                "source": "apollo",
+                "removal_path": "/contact",
+                "next_reset_at": "2026-09-01T00:00:00+00:00",
+            }
+
+        def research(self, **_values):
+            raise ContactLookupQuotaExceeded("pro")
+
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+        ),
+        now_override=lambda: NOW,
+        company_contact_lookup_service=ExhaustedLookup(),
+    )
+    client = _signup(configured, email="company-contact-quota@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    response = client.post(f"/companies/{company_key}/contact-lookup")
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "contact_lookup_quota_exhausted"
 
 
 def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engine) -> None:

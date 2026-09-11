@@ -55,7 +55,9 @@ ASSISTED_PROSPECTION_REVISION = "0051_assisted_prospection"
 ASSISTED_OBSERVATION_REVISION = "0052_assisted_observation"
 SUPPLIER_ACTIVITY_REVISION = "0053_supplier_activity"
 PROSPECT_MAIL_REVISION = "0054_prospect_mail_contract"
-CURRENT_HEAD = "0055_company_enrichment"
+COMPANY_ENRICHMENT_REVISION = "0055_company_enrichment"
+COMPANY_CONTACT_REVISION = "0054_company_contact_lookup"
+CURRENT_HEAD = "0056_company_contact_merge"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 

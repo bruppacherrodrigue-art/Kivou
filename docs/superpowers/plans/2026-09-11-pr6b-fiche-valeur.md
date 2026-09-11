@@ -4,7 +4,7 @@
 
 **Goal:** Enrich authenticated signal and company profiles with a commercial calendar, holder history, local directory context and gated generated copy without changing acquisition or Founder code.
 
-**Architecture:** Pure SQLAlchemy Core read-models under `signals.client_value` assemble optional value blocks from existing awards, target profiles and `supplier_directory`. Existing FastAPI routes attach those blocks only after ownership and plan checks; React renders them through focused optional sections. Contact lookup remains a separate post-merge task.
+**Architecture:** Pure SQLAlchemy Core read-models under `signals.client_value` assemble optional value blocks from existing awards, target profiles and `supplier_directory`. Existing FastAPI routes attach those blocks only after ownership and plan checks; React renders them through focused optional sections. Contact lookup is a separate on-demand application service built after the Apollo merge.
 
 **Tech Stack:** Python 3.12, SQLAlchemy Core, FastAPI/Pydantic, React 19, TypeScript, pytest, Vitest, Playwright.
 
@@ -45,6 +45,8 @@
 - [ ] Implement the environment flag, plumb it through card/detail/dashboard renderers, and constrain the existing bounded backfill.
 - [ ] Run the phrase and four-channel contract tests and commit.
 
+Blocage conservé : le flag et le repli sont livrés, mais l'activation reste coupée tant que la sélection des seuls comptes actifs n'est pas ajoutée dans `personalization` par la fenêtre A.
+
 ### Task 5: React value blocks
 
 **Files:** `frontend/src/api/types.ts`, `frontend/src/signals/components/SignalDrawer.tsx`, `frontend/src/signals/components/signals.module.css`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Dashboard.module.css`, `frontend/src/companies/CompanyDrawer.tsx`, `frontend/src/companies/CompaniesPage.tsx`, `frontend/src/companies/CompaniesPage.module.css`, focused Vitest files
@@ -65,14 +67,14 @@
 
 **Files:** to be fixed only after rebasing onto the merged Apollo contract.
 
-- [ ] Fetch and rebase onto current `origin/main`; verify the A merge includes organization enrich, people search and people match.
-- [ ] Write offline tests with fake providers for persisted account-scoped results, 90-day freshness, monthly quotas 0/20/100 and actual provider-cost logging.
-- [ ] Add the migration and client application service without changing acquisition runtime or provider modules.
-- [ ] Render locked Découverte and available Essentiel/Pro states, then run migration, backend and frontend tests.
+- [x] Fetch and rebase onto current `origin/main`; verify the A merge includes organization enrich, people search and people match.
+- [x] Write offline tests with fake providers for persisted account-scoped results, 90-day freshness, monthly quotas 0/20/100, append-only attempted-cost logging, suppression and lease takeover.
+- [x] Add the migration and client application service without changing acquisition runtime or provider modules.
+- [x] Render locked Découverte and available Essentiel/Pro states, then run migration, backend and frontend tests.
 
 ### Task 8: Delivery evidence
 
-- [ ] Run focused backend/frontend suites, ruff, typecheck, lint, build and `git diff --check`.
+- [x] Run focused backend/frontend suites, ruff, typecheck, lint, build and `git diff --check`.
 - [ ] Push the branch, open the PR and wait for decisive CI.
 - [ ] Announce the shared staging deployment, deploy the exact green SHA, run the bounded backfill, and verify the active SHA.
 - [ ] Capture desktop/mobile drawer and company profile for `client-3mois` and QA Découverte.

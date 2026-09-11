@@ -83,6 +83,7 @@ def base_environment(monkeypatch: pytest.MonkeyPatch, sqlite_url: str) -> None:
         "SMTP_HOST",
         "SMTP_FROM_EMAIL",
         "KIVOU_PUBLIC_APP_URL",
+        "KIVOU_APOLLO_API_KEY",
         *INSTANTLY_ENV,
         *INSTANTLY_OPTIONAL_ENV_NAMES,
     ):
@@ -126,6 +127,19 @@ def test_commercial_calendar_cpv_delays_are_explicit_configuration(
         "45": 3,
         "452331": 5,
     }
+
+
+def test_apollo_key_is_secret_and_wires_the_client_lookup_without_network_io(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "synthetic-apollo-secret"
+    monkeypatch.setenv("KIVOU_APOLLO_API_KEY", secret)
+
+    module = importlib.import_module(MODULE)
+    app = module.build_application()
+
+    assert app.state.company_contact_lookup_service is not None
+    assert secret not in repr(app.state.config)
 
 
 # ─── configuration Instantly atomique et expurgée ────────────────────────────

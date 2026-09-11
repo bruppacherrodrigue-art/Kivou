@@ -42,6 +42,12 @@ export type ApiErrorCode =
   | 'signal_not_accessible'
   | 'invalid_notification_email'
   | 'cockpit_forbidden'
+  | 'contact_lookup_unavailable'
+  | 'contact_lookup_locked'
+  | 'contact_lookup_quota_exhausted'
+  | 'contact_lookup_failed'
+  | 'contact_lookup_identity_unavailable'
+  | 'contact_lookup_suppressed'
   /** Panne réseau ou réponse illisible : ce code n'existe pas côté serveur. */
   | 'network_error'
   /** Erreur de validation FastAPI (422 pydantic), qui n'a pas de `code`. */

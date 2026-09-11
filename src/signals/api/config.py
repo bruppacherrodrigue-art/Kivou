@@ -55,6 +55,7 @@ GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = (
     "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
 )
+APOLLO_API_KEY_ENV = "KIVOU_APOLLO_API_KEY"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -208,6 +209,9 @@ class ApiConfig:
     commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] = (
         dataclasses.field(default_factory=dict)
     )
+    # PR6b — secret du fournisseur utilisé uniquement par la recherche explicite
+    # d'un décideur. Son absence laisse la route indisponible, sans appel réseau.
+    apollo_api_key: str | None = dataclasses.field(default=None, repr=False)
 
     @property
     def stripe_livemode(self) -> bool:
@@ -384,6 +388,7 @@ class ApiConfig:
             commercial_start_delay_months_by_cpv_prefix=_cpv_start_delays(
                 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV
             ),
+            apollo_api_key=os.environ.get(APOLLO_API_KEY_ENV) or None,
         )
 
 

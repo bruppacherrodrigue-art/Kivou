@@ -17,13 +17,20 @@ from signals.api.errors import api_error
 from signals.billing import service as billing
 from signals.billing.access import FeedAccess, feed_access
 from signals.card_intelligence.store import published_for_signals
+from signals.client_value.contact_lookup import (
+    CompanyLookupIdentity,
+    ContactLookupIdentityUnavailable,
+    ContactLookupProviderFailure,
+    ContactLookupQuotaExceeded,
+    ContactLookupSuppressed,
+)
 from signals.client_value.directory import directory_company
 from signals.client_value.history import (
     department_for_place,
     directory_history_and_markets,
     history_for_company,
 )
-from signals.companies.contracts import CompanyProfile
+from signals.companies.contracts import CompanyContactLookupView, CompanyProfile
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
 from signals.companies.service import company_profile_with_items
@@ -285,7 +292,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
     now = request_now(request)
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        profile, items, _access, lang = _accessible_company(connection, session, company_key, now)
+        profile, items, access, lang = _accessible_company(connection, session, company_key, now)
         signals = _company_signals(
             connection,
             items=items,
@@ -333,18 +340,31 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             legal_name=profile.official_identity.name,
             department=department_for_place(most_recent.signal.award.place_of_performance),
         )
-    return profile.model_copy(
-        update={
-            "city": place.get("locality"),
-            "contact_status": contact.status if contact is not None else "to_contact",
-            "contacted_at": contact.contacted_at if contact is not None else None,
-            "note": note.body if note is not None else None,
-            "signals": signals,
-            "history": history,
-            "market_summary": market_summary,
-            "directory": directory,
-        }
-    )
+        account_id = session.account_id
+    update = {
+        "city": place.get("locality"),
+        "contact_status": contact.status if contact is not None else "to_contact",
+        "contacted_at": contact.contacted_at if contact is not None else None,
+        "note": note.body if note is not None else None,
+        "signals": signals,
+        "history": history,
+        "market_summary": market_summary,
+        "directory": directory,
+    }
+    lookup_service = request.app.state.company_contact_lookup_service
+    if lookup_service is not None:
+        lookup = lookup_service.view(
+            account_id=account_id,
+            company_key=company_key,
+            plan_code=access.plan_code,
+            now=now,
+            siren=_siren_for_profile(profile),
+        )
+        if lookup is not None:
+            update["contact_lookup"] = lookup
+    # Re-validate the optional provider projection instead of letting
+    # `model_copy(update=...)` bypass the closed response contract.
+    return CompanyProfile.model_validate({**profile.model_dump(), **update})
 
 
 @router.get("/companies/directory/{siren}")
@@ -421,6 +441,86 @@ def set_company_contact(
         "contacted_at": stored.contacted_at.isoformat() if stored.contacted_at else None,
         "updated_at": stored.updated_at.isoformat(),
     }
+
+
+@router.post(
+    "/companies/{company_key}/contact-lookup",
+    response_model=CompanyContactLookupView,
+    response_model_exclude_none=True,
+)
+def find_company_decision_maker(company_key: str, request: Request) -> dict[str, Any]:
+    """Run the bounded Apollo chain after an explicit, authenticated click."""
+    enforce_origin(request, request.app.state.config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        profile, items, access, _lang = _accessible_company(
+            connection, session, company_key, now
+        )
+        most_recent = min(items, key=lambda item: history_sort_key(item.signal))
+        department = department_for_place(
+            most_recent.signal.award.place_of_performance
+        )
+        directory = directory_company(
+            connection,
+            siren=_siren_for_profile(profile),
+            legal_name=profile.official_identity.name,
+            department=department,
+        )
+        identity = CompanyLookupIdentity(
+            company_key=company_key,
+            siren=_siren_for_profile(profile),
+            name=profile.official_identity.name,
+            city=(directory or {}).get("city"),
+            website_url=(directory or {}).get("website_url")
+            or profile.official_identity.website_url,
+        )
+        account_id = session.account_id
+
+    lookup_service = request.app.state.company_contact_lookup_service
+    if lookup_service is None:
+        raise api_error(
+            503,
+            "contact_lookup_unavailable",
+            "la recherche de contact est temporairement indisponible",
+        )
+    try:
+        return lookup_service.research(
+            account_id=account_id,
+            plan_code=access.plan_code,
+            identity=identity,
+            now=now,
+        )
+    except ContactLookupQuotaExceeded as error:
+        if access.plan_code == "discovery":
+            raise api_error(
+                403,
+                "contact_lookup_locked",
+                "aucune recherche de contact disponible avec cette formule",
+            ) from error
+        raise api_error(
+            403,
+            "contact_lookup_quota_exhausted",
+            "le quota mensuel de recherches de contact est épuisé",
+        ) from error
+    except ContactLookupProviderFailure as error:
+        raise api_error(
+            503,
+            "contact_lookup_failed",
+            "la recherche de contact n'a pas abouti",
+        ) from error
+    except ContactLookupIdentityUnavailable as error:
+        raise api_error(
+            409,
+            "contact_lookup_identity_unavailable",
+            "l'identité annuaire de cette entreprise ne permet pas la recherche",
+        ) from error
+    except ContactLookupSuppressed as error:
+        raise api_error(
+            409,
+            "contact_lookup_suppressed",
+            "la recherche de contact n'est pas disponible pour cette entreprise",
+        ) from error
 
 
 @router.put("/companies/{company_key}/note")

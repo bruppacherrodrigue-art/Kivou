@@ -47,6 +47,31 @@ function routes(profile: CompanyProfile = COMPANY_PROFILE) {
     [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: {
       body: { company_key: COMPANY_PROFILE.company_key, contact_status: 'contacted', contacted_at: '2026-09-03T12:00:00Z', updated_at: '2026-09-03T12:00:00Z' },
     },
+    [`POST /companies/${COMPANY_PROFILE.company_key}/contact-lookup`]: {
+      body: {
+        state: 'ready',
+        remaining: 19,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+        researched_at: '2026-09-11T09:00:00Z',
+        refresh_after: '2026-12-10T09:00:00Z',
+        can_refresh: false,
+        organization: {
+          employees: 84,
+          website_url: 'https://holder.example/',
+          phone: '+33 5 61 00 00 00',
+          linkedin_url: 'https://www.linkedin.com/company/holder',
+        },
+        contacts: [{
+          name: 'Alice Martin',
+          title: 'Directrice commerciale',
+          email: 'alice@holder.example',
+          email_status: 'verified',
+          linkedin_url: 'https://www.linkedin.com/in/alice-martin',
+        }],
+      },
+    },
     [`PUT /companies/${COMPANY_PROFILE.company_key}/note`]: {
       body: { company_key: COMPANY_PROFILE.company_key, note: 'À rappeler', updated_at: '2026-09-03T12:00:00Z' },
     },
@@ -374,6 +399,282 @@ describe('CompaniesPage', () => {
     const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)
     expect(headings.indexOf('Identité')).toBeLessThan(headings.indexOf('Synthèse des marchés'))
     expect(headings.indexOf('Synthèse des marchés')).toBeLessThan(headings.indexOf('Ses marchés'))
+  })
+
+  it('cherche un décideur à la demande et affiche uniquement les données sourcées', async () => {
+    const available: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'available',
+        remaining: 20,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+      },
+    }
+    mockApi(routes(available))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('20 recherches restantes ce mois')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Trouver le décideur' }))
+
+    expect(await screen.findByText('Alice Martin')).toBeVisible()
+    expect(screen.getByText('Directrice commerciale')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'alice@holder.example' })).toHaveAttribute(
+      'href',
+      'mailto:alice@holder.example',
+    )
+    expect(screen.getByText('E-mail vérifié')).toBeVisible()
+    expect(screen.getByText('84 salariés')).toBeVisible()
+    expect(screen.getByText('+33 5 61 00 00 00')).toBeVisible()
+    expect(screen.getAllByRole('link', { name: 'LinkedIn ↗' })).toHaveLength(2)
+    expect(screen.getByText(/Recherche effectuée le 11 septembre 2026/)).toBeVisible()
+    expect(screen.getByText('Source : Apollo')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Retrait' })).toHaveAttribute('href', '/contact')
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact-lookup`, 'POST')).toHaveLength(1)
+    const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)
+    expect(headings.indexOf('Contact')).toBeLessThan(headings.indexOf('Ses marchés'))
+  })
+
+  it('verrouille la recherche en Découverte avec une invitation vers les offres', async () => {
+    const discovery: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'locked',
+        remaining: 0,
+        monthly_quota: 0,
+        source: 'apollo',
+        removal_path: '/contact',
+      },
+    }
+    mockApi(routes(discovery))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('button', { name: 'Trouver le décideur' })).toBeDisabled()
+    expect(screen.getByText('0 recherche restante ce mois')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Voir les offres' })).toHaveAttribute(
+      'href',
+      '/tarifs',
+    )
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact-lookup`, 'POST')).toHaveLength(0)
+  })
+
+  it('désactive la recherche quand le quota payant est épuisé et annonce sa reprise', async () => {
+    const exhausted: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'quota_exhausted',
+        remaining: 0,
+        monthly_quota: 20,
+        next_reset_at: '2026-10-01T00:00:00Z',
+        source: 'apollo',
+        removal_path: '/contact',
+      },
+    }
+    mockApi(routes(exhausted))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('button', { name: 'Trouver le décideur' })).toBeDisabled()
+    expect(screen.getByText('Quota mensuel épuisé · reprise le 1 octobre 2026')).toBeVisible()
+    expect(screen.queryByText('—')).not.toBeInTheDocument()
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact-lookup`, 'POST')).toHaveLength(0)
+  })
+
+  it('désactive la recherche sans identité annuaire vérifiable', async () => {
+    const unavailable: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'identity_unavailable',
+        remaining: 20,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+      },
+    }
+    mockApi(routes(unavailable))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('button', { name: 'Trouver le décideur' })).toBeDisabled()
+    expect(screen.getByText('Identité annuaire insuffisante pour lancer la recherche.')).toBeVisible()
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact-lookup`, 'POST')).toHaveLength(0)
+  })
+
+  it('propose une actualisation seulement après quatre-vingt-dix jours', async () => {
+    const stale: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'ready',
+        remaining: 19,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+        researched_at: '2026-06-01T09:00:00Z',
+        refresh_after: '2026-08-30T09:00:00Z',
+        can_refresh: true,
+        contacts: [{
+          name: 'Alice Martin',
+          title: 'Directrice commerciale',
+          email: 'alice@holder.example',
+          email_status: 'verified',
+        }],
+      },
+    }
+    mockApi(routes(stale))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Actualiser' }))
+
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}/contact-lookup`, 'POST')).toHaveLength(1)
+  })
+
+  it('conserve les contacts mais annonce la reprise après un quota épuisé lors du rafraîchissement', async () => {
+    let reads = 0
+    const stale: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'ready',
+        remaining: 1,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+        researched_at: '2026-06-01T09:00:00Z',
+        refresh_after: '2026-08-30T09:00:00Z',
+        can_refresh: true,
+        contacts: [{
+          name: 'Alice Martin',
+          title: 'Directrice commerciale',
+          email: 'alice@holder.example',
+          email_status: 'verified',
+        }],
+      },
+    }
+    const exhausted: CompanyProfile = {
+      ...stale,
+      contact_lookup: {
+        ...stale.contact_lookup!,
+        remaining: 0,
+        can_refresh: false,
+        next_reset_at: '2026-10-01T00:00:00Z',
+      },
+    }
+    mockApi({
+      ...routes(stale),
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: () => ({
+        body: reads++ === 0 ? stale : exhausted,
+      }),
+      [`POST /companies/${COMPANY_PROFILE.company_key}/contact-lookup`]: {
+        status: 403,
+        body: { detail: { code: 'contact_lookup_quota_exhausted' } },
+      },
+    })
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Actualiser' }))
+
+    expect(await screen.findByText('Alice Martin')).toBeVisible()
+    expect(await screen.findByText('Quota mensuel épuisé · reprise le 1 octobre 2026')).toBeVisible()
+    expect(screen.getByText('Le quota mensuel vient d’être épuisé.')).toBeVisible()
+  })
+
+  it('relit la fiche tant qu’une recherche concurrente est en cours', async () => {
+    let reads = 0
+    const researching: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'researching',
+        remaining: 19,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+      },
+    }
+    const ready: CompanyProfile = {
+      ...researching,
+      contact_lookup: {
+        ...researching.contact_lookup!,
+        state: 'ready',
+        contacts: [{
+          name: 'Alice Martin',
+          title: 'Directrice commerciale',
+          email: 'alice@holder.example',
+          email_status: 'verified',
+        }],
+      },
+    }
+    mockApi({
+      ...routes(researching),
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: () => ({
+        body: reads++ === 0 ? researching : ready,
+      }),
+    })
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('button', { name: 'Recherche en cours…' })).toBeDisabled()
+    expect(await screen.findByText('Alice Martin', {}, { timeout: 3_000 })).toBeVisible()
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(2)
+  })
+
+  it('retire les données Contact si la relecture révoque le bloc', async () => {
+    let reads = 0
+    const researching: CompanyProfile = {
+      ...COMPANY_PROFILE,
+      contact_lookup: {
+        state: 'researching',
+        remaining: 19,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+        organization: { employees: 84 },
+        contacts: [{
+          name: 'Alice Martin',
+          title: 'Directrice commerciale',
+          email: 'alice@holder.example',
+          email_status: 'verified',
+        }],
+      },
+    }
+    const revoked: CompanyProfile = { ...COMPANY_PROFILE, contact_lookup: null }
+    mockApi({
+      ...routes(researching),
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: () => ({
+        body: reads++ === 0 ? researching : revoked,
+      }),
+    })
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByText('Alice Martin')).toBeVisible()
+    await waitFor(() => expect(screen.queryByText('Alice Martin')).not.toBeInTheDocument(), {
+      timeout: 3_000,
+    })
+    expect(screen.queryByRole('heading', { name: 'Contact' })).not.toBeInTheDocument()
   })
 
   it('ouvre une entreprise du circuit local depuis son SIREN', async () => {

@@ -89,6 +89,7 @@ def create_app(
     prospect_unsubscribe_service: object | None = None,
     cockpit_service: object | None = None,
     operations_service: object | None = None,
+    company_contact_lookup_service: object | None = None,
     founding_accounts: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Construit l'application autour d'un moteur déjà configuré.
@@ -140,6 +141,9 @@ def create_app(
     app.state.operations_service = operations_service or OperationsReadService(
         engine, environment_identity=app.state.config.acquisition_environment
     )
+    # PR6b — fournisseur facultatif, appelé uniquement après un clic client.
+    # Son absence garde l'API fermée plutôt que d'inventer une donnée.
+    app.state.company_contact_lookup_service = company_contact_lookup_service
     # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
     app.state.founding_accounts = frozenset(founding_accounts)
 

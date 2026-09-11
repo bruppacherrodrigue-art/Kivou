@@ -12,7 +12,7 @@ from signals.persistence.schema import acquisition_response_evaluation
 CAMPAIGN_FACTORY = "0016_campaign_factory"
 PREVIOUS = "0017_target_icp_revision"
 HEAD = "0018_response_intelligence"
-CURRENT_HEAD = "0055_company_enrichment"
+CURRENT_HEAD = "0056_company_contact_merge"
 
 
 def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:

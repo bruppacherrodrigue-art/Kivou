@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type {
   CompanyContactStatus,
+  CompanyContactLookup,
   CompanyProfile,
   DirectoryCompany,
   DirectoryCompanyProfile,
   UnlockedFeedItem,
 } from '../api/types'
 import { companies, signals as signalApi } from '../api/endpoints'
+import { ApiError } from '../api/client'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { SignalRow } from '../signals/components/SignalRow'
 import { useI18n } from '../i18n'
@@ -143,6 +145,139 @@ export function MarketSummaryBlock({
   )
 }
 
+function ContactLookupBlock({
+  companyKey,
+  initial,
+}: {
+  companyKey: string
+  initial: CompanyContactLookup
+}) {
+  const { date } = useI18n()
+  const [lookup, setLookup] = useState<CompanyContactLookup | null>(initial)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLookup(initial)
+    setBusy(false)
+    setError(null)
+  }, [companyKey, initial])
+
+  useEffect(() => {
+    if (lookup?.state !== 'researching') return
+    let active = true
+    const poll = window.setInterval(() => {
+      void companies.get(companyKey).then((profile) => {
+        if (active) setLookup(profile.contact_lookup ?? null)
+      }).catch(() => undefined)
+    }, 2_000)
+    return () => {
+      active = false
+      window.clearInterval(poll)
+    }
+  }, [companyKey, lookup?.state])
+
+  const run = async () => {
+    if (!lookup || busy || lookup.state === 'locked' || lookup.state === 'quota_exhausted' || lookup.state === 'identity_unavailable') return
+    setBusy(true)
+    setError(null)
+    setLookup((current) => current ? ({ ...current, state: 'researching' }) : null)
+    try {
+      setLookup(await companies.contactLookup(companyKey))
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === 'contact_lookup_locked') {
+        try {
+          const profile = await companies.get(companyKey)
+          setLookup(profile.contact_lookup ?? null)
+        } catch {
+          setLookup((current) => current ? ({ ...current, state: 'locked', remaining: 0 }) : null)
+        }
+      } else if (caught instanceof ApiError && caught.code === 'contact_lookup_quota_exhausted') {
+        try {
+          const profile = await companies.get(companyKey)
+          setLookup(profile.contact_lookup ?? null)
+        } catch {
+          setLookup((current) => current ? ({ ...current, state: 'quota_exhausted', remaining: 0 }) : null)
+        }
+        setError('Le quota mensuel vient d’être épuisé.')
+      } else if (caught instanceof ApiError && (caught.code === 'contact_lookup_identity_unavailable' || caught.code === 'contact_lookup_suppressed')) {
+        setLookup((current) => current ? ({
+          state: 'identity_unavailable',
+          remaining: current.remaining,
+          monthly_quota: current.monthly_quota,
+          source: current.source,
+          removal_path: current.removal_path,
+        }) : null)
+        setError('L’identité annuaire de cette entreprise ne permet pas encore la recherche.')
+      } else {
+        setLookup((current) => current ? ({ ...current, state: 'failed' }) : null)
+        setError('La recherche n’a pas abouti. Réessayez dans quelques instants.')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!lookup) return null
+
+  const organizationWebsite = safeWebsite(lookup.organization?.website_url)
+  const organizationLinkedin = safeWebsite(lookup.organization?.linkedin_url)
+  const remainingLabel = `${lookup.remaining} recherche${lookup.remaining > 1 ? 's' : ''} restante${lookup.remaining > 1 ? 's' : ''} ce mois`
+  const initialButton = lookup.state === 'locked' || lookup.state === 'available' || lookup.state === 'quota_exhausted' || lookup.state === 'identity_unavailable'
+  const refreshButton = lookup.state === 'failed' || Boolean(lookup.can_refresh)
+
+  return (
+    <section className={`${styles.valueSection} ${styles.contactLookup}`}>
+      <h3>Contact</h3>
+      {lookup.organization ? (
+        <ul className={styles.factChips}>
+          {lookup.organization.employees === undefined ? null : <li>{lookup.organization.employees} salariés</li>}
+          {lookup.organization.phone ? <li>{lookup.organization.phone}</li> : null}
+          {organizationWebsite ? <li><a href={organizationWebsite} target="_blank" rel="noreferrer">Site internet ↗</a></li> : null}
+          {organizationLinkedin ? <li><a href={organizationLinkedin} target="_blank" rel="noreferrer">LinkedIn ↗</a></li> : null}
+        </ul>
+      ) : null}
+      {lookup.contacts?.length ? (
+        <ul className={styles.contactCards}>
+          {lookup.contacts.map((contact) => {
+            const linkedin = safeWebsite(contact.linkedin_url)
+            return (
+              <li key={`${contact.email}-${contact.name}`}>
+                <strong>{contact.name}</strong>
+                <span>{contact.title}</span>
+                <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                <small>E-mail vérifié</small>
+                {linkedin ? <a href={linkedin} target="_blank" rel="noreferrer">LinkedIn ↗</a> : null}
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+      {lookup.state === 'no_contact' ? <p>Aucun décideur avec un e-mail professionnel vérifié n’a été trouvé.</p> : null}
+      {lookup.researched_at ? <p className={styles.dataSource}>Recherche effectuée le {date(lookup.researched_at)}</p> : null}
+      {error ? <p className={styles.actionError} role="alert">{error}</p> : null}
+      <div className={styles.lookupActions}>
+        {initialButton ? (
+          <button type="button" disabled={lookup.state !== 'available' || busy} onClick={() => void run()}>
+            Trouver le décideur
+          </button>
+        ) : null}
+        {lookup.state === 'researching' ? <button type="button" disabled>Recherche en cours…</button> : null}
+        {refreshButton ? (
+          <button type="button" disabled={busy || lookup.remaining === 0} onClick={() => void run()}>
+            {lookup.can_refresh ? 'Actualiser' : 'Réessayer'}
+          </button>
+        ) : null}
+        <span>{remainingLabel}</span>
+      </div>
+      {lookup.state === 'locked' ? <p className={styles.lookupInvite}>Cette recherche est incluse dans les formules payantes. <Link to="/tarifs">Voir les offres</Link></p> : null}
+      {lookup.remaining === 0 && lookup.next_reset_at ? <p className={styles.lookupInvite}>Quota mensuel épuisé · reprise le {date(lookup.next_reset_at)}</p> : null}
+      {lookup.state === 'identity_unavailable' ? <p className={styles.lookupInvite}>Identité annuaire insuffisante pour lancer la recherche.</p> : null}
+      <p className={styles.dataSource}><span>Source : Apollo</span> · <Link to={lookup.removal_path}>Retrait</Link></p>
+    </section>
+  )
+}
+
 export function CompanyDrawer({
   profile,
   city,
@@ -227,6 +362,12 @@ export function CompanyDrawer({
           identitySource={identity.source}
         />
         <MarketSummaryBlock summary={profile.market_summary} />
+        {profile.contact_lookup ? (
+          <ContactLookupBlock
+            companyKey={profile.company_key}
+            initial={profile.contact_lookup}
+          />
+        ) : null}
 
         <section>
           <h3>Ses marchés</h3>

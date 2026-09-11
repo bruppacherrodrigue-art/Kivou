@@ -7,7 +7,14 @@ import ipaddress
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StringConstraints,
+    field_validator,
+)
 
 MAX_OFFICIAL_IDENTIFIERS = 16
 MAX_RELATED_SIGNALS = 100
@@ -162,6 +169,71 @@ class CompanyCoverage(CompanyContract):
     )
 
 
+class CompanyContactLookupOrganization(CompanyContract):
+    employees: int | None = Field(default=None, ge=0, exclude_if=lambda value: value is None)
+    website_url: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    phone: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    linkedin_url: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    _safe_website = field_validator("website_url")(safe_https_url)
+    _safe_linkedin = field_validator("linkedin_url")(safe_https_url)
+
+
+class CompanyDecisionMaker(CompanyContract):
+    name: ShortText
+    title: ShortText
+    email: Annotated[EmailStr, Field(max_length=320)]
+    email_status: Literal["verified"]
+    linkedin_url: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    _safe_linkedin = field_validator("linkedin_url")(safe_https_url)
+
+
+class CompanyContactLookupView(CompanyContract):
+    state: Literal[
+        "locked",
+        "available",
+        "researching",
+        "ready",
+        "no_contact",
+        "failed",
+        "quota_exhausted",
+        "identity_unavailable",
+    ]
+    remaining: int = Field(ge=0)
+    monthly_quota: int = Field(ge=0)
+    source: Literal["apollo"]
+    removal_path: Literal["/contact"]
+    researched_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    refresh_after: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    next_reset_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    can_refresh: bool | None = Field(default=None, exclude_if=lambda value: value is None)
+    organization: CompanyContactLookupOrganization | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    contacts: tuple[CompanyDecisionMaker, ...] | None = Field(
+        default=None,
+        max_length=3,
+        exclude_if=lambda value: value is None,
+    )
+
+    _aware_researched = field_validator("researched_at")(aware_optional_datetime)
+    _aware_refresh = field_validator("refresh_after")(aware_optional_datetime)
+    _aware_reset = field_validator("next_reset_at")(aware_optional_datetime)
+
+
 class CompanyProfile(CompanyContract):
     company_key: CompanyKey
     city: ShortText | None = None
@@ -181,5 +253,8 @@ class CompanyProfile(CompanyContract):
     history: tuple[dict[str, Any], ...] = Field(default=(), max_length=500)
     market_summary: dict[str, Any] | None = None
     directory: dict[str, Any] | None = None
+    contact_lookup: CompanyContactLookupView | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
     _aware_contacted_at = field_validator("contacted_at")(aware_optional_datetime)
