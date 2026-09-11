@@ -1,6 +1,6 @@
 """Allow ASSISTED runtime observations without permitting LIVE transport.
 
-Revision ID: 0052_assisted_runtime_observation
+Revision ID: 0052_assisted_observation
 Revises: 0051_assisted_prospection
 """
 
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "0052_assisted_runtime_observation"
+revision = "0052_assisted_observation"
 down_revision = "0051_assisted_prospection"
 branch_labels = None
 depends_on = None

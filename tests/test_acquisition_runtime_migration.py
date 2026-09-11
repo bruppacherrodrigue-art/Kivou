@@ -26,7 +26,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
-CURRENT_HEAD = "0052_assisted_runtime_observation"
+CURRENT_HEAD = "0052_assisted_observation"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
@@ -38,6 +38,10 @@ RUNTIME_TABLES = {
 
 
 NOW = dt.datetime(2026, 9, 1, 9, tzinfo=dt.UTC)
+
+
+def test_current_revision_fits_alembic_version_storage() -> None:
+    assert len(CURRENT_HEAD) <= 32
 
 
 def _engine(tmp_path: pathlib.Path, name: str) -> sa.Engine:
