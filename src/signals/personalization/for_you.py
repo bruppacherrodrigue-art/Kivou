@@ -71,6 +71,10 @@ _ENGINE_TERMS = frozenset(
 _LEGACY_FALLBACK_MARKERS = frozenset(
     {"peut concerner votre activité", "attribué le"}
 )
+_TECHNICAL_OBJECT = re.compile(
+    r"(?:\bLOT\s*\d*\b|\bCPV\b|\b\d{8}(?:-\d)?\b|\b\d{2}[A-Z]\d{4,}\b)",
+    re.IGNORECASE,
+)
 _TRADE_ACRONYMS = frozenset(
     {"CVC", "VRD", "MOA", "MOE", "BTP", "GO", "SO", "ERP", "RE2020", "DPGF"}
 )
@@ -438,7 +442,10 @@ def client_safe_sentence(sentence: str | None) -> str | None:
     if not sentence:
         return None
     folded = sentence.casefold()
-    if any(term in folded for term in _ENGINE_TERMS | _LEGACY_FALLBACK_MARKERS):
+    if (
+        any(term in folded for term in _ENGINE_TERMS | _LEGACY_FALLBACK_MARKERS)
+        or _TECHNICAL_OBJECT.search(sentence)
+    ):
         return None
     return sentence
 

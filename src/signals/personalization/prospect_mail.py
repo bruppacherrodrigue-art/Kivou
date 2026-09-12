@@ -169,6 +169,23 @@ def _work_description(raw_subject: str, catalog: ProspectMailCatalog) -> str:
     return ", ".join(unique[:-1]) + f" et {unique[-1]}"
 
 
+def client_work_description(raw_subject: str) -> str:
+    """Rewrite a sourced lot title with the same deterministic terms as the mail."""
+
+    return _work_description(raw_subject, load_prospect_mail_catalog())
+
+
+def client_market_object(raw_subject: str | None) -> str:
+    """Keep readable prose, but replace references and lot labels with plain work terms."""
+
+    cleaned = " ".join((raw_subject or "").split()).strip(" .,:;-/")
+    if not cleaned:
+        return ""
+    if _TECHNICAL_PATTERN.search(cleaned):
+        return client_work_description(cleaned)
+    return cleaned
+
+
 def _amount(minor_units: int, currency: str) -> str:
     major = Decimal(minor_units) / Decimal(100)
     suffix = "€" if currency.casefold() == "eur" else currency.upper()
@@ -236,7 +253,7 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
     place = f"à {city}" if city else f"en {department}"
     amount = _amount(int(row["signal_amount_minor_units"]), str(row["signal_currency"]))
     date = _date(row["signal_decision_date"])
-    work = _work_description(str(row["signal_subject"]), catalog)
+    work = client_work_description(str(row["signal_subject"]))
     if holder and city:
         subject = f"{holder} vient de gagner un chantier {family.subject_label} à {city}"
     elif holder:
@@ -356,6 +373,8 @@ __all__ = [
     "ProspectMailCatalog",
     "RenderedProspectMail",
     "WorkTerm",
+    "client_market_object",
+    "client_work_description",
     "load_prospect_mail_catalog",
     "normalize_director_name",
     "render_prospect_mail",

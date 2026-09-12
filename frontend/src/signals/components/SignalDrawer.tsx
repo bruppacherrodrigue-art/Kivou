@@ -123,9 +123,9 @@ export function SignalDrawer({
   const clock = dates.award
     ? { label: copy.awardedOn, value: dates.award }
     : dates.contract_notification
-      ? { label: copy.notifiedOn, value: dates.contract_notification }
+      ? { label: copy.awardedOn, value: dates.contract_notification }
       : dates.publication
-        ? { label: copy.awardedOn, value: dates.award ?? dates.publication }
+        ? { label: copy.publishedOn, value: dates.publication }
         : { label: copy.awardedOn, value: null }
 
   const actions: {

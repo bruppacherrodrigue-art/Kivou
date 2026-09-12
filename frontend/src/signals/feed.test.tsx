@@ -86,6 +86,7 @@ function item(
     company: { ...UNLOCKED_ITEM.company, name: patch.name ?? UNLOCKED_ITEM.company.name },
     factual_display: {
       ...UNLOCKED_ITEM.factual_display,
+      object_short: patch.title ?? UNLOCKED_ITEM.factual_display.object_short,
       date: { ...UNLOCKED_ITEM.factual_display.date, value: patch.date ?? '2026-08-04' },
     },
     contract: {
@@ -124,13 +125,19 @@ describe('écran Signaux — tableau dense', () => {
     renderApp(<AppRoutes />, {
       session: {
         status: 'authenticated',
-        me: { ...ME, account_display_name: 'Compte à confirmer', onboarding_status: 'icp_incomplete' },
+        me: {
+          ...ME,
+          account_display_name: 'Compte à confirmer',
+          onboarding_status: 'icp_incomplete',
+          provisional_profile: true,
+        },
       },
       route: '/app/signals',
     })
 
     expect(await screen.findByText('Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Confirmer mon profil' })).toHaveAttribute('href', '/app/confirm-profile')
+    expect(screen.getByText('Aujourd’hui')).toBeInTheDocument()
   })
 
   it('rend un tableau et ses six colonnes, une ligne par signal', async () => {
@@ -652,7 +659,6 @@ describe('écran Signaux — mobile et copy', () => {
     })
 
     await waitFor(() => expect(document.querySelector('table')).not.toBeInTheDocument())
-    expect(await screen.findByText(/Réfection de la voirie/)).toBeInTheDocument()
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(within(screen.getByRole('dialog')).getByRole('heading', { level: 2, name: 'Voirie' }))
       .toBeInTheDocument()

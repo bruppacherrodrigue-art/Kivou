@@ -198,11 +198,14 @@ def list_signals(
     # ses trois déblocages écrits ici, une fois pour toutes (§20).
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        provisional_profile = (
-            service.landing_signal(connection, account_id=session.account_id) is not None
-            and service.onboarding_status(connection, account_id=session.account_id)
-            != "ready_for_signals"
+        provisional_profile = service.is_provisional_profile(
+            connection, account_id=session.account_id
         )
+        # A landing keeps its promised signal even when the message is opened
+        # after the ordinary 30-day list window. Selection still uses the
+        # attribution/notification date; this only renders the fixed cohort.
+        effective_date_from = None if provisional_profile else date_from
+        effective_date_to = None if provisional_profile else date_to
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         service.reconcile_territory_plan_limits(
@@ -263,8 +266,8 @@ def list_signals(
                     subdivision_code=subdivision_code,
                     status=recency_status,
                     cpv_prefix=cpv_prefix,
-                    date_from=date_from,
-                    date_to=date_to,
+                    date_from=effective_date_from,
+                    date_to=effective_date_to,
                     min_amount=min_amount,
                     text_query=q,
                     winner=winner,
@@ -285,8 +288,8 @@ def list_signals(
                     country=country,
                     subdivision_code=subdivision_code,
                     cpv_prefix=cpv_prefix,
-                    date_from=date_from,
-                    date_to=date_to,
+                    date_from=effective_date_from,
+                    date_to=effective_date_to,
                     min_amount=min_amount,
                     text_query=q,
                     winner=winner,
