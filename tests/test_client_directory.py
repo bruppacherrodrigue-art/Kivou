@@ -89,10 +89,12 @@ def test_directory_company_prefers_siren_and_never_exposes_professional_email(tm
         "naf_code": "23.63Z",
         "family_labels": ["Béton prêt à l'emploi"],
         "department": "38",
+        "department_label": "Isère",
         "city": "Grenoble",
         "employees": 20,
         "website_url": "https://example.test/",
         "website_source": "registre",
+        "website_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "directors": [{"name": "Alice Martin", "title": "Gérante"}],
         "source": "registre",
         "removal_path": "/contact",
@@ -148,6 +150,48 @@ def test_directory_company_keeps_the_website_source_distinct_from_register_facts
     assert result is not None
     assert result["website_url"] == "https://example.test/"
     assert result["website_source"] == "serper"
+
+
+def test_directory_company_formats_the_published_director_for_the_client(tmp_path) -> None:
+    db = engine(tmp_path)
+    value = row(
+        "481153435",
+        "ALYA BATIMENT",
+        directors=(
+            {
+                "name": "MOSBAH BENZAOUI (BENZAOUI)",
+                "title": "Président",
+                "entity_type": "personne physique",
+            },
+        ),
+    )
+    value.update(
+        director_display_name="Mosbah Benzaoui",
+        director_source="model",
+        director_observed_at=NOW,
+        phone="+33 4 74 00 00 00",
+        phone_source="model",
+        phone_observed_at=NOW,
+        email_evidence_url="https://example.test/contact",
+        enrichment_observed_at=NOW,
+    )
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), value)
+        result = directory_company(
+            connection,
+            siren="481153435",
+            legal_name=None,
+            department=None,
+            include_public_contact=True,
+        )
+
+    assert result is not None
+    assert result["directors"] == [{"name": "Mosbah Benzaoui", "title": "Président"}]
+    assert result["director_display_name"] == "Mosbah Benzaoui"
+    assert result["director_display_title"] == "Président"
+    assert result["published_email"] == "alice@example.test"
+    assert result["published_email_source_url"] == "https://example.test/contact"
+    assert result["phone"] == "+33 4 74 00 00 00"
 
 
 def test_local_circuit_filters_the_profile_families_and_orders_proximity_then_size(

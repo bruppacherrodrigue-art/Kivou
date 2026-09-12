@@ -30,7 +30,11 @@ from signals.client_value.history import (
     directory_history_and_markets,
     history_for_company,
 )
-from signals.companies.contracts import CompanyContactLookupView, CompanyProfile
+from signals.companies.contracts import (
+    CompanyContactLookupView,
+    CompanyProfile,
+    DirectoryCompanyProfileView,
+)
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
 from signals.companies.service import company_profile_with_items
@@ -401,8 +405,8 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
     return CompanyProfile.model_validate({**profile.model_dump(), **update})
 
 
-@router.get("/companies/directory/{siren}")
-def get_directory_company(siren: str, request: Request) -> dict[str, Any]:
+@router.get("/companies/directory/{siren}", response_model=DirectoryCompanyProfileView)
+def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfileView:
     """Read one public directory profile for an authenticated client."""
 
     now = request_now(request)
@@ -484,7 +488,7 @@ def get_directory_company(siren: str, request: Request) -> dict[str, Any]:
             "source": "apollo",
             "removal_path": "/contact",
         }
-    return result
+    return DirectoryCompanyProfileView.model_validate(result)
 
 
 @router.post("/companies/{company_key}/contact")

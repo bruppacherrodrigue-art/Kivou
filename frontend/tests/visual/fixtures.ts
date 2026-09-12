@@ -986,6 +986,7 @@ export const VISUAL_SIGNAL_DETAILS = VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => 
 function toCompanyProfile(record: AwardSignal): CompanyProfile {
   const item = VISUAL_UNLOCKED_ITEMS.find((candidate) => candidate.signal_id === record.id)
   if (!item) throw new Error(`Missing factual visual company for ${record.id}`)
+  const selectedCompany = record.id === 'h-huether-munich'
   return {
     company_key: visualCompanyKey(record),
     official_identity: {
@@ -1032,6 +1033,53 @@ function toCompanyProfile(record: AwardSignal): CompanyProfile {
       occurred_at: '2026-08-30T09:00:00+00:00',
       signal_id: null,
     }] : [],
+    company_profile_v2_enabled: true,
+    plan_code: 'pro',
+    directory: selectedCompany ? {
+      siren: '481153435',
+      name: record.company.name,
+      naf_code: '43.32A',
+      naf_label: 'Travaux de menuiserie bois et PVC',
+      family_labels: ['Menuiserie intérieure'],
+      department: '38',
+      department_label: 'Isère',
+      city: 'Grenoble',
+      employees: 24,
+      website_url: 'https://huether-gmbh.de',
+      website_source: 'registre',
+      website_observed_at: '2026-08-29T09:00:00+00:00',
+      directors: [{ name: 'Hans Hüther', title: 'Gérant' }],
+      director_display_name: 'Hans Hüther',
+      director_display_title: 'Gérant',
+      phone: '+49 5545 000 000',
+      published_email: 'kontakt@huether-gmbh.de',
+      published_email_source_url: 'https://huether-gmbh.de/kontakt',
+      contact_observed_at: '2026-08-29T09:00:00+00:00',
+      register_observed_at: '2026-08-29T09:00:00+00:00',
+      source: 'registre',
+      removal_path: '/contact',
+    } : null,
+    market_summary: selectedCompany ? {
+      first_award_at: record.contractDateIso,
+      awards_per_quarter: '1.0',
+      median_amounts: item.contract.amount ? [item.contract.amount] : [],
+      consortium_share: '0.0',
+      recurring_buyers: [],
+      last_12_months: {
+        awards_count: 1,
+        total_amounts: item.contract.amount ? [item.contract.amount] : [],
+        recurring_buyers: [],
+      },
+      resolution: 'company_key',
+      source: 'public_awards',
+    } : null,
+    contact_lookup: selectedCompany ? {
+      state: 'available',
+      remaining: 100,
+      monthly_quota: 100,
+      source: 'apollo',
+      removal_path: '/contact',
+    } : null,
   } satisfies CompanyProfile
 }
 

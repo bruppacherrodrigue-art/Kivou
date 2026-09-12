@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -62,20 +63,45 @@ def _safe_website(value: str | None) -> str | None:
         return None
 
 
-def _clean_directors(value: object) -> list[dict[str, str]]:
+def _director_tokens(value: str | None) -> set[str]:
+    without_parentheses = re.sub(r"\([^)]*\)", " ", value or "")
+    return set(_normalized_name(without_parentheses).split())
+
+
+def _person_name(value: str) -> str:
+    without_parentheses = re.sub(r"\([^)]*\)", " ", value)
+    return " ".join(without_parentheses.split()).title()
+
+
+def _clean_directors(
+    value: object, *, preferred_name: str | None = None
+) -> list[dict[str, str]]:
     if not isinstance(value, list):
         return []
     result: list[dict[str, str]] = []
+    seen: set[str] = set()
+    formatted_preferred = _person_name(preferred_name) if preferred_name else None
+    preferred_tokens = _director_tokens(preferred_name)
     for entry in value:
         if not isinstance(entry, dict):
             continue
         name = entry.get("name")
         if not isinstance(name, str) or not name.strip():
             continue
-        director = {"name": name.strip()}
+        raw_tokens = _director_tokens(name)
+        client_name = (
+            formatted_preferred
+            if formatted_preferred and preferred_tokens and preferred_tokens <= raw_tokens
+            else _person_name(name)
+        )
+        normalized = _normalized_name(client_name)
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        director = {"name": client_name}
         title = entry.get("title")
         if isinstance(title, str) and title.strip():
-            director["title"] = title.strip()
+            director["title"] = title.strip().capitalize()
         result.append(director)
     return result
 
@@ -84,7 +110,7 @@ def _director_title(row: Mapping[str, Any], display_name: str | None) -> str | N
     if not display_name:
         return None
     wanted = _normalized_name(display_name)
-    for director in _clean_directors(row["directors"]):
+    for director in _clean_directors(row["directors"], preferred_name=display_name):
         if _normalized_name(director["name"]) == wanted:
             return director.get("title")
     return None
@@ -118,7 +144,9 @@ def _company_view(
     if family_labels:
         result["family_labels"] = family_labels
     if row["suppressed_at"] is None:
-        directors = _clean_directors(row["directors"])
+        directors = _clean_directors(
+            row["directors"], preferred_name=row["director_display_name"]
+        )
         if directors:
             result["directors"] = directors
         if include_public_contact:

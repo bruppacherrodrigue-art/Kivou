@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import ipaddress
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
@@ -229,6 +230,148 @@ class CompanyContactLookupView(CompanyContract):
     _aware_reset = field_validator("next_reset_at")(aware_optional_datetime)
 
 
+class DirectoryDirectorView(CompanyContract):
+    name: ShortText
+    title: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+
+
+class DirectoryCompanyView(CompanyContract):
+    siren: Annotated[str, StringConstraints(pattern=r"^\d{9}$")]
+    name: ShortText
+    naf_code: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    naf_label: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    family_labels: tuple[ShortText, ...] | None = Field(
+        default=None,
+        max_length=32,
+        exclude_if=lambda value: value is None,
+    )
+    department: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    department_label: ShortText | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    city: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    employees: int | None = Field(
+        default=None, ge=0, exclude_if=lambda value: value is None
+    )
+    website_url: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    website_source: ShortText | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    website_observed_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    directors: tuple[DirectoryDirectorView, ...] | None = Field(
+        default=None,
+        max_length=100,
+        exclude_if=lambda value: value is None,
+    )
+    director_display_name: ShortText | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    director_display_title: ShortText | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    phone: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    published_email: Annotated[EmailStr, Field(max_length=320)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    published_email_source_url: Annotated[
+        str, StringConstraints(max_length=2_048)
+    ] | None = Field(default=None, exclude_if=lambda value: value is None)
+    contact_observed_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    register_observed_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    resolution_note: Literal["rapprochement par nom"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    source: Literal["registre"]
+    removal_path: Literal["/contact"]
+
+    _safe_website = field_validator("website_url")(safe_https_url)
+    _safe_email_source = field_validator("published_email_source_url")(safe_https_url)
+
+
+class CompanyMarketSummaryLastYear(CompanyContract):
+    awards_count: int = Field(ge=0)
+    total_amounts: tuple[CompanySignalAmount, ...] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    recurring_buyers: tuple[ShortText, ...] | None = Field(
+        default=None,
+        max_length=2,
+        exclude_if=lambda value: value is None,
+    )
+
+
+class CompanyMarketSummaryView(CompanyContract):
+    first_award_at: dt.date | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    awards_per_quarter: Decimal | None = Field(
+        default=None, ge=0, exclude_if=lambda value: value is None
+    )
+    median_amounts: tuple[CompanySignalAmount, ...] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    consortium_share: Decimal | None = Field(
+        default=None, ge=0, le=1, exclude_if=lambda value: value is None
+    )
+    recurring_buyers: tuple[ShortText, ...] | None = Field(
+        default=None,
+        max_length=2,
+        exclude_if=lambda value: value is None,
+    )
+    last_12_months: CompanyMarketSummaryLastYear
+    resolution: Literal["company_key", "normalized_name_department"]
+    resolution_note: Literal["rapprochement par nom"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    source: Literal["public_awards"]
+
+
+class DirectoryPublicMarketView(CompanyContract):
+    market_id: ShortText
+    title: LongText | None = Field(default=None, exclude_if=lambda value: value is None)
+    date: dt.date | None = Field(default=None, exclude_if=lambda value: value is None)
+    amount: CompanySignalAmount | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    buyers: tuple[ShortText, ...] | None = Field(
+        default=None, max_length=100, exclude_if=lambda value: value is None
+    )
+    source_url: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    source: Literal["public_awards"]
+
+    _safe_source_url = field_validator("source_url")(safe_https_url)
+
+
+class DirectoryCompanyProfileView(CompanyContract):
+    company_key: CompanyKey
+    company_profile_v2_enabled: bool
+    plan_code: Literal["discovery", "essential", "pro"]
+    directory: DirectoryCompanyView
+    market_summary: CompanyMarketSummaryView | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    markets: tuple[DirectoryPublicMarketView, ...] = Field(default=(), max_length=100)
+    contact_status: Literal["to_contact", "contacted", "replied"] = "to_contact"
+    contacted_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    history: tuple[dict[str, Any], ...] = Field(default=(), max_length=500)
+    note: str | None = Field(default=None, exclude_if=lambda value: value is None)
+    contact_lookup: CompanyContactLookupView | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+
 class CompanyProfile(CompanyContract):
     company_key: CompanyKey
     city: ShortText | None = None
@@ -246,8 +389,8 @@ class CompanyProfile(CompanyContract):
     #: et qu'une carte de feed en porte plus qu'un contrat figé n'en admettrait.
     signals: tuple[dict[str, Any], ...] = Field(default=(), max_length=MAX_RELATED_SIGNALS)
     history: tuple[dict[str, Any], ...] = Field(default=(), max_length=500)
-    market_summary: dict[str, Any] | None = None
-    directory: dict[str, Any] | None = None
+    market_summary: CompanyMarketSummaryView | None = None
+    directory: DirectoryCompanyView | None = None
     contact_lookup: CompanyContactLookupView | None = Field(
         default=None, exclude_if=lambda value: value is None
     )

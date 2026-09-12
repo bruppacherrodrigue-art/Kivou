@@ -78,6 +78,50 @@ function routes(profile: CompanyProfile = COMPANY_PROFILE) {
   }
 }
 
+function approvedProfile(overrides: Partial<CompanyProfile> = {}): CompanyProfile {
+  return {
+    ...COMPANY_PROFILE,
+    company_profile_v2_enabled: true,
+    plan_code: 'essential',
+    directory: {
+      siren: '481153435',
+      name: 'ALYA BATIMENT',
+      naf_code: '41.20A',
+      naf_label: 'Construction de maisons individuelles',
+      family_labels: ['Construction de bâtiments'],
+      department: '69',
+      department_label: 'Rhône',
+      city: 'Belleville-en-Beaujolais',
+      employees: 5,
+      website_url: 'https://alya-batiment.example/',
+      website_source: 'site',
+      website_observed_at: '2026-09-11T09:00:00Z',
+      directors: [{ name: 'Mosbah Benzaoui', title: 'Président' }],
+      director_display_name: 'Mosbah Benzaoui',
+      director_display_title: 'Président',
+      phone: '+33 4 74 00 00 00',
+      published_email: 'contact@alya-batiment.example',
+      published_email_source_url: 'https://alya-batiment.example/contact',
+      contact_observed_at: '2026-09-11T09:00:00Z',
+      register_observed_at: '2026-09-10T09:00:00Z',
+      source: 'registre',
+      removal_path: '/contact',
+    },
+    market_summary: null,
+    signals: [],
+    history: [],
+    note: null,
+    contact_lookup: {
+      state: 'available',
+      remaining: 20,
+      monthly_quota: 20,
+      source: 'apollo',
+      removal_path: '/contact',
+    },
+    ...overrides,
+  }
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   let reject!: (reason?: unknown) => void
@@ -91,6 +135,110 @@ function deferred<T>() {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('CompaniesPage', () => {
+  it('reproduit la structure validée de la fiche entreprise derrière le flag', async () => {
+    mockApi(routes(approvedProfile()))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    const drawer = await screen.findByRole('complementary', { name: 'H. Hüther GmbH' })
+    expect(drawer).toHaveTextContent(
+      'Construction de maisons individuelles · Belleville-en-Beaujolais (Rhône) · 5 salariés',
+    )
+    expect(drawer).toHaveTextContent('Mosbah Benzaoui')
+    expect(drawer).toHaveTextContent('Président')
+    expect(drawer).toHaveTextContent('publié sur le site')
+    expect(screen.getByRole('button', { name: 'Trouver le décideur' })).toBeEnabled()
+    expect(drawer).toHaveTextContent('20 recherches restantes ce mois')
+    const headings = Array.from(drawer.querySelectorAll('h3')).map((heading) => heading.textContent)
+    expect(headings).toEqual([
+      'Contact',
+      'Identité',
+      'Marchés publics',
+      'Vous et cette entreprise',
+    ])
+    expect(drawer).toHaveTextContent('Aucun marché public attribué connu.')
+    expect(drawer).toHaveTextContent("Aucune action pour l'instant.")
+    expect(screen.queryByRole('heading', { name: 'Ses marchés' })).not.toBeInTheDocument()
+  })
+
+  it('floute le Contact en Découverte et présente Essentiel à 49 €', async () => {
+    mockApi(routes(approvedProfile({
+      plan_code: 'discovery',
+      contact_lookup: {
+        state: 'locked',
+        remaining: 0,
+        monthly_quota: 0,
+        source: 'apollo',
+        removal_path: '/contact',
+      },
+    })))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    const contact = (await screen.findByRole('heading', { name: 'Contact' })).closest('section')
+    expect(contact?.querySelector('[class*="companyContactBlur"]')).not.toBeNull()
+    expect(contact).toHaveTextContent('Mosbah Benzaoui')
+    expect(contact).toHaveTextContent('+33 4 74 00 00 00')
+    expect(contact).toHaveTextContent(
+      "Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois",
+    )
+    expect(screen.getByRole('link', { name: "Voir l'offre Essentiel" })).toHaveAttribute(
+      'href',
+      '/tarifs',
+    )
+    expect(screen.queryByRole('button', { name: 'Trouver le décideur' })).not.toBeInTheDocument()
+  })
+
+  it('présente le premier marché seul sans cadence ni groupement', async () => {
+    mockApi(routes(approvedProfile({ signals: [UNLOCKED_ITEM] })))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByText(/^Premier marché connu :/)).toBeVisible()
+    expect(screen.queryByText(/marché par trimestre/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/groupement/i)).not.toBeInTheDocument()
+  })
+
+  it('résume deux marchés sur douze mois avant leur liste', async () => {
+    const second = { ...UNLOCKED_ITEM, signal_id: 'sig_unlocked_2' }
+    mockApi(routes(approvedProfile({
+      signals: [UNLOCKED_ITEM, second],
+      market_summary: {
+        first_award_at: '2025-10-01',
+        awards_per_quarter: '0.5',
+        median_amounts: [{ value: '1000000', currency: 'EUR' }],
+        consortium_share: '0',
+        recurring_buyers: ['Commune de Villeneuve'],
+        last_12_months: {
+          awards_count: 2,
+          total_amounts: [{ value: '2000000', currency: 'EUR' }],
+          recurring_buyers: ['Commune de Villeneuve'],
+        },
+        resolution: 'company_key',
+        source: 'public_awards',
+      },
+    })))
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    const marketsHeading = await screen.findByRole('heading', { name: /^Marchés publics —/ })
+    expect(marketsHeading).toHaveTextContent('2 gagnés en 12 mois')
+    expect(marketsHeading).toHaveTextContent(/2\s000\s000\s€/)
+    expect(marketsHeading).toHaveTextContent(
+      'acheteurs récurrents : Commune de Villeneuve',
+    )
+    expect(screen.queryByText(/marché par trimestre/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/groupement/i)).not.toBeInTheDocument()
+  })
+
   it('explique l’état vide avec le vocabulaire des titulaires', async () => {
     mockApi({ ...routes(), 'GET /companies': { body: page({ items: [] }) } })
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })

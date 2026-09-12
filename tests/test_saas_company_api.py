@@ -327,6 +327,7 @@ def test_signal_and_company_expose_the_same_holder_market_history(app, engine) -
     assert signal["holder_history"]["source"] == "public_awards"
     assert profile["market_summary"] == {
         **signal["holder_history"]["summary"],
+        "last_12_months": signal["holder_history"]["last_12_months"],
         "resolution": "company_key",
         "source": "public_awards",
     }
@@ -359,15 +360,76 @@ def test_company_profile_adds_matching_directory_facts_without_contact_data(app,
         "naf_code": "23.63Z",
         "family_labels": ["Béton prêt à l'emploi"],
         "department": "38",
+        "department_label": "Isère",
         "city": "Grenoble",
         "employees": 24,
         "website_url": "https://egli.example/",
         "website_source": "registre",
+        "website_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "directors": [{"name": "Anna Egli", "title": "Présidente"}],
         "source": "registre",
         "removal_path": "/contact",
     }
     assert "professional_email" not in profile
+
+
+def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) -> None:
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            company_profile_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="company-directory-contact@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "331364729")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="model",
+                director_observed_at=NOW,
+                professional_email="contact@egli.example",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=NOW,
+                phone="+33 4 76 00 00 00",
+                phone_source="model",
+                phone_observed_at=NOW,
+                enrichment_observed_at=NOW,
+            )
+        )
+
+    profile = client.get(f"/companies/{company_key}").json()
+
+    assert profile["company_profile_v2_enabled"] is True
+    assert profile["plan_code"] == "pro"
+    assert profile["directory"]["director_display_name"] == "Anna Egli"
+    assert profile["directory"]["director_display_title"] == "Présidente"
+    assert profile["directory"]["published_email"] == "contact@egli.example"
+    assert profile["directory"]["published_email_source_url"] == (
+        "https://egli.example/contact"
+    )
+    assert profile["directory"]["phone"] == "+33 4 76 00 00 00"
+    assert "professional_email" not in profile["directory"]
 
 
 def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, engine) -> None:
@@ -435,6 +497,22 @@ def test_authenticated_directory_profile_has_a_closed_not_found_shape(app, engin
     assert profile.json()["markets"][0]["source"] == "public_awards"
     assert missing.status_code == 404
     assert missing.json()["detail"]["code"] == "company_not_found"
+
+
+def test_company_profiles_publish_the_closed_directory_contract(app) -> None:
+    schemas = app.openapi()["components"]["schemas"]
+    directory_response = app.openapi()["paths"]["/companies/directory/{siren}"]["get"][
+        "responses"
+    ]["200"]["content"]["application/json"]["schema"]
+
+    assert directory_response == {
+        "$ref": "#/components/schemas/DirectoryCompanyProfileView"
+    }
+    company_directory = schemas["CompanyProfile"]["properties"]["directory"]["anyOf"]
+    assert {item.get("$ref") for item in company_directory} >= {
+        "#/components/schemas/DirectoryCompanyView"
+    }
+    assert schemas["DirectoryCompanyView"]["additionalProperties"] is False
 
 
 def test_company_list_projects_a_named_holder_even_before_enrichment(app, engine) -> None:

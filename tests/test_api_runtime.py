@@ -115,6 +115,20 @@ def test_generated_for_you_is_disabled_until_backfill_activation(
     assert ApiConfig.from_environment().generated_for_you_enabled is True
 
 
+def test_company_profile_v2_is_disabled_until_explicit_activation(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert ApiConfig().company_profile_v2_enabled is False
+
+    monkeypatch.delenv("KIVOU_COMPANY_PROFILE_V2_ENABLED", raising=False)
+
+    assert ApiConfig.from_environment().company_profile_v2_enabled is False
+
+    monkeypatch.setenv("KIVOU_COMPANY_PROFILE_V2_ENABLED", "true")
+
+    assert ApiConfig.from_environment().company_profile_v2_enabled is True
+
+
 def test_commercial_calendar_cpv_delays_are_explicit_configuration(
     base_environment, monkeypatch: pytest.MonkeyPatch
 ) -> None:

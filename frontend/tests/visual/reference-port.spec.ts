@@ -324,8 +324,16 @@ async function waitForScenario(
     )
     await expect(detailPanel).toBeVisible()
     await expect(detailPanel.getByRole('heading', { level: 2 })).toHaveText(selectedItem.company.name!)
-    await expect(detailPanel.getByRole('heading', { name: 'Ses marchés' })).toBeVisible()
-    await expect(detailPanel.getByRole('textbox', { name: 'Notes' })).toBeVisible()
+    const sectionHeadings = detailPanel.getByRole('heading', { level: 3 })
+    await expect(sectionHeadings).toHaveText([
+      'Contact',
+      'Identité',
+      'Marchés publics',
+      'Vous et cette entreprise',
+    ])
+    await expect(detailPanel.getByRole('button', { name: 'Trouver le décideur' })).toBeVisible()
+    await expect(detailPanel.getByRole('textbox', { name: 'Note sur l’entreprise' })).toBeVisible()
+    await expect(detailPanel.getByRole('heading', { name: 'Ses marchés' })).toHaveCount(0)
     const companyTable = page.locator('main table').first()
     if ((page.viewportSize()?.width ?? 0) < 900) {
       await expect(companyTable).toBeHidden()

@@ -287,7 +287,7 @@ function MarketsBlock({
   return (
     <section className={styles.companyV2Section}>
       <h3>Marchés publics{headingFacts.length ? ` — ${headingFacts.join(' · ')}` : ''}</h3>
-      {!markets.length ? <p className={styles.companyMuted}>Aucun marché public attribué connu</p> : null}
+      {!markets.length ? <p className={styles.companyMuted}>Aucun marché public attribué connu.</p> : null}
       {markets.length === 1 && firstFacts.length ? <p className={styles.companyMarketIntro}>Premier marché connu : {firstFacts.join(' · ')}</p> : null}
       {markets.length ? (
         <ul className={styles.companyMarkets}>
@@ -382,7 +382,7 @@ function EngagementBlock({
             </li>
           ))}
         </ul>
-      ) : <p className={styles.companyMuted}>Aucune action pour l'instant</p>}
+      ) : <p className={styles.companyMuted}>Aucune action pour l'instant.</p>}
     </section>
   )
 }
