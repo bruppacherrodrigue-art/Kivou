@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from signals.companies.active_scope import active_account_signal_exists
 from signals.companies.contracts import (
     WinnerEnrichmentSource,
     WinnerEnrichmentView,
@@ -35,7 +36,6 @@ from signals.companies.store import (
     get_or_create_company,
     refresh_company_official_identity,
 )
-from signals.company_research.winner_queue import active_account_signal_exists
 from signals.persistence.schema import contract_award, materialized_signal, source_event
 
 MAX_ENRICHMENT_ATTEMPTS = 3

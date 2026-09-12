@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 
 import sqlalchemy as sa
 
-from signals.accounts.schema import target_icp
+from signals.companies.active_scope import active_account_signal_exists
 from signals.companies.schema import winner_enrichment_job
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import materialized_signal
@@ -21,26 +21,6 @@ class ActiveWinnerQueueReport:
     inactive_purge_candidates: int
     active_distinct_holders: int
     deleted: int
-
-
-def active_account_signal_exists(signal_key) -> sa.ColumnElement[bool]:
-    """Whether a signal belongs to a current, non-invalidated active ICP."""
-
-    return sa.exists(
-        sa.select(sa.literal(1))
-        .select_from(
-            materialized_signal.join(
-                target_icp,
-                materialized_signal.c.target_icp_id == target_icp.c.target_icp_id,
-            )
-        )
-        .where(
-            materialized_signal.c.signal_key == signal_key,
-            materialized_signal.c.invalidated_at.is_(None),
-            materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
-            target_icp.c.status == "active",
-        )
-    )
 
 
 def maintain_active_winner_queue(
@@ -124,7 +104,6 @@ if __name__ == "__main__":  # pragma: no cover
 
 __all__ = [
     "ActiveWinnerQueueReport",
-    "active_account_signal_exists",
     "main",
     "maintain_active_winner_queue",
 ]
