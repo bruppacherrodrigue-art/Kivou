@@ -481,6 +481,9 @@ export function CompanyPanel({
     activity,
     location,
     directory?.employees === undefined ? null : `${directory.employees} salariés`,
+    mode === 'holder' && marketSummary?.last_12_months
+      ? `${marketSummary.last_12_months.awards_count} marché${marketSummary.last_12_months.awards_count > 1 ? 's' : ''} en 12 mois`
+      : null,
   ].filter((value): value is string => Boolean(value))
 
   if (mode === 'holder') {

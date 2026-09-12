@@ -41,8 +41,7 @@ export function shortSignalObject(item: UnlockedFeedItem): string | null {
 }
 
 export function tablePlaceLabel(place: Place | null): string {
-  if (!place) return MISSING
-  return visiblePlaceName(place.locality) ?? visiblePlaceName(place.subdivision_label) ?? MISSING
+  return drawerPlaceLabel(place)
 }
 
 export function drawerPlaceLabel(place: Place | null): string {
