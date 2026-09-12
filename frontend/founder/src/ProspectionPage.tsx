@@ -180,6 +180,14 @@ function DirectorySection({
               <small>Coût cumulé</small>
               <strong>{formatUsd(directory.enrichment.cumulative_cost_usd)}</strong>
             </div>
+            <div className="prospection-inline-list">
+              <small>Dernière passe</small>
+              <strong>{formatUsd(directory.enrichment.latest_batch_cost_usd)}</strong>
+              <span>
+                {formatCount(directory.enrichment.latest_batch_call_count)} appels ·{' '}
+                {formatCount(directory.enrichment.latest_batch_input_tokens)} tokens entrée
+              </span>
+            </div>
           </div>
         </div>
         <div className="prospection-review-reasons">

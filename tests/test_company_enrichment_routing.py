@@ -40,6 +40,7 @@ class Provider:
     def __init__(self, outcomes) -> None:
         self.outcomes = list(outcomes)
         self.calls = 0
+        self.judge_outputs: list[object | None] = []
 
     def enrich(self, identity, evidence):
         self.calls += 1
@@ -53,6 +54,10 @@ class Provider:
             input_tokens=900,
             output_tokens=80,
         )
+
+    def arbitrate(self, identity, evidence, judge_output):
+        self.judge_outputs.append(judge_output)
+        return self.enrich(identity, evidence)
 
 
 class Collector:
@@ -126,9 +131,7 @@ def test_high_confidence_valid_judge_does_not_call_arbiter(
         _decision(email_confidence=Decimal("0.79")),
     ],
 )
-def test_low_site_or_email_confidence_calls_sonnet_once(
-    migrated_sqlite_engine, decision
-) -> None:
+def test_low_site_or_email_confidence_calls_sonnet_once(migrated_sqlite_engine, decision) -> None:
     judge = Provider([decision])
     arbiter = Provider([_decision()])
 
@@ -141,8 +144,23 @@ def test_low_site_or_email_confidence_calls_sonnet_once(
 def test_invalid_judge_json_calls_sonnet_once(migrated_sqlite_engine) -> None:
     from signals.company_research.enrichment import InvalidCompanyEnrichmentDecision
 
-    judge = Provider([InvalidCompanyEnrichmentDecision("invalid JSON")])
+    judge = Provider([InvalidCompanyEnrichmentDecision("invalid JSON", raw_content="not-json")])
     arbiter = Provider([_decision()])
+
+    _service(migrated_sqlite_engine, judge, arbiter).enrich("481153435")
+
+    assert judge.calls == 1
+    assert arbiter.calls == 1
+    assert arbiter.judge_outputs == ["not-json"]
+
+
+def test_invalid_judge_never_calls_the_same_arbiter_twice_on_low_confidence(
+    migrated_sqlite_engine,
+) -> None:
+    from signals.company_research.enrichment import InvalidCompanyEnrichmentDecision
+
+    judge = Provider([InvalidCompanyEnrichmentDecision("invalid JSON")])
+    arbiter = Provider([_decision(email_confidence=Decimal("0.50"))])
 
     _service(migrated_sqlite_engine, judge, arbiter).enrich("481153435")
 

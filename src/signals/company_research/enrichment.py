@@ -27,6 +27,7 @@ from signals.company_research.evidence import (
     RawRenderedPage,
     ReducedRenderedPage,
     directory_clues_from_text,
+    is_safe_public_https_url,
     reduce_rendered_page,
 )
 from signals.personalization.prospect_mail import normalize_director_name
@@ -52,6 +53,10 @@ _DOMAIN_MENTION = re.compile(
 
 class InvalidCompanyEnrichmentDecision(RuntimeError):
     """The provider answered, but its judgment did not satisfy the JSON contract."""
+
+    def __init__(self, message: str, *, raw_content: str | None = None) -> None:
+        super().__init__(message)
+        self.raw_content = raw_content
 
 
 class EnrichmentContract(BaseModel):
@@ -231,7 +236,9 @@ class CompanyWebCollector:
                     value for value in (title, snippet, clues.website if clues else None) if value
                 )
                 for mentioned in _mentioned_domains(clue_values):
-                    if not is_directory_domain(mentioned) and not rejected_supplier_domain(mentioned):
+                    if not is_directory_domain(mentioned) and not rejected_supplier_domain(
+                        mentioned
+                    ):
                         candidate_domains.append(mentioned)
             else:
                 candidate_domains.append(domain)
@@ -256,6 +263,8 @@ class CompanyWebCollector:
     ) -> CompanyWebEvidence:
         if len(evidence.candidate_pages) >= 3:
             return evidence
+        if not is_safe_public_https_url(requested_url):
+            return evidence
         parsed = domain_from_url(requested_url)
         if parsed is None:
             return evidence
@@ -273,9 +282,7 @@ class CompanyWebCollector:
         page = self._fetch(normalized_url)
         if page is None or page.url in {item.url for item in evidence.candidate_pages}:
             return evidence
-        return evidence.model_copy(
-            update={"candidate_pages": (*evidence.candidate_pages, page)}
-        )
+        return evidence.model_copy(update={"candidate_pages": (*evidence.candidate_pages, page)})
 
     @staticmethod
     def empty_evidence(identity: CompanyEnrichmentInput) -> CompanyWebEvidence:
@@ -357,8 +364,10 @@ class AnnuaireRawDirectorClient:
                 corporate_name = str(leader.get("denomination") or "").strip()
                 entity_type = str(leader.get("type_dirigeant") or "personne physique")
                 is_corporate = "morale" in entity_type.casefold()
-                name = corporate_name if is_corporate else " ".join(
-                    part for part in (first_name, last_name) if part
+                name = (
+                    corporate_name
+                    if is_corporate
+                    else " ".join(part for part in (first_name, last_name) if part)
                 )
                 if not name:
                     continue
@@ -375,9 +384,7 @@ class AnnuaireRawDirectorClient:
             return ()
 
 
-def _page_for_email(
-    email: str, website: str, evidence: CompanyWebEvidence
-) -> RenderedPage | None:
+def _page_for_email(email: str, website: str, evidence: CompanyWebEvidence) -> RenderedPage | None:
     normalized = email.casefold()
     for page in evidence.candidate_pages:
         host = (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
@@ -405,9 +412,10 @@ def _director_title(name: str | None, directors: tuple[dict[str, object], ...]) 
     if name:
         folded = name.casefold()
         for director in directors:
-            if normalize_director_name(director.get("name")) == name or folded in str(
-                director.get("name") or ""
-            ).casefold():
+            if (
+                normalize_director_name(director.get("name")) == name
+                or folded in str(director.get("name") or "").casefold()
+            ):
                 return str(director.get("title") or "Dirigeant")[:256]
     return "Entreprise"
 
@@ -473,13 +481,20 @@ class CompanyEnrichmentService:
         )
         evidence = self._collector.collect(identity)
         total_cost = Decimal("0")
+        arbiter_used = False
         try:
             provided = self._provider.enrich(identity, evidence)
             total_cost += provided.cost_usd
-        except InvalidCompanyEnrichmentDecision:
+        except InvalidCompanyEnrichmentDecision as error:
             if self._arbiter is None:
                 raise
-            provided = self._arbiter.enrich(identity, evidence)
+            arbitrate = getattr(self._arbiter, "arbitrate", None)
+            provided = (
+                arbitrate(identity, evidence, error.raw_content)
+                if callable(arbitrate)
+                else self._arbiter.enrich(identity, evidence)
+            )
+            arbiter_used = True
             total_cost += provided.cost_usd
         decision = provided.decision
         if (
@@ -488,19 +503,26 @@ class CompanyEnrichmentService:
             and decision.requested_page_url
             and len(evidence.candidate_pages) < 3
         ):
-            expanded = self._collector.fetch_requested(
-                evidence, decision.requested_page_url
-            )
+            expanded = self._collector.fetch_requested(evidence, decision.requested_page_url)
             if len(expanded.candidate_pages) > len(evidence.candidate_pages):
                 evidence = expanded
                 provided = self._provider.enrich(identity, evidence)
                 total_cost += provided.cost_usd
                 decision = provided.decision
-        if self._arbiter is not None and (
-            decision.website_confidence < WEBSITE_CONFIDENCE_THRESHOLD
-            or decision.email_confidence < EMAIL_CONFIDENCE_THRESHOLD
+        if (
+            self._arbiter is not None
+            and not arbiter_used
+            and (
+                decision.website_confidence < WEBSITE_CONFIDENCE_THRESHOLD
+                or decision.email_confidence < EMAIL_CONFIDENCE_THRESHOLD
+            )
         ):
-            provided = self._arbiter.enrich(identity, evidence)
+            arbitrate = getattr(self._arbiter, "arbitrate", None)
+            provided = (
+                arbitrate(identity, evidence, decision.model_dump(mode="json"))
+                if callable(arbitrate)
+                else self._arbiter.enrich(identity, evidence)
+            )
             total_cost += provided.cost_usd
         if total_cost != provided.cost_usd:
             provided = provided.model_copy(update={"cost_usd": total_cost})
@@ -545,9 +567,7 @@ class CompanyEnrichmentService:
         )
         family = decision.family if family_ok else fallback_family
         display_name = normalize_director_name(decision.director_display_name)
-        known_director_names = {
-            normalize_director_name(item.get("name")) for item in raw_directors
-        }
+        known_director_names = {normalize_director_name(item.get("name")) for item in raw_directors}
         if display_name not in known_director_names:
             display_name = None
         needs_review = not (website_ok and email_ok and family_ok)
@@ -561,9 +581,7 @@ class CompanyEnrichmentService:
                     (
                         page.url
                         for page in evidence.candidate_pages
-                        if (urlsplit(page.url).hostname or "")
-                        .casefold()
-                        .removeprefix("www.")
+                        if (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
                         == retained_website
                     ),
                     None,

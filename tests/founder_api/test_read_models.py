@@ -232,6 +232,12 @@ def test_system_summary_exposes_today_persisted_model_budgets(monkeypatch) -> No
     assert budget.actual_usd == Decimal("0.04000000")
     assert budget.reserved_usd == Decimal("0E-8")
     assert budget.remaining_usd == Decimal("2.46000000")
+    assert budget.call_count == 1
+    assert budget.succeeded_call_count == 1
+    assert budget.failed_call_count == 0
+    assert budget.rejected_call_count == 0
+    assert budget.input_tokens == 900
+    assert budget.output_tokens == 80
 
 
 def test_overview_and_prospection_share_the_acquisition_status_read_model() -> None:

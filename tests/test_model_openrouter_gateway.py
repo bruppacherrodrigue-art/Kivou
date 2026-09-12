@@ -9,6 +9,7 @@ import pytest
 from signals.model_runtime.budget import DailyModelBudgetExhausted, ModelBudgetStore
 from signals.model_runtime.config import ModelRoute
 from signals.model_runtime.openrouter import OpenRouterGateway
+from signals.supplier_directory.store import SupplierDirectoryStore
 
 
 class RecordingClient:
@@ -21,9 +22,12 @@ class RecordingClient:
         return self.response
 
 
-def _response(
-    *, status: int = 200, content: str = '{"answer":"ok"}'
-) -> httpx.Response:
+class ExplodingClient:
+    def post(self, *_args, **_kwargs):
+        raise ValueError("unexpected post-processing boundary failure")
+
+
+def _response(*, status: int = 200, content: str = '{"answer":"ok"}') -> httpx.Response:
     return httpx.Response(
         status,
         json={
@@ -49,9 +53,20 @@ def _route(cap: str = "2") -> ModelRoute:
 
 @pytest.fixture
 def store(migrated_sqlite_engine) -> ModelBudgetStore:
+    now = dt.datetime(2026, 9, 12, 10, tzinfo=dt.UTC)
+    SupplierDirectoryStore(migrated_sqlite_engine, clock=lambda: now).upsert_identity(
+        siren="123456789",
+        legal_name="Fixture",
+        naf_code=None,
+        family_key="",
+        department=None,
+        city=None,
+        employees=None,
+        observed_at=now,
+    )
     return ModelBudgetStore(
         migrated_sqlite_engine,
-        clock=lambda: dt.datetime(2026, 9, 12, 10, tzinfo=dt.UTC),
+        clock=lambda: now,
     )
 
 
@@ -128,6 +143,25 @@ def test_provider_failures_release_reservation_and_are_journalled(
     call = store.calls()[0]
     assert call.status == "failed"
     assert call.error_code == error_code
+    assert store.summary("enrichment_judge").reserved_usd == Decimal("0E-8")
+
+
+def test_every_post_reservation_exception_releases_the_reservation(
+    store: ModelBudgetStore,
+) -> None:
+    gateway = OpenRouterGateway(api_key="secret", budgets=store, client=ExplodingClient())
+
+    with pytest.raises(ValueError, match="unexpected"):
+        gateway.json_call(
+            route=_route(),
+            messages=[{"role": "user", "content": "x"}],
+            schema={"type": "object"},
+            schema_name="answer",
+            max_tokens=300,
+        )
+
+    assert store.calls()[0].status == "failed"
+    assert store.calls()[0].error_code == "MODEL_CALL_FAILED"
     assert store.summary("enrichment_judge").reserved_usd == Decimal("0E-8")
 
 

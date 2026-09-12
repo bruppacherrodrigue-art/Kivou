@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 
 import sqlalchemy as sa
 
-from signals.companies.active_scope import active_account_signal_exists
+from signals.accounts.schema import target_icp
 from signals.companies.schema import winner_enrichment_job
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import materialized_signal
@@ -28,69 +28,99 @@ def maintain_active_winner_queue(
 ) -> ActiveWinnerQueueReport:
     """Measure the inactive pending queue, deleting it only with explicit opt-in."""
 
-    pending = winner_enrichment_job.c.status == "pending"
-    active = active_account_signal_exists(winner_enrichment_job.c.signal_key)
-    active_holder = sa.case(
-        (
-            sa.func.length(materialized_signal.c.winner_identifier_value) == 14,
-            sa.func.substr(materialized_signal.c.winner_identifier_value, 1, 9),
-        ),
-        (
-            sa.func.length(materialized_signal.c.winner_identifier_value) == 9,
-            materialized_signal.c.winner_identifier_value,
-        ),
-        else_=materialized_signal.c.company_identity_fingerprint,
+    queue_signal = materialized_signal.alias("queue_signal")
+    active_signal = materialized_signal.alias("active_signal")
+    active_icp = target_icp.alias("active_icp")
+
+    def holder_key(table):
+        return sa.case(
+            (
+                sa.func.length(table.c.winner_identifier_value) == 14,
+                sa.func.substr(table.c.winner_identifier_value, 1, 9),
+            ),
+            (
+                sa.func.length(table.c.winner_identifier_value) == 9,
+                table.c.winner_identifier_value,
+            ),
+            else_=table.c.company_identity_fingerprint,
+        )
+
+    queue_holder = holder_key(queue_signal)
+    active_holder_exists = sa.exists(
+        sa.select(sa.literal(1))
+        .select_from(
+            active_signal.join(
+                active_icp,
+                active_signal.c.target_icp_id == active_icp.c.target_icp_id,
+            )
+        )
+        .where(
+            holder_key(active_signal) == queue_holder,
+            active_signal.c.invalidated_at.is_(None),
+            active_signal.c.target_icp_revision == active_icp.c.matching_revision,
+            active_icp.c.status == "active",
+        )
+    )
+    pending_join = winner_enrichment_job.join(
+        queue_signal,
+        winner_enrichment_job.c.signal_key == queue_signal.c.signal_key,
     )
     with engine.begin() as connection:
-        counts = connection.execute(
-            sa.select(
-                sa.func.sum(sa.case((pending, 1), else_=0)),
-                sa.func.sum(sa.case((sa.and_(pending, active), 1), else_=0)),
-                sa.func.sum(sa.case((sa.and_(pending, ~active), 1), else_=0)),
-            ).select_from(winner_enrichment_job)
-        ).one()
-        active_distinct = connection.scalar(
-            sa.select(sa.func.count(sa.distinct(active_holder)))
-            .select_from(
-                winner_enrichment_job.join(
-                    materialized_signal,
-                    winner_enrichment_job.c.signal_key == materialized_signal.c.signal_key,
+        rows = (
+            connection.execute(
+                sa.select(
+                    winner_enrichment_job.c.signal_key,
+                    queue_holder.label("holder_key"),
+                    active_holder_exists.label("holder_has_active_account"),
                 )
+                .select_from(pending_join)
+                .where(winner_enrichment_job.c.status == "pending")
             )
-            .where(pending, active)
+            .mappings()
+            .all()
         )
-        candidates = int(counts[2] or 0)
+        candidate_keys = tuple(
+            row["signal_key"] for row in rows if not row["holder_has_active_account"]
+        )
+        active_holders = {
+            row["holder_key"]
+            for row in rows
+            if row["holder_has_active_account"] and row["holder_key"] is not None
+        }
+        candidates = len(candidate_keys)
         deleted = 0
         if apply and candidates:
             result = connection.execute(
-                sa.delete(winner_enrichment_job).where(pending, ~active)
+                sa.delete(winner_enrichment_job).where(
+                    winner_enrichment_job.c.signal_key.in_(candidate_keys),
+                    winner_enrichment_job.c.status == "pending",
+                )
             )
             deleted = int(result.rowcount or 0)
     return ActiveWinnerQueueReport(
-        total_pending=int(counts[0] or 0),
-        active_pending=int(counts[1] or 0),
+        total_pending=len(rows),
+        active_pending=len(rows) - candidates,
         inactive_purge_candidates=candidates,
-        active_distinct_holders=int(active_distinct or 0),
+        active_distinct_holders=len(active_holders),
         deleted=deleted,
     )
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="python -m signals.company_research.winner_queue"
-    )
+    parser = argparse.ArgumentParser(prog="python -m signals.company_research.winner_queue")
     parser.add_argument("--apply-active-account-purge", action="store_true")
     arguments = parser.parse_args(argv)
     engine = create_database_engine()
     try:
-        report = maintain_active_winner_queue(
-            engine, apply=arguments.apply_active_account_purge
-        )
+        report = maintain_active_winner_queue(engine, apply=arguments.apply_active_account_purge)
     finally:
         engine.dispose()
     print(
         json.dumps(
-            {"status": "applied" if arguments.apply_active_account_purge else "dry_run", **asdict(report)},
+            {
+                "status": "applied" if arguments.apply_active_account_purge else "dry_run",
+                **asdict(report),
+            },
             separators=(",", ":"),
             sort_keys=True,
         )

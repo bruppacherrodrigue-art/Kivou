@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
 from typing import Protocol
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field
 
 PAGE_TEXT_LIMIT = 800
 
-_EMAIL = re.compile(
-    r"[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE
-)
+_EMAIL = re.compile(r"[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 _PHONE = re.compile(
     r"(?<!\d)(?:(?:\+|00)33[\s.()-]*[1-9]|0[1-9])"
     r"(?:[\s.()-]*\d{2}){4}(?!\d)"
@@ -61,6 +63,28 @@ def _compact(value: str) -> str:
     return " ".join(value.split())
 
 
+@lru_cache(maxsize=512)
+def is_safe_public_https_url(url: str) -> bool:
+    """Reject credentials, non-HTTPS and every non-public resolved address."""
+
+    parsed = urlsplit(url)
+    if parsed.scheme.casefold() != "https" or not parsed.hostname:
+        return False
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    try:
+        if parsed.port not in {None, 443}:
+            return False
+        addresses = {
+            item[4][0] for item in socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)
+        }
+        return bool(addresses) and all(
+            ipaddress.ip_address(address).is_global for address in addresses
+        )
+    except (OSError, ValueError):
+        return False
+
+
 def directory_clues_from_text(value: str) -> DirectoryClues:
     website = _WEBSITE_FIELD.search(value)
     phone = _PHONE.search(value)
@@ -99,9 +123,7 @@ class PlaywrightPageRenderer:
     def __init__(self, *, timeout_ms: int = 8_000) -> None:
         self._timeout_ms = timeout_ms
         self._lock = threading.Lock()
-        self._executor = ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="company-playwright"
-        )
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="company-playwright")
         self._closed = False
         self._playwright = None
         self._browser = None
@@ -121,33 +143,36 @@ class PlaywrightPageRenderer:
         return future.result()
 
     def _render_on_browser_thread(self, url: str) -> RawRenderedPage | None:
+        if not is_safe_public_https_url(url):
+            return None
         self._start()
         page = self._browser.new_page()  # type: ignore[union-attr]
         try:
-            response = page.goto(
-                url, wait_until="domcontentloaded", timeout=self._timeout_ms
+            page.route(
+                "**/*",
+                lambda route: (
+                    route.continue_()
+                    if is_safe_public_https_url(route.request.url)
+                    else route.abort()
+                ),
             )
+            response = page.goto(url, wait_until="domcontentloaded", timeout=self._timeout_ms)
             if response is None:
                 return None
             status = response.status
             if status < 200 or status >= 400:
                 return None
             title = page.title()
-            main_text = (
-                page.locator("main").first.inner_text(timeout=500)
-                if page.locator("main").count()
-                else ""
-            )
             body_text = page.locator("body").inner_text(timeout=1_000)
-            if not main_text:
-                main_text = page.evaluate(
-                    """() => {
-                      const clone = document.body.cloneNode(true);
+            main_text = page.evaluate(
+                """() => {
+                      const root = document.querySelector('main') || document.body;
+                      const clone = root.cloneNode(true);
                       clone.querySelectorAll('nav,footer,script,style,noscript,svg')
                         .forEach(node => node.remove());
                       return clone.innerText || clone.textContent || '';
                     }"""
-                )
+            )
             return RawRenderedPage(
                 url=page.url,
                 status_code=status,
@@ -186,5 +211,6 @@ __all__ = [
     "RawRenderedPage",
     "ReducedRenderedPage",
     "directory_clues_from_text",
+    "is_safe_public_https_url",
     "reduce_rendered_page",
 ]

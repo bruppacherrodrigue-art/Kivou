@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
+import pytest
+
 from signals.company_research.benchmark import (
     BenchmarkExpected,
     BenchmarkObservation,
@@ -11,10 +13,20 @@ from signals.company_research.benchmark import (
     field_matches,
     load_benchmark_cases,
     mask_directors,
+    mask_directors_in_evidence,
 )
-from signals.company_research.benchmark_run import main
-from signals.company_research.enrichment import CompanyEnrichmentInput
-from signals.company_research.providers import BENCHMARK_MODELS
+from signals.company_research.benchmark_run import (
+    _load_state,
+    _save_state,
+    _unmask_director,
+    main,
+)
+from signals.company_research.enrichment import (
+    CompanyEnrichmentDecision,
+    CompanyEnrichmentInput,
+    CompanyWebCollector,
+)
+from signals.company_research.providers import BENCHMARK_MODELS, build_company_enrichment_messages
 
 
 def _observation(
@@ -42,11 +54,26 @@ def _observation(
     )
 
 
+def _decision_for_test(**updates: object) -> CompanyEnrichmentDecision:
+    value: dict[str, object] = {
+        "website": None,
+        "website_confidence": "0",
+        "email": None,
+        "email_confidence": "0",
+        "email_is_placeholder": False,
+        "family": None,
+        "family_confidence": "0",
+        "director_display_name": None,
+        "phone": None,
+        "requested_page_url": None,
+        "notes": "benchmark",
+    }
+    value.update(updates)
+    return CompanyEnrichmentDecision.model_validate(value)
+
+
 def test_report_scores_each_field_latency_cost_projection_and_reservation_ratio() -> None:
-    observations = tuple(
-        _observation("mistralai/mistral-small", matches=4)
-        for _ in range(30)
-    )
+    observations = tuple(_observation("mistralai/mistral-small", matches=4) for _ in range(30))
 
     report = benchmark_report(observations)
 
@@ -83,9 +110,7 @@ def test_first_model_at_95_percent_wins_with_mistral_priority() -> None:
         *(_observation("deepseek/deepseek-chat", matches=4) for _ in range(30)),
     )
 
-    assert choose_model(
-        observations, threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS
-    ) == (
+    assert choose_model(observations, threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS) == (
         "mistralai/mistral-small"
     )
 
@@ -108,6 +133,41 @@ def test_director_names_are_replaced_by_stable_tokens_for_deepseek() -> None:
     assert "ADIL" not in serialized
     assert "DIR_1" in serialized and "DIR_2" in serialized
     assert names == {"DIR_1": "ADIL EL MANSOURI", "DIR_2": "SAS ORIAL"}
+
+
+def test_deepseek_masking_removes_director_names_from_final_prompt_bytes() -> None:
+    identity = CompanyEnrichmentInput(
+        siren="950009944",
+        legal_name="ENTREPRISE ADIL EL MANSOURI",
+        directors_raw=({"name": "ADIL EL MANSOURI", "first_name": "ADIL", "title": "Président"},),
+    )
+    evidence = CompanyWebCollector.evidence_for_test(
+        identity,
+        domain="example.fr",
+        contact_text="Dirigeant : Adil El Mansouri",
+    )
+
+    masked_identity, masked_evidence, names = mask_directors_in_evidence(identity, evidence)
+    prompt = json.dumps(
+        build_company_enrichment_messages(masked_identity, masked_evidence),
+        ensure_ascii=False,
+    ).casefold()
+
+    assert "adil el mansouri" not in prompt
+    assert "DIR_1".casefold() in prompt
+    assert names == {"DIR_1": "ADIL EL MANSOURI"}
+
+
+def test_deepseek_unmasks_only_a_known_stable_director_token() -> None:
+    token = _decision_for_test(director_display_name="DIR_1")
+    hallucination = _decision_for_test(director_display_name="Jean Dupont")
+
+    assert _unmask_director(token, {"DIR_1": "ADIL EL MANSOURI"}).director_display_name == (
+        "ADIL EL MANSOURI"
+    )
+    assert (
+        _unmask_director(hallucination, {"DIR_1": "ADIL EL MANSOURI"}).director_display_name is None
+    )
 
 
 def test_fixed_corpus_contains_thirty_cases_and_manual_corrections() -> None:
@@ -153,3 +213,17 @@ def test_benchmark_command_is_dry_by_default(capsys) -> None:
     assert payload["status"] == "dry_run"
     assert payload["planned_openrouter_calls"] == 90
     assert payload["execute_required"] is True
+
+
+def test_benchmark_resume_state_is_durable_and_bound_to_one_batch(tmp_path) -> None:
+    path = tmp_path / "benchmark.json"
+    state = _load_state(path, batch_id="benchmark-a")
+    state["evidence_by_siren"] = {"123456789": {"query": "frozen"}}
+    state["observations"] = [{"model": "mistral", "siren": "123456789"}]
+
+    _save_state(path, state)
+
+    assert _load_state(path, batch_id="benchmark-a") == state
+    assert path.stat().st_mode & 0o777 == 0o600
+    with pytest.raises(ValueError, match="another batch"):
+        _load_state(path, batch_id="benchmark-b")

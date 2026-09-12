@@ -888,7 +888,16 @@ supplier_directory = sa.Table(
     sa.Column("phone_observed_at", sa.DateTime(timezone=True)),
     sa.Column("enrichment_notes", sa.Text),
     sa.Column("enrichment_model_id", sa.String(128)),
-    sa.Column("enrichment_call_id", sa.String(36)),
+    sa.Column(
+        "enrichment_call_id",
+        sa.String(36),
+        sa.ForeignKey(
+            "model_call_journal.call_id",
+            name="fk_supplier_directory_enrichment_call",
+            ondelete="SET NULL",
+            use_alter=True,
+        ),
+    ),
     sa.Column("enrichment_cost_usd", sa.Numeric(12, 6)),
     sa.Column("enrichment_input_tokens", sa.Integer),
     sa.Column("enrichment_output_tokens", sa.Integer),
@@ -969,9 +978,7 @@ model_daily_budget = sa.Table(
     sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False, server_default="0"),
     sa.Column("actual_usd", sa.Numeric(14, 8), nullable=False, server_default="0"),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint(
-        f"usage IN ({_MODEL_USAGE_SQL})", name="ck_model_daily_budget_usage"
-    ),
+    sa.CheckConstraint(f"usage IN ({_MODEL_USAGE_SQL})", name="ck_model_daily_budget_usage"),
     sa.CheckConstraint("reserved_usd >= 0", name="ck_model_daily_budget_reserved_cost"),
     sa.CheckConstraint("actual_usd >= 0", name="ck_model_daily_budget_actual_cost"),
 )
@@ -982,7 +989,11 @@ model_call_journal = sa.Table(
     sa.Column("call_id", sa.String(36), primary_key=True),
     sa.Column("usage", sa.String(64), nullable=False),
     sa.Column("model", sa.String(160), nullable=False),
-    sa.Column("siren", sa.String(9)),
+    sa.Column(
+        "siren",
+        sa.String(9),
+        sa.ForeignKey("supplier_directory.siren", ondelete="SET NULL"),
+    ),
     sa.Column("batch_id", sa.String(64)),
     sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False),
     sa.Column("actual_usd", sa.Numeric(14, 8)),
@@ -994,9 +1005,7 @@ model_call_journal = sa.Table(
     sa.Column("completed_at", sa.DateTime(timezone=True)),
     sa.CheckConstraint(f"usage IN ({_MODEL_USAGE_SQL})", name="ck_model_call_usage"),
     sa.CheckConstraint("reserved_usd >= 0", name="ck_model_call_reserved_cost"),
-    sa.CheckConstraint(
-        "actual_usd IS NULL OR actual_usd >= 0", name="ck_model_call_actual_cost"
-    ),
+    sa.CheckConstraint("actual_usd IS NULL OR actual_usd >= 0", name="ck_model_call_actual_cost"),
     sa.CheckConstraint(
         "input_tokens IS NULL OR input_tokens >= 0", name="ck_model_call_input_tokens"
     ),

@@ -22,12 +22,8 @@ def test_model_budget_migration_creates_persistent_ledger(tmp_path) -> None:
     inspector = sa.inspect(engine)
 
     assert current_revision(engine) == "0058_model_call_budget"
-    assert {"model_daily_budget", "model_call_journal"} <= set(
-        inspector.get_table_names()
-    )
-    budget_columns = {
-        column["name"] for column in inspector.get_columns("model_daily_budget")
-    }
+    assert {"model_daily_budget", "model_call_journal"} <= set(inspector.get_table_names())
+    budget_columns = {column["name"] for column in inspector.get_columns("model_daily_budget")}
     assert {
         "usage_date",
         "usage",
@@ -35,9 +31,7 @@ def test_model_budget_migration_creates_persistent_ledger(tmp_path) -> None:
         "actual_usd",
         "updated_at",
     } == budget_columns
-    journal_columns = {
-        column["name"] for column in inspector.get_columns("model_call_journal")
-    }
+    journal_columns = {column["name"] for column in inspector.get_columns("model_call_journal")}
     assert {
         "call_id",
         "usage",
@@ -54,13 +48,10 @@ def test_model_budget_migration_creates_persistent_ledger(tmp_path) -> None:
         "completed_at",
     } == journal_columns
     index_columns = {
-        tuple(index["column_names"])
-        for index in inspector.get_indexes("model_call_journal")
+        tuple(index["column_names"]) for index in inspector.get_indexes("model_call_journal")
     }
     assert {("usage", "called_at"), ("siren", "called_at"), ("batch_id",)} <= index_columns
-    supplier_columns = {
-        column["name"] for column in inspector.get_columns("supplier_directory")
-    }
+    supplier_columns = {column["name"] for column in inspector.get_columns("supplier_directory")}
     assert "enrichment_call_id" in supplier_columns
 
 
@@ -111,8 +102,18 @@ def test_model_budget_migration_rejects_invalid_ledger_rows(
         connection.execute(sa.insert(table).values(**values))
 
 
-def test_model_call_siren_remains_plain_historical_evidence(tmp_path) -> None:
+def test_model_calls_and_current_judgment_have_traceable_nullable_links(tmp_path) -> None:
     engine = _migrated_engine(tmp_path)
-    foreign_keys = sa.inspect(engine).get_foreign_keys("model_call_journal")
+    inspector = sa.inspect(engine)
+    journal_foreign_keys = inspector.get_foreign_keys("model_call_journal")
+    supplier_foreign_keys = inspector.get_foreign_keys("supplier_directory")
 
-    assert foreign_keys == []
+    assert any(
+        item["constrained_columns"] == ["siren"] and item["referred_table"] == "supplier_directory"
+        for item in journal_foreign_keys
+    )
+    assert any(
+        item["constrained_columns"] == ["enrichment_call_id"]
+        and item["referred_table"] == "model_call_journal"
+        for item in supplier_foreign_keys
+    )

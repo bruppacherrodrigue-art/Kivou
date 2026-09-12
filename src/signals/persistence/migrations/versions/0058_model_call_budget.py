@@ -29,17 +29,11 @@ def upgrade() -> None:
         "model_daily_budget",
         sa.Column("usage_date", sa.Date, primary_key=True),
         sa.Column("usage", sa.String(64), primary_key=True),
-        sa.Column(
-            "reserved_usd", sa.Numeric(14, 8), nullable=False, server_default="0"
-        ),
+        sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False, server_default="0"),
         sa.Column("actual_usd", sa.Numeric(14, 8), nullable=False, server_default="0"),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.CheckConstraint(
-            f"usage IN ({_USAGE_SQL})", name="ck_model_daily_budget_usage"
-        ),
-        sa.CheckConstraint(
-            "reserved_usd >= 0", name="ck_model_daily_budget_reserved_cost"
-        ),
+        sa.CheckConstraint(f"usage IN ({_USAGE_SQL})", name="ck_model_daily_budget_usage"),
+        sa.CheckConstraint("reserved_usd >= 0", name="ck_model_daily_budget_reserved_cost"),
         sa.CheckConstraint("actual_usd >= 0", name="ck_model_daily_budget_actual_cost"),
     )
     op.create_table(
@@ -47,7 +41,11 @@ def upgrade() -> None:
         sa.Column("call_id", sa.String(36), primary_key=True),
         sa.Column("usage", sa.String(64), nullable=False),
         sa.Column("model", sa.String(160), nullable=False),
-        sa.Column("siren", sa.String(9)),
+        sa.Column(
+            "siren",
+            sa.String(9),
+            sa.ForeignKey("supplier_directory.siren", ondelete="SET NULL"),
+        ),
         sa.Column("batch_id", sa.String(64)),
         sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False),
         sa.Column("actual_usd", sa.Numeric(14, 8)),
@@ -74,20 +72,24 @@ def upgrade() -> None:
             name="ck_model_call_status",
         ),
     )
-    op.create_index(
-        "ix_model_call_usage_called_at", "model_call_journal", ["usage", "called_at"]
-    )
-    op.create_index(
-        "ix_model_call_siren_called_at", "model_call_journal", ["siren", "called_at"]
-    )
+    op.create_index("ix_model_call_usage_called_at", "model_call_journal", ["usage", "called_at"])
+    op.create_index("ix_model_call_siren_called_at", "model_call_journal", ["siren", "called_at"])
     op.create_index("ix_model_call_batch_id", "model_call_journal", ["batch_id"])
-    op.add_column(
-        "supplier_directory", sa.Column("enrichment_call_id", sa.String(36))
-    )
+    with op.batch_alter_table("supplier_directory") as batch_op:
+        batch_op.add_column(sa.Column("enrichment_call_id", sa.String(36)))
+        batch_op.create_foreign_key(
+            "fk_supplier_directory_enrichment_call",
+            "model_call_journal",
+            ["enrichment_call_id"],
+            ["call_id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("supplier_directory", "enrichment_call_id")
+    with op.batch_alter_table("supplier_directory") as batch_op:
+        batch_op.drop_constraint("fk_supplier_directory_enrichment_call", type_="foreignkey")
+        batch_op.drop_column("enrichment_call_id")
     op.drop_index("ix_model_call_batch_id", table_name="model_call_journal")
     op.drop_index("ix_model_call_siren_called_at", table_name="model_call_journal")
     op.drop_index("ix_model_call_usage_called_at", table_name="model_call_journal")

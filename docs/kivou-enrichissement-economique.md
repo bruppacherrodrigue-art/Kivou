@@ -25,7 +25,8 @@ moyenne sur le corpus de mesure de 20 fiches.
 
 Le juge peut demander une page supplémentaire seulement lorsqu'un site est
 identifié mais qu'aucune adresse e-mail n'est confirmée. L'URL doit être HTTPS,
-appartenir au domaine candidat et ne pas être sur la liste noire. Le code rend
+se résoudre uniquement vers des adresses IP publiques, appartenir au domaine
+candidat et ne pas être sur la liste noire. Le code rend
 au plus cette troisième page et redemande une décision une seule fois.
 
 ## Sortie
@@ -47,3 +48,9 @@ adresse, famille et nom, les JSON invalides, la latence médiane, le coût réel
 la projection pour 20 000 fiches. Il publie aussi le ratio entre le coût réservé
 et le coût réel ; au-delà de 3, la réservation est recalibrée et remesurée avant
 toute passe.
+
+Le benchmark fige les preuves réduites et chaque observation terminée dans un
+fichier de reprise mode `0600`, lié au `batch_id`. Une relance avec le même lot
+ne recollecte pas les preuves et ne rejoue pas les couples modèle/SIREN déjà
+terminés. Le répertoire durable est configurable avec
+`KIVOU_ENRICHMENT_BENCHMARK_STATE_DIR`.

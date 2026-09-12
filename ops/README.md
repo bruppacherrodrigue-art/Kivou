@@ -104,6 +104,11 @@ configurables avec
 30 fiches publie le ratio réservé/réel ; au-dessus de 3, recalibrer ces taux
 avant tout lot d'enrichissement.
 
+Le benchmark reprend par défaut son état dans
+`KIVOU_ENRICHMENT_BENCHMARK_STATE_DIR` (preuves figées et observations déjà
+terminées, fichier `0600`). Réutiliser exactement le même `batch_id` après un
+arrêt plafond ; un nouveau `batch_id` constitue une nouvelle mesure.
+
 ## Installation
 
 `KIVOU_DATABASE_URL` vit dans `/etc/kivou/staging.env`, **hors du dépôt**. Ce

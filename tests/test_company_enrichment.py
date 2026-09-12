@@ -99,12 +99,8 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
             ("www.verif.com", "/societe/ALYA-BATIMENT-481153435/"): (
                 "<title>Fiche ALYA</title><p>Site internet alyabat.fr</p>"
             ),
-            ("alyabat.fr", "/"): (
-                "<title>ALYA Bâtiment</title><p>Maçonnerie et gros œuvre.</p>"
-            ),
-            ("alyabat.fr", "/contact"): (
-                "<title>Contact</title><p>alya.batiment@hotmail.fr</p>"
-            ),
+            ("alyabat.fr", "/"): ("<title>ALYA Bâtiment</title><p>Maçonnerie et gros œuvre.</p>"),
+            ("alyabat.fr", "/contact"): ("<title>Contact</title><p>alya.batiment@hotmail.fr</p>"),
             ("alyabat.fr", "/mentions-legales"): (
                 "<title>Mentions légales</title><p>SIREN 481 153 435</p>"
             ),
@@ -174,8 +170,7 @@ def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() 
                         {
                             "title": "GIRARD (VALENCE)",
                             "link": (
-                                "https://www.groupement-mh.org/fiche_entreprise/"
-                                "girard-valence/"
+                                "https://www.groupement-mh.org/fiche_entreprise/girard-valence/"
                             ),
                             "snippet": "Entreprise de restauration du patrimoine",
                         }
@@ -233,8 +228,7 @@ def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() 
     assert evidence.results[0].is_directory is True
     assert "https://www.groupement-mh.org/fiche_entreprise/girard-valence/" in renderer.seen
     assert any(
-        page.url == "https://girard.vinci-construction.com/"
-        for page in evidence.candidate_pages
+        page.url == "https://girard.vinci-construction.com/" for page in evidence.candidate_pages
     )
     assert all(page.url != "https://groupement-mh.org/" for page in evidence.candidate_pages)
 
@@ -271,16 +265,22 @@ def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost
             200,
             json={
                 "choices": [
-                    {
-                        "message": {
-                            "content": f"```json\n{_decision().model_dump_json()}\n```"
-                        }
-                    }
+                    {"message": {"content": f"```json\n{_decision().model_dump_json()}\n```"}}
                 ],
                 "usage": {"prompt_tokens": 321, "completion_tokens": 87, "cost": 0.0042},
             },
         )
 
+    SupplierDirectoryStore(migrated_sqlite_engine, clock=lambda: NOW).upsert_identity(
+        siren="481153435",
+        legal_name="ALYA BATIMENT",
+        naf_code="43.99C",
+        family_key="subcontracted_structural_work",
+        department="01",
+        city="GUEREINS",
+        employees=19,
+        observed_at=NOW,
+    )
     store = ModelBudgetStore(migrated_sqlite_engine, clock=lambda: NOW)
     route = routes_from_environment(batch_id="test-provider", environment={}).route(
         "enrichment_judge"
@@ -306,7 +306,9 @@ def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost
     assert store.calls()[0].usage == "enrichment_judge"
 
 
-def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decision(tmp_path) -> None:
+def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decision(
+    tmp_path,
+) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'directory.db'}")
     command.upgrade(alembic_config(engine), "head")
     store = SupplierDirectoryStore(engine, clock=lambda: NOW)
@@ -320,6 +322,23 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
         employees=19,
         observed_at=NOW,
         naf_label="Travaux de maçonnerie générale et gros œuvre de bâtiment",
+    )
+    call_id = "00000000-0000-0000-0000-000000000001"
+    budget_store = ModelBudgetStore(engine, clock=lambda: NOW)
+    budget_store.reserve(
+        route=routes_from_environment(batch_id="service-test", environment={}).route(
+            "enrichment_judge"
+        ),
+        estimated_usd=Decimal("0.01"),
+        call_id=call_id,
+        siren="481153435",
+        batch_id="service-test",
+    )
+    budget_store.succeed(
+        call_id=call_id,
+        actual_usd=Decimal("0.0042"),
+        input_tokens=321,
+        output_tokens=87,
     )
 
     class Collector:
@@ -339,7 +358,7 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
         def enrich(self, identity, evidence):
             self.calls += 1
             return CompanyEnrichmentProviderResult(
-                call_id="00000000-0000-0000-0000-000000000001",
+                call_id=call_id,
                 decision=_decision(),
                 model="anthropic/claude-sonnet-4.6",
                 cost_usd=Decimal("0.0042"),
@@ -384,7 +403,9 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
     assert record.enrichment_observed_at == NOW
 
 
-def test_service_clears_low_confidence_and_placeholder_fields_and_falls_back_to_naf(tmp_path) -> None:
+def test_service_clears_low_confidence_and_placeholder_fields_and_falls_back_to_naf(
+    tmp_path,
+) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'directory.db'}")
     command.upgrade(alembic_config(engine), "head")
     store = SupplierDirectoryStore(engine, clock=lambda: NOW)
@@ -429,9 +450,7 @@ def test_service_clears_low_confidence_and_placeholder_fields_and_falls_back_to_
             naf_code="43.91A",
             naf_label="Travaux de charpente",
             employees=99,
-            directors_raw=(
-                {"name": "ADIL EL MANSOURI", "title": "Président de SAS"},
-            ),
+            directors_raw=({"name": "ADIL EL MANSOURI", "title": "Président de SAS"},),
         ),
         domain="leny-alain.fr",
         contact_text="jean.dupont@gmail.com",

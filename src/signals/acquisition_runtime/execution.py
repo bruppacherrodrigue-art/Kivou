@@ -939,7 +939,11 @@ def execute_runtime_run_once(
                 api_key=connectivity_config.instantly_api_key.get_secret_value(),
                 client=client,
             )
-            hermes = _default_hermes_runtime(connectivity_config)
+            hermes = _default_hermes_runtime(
+                connectivity_config,
+                engine=engine,
+                batch_id=f"acquisition-run-{uuid.uuid4()}",
+            )
             composition = build_runtime_execution_composition(
                 engine=engine,
                 runtime_config=runtime_config,

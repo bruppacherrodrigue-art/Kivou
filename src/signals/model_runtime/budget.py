@@ -67,6 +67,18 @@ class ModelCallRecord:
     completed_at: dt.datetime | None
 
 
+@dataclass(frozen=True)
+class ModelUsageStats:
+    usage_date: dt.date
+    usage: str
+    call_count: int
+    succeeded_call_count: int
+    failed_call_count: int
+    rejected_call_count: int
+    input_tokens: int
+    output_tokens: int
+
+
 class ModelBudgetStore:
     def __init__(
         self,
@@ -132,17 +144,19 @@ class ModelBudgetStore:
         usage_date = self._day(now)
         exhausted: DailyModelBudgetExhausted | None = None
         with self._engine.begin() as connection:
-            self._ensure_counter(
-                connection, usage_date=usage_date, usage=route.usage, now=now
-            )
-            counter = connection.execute(
-                sa.select(model_daily_budget)
-                .where(
-                    model_daily_budget.c.usage_date == usage_date,
-                    model_daily_budget.c.usage == route.usage,
+            self._ensure_counter(connection, usage_date=usage_date, usage=route.usage, now=now)
+            counter = (
+                connection.execute(
+                    sa.select(model_daily_budget)
+                    .where(
+                        model_daily_budget.c.usage_date == usage_date,
+                        model_daily_budget.c.usage == route.usage,
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             actual = Decimal(counter["actual_usd"])
             reserved = Decimal(counter["reserved_usd"])
             if actual + reserved + amount > route.daily_budget_usd:
@@ -183,14 +197,16 @@ class ModelBudgetStore:
         if exhausted is not None:
             raise exhausted
 
-    def _active_call(
-        self, connection: sa.Connection, call_id: str
-    ) -> sa.RowMapping:
-        row = connection.execute(
-            sa.select(model_call_journal)
-            .where(model_call_journal.c.call_id == call_id)
-            .with_for_update()
-        ).mappings().one_or_none()
+    def _active_call(self, connection: sa.Connection, call_id: str) -> sa.RowMapping:
+        row = (
+            connection.execute(
+                sa.select(model_call_journal)
+                .where(model_call_journal.c.call_id == call_id)
+                .with_for_update()
+            )
+            .mappings()
+            .one_or_none()
+        )
         if row is None or row["status"] != "reserved":
             raise ValueError(f"model call {call_id!r} is not an active reservation")
         return row
@@ -210,14 +226,18 @@ class ModelBudgetStore:
         with self._engine.begin() as connection:
             call = self._active_call(connection, call_id)
             usage_date = self._day(call["called_at"])
-            counter = connection.execute(
-                sa.select(model_daily_budget)
-                .where(
-                    model_daily_budget.c.usage_date == usage_date,
-                    model_daily_budget.c.usage == call["usage"],
+            counter = (
+                connection.execute(
+                    sa.select(model_daily_budget)
+                    .where(
+                        model_daily_budget.c.usage_date == usage_date,
+                        model_daily_budget.c.usage == call["usage"],
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             connection.execute(
                 sa.update(model_daily_budget)
                 .where(
@@ -225,8 +245,7 @@ class ModelBudgetStore:
                     model_daily_budget.c.usage == call["usage"],
                 )
                 .values(
-                    reserved_usd=Decimal(counter["reserved_usd"])
-                    - Decimal(call["reserved_usd"]),
+                    reserved_usd=Decimal(counter["reserved_usd"]) - Decimal(call["reserved_usd"]),
                     actual_usd=Decimal(counter["actual_usd"]) + actual,
                     updated_at=now,
                 )
@@ -250,14 +269,18 @@ class ModelBudgetStore:
         with self._engine.begin() as connection:
             call = self._active_call(connection, call_id)
             usage_date = self._day(call["called_at"])
-            counter = connection.execute(
-                sa.select(model_daily_budget)
-                .where(
-                    model_daily_budget.c.usage_date == usage_date,
-                    model_daily_budget.c.usage == call["usage"],
+            counter = (
+                connection.execute(
+                    sa.select(model_daily_budget)
+                    .where(
+                        model_daily_budget.c.usage_date == usage_date,
+                        model_daily_budget.c.usage == call["usage"],
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             connection.execute(
                 sa.update(model_daily_budget)
                 .where(
@@ -265,8 +288,7 @@ class ModelBudgetStore:
                     model_daily_budget.c.usage == call["usage"],
                 )
                 .values(
-                    reserved_usd=Decimal(counter["reserved_usd"])
-                    - Decimal(call["reserved_usd"]),
+                    reserved_usd=Decimal(counter["reserved_usd"]) - Decimal(call["reserved_usd"]),
                     updated_at=now,
                 )
             )
@@ -279,12 +301,16 @@ class ModelBudgetStore:
     def summary(self, usage: ModelUsage) -> ModelBudgetSummary:
         usage_date = self._day(self._now())
         with self._engine.connect() as connection:
-            row = connection.execute(
-                sa.select(model_daily_budget).where(
-                    model_daily_budget.c.usage_date == usage_date,
-                    model_daily_budget.c.usage == usage,
+            row = (
+                connection.execute(
+                    sa.select(model_daily_budget).where(
+                        model_daily_budget.c.usage_date == usage_date,
+                        model_daily_budget.c.usage == usage,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
         if row is None:
             return ModelBudgetSummary(usage_date, usage, _ZERO, _ZERO, None)
         return ModelBudgetSummary(
@@ -309,9 +335,7 @@ class ModelBudgetStore:
                     batch_id=row["batch_id"],
                     reserved_usd=Decimal(row["reserved_usd"]),
                     actual_usd=(
-                        Decimal(row["actual_usd"])
-                        if row["actual_usd"] is not None
-                        else None
+                        Decimal(row["actual_usd"]) if row["actual_usd"] is not None else None
                     ),
                     input_tokens=row["input_tokens"],
                     output_tokens=row["output_tokens"],
@@ -323,10 +347,29 @@ class ModelBudgetStore:
                 for row in rows
             )
 
+    def usage_stats(self, usage: str) -> ModelUsageStats:
+        usage_date = self._day(self._now())
+        calls = tuple(
+            call
+            for call in self.calls()
+            if call.usage == usage and self._day(call.called_at) == usage_date
+        )
+        return ModelUsageStats(
+            usage_date=usage_date,
+            usage=usage,
+            call_count=len(calls),
+            succeeded_call_count=sum(call.status == "succeeded" for call in calls),
+            failed_call_count=sum(call.status == "failed" for call in calls),
+            rejected_call_count=sum(call.status == "rejected_budget" for call in calls),
+            input_tokens=sum(call.input_tokens or 0 for call in calls),
+            output_tokens=sum(call.output_tokens or 0 for call in calls),
+        )
+
 
 __all__ = [
     "DailyModelBudgetExhausted",
     "ModelBudgetStore",
     "ModelBudgetSummary",
     "ModelCallRecord",
+    "ModelUsageStats",
 ]

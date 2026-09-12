@@ -307,6 +307,7 @@ def test_execute_runtime_run_once_passes_its_http_client_to_composition(
     engine = SimpleNamespace(dispose=lambda: None)
     expected = SimpleNamespace(status=RuntimeRunStatus.BLOCKED)
     captured: dict[str, object] = {}
+    hermes_captured: dict[str, object] = {}
 
     monkeypatch.setattr(runtime_execution, "load_runtime_config", lambda: runtime_config)
     monkeypatch.setattr(
@@ -325,7 +326,11 @@ def test_execute_runtime_run_once_passes_its_http_client_to_composition(
     monkeypatch.setattr(
         runtime_execution, "build_fake_apollo_components", lambda: object()
     )
-    monkeypatch.setattr(runtime_execution, "_default_hermes_runtime", lambda _config: object())
+    monkeypatch.setattr(
+        runtime_execution,
+        "_default_hermes_runtime",
+        lambda _config, **kwargs: hermes_captured.update(kwargs) or object(),
+    )
 
     def build_composition(**kwargs):
         captured.update(kwargs)
@@ -343,6 +348,8 @@ def test_execute_runtime_run_once_passes_its_http_client_to_composition(
 
     assert result is expected
     assert captured["client"] is not None
+    assert hermes_captured["engine"] is engine
+    assert str(hermes_captured["batch_id"]).startswith("acquisition-run-")
 
 
 def test_link_configuration_is_required_and_never_exposes_key_material() -> None:

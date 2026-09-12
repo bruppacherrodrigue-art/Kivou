@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass
@@ -11,7 +12,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field
 
 from signals.company_research.domain import domain_from_url
-from signals.company_research.enrichment import CompanyEnrichmentInput
+from signals.company_research.enrichment import CompanyEnrichmentInput, CompanyWebEvidence
 from signals.personalization.prospect_mail import normalize_director_name
 
 BENCHMARK_FIELDS = (
@@ -51,7 +52,11 @@ def load_benchmark_cases(
     cases = tuple(
         BenchmarkCase(
             identity=CompanyEnrichmentInput.model_validate(
-                {key: value for key, value in raw.items() if key not in {"expected", "truth_source"}}
+                {
+                    key: value
+                    for key, value in raw.items()
+                    if key not in {"expected", "truth_source"}
+                }
             ),
             expected=BenchmarkExpected.model_validate(raw.get("expected")),
             truth_source=raw.get("truth_source"),
@@ -123,17 +128,12 @@ def benchmark_report(
         raise ValueError("one benchmark report must contain exactly one model")
     completed = len(observations)
     field_agreement = {
-        field: Decimal(sum(item.field_matches[field] for item in observations))
-        / Decimal(completed)
+        field: Decimal(sum(item.field_matches[field] for item in observations)) / Decimal(completed)
         for field in BENCHMARK_FIELDS
     }
-    agreement = sum(field_agreement.values(), start=Decimal("0")) / Decimal(
-        len(BENCHMARK_FIELDS)
-    )
+    agreement = sum(field_agreement.values(), start=Decimal("0")) / Decimal(len(BENCHMARK_FIELDS))
     actual = sum((item.actual_usd for item in observations), start=Decimal("0"))
-    reserved = sum(
-        (item.reserved_usd for item in observations), start=Decimal("0")
-    )
+    reserved = sum((item.reserved_usd for item in observations), start=Decimal("0"))
     ratio = reserved / actual if actual else None
     last_twenty = observations[-20:]
     return BenchmarkReport(
@@ -147,9 +147,7 @@ def benchmark_report(
         projected_cost_20k_usd=actual / Decimal(completed) * Decimal("20000"),
         reservation_ratio=ratio,
         requires_reservation_adjustment=ratio is not None and ratio > Decimal("3"),
-        mean_input_tokens_last_20=Decimal(
-            sum(item.input_tokens for item in last_twenty)
-        )
+        mean_input_tokens_last_20=Decimal(sum(item.input_tokens for item in last_twenty))
         / Decimal(len(last_twenty)),
     )
 
@@ -184,7 +182,37 @@ def mask_directors(
         value["name"] = token
         value.pop("first_name", None)
         directors.append(value)
-    return identity.model_copy(update={"directors_raw": tuple(directors)}), names
+    raw_identity = identity.model_dump(mode="json")
+    raw_identity["directors_raw"] = directors
+    return CompanyEnrichmentInput.model_validate(_mask_tree(raw_identity, names)), names
+
+
+def _mask_tree(value: object, names: dict[str, str]) -> object:
+    if isinstance(value, str):
+        masked = value
+        for token, name in sorted(names.items(), key=lambda item: len(item[1]), reverse=True):
+            masked = re.sub(re.escape(name), token, masked, flags=re.IGNORECASE)
+        return masked
+    if isinstance(value, list):
+        return [_mask_tree(item, names) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_mask_tree(item, names) for item in value)
+    if isinstance(value, dict):
+        return {key: _mask_tree(item, names) for key, item in value.items()}
+    return value
+
+
+def mask_directors_in_evidence(
+    identity: CompanyEnrichmentInput,
+    evidence: CompanyWebEvidence,
+) -> tuple[CompanyEnrichmentInput, CompanyWebEvidence, dict[str, str]]:
+    """Mask registry director names everywhere in the final external input."""
+
+    masked_identity, names = mask_directors(identity)
+    masked_evidence = CompanyWebEvidence.model_validate(
+        _mask_tree(evidence.model_dump(mode="json"), names)
+    )
+    return masked_identity, masked_evidence, names
 
 
 __all__ = [
@@ -198,4 +226,5 @@ __all__ = [
     "field_matches",
     "load_benchmark_cases",
     "mask_directors",
+    "mask_directors_in_evidence",
 ]

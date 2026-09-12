@@ -32,6 +32,7 @@ from signals.persistence.schema import (
     acquisition_supplier,
     contact_discovery_run,
     contract_award,
+    model_call_journal,
     opportunity_representation,
     prospect_target,
     supplier_directory,
@@ -79,6 +80,12 @@ class FounderDirectoryEnrichment(FounderContract):
     enriched_week_count: int = Field(ge=0)
     model: str | None = None
     cumulative_cost_usd: Decimal = Field(ge=0)
+    latest_batch_id: str | None = None
+    latest_batch_call_count: int = Field(default=0, ge=0)
+    latest_batch_input_tokens: int = Field(default=0, ge=0)
+    latest_batch_output_tokens: int = Field(default=0, ge=0)
+    latest_batch_cost_usd: Decimal = Field(default=Decimal(0), ge=0)
+    latest_batch_mean_input_tokens: Decimal | None = Field(default=None, ge=0)
 
 
 class FounderDirectoryRow(FounderContract):
@@ -594,14 +601,39 @@ class FounderProspectionReadService:
                     )
                 ).mappings()
             )
+            latest_batch_id = connection.scalar(
+                sa.select(model_call_journal.c.batch_id)
+                .where(
+                    model_call_journal.c.usage.in_(("enrichment_judge", "enrichment_arbiter")),
+                    model_call_journal.c.batch_id.is_not(None),
+                )
+                .order_by(model_call_journal.c.called_at.desc())
+                .limit(1)
+            )
+            latest_batch_calls = (
+                tuple(
+                    connection.execute(
+                        sa.select(model_call_journal).where(
+                            model_call_journal.c.batch_id == latest_batch_id,
+                            model_call_journal.c.usage.in_(
+                                ("enrichment_judge", "enrichment_arbiter")
+                            ),
+                        )
+                    ).mappings()
+                )
+                if latest_batch_id is not None
+                else ()
+            )
         rows = tuple(sorted((_directory_row(row) for row in records), key=_directory_sort_key))
         local_now = now.astimezone(_ZURICH)
         today_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(
             dt.UTC
         )
-        week_start = (local_now - dt.timedelta(days=local_now.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).astimezone(dt.UTC)
+        week_start = (
+            (local_now - dt.timedelta(days=local_now.weekday()))
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .astimezone(dt.UTC)
+        )
         enriched_records = tuple(
             row for row in records if isinstance(row["enrichment_observed_at"], dt.datetime)
         )
@@ -637,6 +669,24 @@ class FounderProspectionReadService:
                 ),
                 start=Decimal(0),
             ),
+            latest_batch_id=(str(latest_batch_id) if latest_batch_id else None),
+            latest_batch_call_count=len(latest_batch_calls),
+            latest_batch_input_tokens=sum(
+                int(row["input_tokens"] or 0) for row in latest_batch_calls
+            ),
+            latest_batch_output_tokens=sum(
+                int(row["output_tokens"] or 0) for row in latest_batch_calls
+            ),
+            latest_batch_cost_usd=sum(
+                (Decimal(str(row["actual_usd"] or 0)) for row in latest_batch_calls),
+                start=Decimal(0),
+            ),
+            latest_batch_mean_input_tokens=(
+                Decimal(sum(int(row["input_tokens"] or 0) for row in latest_batch_calls))
+                / Decimal(len(latest_batch_calls))
+                if latest_batch_calls
+                else None
+            ),
         )
         summary = FounderDirectorySummary(
             company_count=len(rows),
@@ -654,8 +704,7 @@ class FounderProspectionReadService:
         reverification_reason_counts = Counter(
             row.reverification_reason
             for row in rows
-            if row.reverification_required_at is not None
-            and row.reverification_reason is not None
+            if row.reverification_required_at is not None and row.reverification_reason is not None
         )
         filtered = tuple(
             row
@@ -689,9 +738,7 @@ class FounderProspectionReadService:
 def _directory_row(row: Mapping[str, object]) -> FounderDirectoryRow:
     family_keys = row["family_keys"]
     department = str(row["department"]) if row["department"] is not None else None
-    confirmed_domain = (
-        row["domain"] is not None and row["domain_validation_method"] is not None
-    )
+    confirmed_domain = row["domain"] is not None and row["domain_validation_method"] is not None
     return FounderDirectoryRow(
         siren=str(row["siren"]),
         legal_name=str(row["legal_name"]),
@@ -700,15 +747,9 @@ def _directory_row(row: Mapping[str, object]) -> FounderDirectoryRow:
         department_name=DEPARTMENTS.get(department) if department is not None else None,
         city=str(row["city"]) if row["city"] is not None else None,
         employees=int(row["employees"]) if row["employees"] is not None else None,
-        domain=(
-            str(row["domain"])
-            if confirmed_domain and row["domain"] is not None
-            else None
-        ),
+        domain=(str(row["domain"]) if confirmed_domain and row["domain"] is not None else None),
         website_url=(
-            str(row["website_url"])
-            if confirmed_domain and row["website_url"] is not None
-            else None
+            str(row["website_url"]) if confirmed_domain and row["website_url"] is not None else None
         ),
         confirmed_domain=confirmed_domain,
         qualification_status=_directory_qualification_status(row),
@@ -768,10 +809,7 @@ def _directory_matches(
         return False
     if department and row.department != department:
         return False
-    if (
-        directory_status is not None
-        and row.qualification_status.value != directory_status.value
-    ):
+    if directory_status is not None and row.qualification_status.value != directory_status.value:
         return False
     return not reverification_reason or row.reverification_reason == reverification_reason
 

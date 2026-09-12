@@ -158,6 +158,9 @@ class OpenRouterGateway:
         except httpx.HTTPError as error:
             self._budgets.fail(call_id=call_id, error_code="PROVIDER_NETWORK")
             raise RuntimeError("PROVIDER_NETWORK") from error
+        except Exception:
+            self._budgets.fail(call_id=call_id, error_code="MODEL_CALL_FAILED")
+            raise
 
     def text_call(
         self,
@@ -233,6 +236,9 @@ class OpenRouterGateway:
         except httpx.HTTPError as error:
             self._budgets.fail(call_id=call_id, error_code="PROVIDER_NETWORK")
             raise RuntimeError("PROVIDER_NETWORK") from error
+        except Exception:
+            self._budgets.fail(call_id=call_id, error_code="MODEL_CALL_FAILED")
+            raise
 
 
 class _ProviderFailure(RuntimeError):

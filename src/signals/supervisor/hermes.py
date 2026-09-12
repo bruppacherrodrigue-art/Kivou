@@ -306,8 +306,15 @@ class HermesSupervisorAdapter:
             if reservation_id is not None:
                 self.budget_store.fail(call_id=reservation_id, error_code="HERMES_TRANSPORT")
             raise
-        self._validate_metadata(response)
-        self._validate_route(response)
+        try:
+            self._validate_metadata(response)
+            self._validate_route(response)
+        except Exception:
+            if reservation_id is not None:
+                self.budget_store.fail(
+                    call_id=reservation_id, error_code="HERMES_RESPONSE_INVALID"
+                )
+            raise
         if reservation_id is not None:
             usage = response.get("usage")
             try:

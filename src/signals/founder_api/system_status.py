@@ -134,6 +134,12 @@ class FounderModelBudget(FounderContract):
     reserved_usd: Decimal
     cap_usd: Decimal
     remaining_usd: Decimal
+    call_count: int = Field(ge=0)
+    succeeded_call_count: int = Field(ge=0)
+    failed_call_count: int = Field(ge=0)
+    rejected_call_count: int = Field(ge=0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
 
 
 class FounderSystemPage(FounderContract):

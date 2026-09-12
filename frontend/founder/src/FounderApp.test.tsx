@@ -203,6 +203,12 @@ const OVERVIEW: FounderOverview = {
         reserved_usd: '0.03',
         cap_usd: '2',
         remaining_usd: '1.55',
+        call_count: 3,
+        succeeded_call_count: 2,
+        failed_call_count: 1,
+        rejected_call_count: 0,
+        input_tokens: 1800,
+        output_tokens: 160,
       },
     ],
   },
@@ -365,6 +371,8 @@ describe('FounderApp', () => {
 
     expect(await screen.findByRole('heading', { name: 'Système', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Système' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByText('enrichment_judge')).toBeInTheDocument()
+    expect(screen.getByText(/3 appels.*1.?800 tokens entrée.*160 sortie/)).toBeInTheDocument()
     expect(screen.getByRole('row', { name: /kivou-alerts\.timer.*Actif/ })).toHaveTextContent(
       /12 sept\. 2026.*09:00.*12 sept\. 2026.*11:00/,
     )

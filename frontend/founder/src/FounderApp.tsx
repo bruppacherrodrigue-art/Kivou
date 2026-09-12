@@ -647,6 +647,12 @@ function SystemPage({ data }: { data: FounderSystem }) {
                 {Number(budget.reserved_usd) > 0
                   ? ` · ${formatUsd(budget.reserved_usd)} réservé`
                   : ''}
+                <small className="control-muted">
+                  {formatCount(budget.call_count)} appels · {formatCount(budget.input_tokens)} tokens entrée · {formatCount(budget.output_tokens)} sortie
+                  {budget.failed_call_count || budget.rejected_call_count
+                    ? ` · ${formatCount(budget.failed_call_count)} échecs · ${formatCount(budget.rejected_call_count)} refus plafond`
+                    : ''}
+                </small>
               </span>
             </div>
           ))}

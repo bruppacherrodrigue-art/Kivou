@@ -211,3 +211,19 @@ def test_playwright_renderer_runs_all_browser_work_on_one_owned_thread() -> None
 
     assert all(page is not None for page in pages)
     assert len(set(renderer.thread_ids)) == 1
+
+
+def test_requested_page_rejects_http_and_private_destinations_before_rendering() -> None:
+    renderer = FakeRenderer({})
+    collector = CompanyWebCollector(
+        serper_api_key="key",
+        client=httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
+        renderer=renderer,
+    )
+    evidence = CompanyWebCollector.evidence_for_test(
+        _identity(), domain="127.0.0.1", contact_text=""
+    )
+
+    assert collector.fetch_requested(evidence, "http://127.0.0.1/contact") == evidence
+    assert collector.fetch_requested(evidence, "https://127.0.0.1/contact") == evidence
+    assert renderer.seen == []

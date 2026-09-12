@@ -395,18 +395,15 @@ def test_openrouter_provider_generates_the_sentence_through_chat_completions(mon
     assert provider.reported_cost_usd == 0.001
 
 
-def test_environment_factory_prefers_the_configured_openrouter_key(monkeypatch) -> None:
-    from signals.documents.openrouter import OpenRouterTextGenerator
+def test_environment_factory_rejects_unmetered_openrouter_calls(monkeypatch) -> None:
     from signals.documents.providers import text_generator_from_environment
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-local-not-a-real-key")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("KIVOU_FOR_YOU_MODEL", "anthropic/claude-sonnet-4.6")
 
-    provider = text_generator_from_environment()
-
-    assert isinstance(provider, OpenRouterTextGenerator)
-    assert provider.model == "anthropic/claude-sonnet-4.6"
+    with pytest.raises(ValueError, match="engine and batch_id"):
+        text_generator_from_environment()
 
 
 def test_environment_factory_meters_for_you_calls_by_usage(

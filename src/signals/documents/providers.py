@@ -198,9 +198,7 @@ class AnthropicTextGenerator(AnthropicClassifier):
     def generate_sentence(self, value: ForYouInput) -> str | None:
         from signals.personalization.for_you import FOR_YOU_SYSTEM_PROMPT
 
-        text, _ = self._request_text(
-            build_for_you_prompt(value), system=FOR_YOU_SYSTEM_PROMPT
-        )
+        text, _ = self._request_text(build_for_you_prompt(value), system=FOR_YOU_SYSTEM_PROMPT)
         return text
 
 
@@ -210,28 +208,21 @@ def text_generator_from_environment(
     """Construit l'adaptateur configuré sans exposer sa marque aux appelants."""
     if os.environ.get("OPENROUTER_API_KEY", "").strip():
         from signals.documents.openrouter import OpenRouterTextGenerator
+        from signals.model_runtime.budget import ModelBudgetStore
+        from signals.model_runtime.config import routes_from_environment
+        from signals.model_runtime.openrouter import OpenRouterGateway
 
-        if engine is not None:
-            from signals.model_runtime.budget import ModelBudgetStore
-            from signals.model_runtime.config import routes_from_environment
-            from signals.model_runtime.openrouter import OpenRouterGateway
-
-            if not batch_id:
-                raise ValueError("batch_id is required for budgeted for_you calls")
-            route = routes_from_environment(batch_id=batch_id).route("for_you")
-            return OpenRouterTextGenerator(
-                model=route.model,
-                gateway=OpenRouterGateway(
-                    api_key=os.environ["OPENROUTER_API_KEY"],
-                    budgets=ModelBudgetStore(engine),
-                    client=client,
-                ),
-                route=route,
-                batch_id=batch_id,
-            )
-        model = os.environ.get(
-            "KIVOU_MODEL_FOR_YOU",
-            os.environ.get("KIVOU_FOR_YOU_MODEL", "anthropic/claude-sonnet-4.6"),
+        if engine is None or not batch_id:
+            raise ValueError("engine and batch_id are required for metered for_you calls")
+        route = routes_from_environment(batch_id=batch_id).route("for_you")
+        return OpenRouterTextGenerator(
+            model=route.model,
+            gateway=OpenRouterGateway(
+                api_key=os.environ["OPENROUTER_API_KEY"],
+                budgets=ModelBudgetStore(engine),
+                client=client,
+            ),
+            route=route,
+            batch_id=batch_id,
         )
-        return OpenRouterTextGenerator(model=model)
     return AnthropicTextGenerator()

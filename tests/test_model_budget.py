@@ -12,6 +12,7 @@ from signals.model_runtime.budget import (
 )
 from signals.model_runtime.config import ModelRoute
 from signals.persistence.schema import model_call_journal
+from signals.supplier_directory.store import SupplierDirectoryStore
 
 
 @pytest.fixture
@@ -21,6 +22,16 @@ def clock_value() -> list[dt.datetime]:
 
 @pytest.fixture
 def store(migrated_sqlite_engine, clock_value) -> ModelBudgetStore:
+    SupplierDirectoryStore(migrated_sqlite_engine, clock=lambda: clock_value[0]).upsert_identity(
+        siren="123456789",
+        legal_name="Fixture",
+        naf_code=None,
+        family_key="",
+        department=None,
+        city=None,
+        employees=None,
+        observed_at=clock_value[0],
+    )
     return ModelBudgetStore(migrated_sqlite_engine, clock=lambda: clock_value[0])
 
 
@@ -131,4 +142,9 @@ def test_two_store_instances_share_the_same_persistent_counter(
         second.reserve(route=_route(), estimated_usd=Decimal("0.76"), call_id="b")
 
     with migrated_sqlite_engine.connect() as connection:
-        assert connection.execute(sa.select(sa.func.count()).select_from(model_call_journal)).scalar_one() == 2
+        assert (
+            connection.execute(
+                sa.select(sa.func.count()).select_from(model_call_journal)
+            ).scalar_one()
+            == 2
+        )

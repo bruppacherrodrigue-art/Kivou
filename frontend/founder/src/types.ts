@@ -212,6 +212,12 @@ export interface FounderOverview {
       reserved_usd: string
       cap_usd: string
       remaining_usd: string
+      call_count: number
+      succeeded_call_count: number
+      failed_call_count: number
+      rejected_call_count: number
+      input_tokens: number
+      output_tokens: number
     }>
     database_access: 'READ_ONLY'
   }
@@ -240,6 +246,12 @@ export interface FounderDirectoryEnrichment {
   enriched_week_count: number
   model: string | null
   cumulative_cost_usd: string
+  latest_batch_id: string | null
+  latest_batch_call_count: number
+  latest_batch_input_tokens: number
+  latest_batch_output_tokens: number
+  latest_batch_cost_usd: string
+  latest_batch_mean_input_tokens: string | null
 }
 
 export interface FounderProspection {
