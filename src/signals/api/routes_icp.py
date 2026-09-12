@@ -111,9 +111,9 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
         )
         stored = service.list_target_icps(connection, account_id=session.account_id)
         landing = service.landing_signal(connection, account_id=session.account_id)
-        provisional = landing is not None and service.onboarding_status(
+        provisional = landing is not None and service.is_provisional_profile(
             connection, account_id=session.account_id
-        ) != "ready_for_signals"
+        )
         if landing is not None:
             service.mark_landing_step(
                 connection,
