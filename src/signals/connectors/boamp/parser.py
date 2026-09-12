@@ -276,8 +276,10 @@ def _identifiers(company: dict) -> tuple[OrganizationIdentifier, ...]:
     if not value:
         return ()
     declared = raw.get("@schemeName") if isinstance(raw, dict) else None
-    scheme = "SIRET" if _SIRET.fullmatch(value) else (declared or "BOAMP-COMPANY-ID")
-    return (OrganizationIdentifier(scheme=str(scheme), value=value),)
+    compact = re.sub(r"\s+", "", value)
+    is_siret = _SIRET.fullmatch(compact) is not None
+    scheme = "SIRET" if is_siret else (declared or "BOAMP-COMPANY-ID")
+    return (OrganizationIdentifier(scheme=str(scheme), value=compact if is_siret else value),)
 
 
 def _country(company: dict) -> str | None:

@@ -254,10 +254,19 @@ def _exact_french_siret(indexed: Any) -> str | None:
         return None
     return next(
         (
-            identifier.value
+            "".join(character for character in identifier.value if character.isdigit())
             for identifier in official.identifiers
-            if identifier.scheme.casefold() == "siret"
-            and re.fullmatch(r"\d{14}", identifier.value)
+            if (
+                identifier.scheme.casefold() == "siret"
+                or (
+                    identifier.scheme.casefold() == "boamp-company-id"
+                    and re.fullmatch(r"[\d\s]+", identifier.value.strip()) is not None
+                )
+            )
+            and len(
+                "".join(character for character in identifier.value if character.isdigit())
+            )
+            == 14
         ),
         None,
     )
@@ -284,9 +293,17 @@ def _published_siret_fallback(
     if row is None:
         return None
     scheme = str(row["winner_identifier_scheme"] or "").strip().casefold()
-    siret = str(row["winner_identifier_value"] or "").strip()
+    raw_siret = str(row["winner_identifier_value"] or "").strip()
+    siret = "".join(character for character in raw_siret if character.isdigit())
     country = str(row["winner_country"] or "FR").strip().upper()
-    if scheme != "siret" or country != "FR" or re.fullmatch(r"\d{14}", siret) is None:
+    source_formatted_siret = scheme == "boamp-company-id" and bool(
+        re.fullmatch(r"[\d\s]+", raw_siret)
+    )
+    if (
+        (scheme != "siret" and not source_formatted_siret)
+        or country != "FR"
+        or re.fullmatch(r"\d{14}", siret) is None
+    ):
         return None
     return siret, row["materialization_award_key"]
 

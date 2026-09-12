@@ -217,7 +217,10 @@ def _siren_from_identifiers(identifiers) -> str | None:
         scheme = str(raw_scheme).casefold()
         if scheme == "siren" and len(digits) == 9:
             return digits
-        if scheme == "siret" and len(digits) == 14:
+        source_formatted_siret = scheme == "boamp-company-id" and bool(
+            re.fullmatch(r"[\d\s]+", str(value).strip())
+        )
+        if (scheme == "siret" or source_formatted_siret) and len(digits) == 14:
             return digits[:9]
     return None
 
