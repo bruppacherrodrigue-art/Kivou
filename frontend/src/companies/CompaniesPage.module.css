@@ -1,4 +1,4 @@
-.page { padding: 28px 32px; color: var(--ink); }
+.page { flex: 1 1 auto; min-height: 0; padding: 28px 32px; overflow-y: auto; color: var(--ink); }
 .page > header { margin-bottom: 22px; }
 .filters { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .segments { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; }
