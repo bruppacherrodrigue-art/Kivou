@@ -9,6 +9,14 @@ import { MISSING, placeLabel, signalObject } from './SignalRow'
 import { monthLabel } from '../valueFormat'
 import styles from './signals.module.css'
 
+/** Le nombre de raisons, et de besoins, que le tiroir montre. Au-delà, on ne
+ *  lit plus. */
+const MAX_ITEMS = 3
+
+function sentenceCase(value: string | null): string | null {
+  return value ? `${value.charAt(0).toLocaleUpperCase()}${value.slice(1)}` : null
+}
+
 function Fact({
   label,
   className,
@@ -90,10 +98,17 @@ export function SignalDrawer({
     )
   }
 
-  const title = signalObject(item)
-  const objectLine = item.factual_display.object_short ?? item.contract.title ?? null
+  const title = sentenceCase(signalObject(item))
+  const objectLine = sentenceCase(
+    item.factual_display.object_short ?? item.contract.title ?? null,
+  )
   const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
-  const place = placeLabel(item.contract.location, locale)
+  const rawPlace = placeLabel(item.contract.location, locale)
+  const place = rawPlace === MISSING
+    ? rawPlace
+    : item.contract.location?.locality
+      ? `à ${rawPlace}`
+      : `en ${rawPlace}`
   const reasons = item.analysis.fit.for_you_sentence
     ? [item.analysis.fit.for_you_sentence]
     : []

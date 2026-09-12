@@ -93,6 +93,13 @@ class ProspectPreparationService:
         now = self._clock()
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValueError("preparation clock must be timezone-aware")
+        observed_on = now.astimezone(dt.UTC).date()
+        if not observed_on - dt.timedelta(days=30) <= signal.decision_date <= observed_on:
+            return PreparationResult(
+                prepared=0,
+                status="pending_review",
+                reason="SIGNAL_OUTSIDE_ATTRIBUTION_WINDOW",
+            )
         day_start = dt.datetime.combine(now.astimezone(dt.UTC).date(), dt.time(), tzinfo=dt.UTC)
         day_end = day_start + dt.timedelta(days=1)
         family_order = {key: index for index, (key, _label) in enumerate(signal.families)}

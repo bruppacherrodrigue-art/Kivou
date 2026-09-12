@@ -102,13 +102,39 @@ describe('SignalDrawer', () => {
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Voirie')
   })
 
+  it('met une majuscule au titre et formule un département avec « en »', () => {
+    renderDrawer({
+      signal: item({
+        factual_display: {
+          ...UNLOCKED_ITEM.factual_display,
+          object_short: "la charpente, l'isolation et la couverture",
+        },
+        contract: {
+          ...UNLOCKED_ITEM.contract,
+          location: {
+            country: 'FR',
+            subdivision_code: 'FR-38',
+            subdivision_label: 'Isère',
+            locality: null,
+            postal_code: '38000',
+          },
+        },
+      }),
+    })
+
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
+      "La charpente, l'isolation et la couverture",
+    )
+    expect(fact('Lieu')).toBe('en Isère')
+  })
+
   it('rend la grille des faits', () => {
     renderDrawer()
 
     expect(fact('Titulaire')).toBe('Constructions Bertrand SA')
     expect(fact('Acheteur')).toBe('Commune de Villeneuve')
     expect(fact('Montant')).toBe('1 240 000 €')
-    expect(fact('Lieu')).toBe('Villeneuve')
+    expect(fact('Lieu')).toBe('à Villeneuve')
     expect(fact('Attribué le')).toContain('4 août 2026')
     expect(fact('CPV')).toBe('45233120')
   })
