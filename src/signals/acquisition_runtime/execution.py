@@ -92,20 +92,14 @@ from signals.campaigns.runtime_webhook import (
 )
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.companies.france import FrenchOfficialCompanyClient
-from signals.company_research.domain import (
-    AnnuaireWebsiteClient,
-    CompanyDomainResolver,
-    CompanyWebsiteRegistrationClient,
-    SerperDomainSearchClient,
+from signals.company_research.enrichment import (
+    AnnuaireRawDirectorClient,
+    CompanyEnrichmentService,
+    CompanyWebCollector,
 )
+from signals.company_research.providers import OpenRouterCompanyEnrichmentProvider
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.contact_discovery.deliverability import EmailMxVerifier
-from signals.contact_discovery.providers import published_contact_extractor_from_environment
-from signals.contact_discovery.web import (
-    AnnuaireDirectorClient,
-    CompanyWebsiteClient,
-    PublishedWebsiteContactProvider,
-)
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
@@ -659,8 +653,7 @@ def build_runtime_execution_composition(
                 api_key=connectivity_config.apollo_api_key.get_secret_value(),
                 client=client,
             )
-    company_domain_resolver = None
-    website_contact_provider = None
+    company_enrichment_service = None
     supplier_directory = SupplierDirectoryStore(engine, clock=clock)
     if runtime_config.deployment.providers.mode == "live" and apollo is None:
         if client is None:
@@ -668,24 +661,20 @@ def build_runtime_execution_composition(
         serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
         if not serper_key:
             raise RuntimeExecutionConfigurationError("SERPER_NOT_CONFIGURED")
-        try:
-            contact_extractor = published_contact_extractor_from_environment(client=client)
-        except ValueError:
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+        if not openrouter_key:
             raise RuntimeExecutionConfigurationError("CONTACT_MODEL_NOT_CONFIGURED")
-        company_domain_resolver = CompanyDomainResolver(
-            official=AnnuaireWebsiteClient(client=client),
-            serper=SerperDomainSearchClient(api_key=serper_key, client=client),
-            registration=CompanyWebsiteRegistrationClient(),
-            clock=clock,
-        )
-        website_contact_provider = PublishedWebsiteContactProvider(
-            directors=AnnuaireDirectorClient(
-                client=client, directory=supplier_directory, clock=clock
-            ),
-            pages=CompanyWebsiteClient(),
-            extractor=contact_extractor,
-            deliverability=EmailMxVerifier(),
+        director_client = AnnuaireRawDirectorClient(client=client)
+        company_enrichment_service = CompanyEnrichmentService(
             directory=supplier_directory,
+            collector=CompanyWebCollector(serper_api_key=serper_key, client=client),
+            provider=OpenRouterCompanyEnrichmentProvider(
+                api_key=openrouter_key,
+                client=client,
+            ),
+            mx_verifier=EmailMxVerifier().verify,
+            director_source=director_client.find,
+            clock=clock,
         )
     suppression_keyring = webhook_configuration.suppression_keyring
     attribution_keyring = AttributionTokenKeyring(
@@ -768,8 +757,7 @@ def build_runtime_execution_composition(
         ),
         attribution_link_builder=link_builder,
         clock=clock,
-        company_domain_resolver=company_domain_resolver,
-        website_contact_provider=website_contact_provider,
+        company_enrichment_service=company_enrichment_service,
     )
     handlers = dict(domain.handlers)
     if runtime_config.deployment.mode is RuntimeExecutionMode.ASSISTED:

@@ -19,6 +19,7 @@ from signals.company_research.domain import (
     DomainResolution,
     DomainResolutionTemporaryFailure,
 )
+from signals.company_research.enrichment import CompanyEnrichmentService
 from signals.company_research.profile import build_company_research_profile
 from signals.company_research.provider import CompanyResearchProvider
 from signals.persistence.conflicts import insert_if_absent
@@ -148,12 +149,14 @@ class SireneApolloResolver:
         provider: CompanyResearchProvider,
         store: SireneApolloBindingStore | None = None,
         domain_resolver: CompanyDomainResolver | None = None,
+        enrichment: CompanyEnrichmentService | None = None,
         directory: SupplierDirectoryStore | None = None,
         clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
     ) -> None:
         self._provider = provider
         self._store = store or SireneApolloBindingStore(engine)
         self._domain_resolver = domain_resolver
+        self._enrichment = enrichment
         self._directory = directory
         self._clock = clock
 
@@ -167,6 +170,8 @@ class SireneApolloResolver:
             and (self._domain_resolver is None or existing.domain is not None)
         ):
             return existing
+        if self._directory is not None and self._enrichment is not None:
+            self._enrichment.enrich(identity.provider_organization_id)
         cached_domain = (
             self._directory.fresh_domain(identity.provider_organization_id, at=now)
             if self._directory is not None

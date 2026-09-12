@@ -846,6 +846,9 @@ supplier_directory = sa.Table(
     sa.Column("naf_label_observed_at", sa.DateTime(timezone=True)),
     sa.Column("family_keys", sa.JSON, nullable=False),
     sa.Column("family_review_keys", sa.JSON, nullable=False, server_default="[]"),
+    sa.Column("family_source", sa.String(16)),
+    sa.Column("family_confidence", sa.Numeric(4, 3)),
+    sa.Column("family_confirmation_status", sa.String(16)),
     sa.Column("families_observed_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("department", sa.String(3)),
     sa.Column("department_observed_at", sa.DateTime(timezone=True)),
@@ -858,6 +861,7 @@ supplier_directory = sa.Table(
     sa.Column("website_title", sa.Text),
     sa.Column("website_title_observed_at", sa.DateTime(timezone=True)),
     sa.Column("domain_source", sa.String(32)),
+    sa.Column("domain_confidence", sa.Numeric(4, 3)),
     sa.Column("domain_validation_method", sa.String(32)),
     sa.Column("domain_validation_evidence_url", sa.Text),
     sa.Column("domain_observed_at", sa.DateTime(timezone=True)),
@@ -866,8 +870,12 @@ supplier_directory = sa.Table(
     sa.Column("apollo_observed_at", sa.DateTime(timezone=True)),
     sa.Column("directors", sa.JSON, nullable=False),
     sa.Column("directors_observed_at", sa.DateTime(timezone=True)),
+    sa.Column("director_display_name", sa.Text),
+    sa.Column("director_source", sa.String(16)),
+    sa.Column("director_observed_at", sa.DateTime(timezone=True)),
     sa.Column("professional_email", sa.String(320)),
     sa.Column("email_source", sa.String(16)),
+    sa.Column("email_confidence", sa.Numeric(4, 3)),
     sa.Column("email_verification_status", sa.String(32)),
     sa.Column("email_contact_name", sa.Text),
     sa.Column("email_contact_title", sa.Text),
@@ -875,6 +883,17 @@ supplier_directory = sa.Table(
     sa.Column("email_observed_at", sa.DateTime(timezone=True)),
     sa.Column("contact_form_url", sa.Text),
     sa.Column("contact_form_observed_at", sa.DateTime(timezone=True)),
+    sa.Column("phone", sa.String(32)),
+    sa.Column("phone_source", sa.String(16)),
+    sa.Column("phone_observed_at", sa.DateTime(timezone=True)),
+    sa.Column("enrichment_notes", sa.Text),
+    sa.Column("enrichment_model_id", sa.String(128)),
+    sa.Column("enrichment_cost_usd", sa.Numeric(12, 6)),
+    sa.Column("enrichment_input_tokens", sa.Integer),
+    sa.Column("enrichment_output_tokens", sa.Integer),
+    sa.Column("enrichment_evidence", sa.JSON),
+    sa.Column("enrichment_decision", sa.JSON),
+    sa.Column("enrichment_observed_at", sa.DateTime(timezone=True)),
     sa.Column("reverification_required_at", sa.DateTime(timezone=True)),
     sa.Column("reverification_reason", sa.String(128)),
     sa.Column("website_failure_count", sa.Integer, nullable=False, server_default="0"),
@@ -894,7 +913,7 @@ supplier_directory = sa.Table(
         name="ck_supplier_directory_website_failures",
     ),
     sa.CheckConstraint(
-        "email_source IS NULL OR email_source IN ('apollo', 'site', 'manual')",
+        "email_source IS NULL OR email_source IN ('apollo', 'site', 'manual', 'model')",
         name="ck_supplier_directory_email_source",
     ),
     sa.CheckConstraint(
@@ -903,8 +922,29 @@ supplier_directory = sa.Table(
     ),
     sa.CheckConstraint(
         "domain_validation_method IS NULL OR "
-        "domain_validation_method IN ('name_word', 'registration_number')",
+        "domain_validation_method IN ('name_word', 'registration_number', 'model')",
         name="ck_supplier_directory_domain_validation_method",
+    ),
+    sa.CheckConstraint(
+        "domain_confidence IS NULL OR domain_confidence BETWEEN 0 AND 1",
+        name="ck_supplier_directory_domain_confidence",
+    ),
+    sa.CheckConstraint(
+        "email_confidence IS NULL OR email_confidence BETWEEN 0 AND 1",
+        name="ck_supplier_directory_email_confidence",
+    ),
+    sa.CheckConstraint(
+        "family_confidence IS NULL OR family_confidence BETWEEN 0 AND 1",
+        name="ck_supplier_directory_family_confidence",
+    ),
+    sa.CheckConstraint(
+        "family_confirmation_status IS NULL OR "
+        "family_confirmation_status IN ('confirmed', 'unconfirmed')",
+        name="ck_supplier_directory_family_confirmation",
+    ),
+    sa.CheckConstraint(
+        "enrichment_cost_usd IS NULL OR enrichment_cost_usd >= 0",
+        name="ck_supplier_directory_enrichment_cost",
     ),
 )
 
@@ -997,7 +1037,7 @@ prospect_target = sa.Table(
         name="ck_prospect_target_rejection_reason",
     ),
     sa.CheckConstraint(
-        "email_source IN ('apollo', 'site', 'manual')",
+        "email_source IN ('apollo', 'site', 'manual', 'model')",
         name="ck_prospect_target_email_source",
     ),
     sa.CheckConstraint(

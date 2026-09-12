@@ -49,6 +49,7 @@ class EmailSource(StrEnum):
     APOLLO = "apollo"
     SITE = "site"
     MANUAL = "manual"
+    MODEL = "model"
 
 
 class DeliveryStatus(StrEnum):

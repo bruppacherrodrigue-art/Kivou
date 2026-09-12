@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -12,7 +13,6 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 from sqlalchemy.engine import Engine
 
 from signals.persistence.schema import supplier_directory
-from signals.supplier_discovery.families import matching_supplier_family_keys
 
 FRESHNESS = dt.timedelta(days=90)
 
@@ -29,6 +29,9 @@ class SupplierDirectoryRecord(BaseModel):
     naf_label_observed_at: dt.datetime | None = None
     family_keys: tuple[str, ...] = Field(default=())
     family_review_keys: tuple[str, ...] = Field(default=())
+    family_source: Literal["model", "naf"] | None = None
+    family_confidence: Decimal | None = None
+    family_confirmation_status: Literal["confirmed", "unconfirmed"] | None = None
     families_observed_at: dt.datetime
     department: str | None = None
     department_observed_at: dt.datetime | None = None
@@ -41,7 +44,8 @@ class SupplierDirectoryRecord(BaseModel):
     website_title: str | None = None
     website_title_observed_at: dt.datetime | None = None
     domain_source: str | None = None
-    domain_validation_method: Literal["name_word", "registration_number"] | None = None
+    domain_confidence: Decimal | None = None
+    domain_validation_method: Literal["name_word", "registration_number", "model"] | None = None
     domain_validation_evidence_url: str | None = None
     domain_observed_at: dt.datetime | None = None
     apollo_organization_id: str | None = None
@@ -49,8 +53,12 @@ class SupplierDirectoryRecord(BaseModel):
     apollo_observed_at: dt.datetime | None = None
     directors: tuple[dict[str, object], ...] = Field(default=())
     directors_observed_at: dt.datetime | None = None
+    director_display_name: str | None = None
+    director_source: Literal["model"] | None = None
+    director_observed_at: dt.datetime | None = None
     professional_email: str | None = None
-    email_source: Literal["apollo", "site", "manual"] | None = None
+    email_source: Literal["apollo", "site", "manual", "model"] | None = None
+    email_confidence: Decimal | None = None
     email_verification_status: str | None = None
     email_contact_name: str | None = None
     email_contact_title: str | None = None
@@ -58,6 +66,17 @@ class SupplierDirectoryRecord(BaseModel):
     email_observed_at: dt.datetime | None = None
     contact_form_url: str | None = None
     contact_form_observed_at: dt.datetime | None = None
+    phone: str | None = None
+    phone_source: Literal["model"] | None = None
+    phone_observed_at: dt.datetime | None = None
+    enrichment_notes: str | None = None
+    enrichment_model_id: str | None = None
+    enrichment_cost_usd: Decimal | None = None
+    enrichment_input_tokens: int | None = None
+    enrichment_output_tokens: int | None = None
+    enrichment_evidence: dict[str, object] | None = None
+    enrichment_decision: dict[str, object] | None = None
+    enrichment_observed_at: dt.datetime | None = None
     reverification_required_at: dt.datetime | None = None
     reverification_reason: str | None = None
     website_failure_count: int = 0
@@ -91,8 +110,11 @@ class SupplierDirectoryRecord(BaseModel):
         "website_title_observed_at",
         "apollo_observed_at",
         "directors_observed_at",
+        "director_observed_at",
         "email_observed_at",
         "contact_form_observed_at",
+        "phone_observed_at",
+        "enrichment_observed_at",
         "reverification_required_at",
         "website_next_retry_at",
         "website_unreachable_at",
@@ -133,6 +155,7 @@ def _reverification_values(*, reason: str, observed_at: dt.datetime) -> dict[str
         "website_title": None,
         "website_title_observed_at": None,
         "domain_source": None,
+        "domain_confidence": None,
         "domain_validation_method": None,
         "domain_validation_evidence_url": None,
         "domain_observed_at": None,
@@ -141,6 +164,7 @@ def _reverification_values(*, reason: str, observed_at: dt.datetime) -> dict[str
         "apollo_observed_at": None,
         "professional_email": None,
         "email_source": None,
+        "email_confidence": None,
         "email_verification_status": None,
         "email_contact_name": None,
         "email_contact_title": None,
@@ -192,13 +216,16 @@ class SupplierDirectoryStore:
                 .mappings()
                 .one_or_none()
             )
-            families = matching_supplier_family_keys(
-                naf_code=naf_code,
-                activity_texts=(
-                    legal_name,
-                    naf_label or "",
-                    str(current["website_title"] or "") if current is not None else "",
-                ),
+            existing_family_is_fresh = bool(
+                current is not None
+                and current["family_source"] in {"model", "naf"}
+                and current["family_keys"]
+                and _fresh(current["families_observed_at"], observed_at)
+            )
+            families = (
+                tuple(current["family_keys"] or ())
+                if existing_family_is_fresh
+                else ((family_key,) if family_key else ())
             )
             values = {
                 "legal_name": legal_name,
@@ -208,6 +235,19 @@ class SupplierDirectoryStore:
                 "naf_label": naf_label,
                 "naf_label_observed_at": observed_at if naf_label else None,
                 "family_keys": list(families),
+                "family_source": (
+                    current["family_source"]
+                    if existing_family_is_fresh
+                    else ("naf" if family_key else None)
+                ),
+                "family_confidence": (
+                    current["family_confidence"] if existing_family_is_fresh else None
+                ),
+                "family_confirmation_status": (
+                    current["family_confirmation_status"]
+                    if existing_family_is_fresh
+                    else ("unconfirmed" if family_key else None)
+                ),
                 "families_observed_at": observed_at,
                 "department": department,
                 "department_observed_at": observed_at if department else None,
@@ -248,7 +288,7 @@ class SupplierDirectoryStore:
         domain: str,
         website_url: str,
         source: str,
-        validation_method: Literal["name_word", "registration_number"],
+        validation_method: Literal["name_word", "registration_number", "model"],
         validation_evidence_url: str | None,
         observed_at: dt.datetime,
         website_title: str | None = None,
@@ -319,29 +359,6 @@ class SupplierDirectoryStore:
                     )
                 )
                 return False
-            identity = (
-                connection.execute(
-                    sa.select(
-                        supplier_directory.c.legal_name,
-                        supplier_directory.c.naf_code,
-                        supplier_directory.c.naf_label,
-                    ).where(supplier_directory.c.siren == siren)
-                )
-                .mappings()
-                .one_or_none()
-            )
-            if identity is not None:
-                trusted_values["family_keys"] = list(
-                    matching_supplier_family_keys(
-                        naf_code=identity["naf_code"],
-                        activity_texts=(
-                            str(identity["legal_name"]),
-                            str(identity["naf_label"] or ""),
-                            website_title or "",
-                        ),
-                    )
-                )
-                trusted_values["families_observed_at"] = observed_at
             result = connection.execute(
                 sa.update(supplier_directory)
                 .where(supplier_directory.c.siren == siren)
@@ -471,7 +488,7 @@ class SupplierDirectoryStore:
         siren: str,
         *,
         email: str,
-        source: Literal["apollo", "site", "manual"],
+        source: Literal["apollo", "site", "manual", "model"],
         verification_status: str,
         contact_name: str,
         contact_title: str,
@@ -486,6 +503,7 @@ class SupplierDirectoryStore:
         values = {
             "professional_email": email.casefold(),
             "email_source": source,
+            "email_confidence": None,
             "email_verification_status": verification_status,
             "email_contact_name": contact_name,
             "email_contact_title": contact_title,
@@ -505,6 +523,7 @@ class SupplierDirectoryStore:
             trusted_address = sa.or_(
                 sa.func.lower(supplier_directory.c.domain) == email_domain,
                 source == "manual",
+                source == "model",
                 matching_site_evidence,
             )
             result = connection.execute(
@@ -593,6 +612,7 @@ class SupplierDirectoryStore:
             and (
                 record.professional_email.rsplit("@", 1)[-1].casefold() == record.domain.casefold()
                 or record.email_source == "manual"
+                or record.email_source == "model"
                 or (
                     record.email_source == "site"
                     and record.email_evidence_url is not None
@@ -605,6 +625,102 @@ class SupplierDirectoryStore:
             and _fresh(record.email_observed_at, at)
             else None
         )
+
+    def record_model_enrichment(
+        self,
+        siren: str,
+        *,
+        website: str | None,
+        website_confidence: Decimal | None,
+        website_evidence_url: str | None,
+        email: str | None,
+        email_confidence: Decimal | None,
+        email_evidence_url: str | None,
+        family: str | None,
+        family_confidence: Decimal | None,
+        family_confirmed: bool,
+        director_display_name: str | None,
+        director_title: str,
+        phone: str | None,
+        directors: tuple[Mapping[str, object], ...],
+        notes: str,
+        model: str,
+        cost_usd: Decimal,
+        input_tokens: int,
+        output_tokens: int,
+        evidence: dict[str, object],
+        decision: dict[str, object],
+        reverification_reason: str | None,
+        observed_at: dt.datetime,
+    ) -> bool:
+        """Replace every model-judged field in one atomic directory write."""
+
+        _require_aware(observed_at)
+        bounded_directors: list[dict[str, str]] = []
+        for item in directors[:20]:
+            if not item.get("name"):
+                continue
+            value = {
+                "name": str(item["name"])[:256],
+                "title": str(item.get("title") or "Dirigeant")[:256],
+                "entity_type": str(item.get("entity_type") or "personne physique")[:32],
+            }
+            if item.get("first_name"):
+                value["first_name"] = str(item["first_name"])[:128]
+            bounded_directors.append(value)
+        values: dict[str, object] = {
+            "domain": website,
+            "website_url": f"https://{website}" if website else None,
+            "website_title": None,
+            "website_title_observed_at": None,
+            "domain_source": "model" if website else None,
+            "domain_confidence": website_confidence,
+            "domain_validation_method": "model" if website else None,
+            "domain_validation_evidence_url": website_evidence_url,
+            "domain_observed_at": observed_at,
+            "apollo_organization_id": None,
+            "apollo_status": None,
+            "apollo_observed_at": None,
+            "family_keys": [family] if family else [],
+            "family_source": "model" if family_confirmed else ("naf" if family else None),
+            "family_confidence": family_confidence,
+            "family_confirmation_status": (
+                "confirmed" if family_confirmed else ("unconfirmed" if family else None)
+            ),
+            "families_observed_at": observed_at,
+            "directors": bounded_directors,
+            "directors_observed_at": observed_at if bounded_directors else None,
+            "director_display_name": director_display_name,
+            "director_source": "model" if director_display_name else None,
+            "director_observed_at": observed_at if director_display_name else None,
+            "professional_email": email,
+            "email_source": "model" if email else None,
+            "email_confidence": email_confidence,
+            "email_verification_status": "mx_verified" if email else None,
+            "email_contact_name": (
+                director_display_name or supplier_directory.c.legal_name if email else None
+            ),
+            "email_contact_title": director_title if email else None,
+            "email_evidence_url": email_evidence_url,
+            "email_observed_at": observed_at if email else None,
+            "phone": phone,
+            "phone_source": "model" if phone else None,
+            "phone_observed_at": observed_at if phone else None,
+            "enrichment_notes": notes[:2000],
+            "enrichment_model_id": model,
+            "enrichment_cost_usd": cost_usd,
+            "enrichment_input_tokens": input_tokens,
+            "enrichment_output_tokens": output_tokens,
+            "enrichment_evidence": evidence,
+            "enrichment_decision": decision,
+            "enrichment_observed_at": observed_at,
+            "reverification_required_at": observed_at if reverification_reason else None,
+            "reverification_reason": reverification_reason,
+            "website_failure_count": 0,
+            "website_next_retry_at": None,
+            "website_unreachable_at": None,
+        }
+        return self._update(siren, values, observed_at, skip_if_suppressed=True)
 
     def fresh_directors(self, siren: str, *, at: dt.datetime) -> SupplierDirectoryRecord | None:
         record = self.get(siren)

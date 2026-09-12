@@ -6,7 +6,7 @@ from signals.supplier_discovery.families import (
     families_for_signal,
     load_supplier_family_catalog,
     naf_label_for_code,
-    supplier_matches_family,
+    supplier_family_keys,
 )
 
 
@@ -87,43 +87,9 @@ def test_roofing_lot_families_come_from_cpv_and_object_not_vertical_fallback() -
     assert "reinforcement_steel" not in keys
 
 
-def test_reinforcement_family_requires_naf_and_explicit_activity_words() -> None:
-    family = next(
-        family
-        for family in load_supplier_family_catalog()["general_building"]
-        if family.key == "reinforcement_steel"
-    )
-
-    for false_match in ("DENIOS", "GIFETAL ALUMINIUM", "BODARD", "NORMACADRE"):
-        assert not supplier_matches_family(
-            family,
-            naf_code="25.11Z",
-            activity_texts=(false_match, "Fabrication de structures métalliques"),
-        )
-    assert supplier_matches_family(
-        family,
-        naf_code="25.11Z",
-        activity_texts=("ACIER ARMATURES", "Treillis soudés et acier pour béton"),
-    )
-
-
-def test_official_naf_label_supplies_activity_evidence_when_api_omits_it() -> None:
-    catalog = {
-        family.key: family
-        for families in load_supplier_family_catalog().values()
-        for family in families
-    }
-
-    assert supplier_matches_family(
-        catalog["roofing"],
-        naf_code="43.91B",
-        activity_texts=("ECOTOIT", naf_label_for_code("43.91B") or ""),
-    )
-    assert not supplier_matches_family(
-        catalog["reinforcement_steel"],
-        naf_code="25.11Z",
-        activity_texts=("DENIOS", naf_label_for_code("25.11Z") or ""),
-    )
+def test_model_family_output_uses_a_closed_catalog() -> None:
+    assert "reinforcement_steel" in supplier_family_keys()
+    assert "gros_oeuvre_invente" not in supplier_family_keys()
 
 
 def test_aura_search_uses_signal_department_and_adjacent_departments() -> None:

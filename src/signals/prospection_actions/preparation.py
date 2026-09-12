@@ -23,7 +23,6 @@ from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
     department_and_neighbours,
     load_supplier_family_catalog,
-    supplier_matches_family,
 )
 
 DAILY_PENDING_CAP = 25
@@ -61,13 +60,9 @@ class PreparationResult:
 
 
 def _director(row: dict[str, object]) -> tuple[str | None, str | None]:
-    directors = row.get("directors") or ()
-    for director in directors:
-        if not isinstance(director, dict) or not director.get("name"):
-            continue
-        if str(director.get("entity_type") or "personne physique") != "personne physique":
-            continue
-        return str(director["name"]), str(director.get("title") or "Dirigeant")
+    selected = str(row.get("director_display_name") or "").strip()
+    if selected:
+        return selected, str(row.get("email_contact_title") or "Dirigeant")
     return None, None
 
 
@@ -159,6 +154,7 @@ class ProspectPreparationService:
                         supplier_directory.c.professional_email.is_not(None),
                         supplier_directory.c.email_verification_status == "mx_verified",
                         supplier_directory.c.domain_validation_method.is_not(None),
+                        supplier_directory.c.family_confirmation_status == "confirmed",
                         supplier_directory.c.reverification_required_at.is_(None),
                         supplier_directory.c.suppressed_at.is_(None),
                     )
@@ -189,15 +185,6 @@ class ProspectPreparationService:
                         key
                         for key in set(row.get("family_keys") or ()).intersection(family_order)
                         if key in catalog_by_key
-                        and supplier_matches_family(
-                            catalog_by_key[key],
-                            naf_code=str(row.get("naf_code") or ""),
-                            activity_texts=(
-                                str(row.get("legal_name") or ""),
-                                str(row.get("naf_label") or ""),
-                                str(row.get("website_title") or ""),
-                            ),
-                        )
                     ),
                     key=family_order.__getitem__,
                 )

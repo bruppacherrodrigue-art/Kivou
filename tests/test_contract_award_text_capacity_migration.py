@@ -54,7 +54,7 @@ SUPPLIER_DOMAIN_REVISION = "0050_supplier_domain_validation"
 ASSISTED_PROSPECTION_REVISION = "0051_assisted_prospection"
 ASSISTED_OBSERVATION_REVISION = "0052_assisted_observation"
 SUPPLIER_ACTIVITY_REVISION = "0053_supplier_activity"
-CURRENT_HEAD = "0054_prospect_mail_contract"
+CURRENT_HEAD = "0055_company_enrichment"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 

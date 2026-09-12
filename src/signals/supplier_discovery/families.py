@@ -116,41 +116,30 @@ def _normalized_words(value: str) -> str:
     return " ".join(re.findall(r"[a-z0-9]+", folded))
 
 
-def supplier_matches_family(
-    family: SupplierFamily,
-    *,
-    naf_code: str | None,
-    activity_texts: tuple[str, ...],
-) -> bool:
-    """Require both the family NAF and explicit activity wording."""
+def supplier_family_keys(path: Path | None = None) -> frozenset[str]:
+    """Return the closed set accepted by the company-enrichment model."""
 
-    normalized_naf = str(naf_code or "").strip().upper()
-    if normalized_naf not in {code.upper() for code in family.naf_codes}:
-        return False
-    evidence = f" {_normalized_words(' '.join(activity_texts))} "
-    return any(
-        f" {_normalized_words(term)} " in evidence
-        for term in family.activity_terms
-        if _normalized_words(term)
-    )
-
-
-def matching_supplier_family_keys(
-    *, naf_code: str | None, activity_texts: tuple[str, ...]
-) -> tuple[str, ...]:
-    catalog = load_supplier_family_catalog()
-    return tuple(
+    return frozenset(
         family.key
-        for family in sorted(
-            (family for families in catalog.values() for family in families),
-            key=lambda item: (item.priority, item.key),
-        )
-        if supplier_matches_family(
-            family,
-            naf_code=naf_code,
-            activity_texts=activity_texts,
-        )
+        for families in load_supplier_family_catalog(path).values()
+        for family in families
     )
+
+
+def default_supplier_family_for_naf(code: str | None, path: Path | None = None) -> str | None:
+    """Return one deterministic, explicitly unconfirmed NAF fallback."""
+
+    normalized = str(code or "").strip().upper()
+    matches = sorted(
+        (
+            family
+            for families in load_supplier_family_catalog(path).values()
+            for family in families
+            if normalized in {item.upper() for item in family.naf_codes}
+        ),
+        key=lambda family: (family.priority, family.key),
+    )
+    return matches[0].key if matches else None
 
 
 def families_for_signal(
@@ -235,11 +224,11 @@ def department_and_neighbours(department: str) -> tuple[str, ...]:
 
 __all__ = [
     "SupplierFamily",
+    "default_supplier_family_for_naf",
     "department_and_neighbours",
     "department_from_subdivision",
     "families_for_signal",
     "load_supplier_family_catalog",
-    "matching_supplier_family_keys",
     "naf_label_for_code",
-    "supplier_matches_family",
+    "supplier_family_keys",
 ]

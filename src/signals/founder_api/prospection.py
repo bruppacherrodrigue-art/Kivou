@@ -122,7 +122,7 @@ class FounderQueueItem(FounderContract):
     director_name: str | None = None
     director_title: str | None = None
     email_address: str
-    email_source: Literal["apollo", "site", "manual"]
+    email_source: Literal["apollo", "site", "manual", "model"]
     email_verification_status: str
     bait_holder: str
     bait_subject: str

@@ -30,7 +30,7 @@ from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvid
 from signals.campaigns.service import CampaignService, MailboxReadinessSource
 from signals.campaigns.worker import CampaignWorker
 from signals.company_research.binding import SireneApolloResolver
-from signals.company_research.domain import CompanyDomainResolver
+from signals.company_research.enrichment import CompanyEnrichmentService
 from signals.company_research.service import CompanyResearchService
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.compliance.service import ComplianceService
@@ -46,7 +46,6 @@ from signals.contact_discovery.profile import (
     decision_maker_profile_semantics,
 )
 from signals.contact_discovery.service import ContactDiscoveryService
-from signals.contact_discovery.web import PublishedWebsiteContactProvider
 from signals.conversion.link import AttributionLinkBuilder
 from signals.decision_engine.service import DecisionEngineService
 from signals.personalization.service import PersonalizationService
@@ -138,8 +137,7 @@ def build_acquisition_domain_composition(
     mailbox_readiness: MailboxReadinessSource,
     attribution_link_builder: AttributionLinkBuilder,
     clock: Callable[[], dt.datetime],
-    company_domain_resolver: CompanyDomainResolver | None = None,
-    website_contact_provider: PublishedWebsiteContactProvider | None = None,
+    company_enrichment_service: CompanyEnrichmentService | None = None,
 ) -> AcquisitionDomainComposition:
     """Wire existing domains; construction performs no provider operation."""
 
@@ -159,7 +157,7 @@ def build_acquisition_domain_composition(
     organization_resolver = SireneApolloResolver(
         engine,
         provider=apollo.company_research,
-        domain_resolver=company_domain_resolver,
+        enrichment=company_enrichment_service,
         directory=supplier_directory,
         clock=clock,
     )
@@ -184,7 +182,7 @@ def build_acquisition_domain_composition(
         provider=apollo.contact_discovery,
         directory_store=supplier_directory,
         profile_builder=build_runtime_qa_contact_profile,
-        fallback_provider=website_contact_provider,
+        fallback_provider=None,
         profile_upgrade_requeue=(
             RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION,
             RUNTIME_QA_CONTACT_PROFILE_VERSION,

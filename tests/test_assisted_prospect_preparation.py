@@ -71,6 +71,9 @@ def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 
                 "naf_label": naf_label,
                 "naf_label_observed_at": NOW,
                 "family_keys": [family],
+                "family_source": "model",
+                "family_confidence": 0.95,
+                "family_confirmation_status": "confirmed",
                 "families_observed_at": NOW,
                 "department": "03" if index < eligible_department_count else "75",
                 "department_observed_at": NOW,
@@ -79,7 +82,9 @@ def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 
                 "employees": 100 - index if index != 0 else 9,
                 "employees_observed_at": NOW,
                 "domain": f"fournisseur-{index}.fr",
-                "domain_validation_method": "name_word",
+                "domain_source": "model",
+                "domain_confidence": 0.95,
+                "domain_validation_method": "model",
                 "domain_observed_at": NOW,
                 "directors": (
                     [
@@ -94,7 +99,8 @@ def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 
                 ),
                 "directors_observed_at": NOW,
                 "professional_email": f"contact{index}@fournisseur-{index}.fr",
-                "email_source": "site",
+                "email_source": "model",
+                "email_confidence": 0.95,
                 "email_verification_status": "mx_failed" if index == 2 else "mx_verified",
                 "email_observed_at": NOW,
                 "suppressed_at": NOW if index == 3 else None,
@@ -251,7 +257,7 @@ def test_assisted_preparation_skips_contacted_in_last_ninety_days(
         )
 
 
-def test_assisted_preparation_rechecks_naf_and_activity_before_queueing(
+def test_assisted_preparation_uses_the_single_model_family_decision(
     migrated_sqlite_engine,
 ) -> None:
     seed_directory(migrated_sqlite_engine, 5)
@@ -264,6 +270,10 @@ def test_assisted_preparation_rechecks_naf_and_activity_before_queueing(
                 naf_code="25.11Z",
                 naf_label="Fabrication de structures métalliques",
                 website_title="Solutions de stockage industriel",
+                family_keys=[],
+                family_source="naf",
+                family_confidence=None,
+                family_confirmation_status="unconfirmed",
             )
         )
 
