@@ -103,6 +103,8 @@ from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import routes_from_environment
 from signals.persistence.database import create_database_engine
 from signals.policy.contracts import AutonomyMode, PolicyControlSnapshot, Scope
 from signals.policy.store import PolicyStore
@@ -547,7 +549,22 @@ def _runtime_capability(
 
 def _default_hermes_runtime(
     connectivity: AcquisitionConnectivityConfig,
+    *,
+    engine: Engine | None = None,
+    batch_id: str | None = None,
+    clock: Callable[[], dt.datetime] | None = None,
 ) -> HermesSupervisorAdapter:
+    route = None
+    budget_store = None
+    if engine is not None:
+        if batch_id is None:
+            raise RuntimeExecutionConfigurationError("MODEL_BATCH_ID_NOT_CONFIGURED")
+        route = routes_from_environment(batch_id=batch_id).route("hermes")
+        budget_store = (
+            ModelBudgetStore(engine)
+            if clock is None
+            else ModelBudgetStore(engine, clock=clock)
+        )
     return HermesSupervisorAdapter(
         SupervisorSettings(
             hermes_python=connectivity.hermes_python,
@@ -558,7 +575,10 @@ def _default_hermes_runtime(
                 max_planned_actions=1,
                 max_output_tokens=2_048,
             ),
-        )
+        ),
+        model_route=route,
+        budget_store=budget_store,
+        batch_id=batch_id,
     )
 
 
@@ -588,6 +608,7 @@ def build_runtime_execution_composition(
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")
     observed_at = now.astimezone(dt.UTC)
+    model_batch_id = f"acquisition-{uuid.uuid4()}"
     selection = runtime_config.deployment.selection
     if selection is None:
         raise RuntimeExecutionConfigurationError("SELECTION_NOT_CONFIGURED")
@@ -665,7 +686,7 @@ def build_runtime_execution_composition(
         try:
             company_enrichment_providers = company_enrichment_providers_from_environment(
                 engine=engine,
-                batch_id=f"acquisition-{uuid.uuid4()}",
+                batch_id=model_batch_id,
                 client=client,
                 clock=clock,
             )
@@ -783,7 +804,12 @@ def build_runtime_execution_composition(
     registry = AcquisitionActionRegistry(handlers)
     if registry.identity != empty_registry.identity:
         raise RuntimeExecutionConfigurationError("REGISTRY_IDENTITY_MISMATCH")
-    supervisor_runtime = hermes_runtime or _default_hermes_runtime(connectivity_config)
+    supervisor_runtime = hermes_runtime or _default_hermes_runtime(
+        connectivity_config,
+        engine=engine,
+        batch_id=model_batch_id,
+        clock=clock,
+    )
     supervisor = AcquisitionHermesSupervisor(
         supervisor_runtime,
         registry=registry,

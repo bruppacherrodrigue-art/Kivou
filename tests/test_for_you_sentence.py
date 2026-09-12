@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 import pytest
 
 from signals.personalization.for_you import (
@@ -405,3 +407,36 @@ def test_environment_factory_prefers_the_configured_openrouter_key(monkeypatch) 
 
     assert isinstance(provider, OpenRouterTextGenerator)
     assert provider.model == "anthropic/claude-sonnet-4.6"
+
+
+def test_environment_factory_meters_for_you_calls_by_usage(
+    monkeypatch, migrated_sqlite_engine
+) -> None:
+    import httpx
+
+    from signals.documents.providers import text_generator_from_environment
+    from signals.model_runtime.budget import ModelBudgetStore
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-local-not-a-real-key")
+    monkeypatch.setenv("KIVOU_MODEL_FOR_YOU", "anthropic/claude-sonnet-4.6")
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": "Phrase ciblée."}}],
+                "usage": {"prompt_tokens": 80, "completion_tokens": 14, "cost": 0.001},
+            },
+        )
+
+    provider = text_generator_from_environment(
+        engine=migrated_sqlite_engine,
+        batch_id="for-you-test",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert provider.generate_sentence(context()) == "Phrase ciblée."
+    call = ModelBudgetStore(migrated_sqlite_engine).calls()[0]
+    assert call.usage == "for_you"
+    assert call.batch_id == "for-you-test"
+    assert call.actual_usd == Decimal("0.00100000")

@@ -9,6 +9,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import uuid
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -103,10 +104,13 @@ def main(arguments: Sequence[str] | None = None) -> int:
         raise SystemExit(f"{DATABASE_URL_ENV} is required")
     concurrency = _positive(os.environ.get(CONCURRENCY_ENV, str(DEFAULT_CONCURRENCY)))
     daily_limit = _positive(os.environ.get(DAILY_LIMIT_ENV, str(DEFAULT_DAILY_LIMIT)))
-    provider = text_generator_from_environment()
+    engine = create_database_engine(database_url)
+    provider = text_generator_from_environment(
+        engine=engine, batch_id=f"for-you-backfill-{uuid.uuid4()}"
+    )
     try:
         report = backfill(
-            create_database_engine(database_url),
+            engine,
             provider,
             limit=parsed.limit,
             since=parsed.since,
@@ -116,6 +120,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
     finally:
         provider.close()
+        engine.dispose()
     print(json.dumps(report.as_dict(), sort_keys=True))
     return 0
 

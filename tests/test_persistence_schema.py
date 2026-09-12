@@ -75,6 +75,12 @@ def test_model_budget_tables_match_the_persistent_ledger_contract():
     }
 
 
+def test_supplier_directory_snapshot_links_to_its_latest_model_call():
+    from signals.persistence.schema import supplier_directory
+
+    assert "enrichment_call_id" in columns(supplier_directory)
+
+
 # ─── §3 — portabilité PostgreSQL, testée sans serveur ──────────────────────────
 
 

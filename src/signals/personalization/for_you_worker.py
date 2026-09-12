@@ -263,16 +263,20 @@ def main() -> int:
     if not database_url:
         raise SystemExit(f"{DATABASE_URL_ENV} is required")
     concurrency, daily_limit = limits_from_environment()
-    provider = text_generator_from_environment()
+    engine = create_database_engine(database_url)
+    provider = text_generator_from_environment(
+        engine=engine, batch_id=f"for-you-{uuid.uuid4()}"
+    )
     try:
         report = ForYouWorker(
-            create_database_engine(database_url),
+            engine,
             provider,
             concurrency=concurrency,
             daily_limit=daily_limit,
         ).run(now=dt.datetime.now(dt.UTC))
     finally:
         provider.close()
+        engine.dispose()
     print(json.dumps(report.as_dict(), sort_keys=True))
     return 0
 

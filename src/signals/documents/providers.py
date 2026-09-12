@@ -204,11 +204,34 @@ class AnthropicTextGenerator(AnthropicClassifier):
         return text
 
 
-def text_generator_from_environment() -> ForYouProvider:
+def text_generator_from_environment(
+    *, engine=None, batch_id: str | None = None, client=None
+) -> ForYouProvider:
     """Construit l'adaptateur configuré sans exposer sa marque aux appelants."""
     if os.environ.get("OPENROUTER_API_KEY", "").strip():
         from signals.documents.openrouter import OpenRouterTextGenerator
 
-        model = os.environ.get("KIVOU_FOR_YOU_MODEL", "anthropic/claude-sonnet-4.6")
+        if engine is not None:
+            from signals.model_runtime.budget import ModelBudgetStore
+            from signals.model_runtime.config import routes_from_environment
+            from signals.model_runtime.openrouter import OpenRouterGateway
+
+            if not batch_id:
+                raise ValueError("batch_id is required for budgeted for_you calls")
+            route = routes_from_environment(batch_id=batch_id).route("for_you")
+            return OpenRouterTextGenerator(
+                model=route.model,
+                gateway=OpenRouterGateway(
+                    api_key=os.environ["OPENROUTER_API_KEY"],
+                    budgets=ModelBudgetStore(engine),
+                    client=client,
+                ),
+                route=route,
+                batch_id=batch_id,
+            )
+        model = os.environ.get(
+            "KIVOU_MODEL_FOR_YOU",
+            os.environ.get("KIVOU_FOR_YOU_MODEL", "anthropic/claude-sonnet-4.6"),
+        )
         return OpenRouterTextGenerator(model=model)
     return AnthropicTextGenerator()

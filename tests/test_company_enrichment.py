@@ -302,6 +302,7 @@ def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost
     assert result.cost_usd == Decimal("0.0042")
     assert result.input_tokens == 321
     assert result.output_tokens == 87
+    assert result.call_id == store.calls()[0].call_id
     assert store.calls()[0].usage == "enrichment_judge"
 
 
@@ -338,6 +339,7 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
         def enrich(self, identity, evidence):
             self.calls += 1
             return CompanyEnrichmentProviderResult(
+                call_id="00000000-0000-0000-0000-000000000001",
                 decision=_decision(),
                 model="anthropic/claude-sonnet-4.6",
                 cost_usd=Decimal("0.0042"),
@@ -377,6 +379,7 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
     assert record.director_display_name == "Mosbah Benzaoui"
     assert record.phone == "06 68 07 39 63"
     assert record.enrichment_notes == _decision().notes
+    assert record.enrichment_call_id == "00000000-0000-0000-0000-000000000001"
     assert record.enrichment_cost_usd == Decimal("0.004200")
     assert record.enrichment_observed_at == NOW
 

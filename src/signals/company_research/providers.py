@@ -121,6 +121,7 @@ class OpenRouterCompanyEnrichmentProvider:
             )
             decision = _strict_decision(response.content)
             return CompanyEnrichmentProviderResult(
+                call_id=response.call_id,
                 decision=decision,
                 model=response.model,
                 cost_usd=response.actual_usd,

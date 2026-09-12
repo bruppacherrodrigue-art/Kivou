@@ -81,12 +81,15 @@ def upgrade() -> None:
         "ix_model_call_siren_called_at", "model_call_journal", ["siren", "called_at"]
     )
     op.create_index("ix_model_call_batch_id", "model_call_journal", ["batch_id"])
+    op.add_column(
+        "supplier_directory", sa.Column("enrichment_call_id", sa.String(36))
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("supplier_directory", "enrichment_call_id")
     op.drop_index("ix_model_call_batch_id", table_name="model_call_journal")
     op.drop_index("ix_model_call_siren_called_at", table_name="model_call_journal")
     op.drop_index("ix_model_call_usage_called_at", table_name="model_call_journal")
     op.drop_table("model_call_journal")
     op.drop_table("model_daily_budget")
-

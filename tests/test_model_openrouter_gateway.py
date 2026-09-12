@@ -150,3 +150,23 @@ def test_reservation_uses_conservative_utf8_estimate(store: ModelBudgetStore) ->
 def test_api_key_is_required(store: ModelBudgetStore) -> None:
     with pytest.raises(ValueError, match="OpenRouter API key"):
         OpenRouterGateway(api_key=" ", budgets=store)
+
+
+def test_text_call_is_metered_without_a_response_schema(store: ModelBudgetStore) -> None:
+    client = RecordingClient(_response(content='{"sentence":"Bonjour"}'))
+    gateway = OpenRouterGateway(api_key="secret", budgets=store, client=client)
+
+    result = gateway.text_call(
+        route=ModelRoute(
+            usage="for_you",
+            model="anthropic/claude-sonnet-4.6",
+            daily_budget_usd=Decimal("1"),
+        ),
+        messages=[{"role": "user", "content": "Rédige une phrase"}],
+        max_tokens=100,
+        batch_id="for-you-1",
+    )
+
+    assert result.content == '{"sentence":"Bonjour"}'
+    assert "response_format" not in client.requests[0]["json"]  # type: ignore[operator]
+    assert store.calls()[0].usage == "for_you"

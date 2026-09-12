@@ -58,6 +58,10 @@ def test_model_budget_migration_creates_persistent_ledger(tmp_path) -> None:
         for index in inspector.get_indexes("model_call_journal")
     }
     assert {("usage", "called_at"), ("siren", "called_at"), ("batch_id",)} <= index_columns
+    supplier_columns = {
+        column["name"] for column in inspector.get_columns("supplier_directory")
+    }
+    assert "enrichment_call_id" in supplier_columns
 
 
 @pytest.mark.parametrize(
@@ -112,4 +116,3 @@ def test_model_call_siren_remains_plain_historical_evidence(tmp_path) -> None:
     foreign_keys = sa.inspect(engine).get_foreign_keys("model_call_journal")
 
     assert foreign_keys == []
-

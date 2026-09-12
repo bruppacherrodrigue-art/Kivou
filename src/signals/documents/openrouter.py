@@ -49,6 +49,9 @@ from signals.documents.consensus import (
 )
 from signals.documents.intelligence import RequirementCandidate
 from signals.documents.snapshot import CandidateSnapshot
+from signals.model_runtime.budget import DailyModelBudgetExhausted
+from signals.model_runtime.config import ModelRoute
+from signals.model_runtime.openrouter import OpenRouterGateway
 from signals.personalization.for_you import FOR_YOU_SYSTEM_PROMPT, ForYouInput, build_for_you_prompt
 
 COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -112,6 +115,9 @@ class OpenRouterClassifier:
     # le modèle avait répondu.
     last_failure: str | None = None
     _client: httpx.Client | None = None
+    gateway: OpenRouterGateway | None = None
+    route: ModelRoute | None = None
+    batch_id: str | None = None
 
     def __post_init__(self) -> None:
         self.version = self.model
@@ -153,6 +159,31 @@ class OpenRouterClassifier:
         return retried
 
     def _ask(self, prompt: str) -> tuple[SemanticClassification | None, str | None]:
+        if self.gateway is not None and self.route is not None:
+            try:
+                result = self.gateway.json_call(
+                    route=self.route,
+                    messages=[{"role": "user", "content": prompt}],
+                    schema=response_schema(),
+                    schema_name="semantic_classification",
+                    max_tokens=self.max_tokens,
+                    batch_id=self.batch_id,
+                )
+            except DailyModelBudgetExhausted:
+                raise
+            except RuntimeError:
+                self.usage.fail("provider_failure")
+                return None, "provider_failure"
+            self.usage.record(
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+            )
+            self.reported_cost_usd += float(result.actual_usd)
+            classification = parse_classification(result.content)
+            if classification is None:
+                self.usage.fail("schema_failure")
+                return None, "schema_failure"
+            return classification, None
         payload = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -227,9 +258,34 @@ class OpenRouterTextGenerator(OpenRouterClassifier):
     """Rédige la phrase personnalisée via le même transport OpenRouter."""
 
     max_tokens: int = 100
+    gateway: OpenRouterGateway | None = None
+    route: ModelRoute | None = None
+    batch_id: str | None = None
 
     def generate_sentence(self, value: ForYouInput) -> str | None:
         prompt = build_for_you_prompt(value)
+        if self.gateway is not None and self.route is not None:
+            try:
+                result = self.gateway.text_call(
+                    route=self.route,
+                    messages=[
+                        {"role": "system", "content": FOR_YOU_SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=self.max_tokens,
+                    batch_id=self.batch_id,
+                )
+            except DailyModelBudgetExhausted:
+                raise
+            except RuntimeError:
+                self.usage.fail("provider_failure")
+                return None
+            self.usage.record(
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+            )
+            self.reported_cost_usd += float(result.actual_usd)
+            return result.content.strip() or None
         try:
             response = self.client.post(
                 COMPLETIONS_URL,
@@ -268,6 +324,31 @@ class OpenRouterTextGenerator(OpenRouterClassifier):
             self.usage.fail("provider_failure")
             return None
         return ((choices[0].get("message") or {}).get("content") or "").strip() or None
+
+
+def openrouter_classifier_from_environment(
+    *, engine, batch_id: str, client: httpx.Client | None = None
+) -> OpenRouterClassifier:
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise CredentialMissing(
+            "OPENROUTER_API_KEY absente : aucune clé n'est fabriquée ni codée en dur"
+        )
+    from signals.model_runtime.budget import ModelBudgetStore
+    from signals.model_runtime.config import routes_from_environment
+
+    route = routes_from_environment(batch_id=batch_id).route("document_classifier")
+    return OpenRouterClassifier(
+        model=route.model,
+        api_key=key,
+        gateway=OpenRouterGateway(
+            api_key=key,
+            budgets=ModelBudgetStore(engine),
+            client=client,
+        ),
+        route=route,
+        batch_id=batch_id,
+    )
 
 
 # ─── Vérificateur ───────────────────────────────────────────────────────────────

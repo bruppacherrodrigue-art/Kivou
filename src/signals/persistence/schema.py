@@ -888,6 +888,7 @@ supplier_directory = sa.Table(
     sa.Column("phone_observed_at", sa.DateTime(timezone=True)),
     sa.Column("enrichment_notes", sa.Text),
     sa.Column("enrichment_model_id", sa.String(128)),
+    sa.Column("enrichment_call_id", sa.String(36)),
     sa.Column("enrichment_cost_usd", sa.Numeric(12, 6)),
     sa.Column("enrichment_input_tokens", sa.Integer),
     sa.Column("enrichment_output_tokens", sa.Integer),

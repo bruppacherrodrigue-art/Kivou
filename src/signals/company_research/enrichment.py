@@ -122,6 +122,7 @@ class CompanyEnrichmentDecision(EnrichmentContract):
 
 
 class CompanyEnrichmentProviderResult(EnrichmentContract):
+    call_id: str | None = Field(default=None, max_length=36)
     decision: CompanyEnrichmentDecision
     model: str = Field(min_length=1, max_length=128)
     cost_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
@@ -581,6 +582,7 @@ class CompanyEnrichmentService:
             phone=decision.phone,
             directors=raw_directors,
             notes=decision.notes,
+            call_id=provided.call_id,
             model=provided.model,
             cost_usd=provided.cost_usd,
             input_tokens=provided.input_tokens,
