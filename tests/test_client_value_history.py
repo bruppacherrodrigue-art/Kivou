@@ -12,6 +12,7 @@ from signals.client_value.history import (
     markets_for_company,
     summarize_awards,
 )
+from signals.companies.schema import saas_company
 from signals.companies.service import ensure_companies_for_signal_keys
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import source_event
@@ -110,6 +111,16 @@ def test_database_reader_prefers_company_key_then_supports_name_and_department(t
             signal_keys=(signal.signal_key,),
             now=dt.datetime(2026, 9, 11, 9, tzinfo=dt.UTC),
         )[signal.signal_key]
+        identifiers = connection.scalar(
+            sa.select(saas_company.c.official_identifiers).where(
+                saas_company.c.company_key == company_key
+            )
+        )
+        siren = next(
+            identifier["value"][:9]
+            for identifier in identifiers
+            if identifier["scheme"] == "SIRET"
+        )
 
         exact = history_for_company(
             connection,
@@ -146,6 +157,13 @@ def test_database_reader_prefers_company_key_then_supports_name_and_department(t
             department="31",
             as_of=AS_OF,
         )
+        identified_history, identified_markets = directory_history_and_markets(
+            connection,
+            siren=siren,
+            winner_name="nom du registre différent du libellé d'attribution",
+            department="38",
+            as_of=AS_OF,
+        )
 
     assert exact is not None and exact["resolution"] == "company_key"
     assert fallback is not None
@@ -154,3 +172,5 @@ def test_database_reader_prefers_company_key_then_supports_name_and_department(t
     assert markets and "source_url" not in markets[0]
     assert combined_history == fallback
     assert combined_markets == markets
+    assert identified_history == exact
+    assert identified_markets == markets

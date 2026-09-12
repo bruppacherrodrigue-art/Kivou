@@ -603,6 +603,38 @@ def test_authenticated_directory_profile_has_a_closed_not_found_shape(app, engin
     assert missing.json()["detail"]["code"] == "company_not_found"
 
 
+def test_directory_profile_prefers_siren_identity_when_register_name_differs(
+    app, engine
+) -> None:
+    client = _signup(app, email="directory-siren-route@example.com")
+    icp_id = _icp(client)
+    with engine.begin() as connection:
+        event, awards = boamp_award(BOAMP_AGING)
+        signal = materialize(connection, event, awards[0], target_icp_id=icp_id)
+        run_winner_enrichment_batch(
+            connection,
+            now=NOW,
+            worker_ref="directory-siren-route",
+            limit=10,
+        )
+    assert client.get(f"/signals/{signal.signal_key}").status_code == 200
+    with engine.begin() as connection:
+        _insert_directory_company(
+            connection,
+            siren="479673980",
+            name="NOM DU REGISTRE DIFFÉRENT DU LIBELLÉ D'ATTRIBUTION",
+            department="38",
+        )
+
+    response = client.get("/companies/directory/479673980")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["market_summary"]["resolution"] == "company_key"
+    assert "resolution_note" not in payload["market_summary"]
+    assert payload["markets"][0]["title"]
+
+
 def test_company_profiles_publish_the_closed_directory_contract(app) -> None:
     schemas = app.openapi()["components"]["schemas"]
     directory_response = app.openapi()["paths"]["/companies/directory/{siren}"]["get"][
