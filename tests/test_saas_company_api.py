@@ -423,6 +423,50 @@ def test_company_profile_adds_matching_directory_facts_without_contact_data(app,
     assert "professional_email" not in profile
 
 
+def test_joint_redesign_flag_exposes_the_shared_directory_city_and_contract(engine) -> None:
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            signals_companies_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="signals-companies-v2@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+            city="DRAGUIGNAN",
+        )
+
+    feed = client.get("/signals?freshness=all")
+    companies = client.get("/companies")
+    profile = client.get(f"/companies/{company_key}")
+
+    assert feed.status_code == 200
+    assert feed.json()["signals_companies_v2_enabled"] is True
+    assert companies.status_code == 200
+    assert companies.json()["signals_companies_v2_enabled"] is True
+    assert companies.json()["items"][0]["city"] == "DRAGUIGNAN"
+    assert profile.status_code == 200
+    assert profile.json()["company_profile_v2_enabled"] is True
+    assert profile.json()["directory"]["city"] == "DRAGUIGNAN"
+
+
 def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) -> None:
     configured = create_app(
         engine,

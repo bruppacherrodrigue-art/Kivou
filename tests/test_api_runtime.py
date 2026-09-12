@@ -129,6 +129,20 @@ def test_company_profile_v2_is_disabled_until_explicit_activation(
     assert ApiConfig.from_environment().company_profile_v2_enabled is True
 
 
+def test_signals_companies_v2_is_disabled_until_explicit_activation(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert ApiConfig().signals_companies_v2_enabled is False
+
+    monkeypatch.delenv("KIVOU_SIGNALS_COMPANIES_V2_ENABLED", raising=False)
+
+    assert ApiConfig.from_environment().signals_companies_v2_enabled is False
+
+    monkeypatch.setenv("KIVOU_SIGNALS_COMPANIES_V2_ENABLED", "true")
+
+    assert ApiConfig.from_environment().signals_companies_v2_enabled is True
+
+
 def test_commercial_calendar_cpv_delays_are_explicit_configuration(
     base_environment, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -169,18 +169,19 @@ async function assertNoForbiddenSignalsCopy(page: Page) {
     if (drawer) parts.push(drawer.textContent ?? '')
     return parts.join(' ')
   })
-  const normalized = combinedText.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const normalized = combinedText
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replaceAll('profil cible', '')
   for (const forbidden of [
+    'occasion',
+    'ciblage',
+    'cible',
+    'plausible',
+    'icp',
     'documente',
-    'non publie',
-    'resolution incomplete',
-    'faits publies',
-    'contact non confirme',
-    'signal',
-    'profil cible',
-    'attribution',
     'deblocage',
-    'analyse',
   ]) {
     expect(normalized).not.toContain(forbidden)
   }
@@ -224,11 +225,9 @@ async function waitForScenario(
   if (golden === 'dashboard-signals') {
     // Nouvelle page : un tableau dense + une ligne de filtres + un tiroir
     // droit sticky. Le golden desktop ouvre ce tiroir sur le signal de
-    // publication récente (`tm-ausbau-campus-ost`), sans raisons de
-    // correspondance (fixture) — le bloc « Pourquoi ça vous concerne » doit
-    // donc être absent. Aucun besoin de cette fixture n'a de timing ou de
-    // quantite determines : le bloc besoins est egalement absent. Le golden
-    // mobile garde la feuille fermee pour montrer les cartes, sans tableau.
+    // publication récente (`tm-ausbau-campus-ost`). La fiche de décision
+    // exerce le repli client, le calendrier et le circuit local. Le golden
+    // mobile garde la feuille fermée pour montrer les cartes, sans tableau.
     const mobile = (page.viewportSize()?.width ?? 0) < 900
 
     const toolbar = page.locator('[role="toolbar"]')
@@ -256,7 +255,7 @@ async function waitForScenario(
       await expect(table).toHaveCount(0)
     } else {
       expect(await table.locator('thead th').allTextContents()).toEqual(
-        ['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu', 'Match'],
+        ['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu'],
       )
     }
     const rows = mobile
@@ -292,11 +291,19 @@ async function waitForScenario(
       await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
         'Portes intérieures bois du Campus Ost',
       )
-      // Cette fixture ne publie pas d’acheteur : le drawer omet le champ au
-      // lieu d’afficher un libellé vide ou « — ».
-      await expect(drawer.getByText('Acheteur', { exact: true })).toHaveCount(0)
+      // Cette fixture ne publie pas d’acheteur : la ligne méta l’omet au lieu
+      // d’afficher un libellé vide ou « — ».
+      await expect(drawer.getByText(/acheteur\s*:/i)).toHaveCount(0)
       await expect(drawer.getByText('Ce que le titulaire va devoir faire', { exact: true })).toHaveCount(0)
-      await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toHaveCount(0)
+      await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toBeVisible()
+      await expect(drawer).toContainText('Ce marché correspond à votre profil cible dans cette zone et ce secteur.')
+      await expect(drawer.getByText('Calendrier', { exact: true })).toBeVisible()
+      await expect(drawer).toContainText('probable en octobre 2026')
+      await expect(drawer.getByText('Le circuit local', { exact: true })).toBeVisible()
+      await expect(drawer).toContainText('ALYA BATIMENT')
+      await expect(drawer).toContainText('Grenoble')
+      await expect(drawer).not.toContainText('GRENOBLE')
+      await expect(drawer).toContainText("Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois")
       await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()
     } else {
       // La feuille reste fermee : seules les cartes occupent l'ecran.
@@ -338,13 +345,16 @@ async function waitForScenario(
     if ((page.viewportSize()?.width ?? 0) < 900) {
       await expect(companyTable).toBeHidden()
     } else {
-      await expect(companyTable.locator('thead th')).toHaveCount(2)
+      await expect(companyTable.locator('thead th')).toHaveCount(4)
       const tableBox = await companyTable.boundingBox()
       const panelBox = await detailPanel.boundingBox()
       expect(tableBox).not.toBeNull()
       expect(panelBox).not.toBeNull()
       expect(panelBox!.x).toBeGreaterThanOrEqual(tableBox!.x + tableBox!.width)
-      expect(panelBox!.width).toBe(520)
+      // À 1440 px, la barre latérale laisse moins de 1280 px au contenu :
+      // la règle responsive partage donc la liste et le panneau à 50/50.
+      expect(panelBox!.width).toBeLessThanOrEqual(600)
+      expect(Math.abs(panelBox!.width - tableBox!.width)).toBeLessThanOrEqual(2)
     }
     expect(await page.evaluate(() => (
       document.documentElement.scrollWidth - document.documentElement.clientWidth

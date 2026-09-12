@@ -12,8 +12,8 @@ export function normalCasePlace(value: string | null | undefined): string | null
   if (!clean) return null
 
   let wordIndex = 0
-  return clean.split(/([\s'’\-]+)/u).map((part) => {
-    if (!part || /^[\s'’\-]+$/u.test(part)) return part
+  return clean.split(/([\s'’-]+)/u).map((part) => {
+    if (!part || /^[\s'’-]+$/u.test(part)) return part
     const lower = part.toLocaleLowerCase('fr-FR')
     const keepLower = wordIndex > 0 && LOWERCASE_WORDS.has(folded(lower))
     wordIndex += 1

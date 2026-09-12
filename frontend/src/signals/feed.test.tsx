@@ -120,6 +120,21 @@ function normalise(text: string): string {
 }
 
 describe('écran Signaux — tableau dense', () => {
+  it('active le tableau à cinq colonnes derrière le flag', async () => {
+    mockApi(feedWith([
+      item('sig_a', { locality: 'DRAGUIGNAN' }),
+      item('sig_b', { locality: null }),
+    ], { signals_companies_v2_enabled: true }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const grid = await table()
+    const headers = within(grid).getAllByRole('columnheader').map((cell) => cell.textContent)
+    expect(headers).toEqual(['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu'])
+    expect(within(grid).getByText('Draguignan')).toBeInTheDocument()
+    expect(within(grid).queryByText('Pour vous')).not.toBeInTheDocument()
+    expect(within(grid).queryByText('Match')).not.toBeInTheDocument()
+  })
+
   it('invite un compte au profil provisoire à le confirmer', async () => {
     mockApi(feedWith([item('sig_a')], { provisional_profile: true }))
     renderApp(<AppRoutes />, {

@@ -3,7 +3,14 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Place, UnlockedFeedItem } from '../../api/types'
 import { AUTHENTICATED, UNLOCKED_ITEM, renderApp } from '../../test/harness'
-import { SignalRow, placeLabel, signalObject, truncate } from './SignalRow'
+import {
+  SignalRow,
+  placeLabel,
+  shortSignalObject,
+  signalObject,
+  tablePlaceLabel,
+  truncate,
+} from './SignalRow'
 
 const noop = () => undefined
 
@@ -27,18 +34,20 @@ function renderRow({
   selected = false,
   compact = false,
   companyCompact = false,
+  redesigned = false,
   onOpen = noop,
 }: {
   signal?: UnlockedFeedItem
   selected?: boolean
   compact?: boolean
   companyCompact?: boolean
+  redesigned?: boolean
   onOpen?: (signalKey: string) => void
 } = {}) {
   return renderApp(
     <table>
       <tbody>
-        <SignalRow item={signal} selected={selected} compact={compact} companyCompact={companyCompact} onOpen={onOpen} />
+        <SignalRow item={signal} selected={selected} compact={compact} companyCompact={companyCompact} redesigned={redesigned} onOpen={onOpen} />
       </tbody>
     </table>,
     { session: AUTHENTICATED },
@@ -88,6 +97,24 @@ describe('truncate', () => {
   })
 })
 
+describe('présentation du tableau refondu', () => {
+  it('borne l’objet à 60 caractères, ellipse comprise, avec une majuscule initiale', () => {
+    const long = 'réfection complète de la voirie communale et des réseaux enterrés du centre-bourg'
+    const result = shortSignalObject(item({
+      factual_display: { ...UNLOCKED_ITEM.factual_display, object_short: long },
+    }))
+
+    expect(result).toHaveLength(60)
+    expect(result).toMatch(/^Réfection/)
+    expect(result).toMatch(/…$/)
+  })
+
+  it('met les villes en casse normale et masque Territoire métropolitain', () => {
+    expect(tablePlaceLabel(place({ locality: 'DRAGUIGNAN', subdivision_label: 'VAR' }))).toBe('Draguignan')
+    expect(tablePlaceLabel(place({ subdivision_label: 'TERRITOIRE MÉTROPOLITAIN' }))).toBe('')
+  })
+})
+
 describe('placeLabel', () => {
   it('préfère la localité', () => {
     expect(placeLabel(place({ locality: 'Nice', subdivision_label: 'Alpes-Maritimes' }), 'fr')).toBe(
@@ -120,6 +147,19 @@ describe('placeLabel', () => {
 })
 
 describe('SignalRow', () => {
+  it('rend les cinq colonnes vendables sans colonne Match', () => {
+    renderRow({ redesigned: true })
+
+    const cells = within(screen.getByRole('row')).getAllByRole('cell')
+    expect(cells).toHaveLength(5)
+    expect(flat(cells[0].textContent ?? '')).toBe('4 août')
+    expect(flat(cells[1].textContent ?? '')).toBe('Constructions Bertrand SA')
+    expect(flat(cells[2].textContent ?? '')).toBe('Voirie')
+    expect(flat(cells[3].textContent ?? '')).toBe('1,24 M€')
+    expect(flat(cells[4].textContent ?? '')).toBe('Villeneuve')
+    expect(screen.queryByLabelText(/Correspondance/)).not.toBeInTheDocument()
+  })
+
   it('rend les six colonnes du tableau', () => {
     renderRow()
 

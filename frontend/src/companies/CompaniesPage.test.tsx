@@ -41,7 +41,9 @@ function routes(profile: CompanyProfile = COMPANY_PROFILE) {
     official_identity: { ...profile.official_identity, name: item.name },
   }
   return {
-    'GET /companies': { body: page() },
+    'GET /companies': {
+      body: page({ signals_companies_v2_enabled: profile.company_profile_v2_enabled === true }),
+    },
     [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: selectedProfile },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_ITEM },
     [`POST /companies/${COMPANY_PROFILE.company_key}/contact`]: {
@@ -201,7 +203,8 @@ describe('CompaniesPage', () => {
     const contact = (await screen.findByRole('heading', { name: 'Contact' })).closest('section')
     expect(contact?.querySelector('[class*="companyContactBlur"]')).not.toBeNull()
     expect(contact).not.toHaveTextContent('Mosbah Benzaoui')
-    expect(contact).toHaveTextContent('Camille Martin')
+    expect(contact).not.toHaveTextContent('Camille Martin')
+    expect(contact?.querySelectorAll('[class*="companyContactSkeleton"] > span')).toHaveLength(3)
     expect(contact).not.toHaveTextContent('contact@alya-batiment.example')
     expect(contact).toHaveTextContent(
       "Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois",
