@@ -16,7 +16,6 @@ import httpx
 import sqlalchemy as sa
 
 from signals.company_research.benchmark import (
-    BENCHMARK_MODELS,
     BenchmarkObservation,
     benchmark_report,
     choose_model,
@@ -30,6 +29,8 @@ from signals.company_research.enrichment import (
     InvalidCompanyEnrichmentDecision,
 )
 from signals.company_research.providers import (
+    BENCHMARK_MODELS,
+    DIRECTOR_MASKED_BENCHMARK_MODEL,
     OpenRouterCompanyEnrichmentProvider,
     build_company_enrichment_messages,
 )
@@ -137,7 +138,7 @@ def execute_benchmark(*, batch_id: str) -> dict[str, object]:
             for index, case in enumerate(cases, 1):
                 identity = case.identity
                 names: dict[str, str] = {}
-                if model == "deepseek/deepseek-chat":
+                if model == DIRECTOR_MASKED_BENCHMARK_MODEL:
                     identity, names = mask_directors(identity)
                 evidence = evidence_by_siren[case.identity.siren]
                 estimated_tokens = estimate_input_tokens(
@@ -214,14 +215,16 @@ def execute_benchmark(*, batch_id: str) -> dict[str, object]:
         benchmark_report(tuple(item for item in observations if item.model == model))
         for model in BENCHMARK_MODELS
     ]
-    selected = choose_model(tuple(observations), threshold=Decimal("0.95"))
+    selected = choose_model(
+        tuple(observations), threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS
+    )
     return {
         "status": "completed",
         "batch_id": batch_id,
         "timezone": routes.timezone,
         "models": [_jsonable(asdict(report)) for report in reports],
         "selected_model": selected,
-        "fallback": "anthropic/claude-sonnet-4.6" if selected is None else None,
+        "fallback": routes.route("enrichment_arbiter").model if selected is None else None,
         "reservation_adjustment_required": any(
             report.requires_reservation_adjustment for report in reports
         ),

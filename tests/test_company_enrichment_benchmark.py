@@ -14,6 +14,7 @@ from signals.company_research.benchmark import (
 )
 from signals.company_research.benchmark_run import main
 from signals.company_research.enrichment import CompanyEnrichmentInput
+from signals.company_research.providers import BENCHMARK_MODELS
 
 
 def _observation(
@@ -82,7 +83,9 @@ def test_first_model_at_95_percent_wins_with_mistral_priority() -> None:
         *(_observation("deepseek/deepseek-chat", matches=4) for _ in range(30)),
     )
 
-    assert choose_model(observations, threshold=Decimal("0.95")) == (
+    assert choose_model(
+        observations, threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS
+    ) == (
         "mistralai/mistral-small"
     )
 

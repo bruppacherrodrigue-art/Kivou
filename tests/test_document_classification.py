@@ -682,6 +682,8 @@ class TestProviderBoundary:
         # Un adaptateur par fournisseur, et eux seuls ont le droit de le nommer.
         adaptateurs = {"providers.py", "openrouter.py"}
         deployment_adapters = {
+            root / "company_research" / "benchmark_run.py",
+            root / "model_runtime" / "config.py",
             root / "supervisor" / "hermes.py",
             root / "supervisor" / "hermes_bridge.py",
             root / "acquisition_connectivity" / "config.py",

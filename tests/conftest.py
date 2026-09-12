@@ -69,6 +69,7 @@ EXHAUSTIVE_MIGRATION_SUITES = frozenset(
         "test_for_you_sentence_migration.py",
         "test_ingestion_migration.py",
         "test_learning_migration.py",
+        "test_model_call_budget_migration.py",
         "test_persistence_migrations.py",
         "test_personalization_migration.py",
         "test_portal_capture_migration.py",

@@ -27,6 +27,12 @@ from signals.model_runtime.openrouter import OpenRouterGateway
 from signals.supplier_discovery.families import load_supplier_family_catalog
 
 DEFAULT_MODEL = "mistralai/mistral-small"
+BENCHMARK_MODELS = (
+    "mistralai/mistral-small",
+    "google/gemini-flash-lite",
+    "deepseek/deepseek-chat",
+)
+DIRECTOR_MASKED_BENCHMARK_MODEL = "deepseek/deepseek-chat"
 _INSTRUCTION = (
     "Voici une entreprise française et ce que le web dit d'elle. "
     "Dis-moi ce que tu peux confirmer. Ne devine pas : si tu n'es pas sûr, laisse vide."
@@ -173,7 +179,9 @@ def company_enrichment_providers_from_environment(
 
 
 __all__ = [
+    "BENCHMARK_MODELS",
     "DEFAULT_MODEL",
+    "DIRECTOR_MASKED_BENCHMARK_MODEL",
     "CompanyEnrichmentProviders",
     "OpenRouterCompanyEnrichmentProvider",
     "build_company_enrichment_messages",

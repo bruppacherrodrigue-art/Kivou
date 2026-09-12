@@ -14,11 +14,6 @@ from signals.company_research.domain import domain_from_url
 from signals.company_research.enrichment import CompanyEnrichmentInput
 from signals.personalization.prospect_mail import normalize_director_name
 
-BENCHMARK_MODELS = (
-    "mistralai/mistral-small",
-    "google/gemini-flash-lite",
-    "deepseek/deepseek-chat",
-)
 BENCHMARK_FIELDS = (
     "website",
     "email",
@@ -160,12 +155,15 @@ def benchmark_report(
 
 
 def choose_model(
-    observations: tuple[BenchmarkObservation, ...], *, threshold: Decimal
+    observations: tuple[BenchmarkObservation, ...],
+    *,
+    threshold: Decimal,
+    model_order: tuple[str, ...],
 ) -> str | None:
     grouped: dict[str, list[BenchmarkObservation]] = defaultdict(list)
     for observation in observations:
         grouped[observation.model].append(observation)
-    for model in BENCHMARK_MODELS:
+    for model in model_order:
         items = tuple(grouped.get(model, ()))
         if items and benchmark_report(items).agreement >= threshold:
             return model
@@ -191,7 +189,6 @@ def mask_directors(
 
 __all__ = [
     "BENCHMARK_FIELDS",
-    "BENCHMARK_MODELS",
     "BenchmarkCase",
     "BenchmarkExpected",
     "BenchmarkObservation",
