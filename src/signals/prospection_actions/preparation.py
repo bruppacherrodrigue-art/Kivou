@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.engine import Engine
 
 from signals.domain.french_departments import DEPARTMENTS
@@ -47,6 +48,14 @@ class AssistedSignal(BaseModel):
     source_url: str = Field(min_length=8, max_length=2048)
     vertical: str = Field(min_length=1, max_length=100)
     families: tuple[tuple[str, str], ...] = Field(min_length=1, max_length=5)
+
+    @field_validator("holder")
+    @classmethod
+    def holder_is_a_named_company(cls, value: str) -> str:
+        digits = re.sub(r"\D", "", value)
+        if len(digits) in {9, 14} and not re.sub(r"[\d\s.-]", "", value):
+            raise ValueError("holder must be a named company")
+        return value
 
 
 @dataclass(frozen=True)
