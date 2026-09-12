@@ -167,6 +167,73 @@ def test_adapter_satisfies_replaceable_protocol_and_returns_advisory_actions(tmp
     assert not hasattr(adapter, "execute")
 
 
+def test_hermes_plan_is_reserved_and_journalled_by_usage(
+    tmp_path, migrated_sqlite_engine
+):
+    from signals.model_runtime.budget import ModelBudgetStore
+    from signals.model_runtime.config import ModelRoute
+
+    response = bridge_response(valid_plan())
+    response["usage"] = {
+        "input_tokens": 850,
+        "output_tokens": 120,
+        "cost_usd": "0.0042",
+    }
+    route = ModelRoute(
+        usage="hermes",
+        model="anthropic/claude-sonnet-4.6",
+        daily_budget_usd=Decimal("1"),
+    )
+    adapter = HermesSupervisorAdapter(
+        settings(tmp_path),
+        transport=FakeTransport(response),
+        model_route=route,
+        budget_store=ModelBudgetStore(
+            migrated_sqlite_engine, clock=lambda: NOW
+        ),
+        batch_id="hermes-1",
+    )
+
+    adapter.plan(context())
+
+    call = ModelBudgetStore(migrated_sqlite_engine, clock=lambda: NOW).calls()[0]
+    assert call.usage == "hermes"
+    assert call.batch_id == "hermes-1"
+    assert call.actual_usd == Decimal("0.00420000")
+
+
+def test_invalid_hermes_metadata_releases_the_model_reservation(
+    tmp_path, migrated_sqlite_engine
+):
+    from signals.model_runtime.budget import ModelBudgetStore
+    from signals.model_runtime.config import ModelRoute
+
+    response = bridge_response(valid_plan(), provider="wrong")
+    response["usage"] = {
+        "input_tokens": 850,
+        "output_tokens": 120,
+        "cost_usd": "0.0042",
+    }
+    store = ModelBudgetStore(migrated_sqlite_engine, clock=lambda: NOW)
+    adapter = HermesSupervisorAdapter(
+        settings(tmp_path),
+        transport=FakeTransport(response),
+        model_route=ModelRoute(
+            usage="hermes",
+            model="anthropic/claude-sonnet-4.6",
+            daily_budget_usd=Decimal("1"),
+        ),
+        budget_store=store,
+        batch_id="hermes-invalid",
+    )
+
+    with pytest.raises(SupervisorVersionMismatch):
+        adapter.plan(context())
+
+    assert store.calls()[0].status == "failed"
+    assert store.summary("hermes").reserved_usd == Decimal("0E-8")
+
+
 def test_exactly_one_action_contract_is_sent_to_hermes(tmp_path):
     transport = FakeTransport(bridge_response(valid_plan()))
     adapter = HermesSupervisorAdapter(settings(tmp_path), transport=transport)

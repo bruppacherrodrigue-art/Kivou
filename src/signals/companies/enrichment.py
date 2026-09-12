@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from signals.companies.active_scope import active_account_signal_exists
 from signals.companies.contracts import (
     WinnerEnrichmentSource,
     WinnerEnrichmentView,
@@ -117,14 +118,22 @@ def _claim(
     retry_failed: bool,
     signal_keys: tuple[str, ...] | None = None,
 ) -> tuple[str, ...]:
-    eligible = winner_enrichment_job.c.status == "pending"
+    active_account_signal = active_account_signal_exists(
+        winner_enrichment_job.c.signal_key
+    )
+    eligible = sa.and_(
+        winner_enrichment_job.c.status == "pending", active_account_signal
+    )
     if retry_failed:
-        eligible = sa.or_(
-            eligible,
-            sa.and_(
-                winner_enrichment_job.c.status == "failed",
-                winner_enrichment_job.c.attempt_count < MAX_ENRICHMENT_ATTEMPTS,
+        eligible = sa.and_(
+            sa.or_(
+                winner_enrichment_job.c.status == "pending",
+                sa.and_(
+                    winner_enrichment_job.c.status == "failed",
+                    winner_enrichment_job.c.attempt_count < MAX_ENRICHMENT_ATTEMPTS,
+                ),
             ),
+            active_account_signal,
         )
     if signal_keys is not None:
         if not signal_keys:

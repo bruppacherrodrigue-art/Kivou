@@ -48,6 +48,12 @@ const PROSPECTION: FounderProspection = {
       enriched_week_count: 31,
       model: 'anthropic/claude-sonnet-4.6',
       cumulative_cost_usd: '0.954200',
+      latest_batch_id: 'benchmark-1',
+      latest_batch_call_count: 30,
+      latest_batch_input_tokens: 90000,
+      latest_batch_output_tokens: 2400,
+      latest_batch_cost_usd: '0.012000',
+      latest_batch_mean_input_tokens: '3000',
     },
     reverification_reason_counts: [
       { key: 'email_below_threshold', label: 'email_below_threshold', count: 12 },

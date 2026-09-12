@@ -24,6 +24,7 @@ from signals.documents.openrouter import (
     COMPLETIONS_URL,
     CredentialMissing,
     OpenRouterClassifier,
+    openrouter_classifier_from_environment,
     response_schema,
 )
 
@@ -248,6 +249,29 @@ class TestResponseHandling:
         )
         classifier.classify(_context())
         assert classifier.reported_cost_usd == 0.0
+
+
+def test_document_classifier_factory_journals_the_named_usage(
+    monkeypatch, migrated_sqlite_engine
+) -> None:
+    from signals.model_runtime.budget import ModelBudgetStore
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-local-not-a-real-key")
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda _request: httpx.Response(200, json=_reply(VALID))
+        )
+    )
+    classifier = openrouter_classifier_from_environment(
+        engine=migrated_sqlite_engine,
+        batch_id="documents-1",
+        client=client,
+    )
+
+    assert classifier.classify(_context()) is not None
+    call = ModelBudgetStore(migrated_sqlite_engine).calls()[0]
+    assert call.usage == "document_classifier"
+    assert call.batch_id == "documents-1"
 
 
 class TestInterchangeability:

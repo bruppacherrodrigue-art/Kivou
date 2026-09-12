@@ -13,7 +13,7 @@ from signals.persistence.schema import METADATA, materialized_signal
 
 PREVIOUS = "0021_reliability_operations"
 HEAD = "0022_saas_company_profile"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0058_model_call_budget"
 
 
 def test_company_migration_is_the_single_additive_head(tmp_path) -> None:

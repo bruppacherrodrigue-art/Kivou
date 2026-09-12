@@ -627,6 +627,38 @@ function SystemPage({ data }: { data: FounderSystem }) {
         </article>
       </div>
 
+      <article className="control-panel">
+        <div className="control-panel-head">
+          <div>
+            <p className="control-panel-kicker">Plafonds de sécurité</p>
+            <h3>OpenRouter aujourd’hui</h3>
+          </div>
+          <span className="control-muted">Europe/Zurich</span>
+        </div>
+        <div className="control-status-list">
+          {data.model_budgets.map((budget) => (
+            <div key={budget.usage}>
+              <span>
+                <strong>{budget.usage}</strong>
+                <small className="control-muted">{budget.model}</small>
+              </span>
+              <span>
+                {formatUsd(budget.actual_usd)} / {formatUsd(budget.cap_usd)}
+                {Number(budget.reserved_usd) > 0
+                  ? ` · ${formatUsd(budget.reserved_usd)} réservé`
+                  : ''}
+                <small className="control-muted">
+                  {formatCount(budget.call_count)} appels · {formatCount(budget.input_tokens)} tokens entrée · {formatCount(budget.output_tokens)} sortie
+                  {budget.failed_call_count || budget.rejected_call_count
+                    ? ` · ${formatCount(budget.failed_call_count)} échecs · ${formatCount(budget.rejected_call_count)} refus plafond`
+                    : ''}
+                </small>
+              </span>
+            </div>
+          ))}
+        </div>
+      </article>
+
       <div className="control-two-column control-system-columns">
         <article className="control-panel">
           <p className="control-panel-kicker">Ordonnanceur</p>
@@ -864,6 +896,13 @@ function formatMoney(minorUnits: number, currency: 'CHF' | 'EUR'): string {
     currency,
     maximumFractionDigits: 2,
   }).format(minorUnits / 100)
+}
+
+function formatUsd(value: string): string {
+  return `${new Intl.NumberFormat('fr-CH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(Number(value))} USD`
 }
 
 function formatBps(value: number | null): string {

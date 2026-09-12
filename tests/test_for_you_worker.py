@@ -4,10 +4,12 @@ import datetime as dt
 import threading
 import time
 from collections.abc import Callable
+from decimal import Decimal
 
 import sqlalchemy as sa
 from test_attribution_landing import CLICKED_AT, client_for, land, prepared
 
+from signals.model_runtime.budget import DailyModelBudgetExhausted
 from signals.persistence.schema import for_you_sentence
 from signals.personalization.for_you import ForYouInput, compose_generated_sentence
 from signals.personalization.for_you_worker import ForYouWorker, limits_from_environment
@@ -190,6 +192,34 @@ def test_worker_failure_completes_with_visible_fallback(tmp_path) -> None:
     assert row["provenance"] == "fallback"
     assert row["validation_reason"] == "provider_unavailable"
     assert row["state"] == "completed"
+
+
+def test_worker_stops_cleanly_and_requeues_when_model_budget_is_exhausted(tmp_path) -> None:
+    engine = _seed(tmp_path, count=3)
+
+    def exhausted(_value):
+        raise DailyModelBudgetExhausted(
+            usage="for_you",
+            cap_usd=Decimal("1"),
+            actual_usd=Decimal("1"),
+            reserved_usd=Decimal("0"),
+            requested_usd=Decimal("0.001"),
+        )
+
+    report = ForYouWorker(
+        engine, FakeProvider(exhausted), concurrency=1, daily_limit=20
+    ).run(now=CLICKED_AT)
+
+    with engine.connect() as connection:
+        states = connection.execute(
+            sa.select(for_you_sentence.c.state, sa.func.count()).group_by(
+                for_you_sentence.c.state
+            )
+        ).all()
+    assert report.budget_exhausted is True
+    assert report.attempted == 0
+    assert report.pending == 3
+    assert dict(states) == {"pending": 3}
 
 
 def test_worker_reclaims_only_an_expired_lease(tmp_path) -> None:

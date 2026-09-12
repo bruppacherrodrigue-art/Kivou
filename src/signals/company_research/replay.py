@@ -7,7 +7,10 @@ import datetime as dt
 import json
 import os
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import uuid
+from collections.abc import Sequence
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from dataclasses import dataclass
 from decimal import Decimal
 
 import httpx
@@ -18,8 +21,9 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
-from signals.company_research.providers import company_enrichment_provider_from_environment
+from signals.company_research.providers import company_enrichment_providers_from_environment
 from signals.contact_discovery.deliverability import EmailMxVerifier
+from signals.model_runtime.budget import DailyModelBudgetExhausted
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import supplier_directory
 from signals.supplier_directory.store import SupplierDirectoryStore
@@ -35,7 +39,79 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-employees", type=int, default=10)
     parser.add_argument("--departments", default=",".join(AURA_DEPARTMENTS))
     parser.add_argument("--siren", action="append", default=[])
+    parser.add_argument("--batch-id")
     return parser
+
+
+@dataclass(frozen=True)
+class ReplayExecutionResult:
+    status: str
+    processed: int
+    cached: int
+    cost_usd: Decimal
+    errors: tuple[dict[str, str], ...]
+    budget_usage: str | None = None
+
+
+def _execute_cohort(
+    *,
+    service,
+    sirens: Sequence[str],
+    workers: int,
+    force: bool,
+) -> ReplayExecutionResult:
+    costs = Decimal("0")
+    cached = 0
+    processed = 0
+    errors: list[dict[str, str]] = []
+    budget_usage: str | None = None
+    remaining = iter(sirens)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        pending: dict[Future, str] = {}
+
+        def submit_next() -> bool:
+            try:
+                siren = next(remaining)
+            except StopIteration:
+                return False
+            pending[pool.submit(service.enrich, siren, force=force)] = siren
+            return True
+
+        for _ in range(min(workers, len(sirens))):
+            submit_next()
+        while pending and budget_usage is None:
+            completed, _ = wait(tuple(pending), return_when=FIRST_COMPLETED)
+            for future in completed:
+                siren = pending.pop(future)
+                try:
+                    result = future.result()
+                    costs += result.cost_usd
+                    cached += int(result.cached)
+                    processed += 1
+                except DailyModelBudgetExhausted as error:
+                    budget_usage = error.usage
+                    for queued in pending:
+                        queued.cancel()
+                    pending.clear()
+                    break
+                except Exception as error:  # noqa: BLE001 - isolate one supplier failure
+                    errors.append({"siren": siren, "error": type(error).__name__})
+                submit_next()
+    status = (
+        "stopped_budget"
+        if budget_usage is not None
+        else "partial"
+        if errors
+        else "completed"
+    )
+    return ReplayExecutionResult(
+        status=status,
+        processed=processed,
+        cached=cached,
+        cost_usd=costs,
+        errors=tuple(errors),
+        budget_usage=budget_usage,
+    )
 
 
 def _cohort(engine, arguments) -> tuple[str, ...]:
@@ -104,58 +180,54 @@ def main(argv: list[str] | None = None) -> int:
     client = httpx.Client(timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True)
     directory = SupplierDirectoryStore(engine)
     director_client = AnnuaireRawDirectorClient(client=client)
+    collector = CompanyWebCollector(serper_api_key=serper_key, client=client)
+    batch_id = arguments.batch_id or f"enrichment-{uuid.uuid4()}"
     try:
         try:
-            provider = company_enrichment_provider_from_environment(client=client)
+            providers = company_enrichment_providers_from_environment(
+                engine=engine,
+                batch_id=batch_id,
+                client=client,
+            )
         except ValueError:
             print("status=PROVIDER_CONFIGURATION_MISSING", file=sys.stderr)
             return 2
         service = CompanyEnrichmentService(
             directory=directory,
-            collector=CompanyWebCollector(serper_api_key=serper_key, client=client),
-            provider=provider,
+            collector=collector,
+            provider=providers.judge,
+            arbiter=providers.arbiter,
             mx_verifier=EmailMxVerifier().verify,
             director_source=director_client.find,
         )
         sirens = _cohort(engine, arguments)
         before = _metrics(engine, sirens)
-        costs = Decimal("0")
-        cached = 0
-        errors: list[dict[str, str]] = []
-        with ThreadPoolExecutor(max_workers=arguments.workers) as pool:
-            future_by_siren = {
-                pool.submit(service.enrich, siren, force=arguments.force): siren
-                for siren in sirens
-            }
-            for completed, future in enumerate(as_completed(future_by_siren), 1):
-                siren = future_by_siren[future]
-                try:
-                    result = future.result()
-                    costs += result.cost_usd
-                    cached += int(result.cached)
-                except Exception as error:  # noqa: BLE001 - one fiche must not stop the pass
-                    errors.append({"siren": siren, "error": type(error).__name__})
-                if completed % 10 == 0 or completed == len(sirens):
-                    print(
-                        f"progress={completed}/{len(sirens)} errors={len(errors)}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
+        execution = _execute_cohort(
+            service=service,
+            sirens=sirens,
+            workers=arguments.workers,
+            force=arguments.force,
+        )
         after = _metrics(engine, sirens)
     finally:
+        renderer_close = getattr(collector._renderer, "close", None)
+        if callable(renderer_close):
+            renderer_close()
         client.close()
         engine.dispose()
     print(
         json.dumps(
             {
-                "status": "completed" if not errors else "partial",
+                "status": execution.status,
+                "batch_id": batch_id,
                 "cohort": len(sirens),
-                "processed": len(sirens) - len(errors),
-                "cached": cached,
+                "processed": execution.processed,
+                "cached": execution.cached,
                 "before": before,
                 "after": after,
-                "cost_usd": str(costs.quantize(Decimal("0.000001"))),
-                "errors": errors,
+                "cost_usd": str(execution.cost_usd.quantize(Decimal("0.000001"))),
+                "errors": execution.errors,
+                "budget_usage": execution.budget_usage,
                 "observed_at": dt.datetime.now(dt.UTC).isoformat(),
             },
             ensure_ascii=False,
@@ -163,11 +235,11 @@ def main(argv: list[str] | None = None) -> int:
             sort_keys=True,
         )
     )
-    return 0 if not errors else 1
+    return 0 if execution.status in {"completed", "stopped_budget"} else 1
 
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
 
 
-__all__ = ["AURA_DEPARTMENTS", "main"]
+__all__ = ["AURA_DEPARTMENTS", "ReplayExecutionResult", "_execute_cohort", "main"]

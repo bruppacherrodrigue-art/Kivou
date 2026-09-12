@@ -13,6 +13,7 @@ import pytest
 import sqlalchemy as sa
 from feed_helpers import make_account, make_icp, materialize_simap
 
+from signals.accounts.schema import target_icp
 from signals.companies.enrichment import (
     MAX_ENRICHMENT_ATTEMPTS,
     WinnerEnrichmentBatch,
@@ -123,6 +124,33 @@ def test_worker_projects_only_stored_public_facts_and_is_idempotent(engine) -> N
     assert view.source.notice_id
     assert view.source.retrieved_at is not None
     assert view.error_code is None
+
+
+def test_worker_never_claims_a_holder_without_a_current_active_icp(engine) -> None:
+    with engine.begin() as connection:
+        signal = _seed(connection)
+        icp_id = connection.scalar(
+            sa.select(materialized_signal.c.target_icp_id).where(
+                materialized_signal.c.signal_key == signal.signal_key
+            )
+        )
+        connection.execute(
+            sa.update(target_icp)
+            .where(target_icp.c.target_icp_id == icp_id)
+            .values(status="draft")
+        )
+
+        batch = run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="inactive-account-test", limit=10
+        )
+        status = connection.scalar(
+            sa.select(winner_enrichment_job.c.status).where(
+                winner_enrichment_job.c.signal_key == signal.signal_key
+            )
+        )
+
+    assert batch.processed == 0
+    assert status == "pending"
 
 
 def test_malformed_source_fails_with_a_bounded_code_and_retry_budget(engine) -> None:

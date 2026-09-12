@@ -71,6 +71,7 @@ class SupplierDirectoryRecord(BaseModel):
     phone_observed_at: dt.datetime | None = None
     enrichment_notes: str | None = None
     enrichment_model_id: str | None = None
+    enrichment_call_id: str | None = None
     enrichment_cost_usd: Decimal | None = None
     enrichment_input_tokens: int | None = None
     enrichment_output_tokens: int | None = None
@@ -644,6 +645,7 @@ class SupplierDirectoryStore:
         phone: str | None,
         directors: tuple[Mapping[str, object], ...],
         notes: str,
+        call_id: str | None,
         model: str,
         cost_usd: Decimal,
         input_tokens: int,
@@ -707,6 +709,7 @@ class SupplierDirectoryStore:
             "phone_source": "model" if phone else None,
             "phone_observed_at": observed_at if phone else None,
             "enrichment_notes": notes[:2000],
+            "enrichment_call_id": call_id,
             "enrichment_model_id": model,
             "enrichment_cost_usd": cost_usd,
             "enrichment_input_tokens": input_tokens,

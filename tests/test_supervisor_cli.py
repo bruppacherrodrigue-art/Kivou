@@ -65,6 +65,11 @@ class AdapterStub:
         return self.plan_result
 
 
+class EngineStub:
+    def dispose(self):
+        return None
+
+
 @pytest.fixture(autouse=True)
 def patch_adapter(monkeypatch):
     AdapterStub.health_result = SupervisorHealth(
@@ -76,6 +81,10 @@ def patch_adapter(monkeypatch):
     AdapterStub.error = None
     AdapterStub.captured_context = None
     monkeypatch.setattr("signals.supervisor.cli.HermesSupervisorAdapter", AdapterStub)
+    monkeypatch.setattr(
+        "signals.supervisor.cli._metered_shadow_adapter",
+        lambda settings: (AdapterStub(settings), EngineStub()),
+    )
 
 
 def test_health_prints_sanitized_available_diagnostic(capsys):

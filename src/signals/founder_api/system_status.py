@@ -22,6 +22,7 @@ from signals.founder_api.providers import FounderProviderName
 from signals.operations.contracts import AcquisitionOperationalHealth, AutonomousReadiness
 
 FOUNDER_SYSTEM_VERSION = "founder-system-v1"
+MODEL_TIMEZONE = "Europe/Zurich"
 DEFAULT_TIMER_UNITS = (
     "kivou-ingest-simap.timer",
     "kivou-ingest-boamp.timer",
@@ -124,6 +125,23 @@ class FounderProviderCost(FounderContract):
     month: Decimal = Field(ge=0)
 
 
+class FounderModelBudget(FounderContract):
+    usage: str
+    model: str
+    usage_date: dt.date
+    timezone: Literal["Europe/Zurich"] = MODEL_TIMEZONE
+    actual_usd: Decimal
+    reserved_usd: Decimal
+    cap_usd: Decimal
+    remaining_usd: Decimal
+    call_count: int = Field(ge=0)
+    succeeded_call_count: int = Field(ge=0)
+    failed_call_count: int = Field(ge=0)
+    rejected_call_count: int = Field(ge=0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+
+
 class FounderSystemPage(FounderContract):
     version: Literal["founder-system-v1"] = FOUNDER_SYSTEM_VERSION
     generated_at: dt.datetime
@@ -137,6 +155,7 @@ class FounderSystemPage(FounderContract):
     disk: FounderDiskStatus | None
     backups: tuple[FounderBackupStatus, ...]
     provider_costs: tuple[FounderProviderCost, ...]
+    model_budgets: tuple[FounderModelBudget, ...]
     deployed_sha: str | None = None
 
     _generated_at = field_validator("generated_at")(_aware)

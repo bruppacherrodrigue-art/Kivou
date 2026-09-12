@@ -203,6 +203,22 @@ export interface FounderOverview {
       observed_at: string
       reason_codes: string[]
     }
+    model_budgets: Array<{
+      usage: 'enrichment_judge' | 'enrichment_arbiter' | 'for_you' | 'hermes' | 'document_classifier'
+      model: string
+      usage_date: string
+      timezone: 'Europe/Zurich'
+      actual_usd: string
+      reserved_usd: string
+      cap_usd: string
+      remaining_usd: string
+      call_count: number
+      succeeded_call_count: number
+      failed_call_count: number
+      rejected_call_count: number
+      input_tokens: number
+      output_tokens: number
+    }>
     database_access: 'READ_ONLY'
   }
 }
@@ -230,6 +246,12 @@ export interface FounderDirectoryEnrichment {
   enriched_week_count: number
   model: string | null
   cumulative_cost_usd: string
+  latest_batch_id: string | null
+  latest_batch_call_count: number
+  latest_batch_input_tokens: number
+  latest_batch_output_tokens: number
+  latest_batch_cost_usd: string
+  latest_batch_mean_input_tokens: string | null
 }
 
 export interface FounderProspection {
@@ -365,6 +387,7 @@ export interface FounderSystem {
     today: string
     month: string
   }>
+  model_budgets: FounderOverview['system']['model_budgets']
   deployed_sha: string | null
 }
 

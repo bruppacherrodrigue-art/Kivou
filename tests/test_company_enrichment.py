@@ -14,11 +14,25 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
+from signals.company_research.evidence import RawRenderedPage
 from signals.company_research.providers import OpenRouterCompanyEnrichmentProvider
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import routes_from_environment
+from signals.model_runtime.openrouter import OpenRouterGateway
 from signals.persistence.database import alembic_config, create_database_engine
 from signals.supplier_directory.store import SupplierDirectoryStore
 
 NOW = dt.datetime(2026, 9, 12, 8, tzinfo=dt.UTC)
+
+
+class _FakeRenderer:
+    def __init__(self, pages: dict[str, RawRenderedPage]) -> None:
+        self.pages = pages
+        self.seen: list[str] = []
+
+    def render(self, url: str) -> RawRenderedPage | None:
+        self.seen.append(url)
+        return self.pages.get(url)
 
 
 def _identity(**updates: object) -> CompanyEnrichmentInput:
@@ -49,6 +63,7 @@ def _decision(**updates: object) -> CompanyEnrichmentDecision:
         "family_confidence": 0.94,
         "director_display_name": "Mosbah Benzaoui",
         "phone": "06 68 07 39 63",
+        "requested_page_url": None,
         "notes": "site alyabat.fr trouvé via verif.com, adresse publiée page contact",
     }
     values.update(updates)
@@ -84,12 +99,8 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
             ("www.verif.com", "/societe/ALYA-BATIMENT-481153435/"): (
                 "<title>Fiche ALYA</title><p>Site internet alyabat.fr</p>"
             ),
-            ("alyabat.fr", "/"): (
-                "<title>ALYA Bâtiment</title><p>Maçonnerie et gros œuvre.</p>"
-            ),
-            ("alyabat.fr", "/contact"): (
-                "<title>Contact</title><p>alya.batiment@hotmail.fr</p>"
-            ),
+            ("alyabat.fr", "/"): ("<title>ALYA Bâtiment</title><p>Maçonnerie et gros œuvre.</p>"),
+            ("alyabat.fr", "/contact"): ("<title>Contact</title><p>alya.batiment@hotmail.fr</p>"),
             ("alyabat.fr", "/mentions-legales"): (
                 "<title>Mentions légales</title><p>SIREN 481 153 435</p>"
             ),
@@ -104,6 +115,31 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
     collector = CompanyWebCollector(
         serper_api_key="serper-test",
         client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+        renderer=_FakeRenderer(
+            {
+                "https://www.verif.com/societe/ALYA-BATIMENT-481153435/": RawRenderedPage(
+                    url="https://www.verif.com/societe/ALYA-BATIMENT-481153435/",
+                    status_code=200,
+                    title="Fiche ALYA",
+                    main_text="Site internet alyabat.fr",
+                    body_text="Site internet alyabat.fr",
+                ),
+                "https://alyabat.fr/": RawRenderedPage(
+                    url="https://alyabat.fr/",
+                    status_code=200,
+                    title="ALYA Bâtiment",
+                    main_text="Maçonnerie et gros œuvre.",
+                    body_text="Maçonnerie et gros œuvre.",
+                ),
+                "https://alyabat.fr/contact": RawRenderedPage(
+                    url="https://alyabat.fr/contact",
+                    status_code=200,
+                    title="Contact",
+                    main_text="alya.batiment@hotmail.fr",
+                    body_text="alya.batiment@hotmail.fr",
+                ),
+            }
+        ),
     )
 
     evidence = collector.collect(_identity())
@@ -111,14 +147,13 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
     assert evidence.query == "ALYA BATIMENT GUEREINS"
     assert len(evidence.results) == 2
     assert evidence.results[0].is_directory is True
-    assert evidence.results[0].page is not None
+    assert evidence.results[0].directory_clues is not None
     assert evidence.results[1].is_directory is False
     assert {page.url for page in evidence.candidate_pages} == {
         "https://alyabat.fr/",
         "https://alyabat.fr/contact",
-        "https://alyabat.fr/mentions-legales",
     }
-    assert all(len(page.text) <= 3000 for page in evidence.candidate_pages)
+    assert all(len(page.text) <= 800 for page in evidence.candidate_pages)
     assert sum(1 for method, url in seen if method == "POST" and "serper" in url) == 1
 
 
@@ -135,8 +170,7 @@ def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() 
                         {
                             "title": "GIRARD (VALENCE)",
                             "link": (
-                                "https://www.groupement-mh.org/fiche_entreprise/"
-                                "girard-valence/"
+                                "https://www.groupement-mh.org/fiche_entreprise/girard-valence/"
                             ),
                             "snippet": "Entreprise de restauration du patrimoine",
                         }
@@ -165,30 +199,55 @@ def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() 
         city="VALENCE",
         department="26",
     )
+    renderer = _FakeRenderer(
+        {
+            "https://www.groupement-mh.org/fiche_entreprise/girard-valence/": (
+                RawRenderedPage(
+                    url="https://www.groupement-mh.org/fiche_entreprise/girard-valence/",
+                    status_code=200,
+                    title="GIRARD (VALENCE)",
+                    main_text="Site : http://www.girard.vinci-construction.com",
+                    body_text="Site : http://www.girard.vinci-construction.com",
+                )
+            ),
+            "https://girard.vinci-construction.com/": RawRenderedPage(
+                url="https://girard.vinci-construction.com/",
+                status_code=200,
+                title="GIRARD - VINCI Construction",
+                main_text="Restauration du patrimoine",
+                body_text="Restauration du patrimoine",
+            ),
+        }
+    )
     evidence = CompanyWebCollector(
         serper_api_key="serper-test",
         client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+        renderer=renderer,
     ).collect(identity)
 
     assert evidence.results[0].is_directory is True
-    assert ("www.groupement-mh.org", "/fiche_entreprise/girard-valence/") in seen
+    assert "https://www.groupement-mh.org/fiche_entreprise/girard-valence/" in renderer.seen
     assert any(
-        page.url == "https://girard.vinci-construction.com/"
-        for page in evidence.candidate_pages
+        page.url == "https://girard.vinci-construction.com/" for page in evidence.candidate_pages
     )
     assert all(page.url != "https://groupement-mh.org/" for page in evidence.candidate_pages)
 
 
-def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost() -> None:
+def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost(
+    migrated_sqlite_engine,
+) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)
-        assert payload["model"] == "anthropic/claude-sonnet-4.6"
-        assert payload["max_tokens"] == 1000
+        assert payload["model"] == "mistralai/mistral-small"
+        assert payload["max_tokens"] == 300
         assert payload["response_format"]["json_schema"]["strict"] is True
         assert payload["usage"] == {"include": True}
         prompt = json.loads(payload["messages"][0]["content"])
         assert prompt["instruction"].startswith("Voici une entreprise française")
         assert prompt["company"]["siren"] == "481153435"
+        assert all(set(item) == {"key", "name"} for item in prompt["allowed_families"])
+        assert "naf_codes" not in request.content.decode()
+        assert "activity_examples" not in request.content.decode()
         assert set(prompt["required_output_schema"]["required"]) == {
             "website",
             "website_confidence",
@@ -199,25 +258,41 @@ def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost
             "family_confidence",
             "director_display_name",
             "phone",
+            "requested_page_url",
             "notes",
         }
         return httpx.Response(
             200,
             json={
                 "choices": [
-                    {
-                        "message": {
-                            "content": f"```json\n{_decision().model_dump_json()}\n```"
-                        }
-                    }
+                    {"message": {"content": f"```json\n{_decision().model_dump_json()}\n```"}}
                 ],
                 "usage": {"prompt_tokens": 321, "completion_tokens": 87, "cost": 0.0042},
             },
         )
 
+    SupplierDirectoryStore(migrated_sqlite_engine, clock=lambda: NOW).upsert_identity(
+        siren="481153435",
+        legal_name="ALYA BATIMENT",
+        naf_code="43.99C",
+        family_key="subcontracted_structural_work",
+        department="01",
+        city="GUEREINS",
+        employees=19,
+        observed_at=NOW,
+    )
+    store = ModelBudgetStore(migrated_sqlite_engine, clock=lambda: NOW)
+    route = routes_from_environment(batch_id="test-provider", environment={}).route(
+        "enrichment_judge"
+    )
     provider = OpenRouterCompanyEnrichmentProvider(
-        api_key="openrouter-test",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        gateway=OpenRouterGateway(
+            api_key="openrouter-test",
+            budgets=store,
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ),
+        route=route,
+        batch_id="test-provider",
     )
     evidence = CompanyWebCollector.empty_evidence(_identity())
 
@@ -227,9 +302,13 @@ def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost
     assert result.cost_usd == Decimal("0.0042")
     assert result.input_tokens == 321
     assert result.output_tokens == 87
+    assert result.call_id == store.calls()[0].call_id
+    assert store.calls()[0].usage == "enrichment_judge"
 
 
-def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decision(tmp_path) -> None:
+def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decision(
+    tmp_path,
+) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'directory.db'}")
     command.upgrade(alembic_config(engine), "head")
     store = SupplierDirectoryStore(engine, clock=lambda: NOW)
@@ -243,6 +322,23 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
         employees=19,
         observed_at=NOW,
         naf_label="Travaux de maçonnerie générale et gros œuvre de bâtiment",
+    )
+    call_id = "00000000-0000-0000-0000-000000000001"
+    budget_store = ModelBudgetStore(engine, clock=lambda: NOW)
+    budget_store.reserve(
+        route=routes_from_environment(batch_id="service-test", environment={}).route(
+            "enrichment_judge"
+        ),
+        estimated_usd=Decimal("0.01"),
+        call_id=call_id,
+        siren="481153435",
+        batch_id="service-test",
+    )
+    budget_store.succeed(
+        call_id=call_id,
+        actual_usd=Decimal("0.0042"),
+        input_tokens=321,
+        output_tokens=87,
     )
 
     class Collector:
@@ -262,6 +358,7 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
         def enrich(self, identity, evidence):
             self.calls += 1
             return CompanyEnrichmentProviderResult(
+                call_id=call_id,
                 decision=_decision(),
                 model="anthropic/claude-sonnet-4.6",
                 cost_usd=Decimal("0.0042"),
@@ -301,11 +398,14 @@ def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decisi
     assert record.director_display_name == "Mosbah Benzaoui"
     assert record.phone == "06 68 07 39 63"
     assert record.enrichment_notes == _decision().notes
+    assert record.enrichment_call_id == "00000000-0000-0000-0000-000000000001"
     assert record.enrichment_cost_usd == Decimal("0.004200")
     assert record.enrichment_observed_at == NOW
 
 
-def test_service_clears_low_confidence_and_placeholder_fields_and_falls_back_to_naf(tmp_path) -> None:
+def test_service_clears_low_confidence_and_placeholder_fields_and_falls_back_to_naf(
+    tmp_path,
+) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'directory.db'}")
     command.upgrade(alembic_config(engine), "head")
     store = SupplierDirectoryStore(engine, clock=lambda: NOW)
@@ -350,9 +450,7 @@ def test_service_clears_low_confidence_and_placeholder_fields_and_falls_back_to_
             naf_code="43.91A",
             naf_label="Travaux de charpente",
             employees=99,
-            directors_raw=(
-                {"name": "ADIL EL MANSOURI", "title": "Président de SAS"},
-            ),
+            directors_raw=({"name": "ADIL EL MANSOURI", "title": "Président de SAS"},),
         ),
         domain="leny-alain.fr",
         contact_text="jean.dupont@gmail.com",
