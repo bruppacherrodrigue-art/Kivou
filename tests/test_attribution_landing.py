@@ -25,9 +25,11 @@ from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
 from signals.conversion import qa_token
+from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement.schema import product_event
 from signals.persistence.schema import (
+    acquisition_campaign,
     acquisition_conversion_journey,
     contract_award,
     materialized_signal,
@@ -74,6 +76,47 @@ def land(client: TestClient, token: str):
 def only_account_id(engine) -> str:
     with engine.connect() as connection:
         return connection.execute(sa.select(account.c.account_id)).scalar_one()
+
+
+def family_bait_token(engine, service, token):
+    """Turn the shared fixture into the assisted charpentry signal contract."""
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_campaign).values(
+                selected_need_category="timber_carpentry",
+                selected_need_version="supplier-families-v1",
+            )
+        )
+        bait_awards = sa.select(opportunity_representation.c.award_key).where(
+            opportunity_representation.c.opportunity_key == token.payload.opportunity_key
+        )
+        connection.execute(
+            sa.update(contract_award).values(
+                award_date=CLICKED_AT.date() - dt.timedelta(days=90),
+                contract_notification_date=None,
+            )
+        )
+        connection.execute(
+            sa.update(contract_award).where(contract_award.c.award_key.in_(bait_awards)).values(
+                title="26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
+                description=None,
+                cpv_main="45261920",
+                award_date=None,
+                contract_notification_date=CLICKED_AT.date() - dt.timedelta(days=1),
+                place_of_performance={
+                    "country": "FR",
+                    "subdivision_code": "FR-38",
+                    "subdivision_scheme": "ISO-3166-2",
+                    "locality": None,
+                    "postal_code": "38000",
+                },
+            )
+        )
+    with engine.connect() as connection:
+        payload = AttributionSourceResolver(engine).for_member(
+            connection, token.payload.member_ref
+        )
+    return service.keyring.issue(payload)
 
 
 def test_landing_opens_the_promised_signal_with_a_provisional_profile(tmp_path) -> None:
@@ -185,6 +228,39 @@ def test_kqa1_and_kat1_share_the_provisional_product_landing(tmp_path) -> None:
         ) == 0
 
 
+def test_kqa1_and_kat1_prefill_the_same_family_profile(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    family_token = family_bait_token(engine, service, token)
+    qa_payload = qa_token.QaTokenPayload(
+        opportunity_key=family_token.payload.opportunity_key,
+        wedge=family_token.payload.wedge,
+        country="FR",
+        sector="Bois et charpente",
+        need="timber_carpentry",
+        issued_at=NOW,
+        expires_at=NOW + dt.timedelta(days=7),
+    )
+    qa_raw = qa_token.issue(
+        qa_payload,
+        keyring=AttributionTokenKeyring(
+            current_key_version="attribution-test-v1",
+            keys={"attribution-test-v1": TOKEN_SECRET},
+        ),
+    )
+
+    for raw_token, query in ((family_token.raw_token, "?qa=true"), (qa_raw, "")):
+        client = client_for(engine, service, now=CLICKED_AT)
+        response = client.get(f"/a/{raw_token}{query}", follow_redirects=False)
+        pin_session_cookie(client, response)
+
+        assert response.status_code == 303
+        profile = client.get("/target-icps").json()[0]
+        assert profile["label"] == "Bois et charpente"
+        assert profile["customer_input"]["territory_subdivisions"] == ["FR-38"]
+        assert profile["customer_input"]["sector_cpv_prefixes"] == ["452611"]
+        assert profile["customer_input"]["offer_summary"] == "Bois et charpente"
+
+
 def test_kat1_qa_uses_the_same_landing_without_recording_a_campaign_click(
     tmp_path,
 ) -> None:
@@ -209,36 +285,94 @@ def test_kat1_qa_uses_the_same_landing_without_recording_a_campaign_click(
         ) == 0
 
 
+def test_kat1_replay_repairs_a_legacy_generic_provisional_profile(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, service, token)
+    first = client_for(engine, service, now=CLICKED_AT)
+    response = first.get(f"/a/{token.raw_token}?qa=true", follow_redirects=False)
+    pin_session_cookie(first, response)
+    account_id = first.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        profile = accounts.list_target_icps(connection, account_id=account_id)[0]
+        legacy_input = profile.customer_input.model_copy(
+            update={
+                "offer_summary": "legacy-sector-fingerprint",
+                "sector_cpv_prefixes": ("45",),
+            }
+        )
+        connection.execute(
+            sa.update(target_icp)
+            .where(target_icp.c.target_icp_id == profile.target_icp_id)
+            .values(
+                label="Travaux de construction",
+                customer_input=legacy_input.model_dump(mode="json"),
+            )
+        )
+
+    replay = client_for(engine, service, now=CLICKED_AT + dt.timedelta(hours=1))
+    response = replay.get(f"/a/{token.raw_token}?qa=true", follow_redirects=False)
+    pin_session_cookie(replay, response)
+    repaired = replay.get("/target-icps").json()[0]
+
+    assert repaired["label"] == "Bois et charpente"
+    assert repaired["customer_input"]["offer_summary"] == "Bois et charpente"
+    assert repaired["customer_input"]["sector_cpv_prefixes"] == ["452611"]
+
+
 def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, service, token)
     with engine.begin() as connection:
         source = dict(connection.execute(sa.select(source_event)).mappings().one())
         award = dict(connection.execute(sa.select(contract_award)).mappings().one())
-        for index in (1, 2):
-            event_key = f"manual:landing-neighbour-{index}:"
+        neighbours = (
+            ("sanitation", "Travaux d'assainissement et d'eau potable", "45231110", 1),
+            ("roofing", "Réfection de la couverture et de la zinguerie", "45261210", 2),
+            ("insulation", "Travaux d'isolation thermique", "45320000", 3),
+        )
+        for suffix, title, cpv, age in neighbours:
+            event_key = f"manual:landing-neighbour-{suffix}:"
             event = {
                 **source,
                 "event_key": event_key,
                 "source_system": "manual",
-                "source_notice_id": f"landing-neighbour-{index}",
-                "source_procedure_id": f"landing-procedure-{index}",
+                "source_notice_id": f"landing-neighbour-{suffix}",
+                "source_procedure_id": f"landing-procedure-{suffix}",
                 "published_at_raw": CLICKED_AT.date().isoformat(),
                 "published_on": CLICKED_AT.date(),
             }
             connection.execute(sa.insert(source_event).values(**event))
-            award_key = f"landing-award-{index}"
+            award_key = f"landing-award-{suffix}"
             candidate = {
                 **award,
                 "award_key": award_key,
                 "event_key": event_key,
-                "title": f"Travaux de construction voisins {index}",
-                "award_date": CLICKED_AT.date() - dt.timedelta(days=index),
+                "title": title,
+                "cpv_main": cpv,
+                "award_date": CLICKED_AT.date() - dt.timedelta(days=age),
+                "awardee_parties": [
+                    {
+                        "name": f"Titulaire {suffix}",
+                        "members": [
+                            {
+                                "organization": {
+                                    "legal_name": f"Titulaire {suffix}",
+                                    "identifiers": [],
+                                    "country": "FR",
+                                    "address": None,
+                                    "website": None,
+                                },
+                                "role": "sole",
+                            }
+                        ],
+                    }
+                ],
             }
             connection.execute(sa.insert(contract_award).values(**candidate))
             connection.execute(
                 sa.insert(opportunity_representation).values(
                     award_key=award_key,
-                    opportunity_key=f"landing-opportunity-{index}",
+                    opportunity_key=f"landing-opportunity-{suffix}",
                     created_at=CLICKED_AT,
                 )
             )
@@ -253,6 +387,32 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         item["signal_id"] for item in body["items"]
     }
     assert all(item["locked"] is False for item in body["items"])
+    account_id = only_account_id(engine)
+    with engine.connect() as connection:
+        profile_id = accounts.list_target_icps(
+            connection, account_id=account_id
+        )[0].target_icp_id
+        active_titles = set(
+            connection.execute(
+                sa.select(contract_award.c.title)
+                .select_from(
+                    materialized_signal.join(
+                        contract_award,
+                        materialized_signal.c.materialization_award_key
+                        == contract_award.c.award_key,
+                    )
+                )
+                .where(
+                    materialized_signal.c.target_icp_id == profile_id,
+                    materialized_signal.c.invalidated_at.is_(None),
+                )
+            ).scalars()
+        )
+    assert active_titles == {
+        "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
+        "Réfection de la couverture et de la zinguerie",
+        "Travaux d'isolation thermique",
+    }
 
 
 def test_a_replayed_link_returns_to_the_same_account_without_duplicating_it(tmp_path) -> None:

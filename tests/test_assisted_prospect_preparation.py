@@ -58,6 +58,20 @@ def test_assisted_signal_refuses_an_identifier_in_place_of_the_holder_name() -> 
         signal(holder="38443721600029")
 
 
+def test_assisted_preparation_refuses_a_signal_outside_the_attribution_window(
+    migrated_sqlite_engine,
+) -> None:
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(
+        signal(decision_date=NOW.date() - dt.timedelta(days=31)),
+        cycle_ref="cycle-stale-signal",
+    )
+
+    assert result.prepared == 0
+    assert result.reason == "SIGNAL_OUTSIDE_ATTRIBUTION_WINDOW"
+
+
 def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 26) -> None:
     rows = []
     for index in range(count):

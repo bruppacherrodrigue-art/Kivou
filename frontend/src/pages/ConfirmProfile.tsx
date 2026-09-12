@@ -59,9 +59,17 @@ export function ConfirmProfile() {
   }, [hydratedProfile, provisional])
 
   const sectorLabel = useMemo(
-    () => options.data?.sectors.find((item) => item.prefix === sector)?.label ?? 'Profil provisoire',
-    [options.data, sector],
+    () => options.data?.sectors.find((item) => item.prefix === sector)?.label
+      ?? (provisional?.customer_input.sector_cpv_prefixes?.[0] === sector
+        ? provisional.label
+        : 'Profil provisoire'),
+    [options.data, provisional, sector],
   )
+  const provisionalSectorOption = provisional
+    && sector
+    && !options.data?.sectors.some((item) => item.prefix === sector)
+    ? { prefix: sector, label: provisional.label }
+    : null
 
   async function submit() {
     const next: FieldErrors = {}
@@ -109,6 +117,9 @@ export function ConfirmProfile() {
             <label htmlFor="confirm-profile-sector">Secteur</label>
             <select id="confirm-profile-sector" value={sector} onChange={(event) => setSector(event.target.value)} aria-invalid={Boolean(errors.sector)}>
               <option value="">Sélectionner un secteur</option>
+              {provisionalSectorOption ? (
+                <option value={provisionalSectorOption.prefix}>{provisionalSectorOption.label}</option>
+              ) : null}
               {options.data?.sectors.map((item) => <option key={item.prefix} value={item.prefix}>{item.label}</option>)}
             </select>
             {errors.sector ? <p className="form-error" role="alert">{errors.sector}</p> : null}

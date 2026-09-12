@@ -51,11 +51,14 @@ from signals.ingestion.backfill import (
 from signals.persistence.schema import (
     acquisition_campaign_member,
     acquisition_personalization_artifact,
-    contract_award,
     for_you_sentence,
-    opportunity_representation,
 )
 from signals.personalization.for_you import client_safe_sentence
+from signals.supplier_discovery.families import load_supplier_family_catalog
+from signals.supplier_discovery.seed import (
+    AcquisitionSeedNotFound,
+    resolve_public_acquisition_context_in_transaction,
+)
 
 router = APIRouter()
 
@@ -117,27 +120,33 @@ def _draft_icp_input(
 
 
 def _profile_seed(
-    connection, opportunity_key: str | None
-) -> tuple[str | None, str | None, str | None]:
+    connection, opportunity_key: str | None, need_ref: str
+) -> tuple[str | None, tuple[str, ...], str | None]:
     if opportunity_key is None:
-        return None, None, None
-    row = connection.execute(
-        sa.select(contract_award.c.cpv_main, contract_award.c.place_of_performance)
-        .select_from(
-            opportunity_representation.join(
-                contract_award,
-                opportunity_representation.c.award_key == contract_award.c.award_key,
-            )
+        return None, (), None
+    try:
+        public = resolve_public_acquisition_context_in_transaction(
+            connection, opportunity_key
         )
-        .where(opportunity_representation.c.opportunity_key == opportunity_key)
-        .order_by(contract_award.c.award_key)
-        .limit(1)
-    ).first()
-    if row is None:
-        return None, None, None
-    code, place = row
+    except AcquisitionSeedNotFound:
+        return None, (), None
+    award = public.award
+    code = award.cpv_main.code if award.cpv_main else None
+    place = award.place_of_performance
+    subdivision = location_subdivision(place.model_dump(mode="json") if place else None)
+    family = next(
+        (
+            family
+            for families in load_supplier_family_catalog().values()
+            for family in families
+            if family.key == need_ref
+        ),
+        None,
+    )
+    if family is not None:
+        return family.label_fr, family.cpv_prefixes, subdivision
     prefix = code[:2] if code and len(code) >= 2 else None
-    return cpv_label(code, lang="fr"), prefix, location_subdivision(place)
+    return cpv_label(code, lang="fr"), (prefix,) if prefix else (), subdivision
 
 
 def _redirect(url: str) -> RedirectResponse:
@@ -355,25 +364,43 @@ def _land(
         )
 
     profiles = accounts.list_target_icps(connection, account_id=account_id)
+    was_provisional = bool(profiles) and accounts.is_provisional_profile(
+        connection, account_id=account_id
+    )
+    sector_label, cpv_prefixes, subdivision = _profile_seed(
+        connection, context.opportunity_key, context.need_ref
+    )
+    profile_input = _draft_icp_input(
+        country=context.country,
+        need_ref=context.need_ref,
+        sector_label=sector_label,
+        cpv_prefix=cpv_prefixes[0] if cpv_prefixes else None,
+        subdivision=subdivision,
+    )
     if not profiles:
-        sector_label, cpv_prefix, subdivision = _profile_seed(
-            connection, context.opportunity_key
-        )
         provisional = accounts.create_target_icp(
             connection,
             account_id=account_id,
             label=sector_label or LANDING_ICP_LABEL,
-            customer_input=_draft_icp_input(
-                country=context.country,
-                need_ref=context.need_ref,
-                sector_label=context.sector_label or sector_label,
-                cpv_prefix=cpv_prefix,
-                subdivision=subdivision,
-            ),
+            customer_input=profile_input,
             now=now,
         )
         accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
         profiles = [provisional]
+    elif was_provisional and (
+        profiles[0].label != (sector_label or LANDING_ICP_LABEL)
+        or profiles[0].customer_input != profile_input
+    ):
+        provisional = accounts.update_target_icp(
+            connection,
+            account_id=account_id,
+            target_icp_id=profiles[0].target_icp_id,
+            label=sector_label or LANDING_ICP_LABEL,
+            customer_input=profile_input,
+            now=now,
+        )
+        accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
+        profiles = [provisional, *profiles[1:]]
 
     # The landing row is the durable marker that an otherwise active profile is
     # still provisional. Write it before reconciling the same three-signal cohort.

@@ -126,6 +126,25 @@ def supplier_family_keys(path: Path | None = None) -> frozenset[str]:
     )
 
 
+def families_named_in_object(
+    object_text: str, path: Path | None = None
+) -> tuple[SupplierFamily, ...]:
+    """Return the families explicitly named by the lot wording."""
+
+    normalized = f" {_normalized_words(object_text)} "
+    matched = (
+        family
+        for families in load_supplier_family_catalog(path).values()
+        for family in families
+        if any(
+            f" {_normalized_words(term)} " in normalized
+            for term in family.object_terms
+            if _normalized_words(term)
+        )
+    )
+    return tuple(sorted(matched, key=lambda item: (item.priority, item.key)))
+
+
 def default_supplier_family_for_naf(code: str | None, path: Path | None = None) -> str | None:
     """Return one deterministic, explicitly unconfirmed NAF fallback."""
 
@@ -151,7 +170,7 @@ def families_for_signal(
     if vertical not in catalog:
         raise ValueError(f"unknown supplier family vertical: {vertical}")
     families = tuple(family for values in catalog.values() for family in values)
-    normalized = f" {_normalized_words(object_text)} "
+    object_matches = set(families_named_in_object(object_text))
     matched = tuple(
         family
         for family in families
@@ -160,11 +179,7 @@ def families_for_signal(
             for code in cpv_codes
             for prefix in family.cpv_prefixes
         )
-        or any(
-            f" {_normalized_words(term)} " in normalized
-            for term in family.object_terms
-            if _normalized_words(term)
-        )
+        or family in object_matches
     )
     return tuple(sorted(matched[:5], key=lambda item: (item.priority, item.key)))
 
@@ -228,6 +243,7 @@ __all__ = [
     "department_and_neighbours",
     "department_from_subdivision",
     "families_for_signal",
+    "families_named_in_object",
     "load_supplier_family_catalog",
     "naf_label_for_code",
     "supplier_family_keys",
