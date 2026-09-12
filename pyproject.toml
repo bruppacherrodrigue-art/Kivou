@@ -37,7 +37,7 @@ dependencies = [
 server = ["uvicorn[standard]>=0.52.4", "playwright>=1.55,<2"]
 # Pilote PostgreSQL de production. Les tests tournent sur SQLite (stdlib) ; la
 # compatibilité PostgreSQL du schéma est vérifiée par compilation du DDL.
-postgres = ["psycopg[binary]>=3.3.4"]
+postgres = ["psycopg[binary]>=3.3.5"]
 
 [dependency-groups]
 dev = [
@@ -47,7 +47,7 @@ dev = [
     "ruff>=0.16.5",
     # Pilote PostgreSQL : présent en dev pour que le dialecte de PRODUCTION soit
     # exerçable par les tests sans qu'aucun serveur ne tourne.
-    "psycopg[binary]>=3.3.4",
+    "psycopg[binary]>=3.3.5",
     "aiosmtpd>=1.4.6",
     "trustme>=1.2",
 ]
