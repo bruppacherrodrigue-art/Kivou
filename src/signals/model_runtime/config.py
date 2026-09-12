@@ -34,7 +34,7 @@ _DEFAULT_MODELS: dict[ModelUsage, str] = {
 }
 _DEFAULT_BUDGETS: dict[ModelUsage, Decimal] = {
     "enrichment_judge": Decimal("2"),
-    "enrichment_arbiter": Decimal("2"),
+    "enrichment_arbiter": Decimal("1"),
     "for_you": Decimal("1"),
     "hermes": Decimal("1"),
     "document_classifier": Decimal("1"),

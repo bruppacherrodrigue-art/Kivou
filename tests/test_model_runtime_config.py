@@ -28,6 +28,7 @@ def test_default_routes_cover_exactly_the_five_declared_usages() -> None:
     assert snapshot.route("hermes").model == "anthropic/claude-sonnet-4.6"
     assert snapshot.route("document_classifier").model == "anthropic/claude-sonnet-4.6"
     assert snapshot.route("enrichment_judge").daily_budget_usd == Decimal("2")
+    assert snapshot.route("enrichment_arbiter").daily_budget_usd == Decimal("1")
     assert snapshot.route("for_you").daily_budget_usd == Decimal("1")
     assert snapshot.route("hermes").daily_budget_usd == Decimal("1")
     assert snapshot.route("enrichment_judge").reserve_input_usd_per_million == Decimal(

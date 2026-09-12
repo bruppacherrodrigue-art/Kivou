@@ -129,7 +129,7 @@ MODEL_USAGES = (
     "document_classifier",
 )
 DEFAULT_BUDGETS = {
-    "enrichment_judge": Decimal("2"), "enrichment_arbiter": Decimal("2"),
+    "enrichment_judge": Decimal("2"), "enrichment_arbiter": Decimal("1"),
     "for_you": Decimal("1"), "hermes": Decimal("1"),
     "document_classifier": Decimal("1"),
 }
