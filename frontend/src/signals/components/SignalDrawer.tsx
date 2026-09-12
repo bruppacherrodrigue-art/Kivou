@@ -205,16 +205,30 @@ export function SignalDrawer({
         : `${holderMarketCount} marché${holderMarketCount > 1 ? 's' : ''} gagné${holderMarketCount > 1 ? 's' : ''} en 12 mois`,
     ].filter((value): value is string => Boolean(value))
     const generatedWhy = item.analysis.fit.for_you_sentence?.trim() ?? ''
-    const foldedTitle = (title ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
     const foldedWhy = generatedWhy.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
-    const titleLead = foldedTitle.split(/\s+/).slice(0, 4).join(' ')
-    const titleRepeated = titleLead.length > 5 && foldedWhy.startsWith(titleLead)
+    const titleRepeated = [
+      item.factual_display.object_short,
+      item.contract.title,
+      item.contract.lot_title,
+    ].some((candidate) => {
+      const titleLead = (candidate ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLocaleLowerCase('fr-FR')
+        .split(/\s+/)
+        .slice(0, 4)
+        .join(' ')
+      return titleLead.length > 5 && foldedWhy.startsWith(titleLead)
+    })
     const fallbackWhy = 'Ce marché correspond à votre profil cible dans cette zone et ce secteur.'
     let why = generatedWhy && !titleRepeated ? generatedWhy : fallbackWhy
-    const department = item.contract.location?.subdivision_label?.trim()
+    const department = normalCasePlace(item.contract.location?.subdivision_label)
     if (!item.contract.location?.locality && department) {
       const escapedDepartment = department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      why = why.replace(new RegExp(`\\bà ${escapedDepartment}\\b`, 'gi'), `en ${department}`)
+      why = why.replace(
+        new RegExp(`(^|\\s)à\\s+${escapedDepartment}(?=\\s|[,(.]|$)`, 'giu'),
+        `$1en ${department}`,
+      )
     }
     const clockDate = date(clock.value)
 
