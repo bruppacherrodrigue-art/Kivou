@@ -122,6 +122,63 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
     assert sum(1 for method, url in seen if method == "POST" and "serper" in url) == 1
 
 
+def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() -> None:
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.url.host or "", request.url.path))
+        if request.url.host == "google.serper.dev":
+            return httpx.Response(
+                200,
+                json={
+                    "organic": [
+                        {
+                            "title": "GIRARD (VALENCE)",
+                            "link": (
+                                "https://www.groupement-mh.org/fiche_entreprise/"
+                                "girard-valence/"
+                            ),
+                            "snippet": "Entreprise de restauration du patrimoine",
+                        }
+                    ]
+                },
+            )
+        pages = {
+            ("www.groupement-mh.org", "/fiche_entreprise/girard-valence/"): (
+                "<title>GIRARD (VALENCE)</title>"
+                "<p>Site : http://www.girard.vinci-construction.com</p>"
+            ),
+            ("girard.vinci-construction.com", "/"): (
+                "<title>GIRARD - VINCI Construction</title><p>Restauration du patrimoine</p>"
+            ),
+        }
+        body = pages.get((request.url.host or "", request.url.path))
+        return (
+            httpx.Response(200, headers={"content-type": "text/html"}, text=body)
+            if body is not None
+            else httpx.Response(404)
+        )
+
+    identity = _identity(
+        siren="572621712",
+        legal_name="ENT A. GIRARD",
+        city="VALENCE",
+        department="26",
+    )
+    evidence = CompanyWebCollector(
+        serper_api_key="serper-test",
+        client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+    ).collect(identity)
+
+    assert evidence.results[0].is_directory is True
+    assert ("www.groupement-mh.org", "/fiche_entreprise/girard-valence/") in seen
+    assert any(
+        page.url == "https://girard.vinci-construction.com/"
+        for page in evidence.candidate_pages
+    )
+    assert all(page.url != "https://groupement-mh.org/" for page in evidence.candidate_pages)
+
+
 def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)

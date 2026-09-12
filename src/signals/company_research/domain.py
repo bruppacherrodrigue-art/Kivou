@@ -36,6 +36,7 @@ _DIRECTORY_DOMAINS = frozenset(
         "facebook.com",
         "france-artisan.fr",
         "gowork.fr",
+        "groupement-mh.org",
         "hoodspot.fr",
         "infogreffe.fr",
         "instagram.com",
