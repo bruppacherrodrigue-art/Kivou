@@ -106,7 +106,6 @@ describe('SignalDrawer', () => {
     expect(screen.getByText('Nouveau')).toBeInTheDocument()
     expect(screen.getByLabelText(/Correspondance/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Voirie')
-    expect(screen.getByText('Réfection de la voirie communale — lot 2')).toBeInTheDocument()
   })
 
   it('rend la grille des faits', () => {
@@ -142,7 +141,7 @@ describe('SignalDrawer', () => {
     expect(fact('Titulaire')).toBe('Constructions Bertrand SA')
   })
 
-  it('bascule sur la notification puis sur la publication selon la date disponible', () => {
+  it('nomme attribution la date de notification et publication le dernier repli', () => {
     renderDrawer({
       signal: item({
         contract: {
@@ -151,8 +150,8 @@ describe('SignalDrawer', () => {
         },
       }),
     })
-    expect(screen.queryByText('Attribué le')).not.toBeInTheDocument()
-    expect(fact('Notifié le')).toContain('6 août 2026')
+    expect(screen.queryByText('Notifié le')).not.toBeInTheDocument()
+    expect(fact('Attribué le')).toContain('6 août 2026')
 
     renderDrawer({
       signal: item({
@@ -162,7 +161,7 @@ describe('SignalDrawer', () => {
         },
       }),
     })
-    expect(fact('Attribué le')).toContain('10 août 2026')
+    expect(fact('Publié le')).toContain('10 août 2026')
   })
 
   it('omet la date quand aucune date n’est disponible', () => {

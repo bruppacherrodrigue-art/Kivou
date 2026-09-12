@@ -28,6 +28,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
+from signals.companies.official_cache import official_holders_for_opportunities
 from signals.domain.french_departments import location_subdivision
 from signals.engagement.status import UNIFIED_STATUSES
 from signals.feed import policy
@@ -143,6 +144,23 @@ def resolve_display_identity(
             )
         else:
             pending.setdefault(signal.opportunity_key, []).append(signal.signal_key)
+    if not pending:
+        return resolved
+
+    # Winner enrichment resolves SIRET-only source rows through the official
+    # register. Acquisition mail and customer feed deliberately read this same
+    # cache so the holder cannot disappear between the message and its drawer.
+    cached = official_holders_for_opportunities(connection, pending)
+    for opportunity_key, holder in cached.items():
+        identity = DisplayIdentity(
+            name=holder.name,
+            country=holder.country,
+            identifier_scheme=holder.identifier_scheme,
+            identifier_value=holder.identifier_value,
+            from_award_key=holder.source_award_key,
+        )
+        for key in pending.pop(opportunity_key, ()):
+            resolved[key] = identity
     if not pending:
         return resolved
 

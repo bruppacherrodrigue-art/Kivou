@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 from collections.abc import Callable
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Protocol
@@ -11,6 +10,7 @@ from signals.acquisition_runtime.contracts import RuntimeActionResult, RuntimeSt
 from signals.acquisition_runtime.registry import AcquisitionActionContext
 from signals.acquisition_runtime.selection import resolved_holder_name_for_opportunity
 from signals.decision_engine.policy import semantic_fingerprint
+from signals.domain.award_dates import attribution_date
 from signals.domain.subdivisions import subdivision_label
 from signals.prospection_actions.preparation import (
     AssistedSignal,
@@ -46,10 +46,7 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
         )
     subdivision = place.subdivision_code if place else None
     department = department_from_subdivision(subdivision)
-    decision_date = award.award_date or seed.event.event_date
-    if decision_date is None and seed.event.published_at is not None:
-        published = seed.event.published_at
-        decision_date = published.date() if isinstance(published, dt.datetime) else published
+    decision_date = attribution_date(award)
     if not title or holder is None or amount is None or department is None or decision_date is None:
         raise ValueError("assisted signal is missing a required eligibility fact")
     cpv_codes = tuple(

@@ -123,6 +123,7 @@ export const ME: Me = {
   account_display_name: 'Acme Solutions',
   locale: 'fr',
   onboarding_status: 'ready_for_signals',
+  provisional_profile: false,
   capabilities: { commercial_cockpit: false },
 }
 
@@ -290,8 +291,8 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
   presentation: null,
   factual_display: {
     headline: 'Constructions Bertrand SA remporte un marché de 1\u202f240\u202f000 € à Villeneuve',
-    market_summary: 'Réfection de la voirie communale — lot 2',
-    object_short: 'Réfection de la voirie communale — lot 2',
+    market_summary: 'Voirie',
+    object_short: 'Voirie',
     date: { value: '2026-08-04', kind: 'award' },
     completeness: 'verified',
     missing_fields: [],

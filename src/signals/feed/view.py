@@ -22,6 +22,7 @@ from decimal import Decimal
 from typing import Any
 
 from signals.card_intelligence.contracts import PublishedCardPresentation
+from signals.domain.award_dates import attribution_date
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import copy as feed_copy
 from signals.feed import policy
@@ -30,6 +31,7 @@ from signals.feed.french_departments import department_label, location_subdivisi
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.personalization.for_you import ForYouInput, client_safe_sentence, fallback_sentence
+from signals.personalization.prospect_mail import client_market_object
 from signals.recency.claim import claim_for_status
 
 #: PR2b §46 — les seuls rôles qui, PORTÉS PAR UN MEMBRE, disent que ce membre
@@ -276,14 +278,14 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         location = place.get("locality") or place.get("subdivision_label")
     deterministic_for_you = fallback_sentence(
         ForYouInput(
-            title=signal.award.title,
+            title=client_market_object(signal.award.title or ""),
             amount=(
                 f"{signal.award.amount} {signal.award.currency}"
                 if signal.award.amount is not None and signal.award.currency
                 else None
             ),
             location=location,
-            awarded_on=_iso(signal.award.award_date),
+            awarded_on=_iso(attribution_date(signal.award)),
             cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
         )
     )

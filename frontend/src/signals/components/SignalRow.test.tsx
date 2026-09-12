@@ -51,20 +51,21 @@ function flat(text: string): string {
 }
 
 describe('signalObject', () => {
-  it('préfère le titre de lot', () => {
+  it('préfère toujours l’objet client réécrit', () => {
     expect(signalObject(UNLOCKED_ITEM)).toBe('Voirie')
   })
 
-  it('retombe sur le titre du marché puis sur l’objet court', () => {
-    const withoutLot = item({
-      contract: { ...UNLOCKED_ITEM.contract, lot_title: null },
+  it('retombe sur le titre du marché puis sur celui du lot', () => {
+    const withoutDisplayObject = item({
+      factual_display: { ...UNLOCKED_ITEM.factual_display, object_short: null },
     })
-    expect(signalObject(withoutLot)).toBe('Réfection de la voirie communale — lot 2')
+    expect(signalObject(withoutDisplayObject)).toBe('Réfection de la voirie communale — lot 2')
 
     const withoutTitle = item({
-      contract: { ...UNLOCKED_ITEM.contract, lot_title: null, title: null },
+      factual_display: { ...UNLOCKED_ITEM.factual_display, object_short: null },
+      contract: { ...UNLOCKED_ITEM.contract, title: null },
     })
-    expect(signalObject(withoutTitle)).toBe('Réfection de la voirie communale — lot 2')
+    expect(signalObject(withoutTitle)).toBe('Voirie')
   })
 
   it('rend null quand aucun libellé n’est publié', () => {
@@ -149,7 +150,10 @@ describe('SignalRow', () => {
   it('tronque l’objet à soixante caractères et garde le texte complet en infobulle', () => {
     const long = 'Collège de Levens, lot 2 : gros œuvre, charpente bois, façades et génie civil'
     renderRow({
-      signal: item({ contract: { ...UNLOCKED_ITEM.contract, lot_title: long } }),
+      signal: item({
+        contract: { ...UNLOCKED_ITEM.contract, lot_title: long },
+        factual_display: { ...UNLOCKED_ITEM.factual_display, object_short: long },
+      }),
     })
 
     const cell = within(screen.getByRole('row')).getAllByRole('cell')[2]
@@ -232,7 +236,10 @@ describe('SignalRow', () => {
     const long = 'Collège de Levens, lot 2 : gros œuvre, charpente bois, façades et génie civil'
     renderRow({
       companyCompact: true,
-      signal: item({ contract: { ...UNLOCKED_ITEM.contract, lot_title: long } }),
+      signal: item({
+        contract: { ...UNLOCKED_ITEM.contract, lot_title: long },
+        factual_display: { ...UNLOCKED_ITEM.factual_display, object_short: long },
+      }),
     })
 
     expect(screen.getByRole('row')).toHaveTextContent(long)

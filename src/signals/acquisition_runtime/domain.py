@@ -55,6 +55,7 @@ from signals.decision_engine.contracts import (
     DecisionAuthorizationInput,
     DecisionServiceResult,
 )
+from signals.domain.award_dates import attribution_date
 from signals.domain.subdivisions import subdivision_label
 from signals.persistence.schema import (
     acquisition_campaign_member,
@@ -1202,7 +1203,7 @@ class AcquisitionDomainActions:
             else "montant non publié"
         )
         place = str(public.award.place_of_performance or "lieu non publié")
-        date = str(public.award.award_date or public.event.event_date or "date non publiée")
+        date = str(attribution_date(public.award) or "date non publiée")
         family_key = str(supplier["industry"] or "").partition(":")[0]
         family_labels = {
             family.key: family.label_fr
@@ -1210,7 +1211,7 @@ class AcquisitionDomainActions:
             for family in families
         }
         family_label = family_labels.get(family_key)
-        signal_date = public.award.award_date or public.event.event_date
+        signal_date = attribution_date(public.award)
         place_value = public.award.place_of_performance
         subdivision = place_value.subdivision_code if place_value else None
         department_code = department_from_subdivision(subdivision)

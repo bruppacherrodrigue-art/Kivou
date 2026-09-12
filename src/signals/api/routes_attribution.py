@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import datetime as dt
 import secrets
+from dataclasses import dataclass
 from urllib.parse import quote
 
 import sqlalchemy as sa
@@ -35,16 +36,17 @@ from fastapi.responses import RedirectResponse
 
 from signals.accounts import service as accounts
 from signals.accounts.icp_input import MonetaryThreshold, TargetIcpInput, offer_for_need
+from signals.accounts.schema import account_landing_signal
 from signals.api.config import ATTRIBUTION_COOKIE_NAME
 from signals.api.dependencies import request_now
-from signals.api.errors import api_error
 from signals.api.routes_auth import set_session_cookie
+from signals.conversion import qa_token
+from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.cpv_labels import cpv_label
 from signals.domain.french_departments import location_subdivision
 from signals.engagement import analytics
 from signals.ingestion.backfill import (
-    materialize_landing_opportunity_in_transaction,
-    rematerialize_target_in_transaction,
+    materialize_landing_feed_in_transaction,
 )
 from signals.persistence.schema import (
     acquisition_campaign_member,
@@ -53,6 +55,7 @@ from signals.persistence.schema import (
     for_you_sentence,
     opportunity_representation,
 )
+from signals.personalization.for_you import client_safe_sentence
 
 router = APIRouter()
 
@@ -159,23 +162,128 @@ def _mail_for_you_sentence(connection, *, member_ref: str) -> str | None:
     return snapshot.get("for_you_sentence") if isinstance(snapshot, dict) else None
 
 
-@router.get("/a/{token}", include_in_schema=False)
-def attribution_click(token: str, request: Request) -> RedirectResponse:
-    service = getattr(request.app.state, "conversion_attribution_service", None)
+@dataclass(frozen=True)
+class _LandingContext:
+    opportunity_key: str | None
+    country: str
+    need_ref: str
+    sector_label: str | None
+    member_ref: str | None
+    campaign_ref: str | None
+    token_fingerprint: str
+    expires_at: dt.datetime
+    qa: bool
+    replayed: bool
+
+
+def _keyring(config) -> AttributionTokenKeyring:
+    if not config.attribution_hmac_key or not config.attribution_hmac_key_version:
+        raise ValueError("attribution key is unavailable")
+    return AttributionTokenKeyring(
+        current_key_version=config.attribution_hmac_key_version,
+        keys={config.attribution_hmac_key_version: config.attribution_hmac_key},
+    )
+
+
+def _landing_account_id(connection, *, token_fingerprint: str) -> str | None:
+    return connection.scalar(
+        sa.select(account_landing_signal.c.account_id)
+        .where(account_landing_signal.c.token_fingerprint == token_fingerprint)
+        .limit(1)
+    )
+
+
+def _verify_landing(
+    connection,
+    service,
+    *,
+    raw_token: str,
+    now: dt.datetime,
+    config,
+    qa_requested: bool,
+) -> _LandingContext:
+    """Normalize both token formats before entering the sole landing path."""
+
+    if raw_token.startswith("kqa1."):
+        payload = qa_token.verify(raw_token, keyring=_keyring(config), at=now)
+        fingerprint = qa_token.fingerprint(raw_token)
+        return _LandingContext(
+            opportunity_key=payload.opportunity_key,
+            country=payload.country,
+            need_ref=payload.need,
+            sector_label=payload.sector,
+            member_ref=None,
+            campaign_ref=None,
+            token_fingerprint=fingerprint,
+            expires_at=payload.expires_at,
+            qa=True,
+            replayed=_landing_account_id(
+                connection, token_fingerprint=fingerprint
+            )
+            is not None,
+        )
     if service is None:
-        raise api_error(404, "attribution_not_found", "lien introuvable")
+        raise ValueError("attribution service is unavailable")
+    verified = service.verify_in_transaction(connection, raw_token=raw_token, at=now)
+    if qa_requested:
+        replayed = (
+            _landing_account_id(
+                connection, token_fingerprint=verified.token_fingerprint
+            )
+            is not None
+        )
+        fingerprint = verified.token_fingerprint
+    else:
+        click = service.record_click_in_transaction(
+            connection, raw_token=raw_token, at=now
+        )
+        replayed = click.replayed
+        fingerprint = click.token_fingerprint
+    payload = verified.payload
+    return _LandingContext(
+        opportunity_key=payload.opportunity_key,
+        country=payload.country,
+        need_ref=payload.need_ref,
+        sector_label=payload.sector_ref,
+        member_ref=payload.member_ref,
+        campaign_ref=payload.campaign_ref,
+        token_fingerprint=fingerprint,
+        expires_at=payload.expires_at,
+        qa=qa_requested,
+        replayed=replayed,
+    )
+
+
+@router.get("/a/{token}", include_in_schema=False)
+def attribution_click(token: str, request: Request, qa: bool = False) -> RedirectResponse:
+    service = getattr(request.app.state, "conversion_attribution_service", None)
     config = request.app.state.config
     now = request_now(request)
 
     try:
         with request.app.state.engine.begin() as connection:
-            landing = _land(connection, service, raw_token=token, now=now, config=config)
+            context = _verify_landing(
+                connection,
+                service,
+                raw_token=token,
+                now=now,
+                config=config,
+                qa_requested=qa,
+            )
+            landing = _land(
+                connection,
+                service,
+                raw_token=token,
+                context=context,
+                now=now,
+                config=config,
+            )
     except ValueError:
         # Signature fausse, jeton périmé, membre inconnu : aucune session, aucun
         # compte, et une page d'inscription qui sait pourquoi elle est là.
         return _redirect(EXPIRED_PATH)
 
-    session, signal_key, expires_at = landing
+    session, signal_key, expires_at, is_qa = landing
     destination = FEED_PATH if signal_key is None else f"{FEED_PATH}/{quote(signal_key)}"
     response = _redirect(destination)
     set_session_cookie(response, request, session)
@@ -183,15 +291,18 @@ def attribution_click(token: str, request: Request) -> RedirectResponse:
     # journey est déjà liée — mais il garde attribuée une inscription ordinaire
     # faite ensuite depuis le même navigateur (adresse réelle, mot de passe
     # choisi), qui crée un autre compte. Le retirer perdrait cette source.
-    response.set_cookie(
-        ATTRIBUTION_COOKIE_NAME,
-        token,
-        httponly=True,
-        secure=config.cookie_secure,
-        samesite="lax",
-        path="/auth/signup",
-        expires=expires_at,
-    )
+    if is_qa:
+        response.delete_cookie(ATTRIBUTION_COOKIE_NAME, path="/auth/signup")
+    else:
+        response.set_cookie(
+            ATTRIBUTION_COOKIE_NAME,
+            token,
+            httponly=True,
+            secure=config.cookie_secure,
+            samesite="lax",
+            path="/auth/signup",
+            expires=expires_at,
+        )
     return response
 
 
@@ -200,23 +311,20 @@ def _land(
     service,
     *,
     raw_token: str,
+    context: _LandingContext,
     now: dt.datetime,
     config,
-) -> tuple[accounts.AuthenticatedSession, str | None, dt.datetime]:
+) -> tuple[accounts.AuthenticatedSession, str | None, dt.datetime, bool]:
     """Tout l'atterrissage, dans UNE transaction. Rien ou tout.
 
     Un compte à moitié créé — sans utilisateur, sans journey, sans promesse
     enregistrée — serait un compte que personne ne peut ni ouvrir ni réclamer.
     """
-    verified = service.verify_in_transaction(connection, raw_token=raw_token, at=now)
-    click = service.record_click_in_transaction(connection, raw_token=raw_token, at=now)
-    payload = verified.payload
-
-    account_id = service.landed_account_in_transaction(
-        connection, token_fingerprint=click.token_fingerprint
+    account_id = _landing_account_id(
+        connection, token_fingerprint=context.token_fingerprint
     )
     if account_id is None:
-        email = _landing_email(click.token_fingerprint)
+        email = _landing_email(context.token_fingerprint)
         if accounts.user_id_for_email(connection, email=email) is not None:
             # L'identité d'atterrissage existe sans ligne d'atterrissage : ce
             # compte n'a pas été créé par ce lien, et le lien n'ouvre que ce
@@ -234,9 +342,10 @@ def _land(
             session_ttl=config.session_ttl,
         )
         account_id = session.account_id
-        service.bind_signup_in_transaction(
-            connection, account_id=account_id, raw_token=raw_token, at=now
-        )
+        if not context.qa:
+            service.bind_signup_in_transaction(
+                connection, account_id=account_id, raw_token=raw_token, at=now
+            )
     else:
         user_id = accounts.active_user_id(connection, account_id=account_id)
         if user_id is None:
@@ -245,36 +354,48 @@ def _land(
             connection, user_id=user_id, now=now, session_ttl=config.session_ttl
         )
 
-    if not accounts.list_target_icps(connection, account_id=account_id):
-        sector_label, cpv_prefix, subdivision = _profile_seed(connection, payload.opportunity_key)
+    profiles = accounts.list_target_icps(connection, account_id=account_id)
+    if not profiles:
+        sector_label, cpv_prefix, subdivision = _profile_seed(
+            connection, context.opportunity_key
+        )
         provisional = accounts.create_target_icp(
             connection,
             account_id=account_id,
             label=sector_label or LANDING_ICP_LABEL,
             customer_input=_draft_icp_input(
-                country=payload.country,
-                need_ref=payload.need_ref,
-                sector_label=sector_label,
+                country=context.country,
+                need_ref=context.need_ref,
+                sector_label=context.sector_label or sector_label,
                 cpv_prefix=cpv_prefix,
                 subdivision=subdivision,
             ),
             now=now,
         )
-        rematerialize_target_in_transaction(
+        accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
+        profiles = [provisional]
+
+    # The landing row is the durable marker that an otherwise active profile is
+    # still provisional. Write it before reconciling the same three-signal cohort.
+    accounts.record_landing_signal(
+        connection,
+        account_id=account_id,
+        opportunity_key=context.opportunity_key,
+        signal_key=None,
+        token_fingerprint=context.token_fingerprint,
+        qa=context.qa,
+        now=now,
+    )
+    if context.opportunity_key is not None and accounts.is_provisional_profile(
+        connection, account_id=account_id
+    ):
+        materialize_landing_feed_in_transaction(
             connection,
-            target_icp_id=provisional.target_icp_id,
+            target_icp_id=profiles[0].target_icp_id,
+            opportunity_key=context.opportunity_key,
             as_of=now.date(),
             materialized_at=now,
         )
-        if payload.opportunity_key is not None:
-            materialize_landing_opportunity_in_transaction(
-                connection,
-                target_icp_id=provisional.target_icp_id,
-                opportunity_key=payload.opportunity_key,
-                as_of=now.date(),
-                materialized_at=now,
-            )
-        accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
 
     # Écrite pour CHAQUE atterrissage, opportunité résolue ou non : c'est cette
     # ligne — pas `opportunity_key` — que `landed_account_in_transaction`
@@ -283,11 +404,16 @@ def _land(
     # parfaitement valide, et le rejeu retomberait sur le garde-fou d'identité
     # déjà utilisée (revue PR2b tâche 5).
     signal_key: str | None = None
-    if payload.opportunity_key is not None:
+    if context.opportunity_key is not None:
         signal_key = accounts.resolve_landing_signal_key(
-            connection, account_id=account_id, opportunity_key=payload.opportunity_key
+            connection, account_id=account_id, opportunity_key=context.opportunity_key
         )
-    mail_sentence = _mail_for_you_sentence(connection, member_ref=payload.member_ref)
+    mail_sentence = (
+        _mail_for_you_sentence(connection, member_ref=context.member_ref)
+        if context.member_ref is not None
+        else None
+    )
+    mail_sentence = client_safe_sentence(mail_sentence)
     if signal_key is not None and mail_sentence:
         # Le mail est déjà parti : sa phrase devient la valeur figée de cette
         # paire afin que le drawer ne raconte jamais autre chose ensuite.
@@ -308,12 +434,20 @@ def _land(
     accounts.record_landing_signal(
         connection,
         account_id=account_id,
-        opportunity_key=payload.opportunity_key,
+        opportunity_key=context.opportunity_key,
         signal_key=signal_key,
-        token_fingerprint=click.token_fingerprint,
+        token_fingerprint=context.token_fingerprint,
+        qa=context.qa,
         now=now,
     )
 
+    properties = {
+        "has_signal": signal_key is not None,
+        "replayed": context.replayed,
+        "campaign_ref": context.campaign_ref,
+    }
+    if context.qa:
+        properties["qa"] = True
     analytics.record(
         connection,
         account_id=account_id,
@@ -321,13 +455,9 @@ def _land(
         occurred_at=now,
         user_id=session.user_id,
         signal_key=signal_key,
-        properties={
-            "has_signal": signal_key is not None,
-            "replayed": click.replayed,
-            "campaign_ref": payload.campaign_ref,
-        },
+        properties=properties,
     )
-    return session, signal_key, click.expires_at
+    return session, signal_key, context.expires_at, context.qa
 
 
 __all__ = ["router"]
