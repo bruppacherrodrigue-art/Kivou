@@ -3,12 +3,17 @@ import { LockKeyhole } from 'lucide-react'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
 import type { Locale, Place, LockedFeedItem, UnlockedFeedItem } from '../../api/types'
 import { useI18n } from '../../i18n'
+import { normalCasePlace, visiblePlaceName } from '../../presentation/locationText'
 import { MatchDots } from './MatchDots'
 import styles from './signals.module.css'
 
 /** Un champ que l'API ne publie pas. L'interface le montre absent ; elle ne le
  *  commente pas, ne l'excuse pas et n'invente rien à sa place. */
 export const MISSING = ''
+
+function folded(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
+}
 
 /** L'objet client réécrit par l'API prime toujours sur les références source. */
 export function signalObject(item: UnlockedFeedItem): string | null {
@@ -35,25 +40,15 @@ export function shortSignalObject(item: UnlockedFeedItem): string | null {
   return value.length <= 60 ? value : `${value.slice(0, 59).trimEnd()}…`
 }
 
-function folded(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
-}
-
 export function tablePlaceLabel(place: Place | null): string {
   if (!place) return MISSING
-  if (place.locality?.trim()) return place.locality.trim()
-  const department = place.subdivision_label?.trim()
-  if (!department || folded(department) === 'territoire metropolitain') return MISSING
-  return department
+  return normalCasePlace(place.locality) ?? visiblePlaceName(place.subdivision_label) ?? MISSING
 }
 
 export function drawerPlaceLabel(place: Place | null): string {
   if (!place) return MISSING
-  const locality = place.locality?.trim()
-  const department = place.subdivision_label?.trim()
-  const usableDepartment = department && folded(department) !== 'territoire metropolitain'
-    ? department
-    : null
+  const locality = normalCasePlace(place.locality)
+  const usableDepartment = visiblePlaceName(place.subdivision_label)
   if (locality && usableDepartment && folded(locality) !== folded(usableDepartment)) {
     return `${locality} (${usableDepartment})`
   }
@@ -72,25 +67,6 @@ export function compactAmount(value: string | null | undefined, currency: string
     return `${new Intl.NumberFormat(formatterLocale, { maximumFractionDigits: 0 }).format(parsed / 1_000)} k${unit}`
   }
   return `${new Intl.NumberFormat(formatterLocale, { maximumFractionDigits: 0 }).format(parsed)} ${unit}`
-}
-
-const SHORT_REASON_STOPWORDS = new Set([
-  'a', 'au', 'aux', 'avec', 'ce', 'ces', 'dans', 'de', 'des', 'du', 'en', 'et',
-  'la', 'le', 'les', 'ou', 'pour', 'sur', 'un', 'une', 'votre', 'vos',
-])
-
-export function shortFitReason(item: UnlockedFeedItem): string {
-  const raw = item.analysis.plausible_needs.items.find((need) => need.targeted_by_your_profile)?.label
-    ?? item.analysis.plausible_needs.items[0]?.label
-    ?? item.analysis.fit.reasons?.[0]?.split(':').at(-1)
-    ?? item.analysis.fit.label
-  const words = (raw ?? '')
-    .replace(/[·,.;:()]/g, ' ')
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter(Boolean)
-  const meaningful = words.filter((word) => !SHORT_REASON_STOPWORDS.has(folded(word)))
-  return (meaningful.length ? meaningful : words).slice(0, 2).join(' ').toLocaleLowerCase('fr-FR')
 }
 
 /* Un lieu se lit, il ne se décode pas. Un code NUTS ou ISO (« FR-31 ») ne dit
@@ -148,7 +124,7 @@ export function SignalRow({
         <button type="button" className={styles.winnerButton} onClick={openFromButton}>
           {item.company.name ?? MISSING}
         </button>
-        {item.company.consortium ? (
+        {item.company.consortium && !redesigned ? (
           <span className={styles.consortium}>{t.signalsTable.consortium}</span>
         ) : null}
       </td>}
@@ -159,9 +135,7 @@ export function SignalRow({
       {compact ? null : (
         <td className={styles.cellPlace}>{redesigned ? tablePlaceLabel(item.contract.location) : placeLabel(item.contract.location, locale)}</td>
       )}
-      <td className={redesigned ? styles.cellWhy : styles.cellMatch}>
-        {redesigned ? shortFitReason(item) : <MatchDots item={item} />}
-      </td>
+      {redesigned ? null : <td className={styles.cellMatch}><MatchDots item={item} /></td>}
     </tr>
   )
 }
@@ -181,7 +155,7 @@ export function SignalCardRow({ item, selected, redesigned = false, onOpen }: {
     <SignalCardFrame signalKey={item.signal_id} selected={selected} onOpen={() => onOpen(item.signal_id)}
       title={item.company.name ?? MISSING} object={object ?? ''}
       metadata={[money, redesigned ? tablePlaceLabel(item.contract.location) : placeLabel(item.contract.location, locale), shortDate(item.factual_display.date.value)]}
-      match={redesigned ? <span className={styles.cardWhy}>{shortFitReason(item)}</span> : <MatchDots item={item} />} />
+      match={redesigned ? null : <MatchDots item={item} />} />
   )
 }
 
@@ -190,7 +164,7 @@ export function LockedSignalCardRow({ item, redesigned = false, onOpen }: { item
   return <SignalCardFrame signalKey={item.signal_id} locked selected={false} onOpen={onOpen}
     title="Réservé aux offres Essentiel et Pro" object={item.headline}
     metadata={[item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : null,
-      item.teaser.department, shortDate(item.teaser.date)]}
+      redesigned ? visiblePlaceName(item.teaser.department) : item.teaser.department, shortDate(item.teaser.date)]}
     match={redesigned ? null : <span className={styles.matchDots} role="img" aria-label="Correspondance réservée">
       {[1, 2, 3, 4].map((dot) => <i key={dot} aria-hidden="true" data-dot="empty" />)}
     </span>} />

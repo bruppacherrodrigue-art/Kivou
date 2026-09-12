@@ -5,6 +5,7 @@ import { companies } from '../../api/endpoints'
 import type { CompanyProfile, PlanCode, UnifiedStatus, UnlockedFeedItem } from '../../api/types'
 import { CompanyContactBlock } from '../../companies/CompanyProfileV2'
 import { interpolate, useI18n } from '../../i18n'
+import { normalCasePlace } from '../../presentation/locationText'
 import { MatchDots } from './MatchDots'
 import { StatusPill } from './StatusPill'
 import {
@@ -12,7 +13,6 @@ import {
   drawerPlaceLabel,
   placeLabel,
   sentenceCase,
-  shortFitReason,
   signalObject,
 } from './SignalRow'
 import { monthLabel } from '../valueFormat'
@@ -195,7 +195,7 @@ export function SignalDrawer({
     const holderMarketCount = holderProfile?.market_summary?.last_12_months?.awards_count
       ?? item.holder_history?.last_12_months?.awards_count
     const holderActivity = profileDirectory?.naf_label ?? profileDirectory?.family_labels?.[0]
-    const holderLocation = profileDirectory?.city
+    const holderLocation = normalCasePlace(profileDirectory?.city)
     const holderFacts = [
       holderActivity,
       holderLocation,
@@ -207,8 +207,9 @@ export function SignalDrawer({
     const generatedWhy = item.analysis.fit.for_you_sentence?.trim() ?? ''
     const foldedTitle = (title ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
     const foldedWhy = generatedWhy.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
-    const titleRepeated = foldedTitle.length > 5 && foldedWhy.includes(foldedTitle)
-    const fallbackWhy = `Les besoins publiés correspondent à votre profil cible${shortFitReason(item) ? ` : ${shortFitReason(item)}` : ''}.`
+    const titleLead = foldedTitle.split(/\s+/).slice(0, 4).join(' ')
+    const titleRepeated = titleLead.length > 5 && foldedWhy.startsWith(titleLead)
+    const fallbackWhy = 'Ce marché correspond à votre profil cible dans cette zone et ce secteur.'
     let why = generatedWhy && !titleRepeated ? generatedWhy : fallbackWhy
     const department = item.contract.location?.subdivision_label?.trim()
     if (!item.contract.location?.locality && department) {
@@ -280,7 +281,7 @@ export function SignalDrawer({
               {item.local_circuit.slice(0, 4).map((company) => (
                 <li key={company.siren}>
                   <span><Link to={company.href}>{company.name}</Link>{company.trade ? ` · ${company.trade}` : ''}</span>
-                  <small>{[company.city, company.employees === undefined ? null : `${company.employees} sal.`].filter(Boolean).join(' · ')}</small>
+                  <small>{[normalCasePlace(company.city), company.employees === undefined ? null : `${company.employees} sal.`].filter(Boolean).join(' · ')}</small>
                 </li>
               ))}
             </ul>
@@ -379,7 +380,7 @@ export function SignalDrawer({
               <li key={company.siren}>
                 <Link to={company.href}>{company.name}</Link>
                 <span>
-                  {[company.trade, company.city, company.employees === undefined
+                  {[company.trade, normalCasePlace(company.city), company.employees === undefined
                     ? null
                     : interpolate(copy.employees, { count: company.employees })]
                     .filter(Boolean)

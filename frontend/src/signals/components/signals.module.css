@@ -114,10 +114,15 @@
 
 .cellWinner {
   display: table-cell;
-  max-width: 200px;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .winnerButton {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: transparent;
@@ -125,6 +130,8 @@
   font: inherit;
   font-weight: 700;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -149,8 +156,17 @@
 }
 
 .cellObject {
-  max-width: 420px;
+  min-width: 0;
+  overflow: hidden;
   color: var(--ink);
+}
+
+.cellObject > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.35;
 }
 
 .companyCellObject {
@@ -173,6 +189,8 @@
 }
 
 .cellPlace {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-muted);
 }
@@ -180,20 +198,6 @@
 .cellMatch {
   width: 1%;
   white-space: nowrap;
-}
-
-.cellWhy,
-.cardWhy,
-.lockedWhy {
-  color: var(--green);
-  font-size: 12px;
-  font-weight: 680;
-  line-height: 1.25;
-}
-
-.cellWhy {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* ── Tiroir ─────────────────────────────────────────────────────────────── */

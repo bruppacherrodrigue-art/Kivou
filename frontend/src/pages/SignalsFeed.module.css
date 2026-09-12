@@ -223,11 +223,10 @@
   table-layout: fixed;
 }
 
-.tableColumnRedesigned .table th:nth-child(1) { width: 70px; }
-.tableColumnRedesigned .table th:nth-child(2) { width: 138px; }
-.tableColumnRedesigned .table th:nth-child(4) { width: 82px; }
-.tableColumnRedesigned .table th:nth-child(5) { width: 88px; }
-.tableColumnRedesigned .table th:nth-child(6) { width: 88px; }
+.tableColumnRedesigned .table th:nth-child(1) { width: 72px; }
+.tableColumnRedesigned .table th:nth-child(2) { width: 170px; }
+.tableColumnRedesigned .table th:nth-child(4) { width: 90px; }
+.tableColumnRedesigned .table th:nth-child(5) { width: 110px; }
 
 .tableColumnRedesigned .lockedNote {
   display: -webkit-box;

@@ -14,6 +14,7 @@ import type {
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
+import { visiblePlaceName } from '../presentation/locationText'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { compactAmount, MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
@@ -172,8 +173,8 @@ function LockedRow({
       </td>
       <td className={styles.lockedNote}>{note}</td>
       <td className={styles.cellNumeric}>{lockedAmount}</td>
-      {compact ? null : <td>{item.teaser.department ?? MISSING}</td>}
-      <td className={redesigned ? styles.lockedWhy : undefined}>{MISSING}</td>
+      {compact ? null : <td>{visiblePlaceName(item.teaser.department) ?? MISSING}</td>}
+      {redesigned ? null : <td>{MISSING}</td>}
     </tr>
   )
 }
@@ -721,7 +722,7 @@ export function SignalsFeed() {
                 <th scope="col">{copy.columns.object}</th>
                 <th scope="col" className={styles.cellNumeric}>{copy.columns.amount}</th>
                 {compact ? null : <th scope="col">{copy.columns.place}</th>}
-                <th scope="col">{redesigned ? 'Pour vous' : copy.columns.match}</th>
+                {redesigned ? null : <th scope="col">{copy.columns.match}</th>}
               </tr>
             </thead>
             <tbody>
@@ -746,7 +747,7 @@ export function SignalsFeed() {
               )))}
               {hiddenDiscoveryCount ? (
                 <tr className={styles.lockedRow}>
-                  <td colSpan={compact ? 5 : 6}>
+                  <td colSpan={redesigned ? 5 : compact ? 5 : 6}>
                     {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/tarifs">voir les offres</Link>
                   </td>
                 </tr>

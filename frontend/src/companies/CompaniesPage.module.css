@@ -101,6 +101,11 @@
 .companySource a { color: var(--green); }
 .companyContactLocked { min-height: 182px; }
 .companyContactBlur { filter: blur(4px); opacity: .72; pointer-events: none; user-select: none; }
+.companyContactSkeleton { display: grid; gap: 12px; padding: 6px 2px; }
+.companyContactSkeleton span { display: block; height: 14px; border-radius: 999px; background: var(--line); }
+.companyContactSkeleton span[data-size='long'] { width: 72%; }
+.companyContactSkeleton span[data-size='medium'] { width: 56%; }
+.companyContactSkeleton span[data-size='short'] { width: 38%; }
 .companyContactOffer { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; background: rgb(255 255 255 / 58%); text-align: center; }
 .companyContactOffer strong { max-width: 360px; font-size: 14px; line-height: 1.45; }
 .companyPrimaryButton, .companySecondaryButton { display: inline-flex; align-items: center; justify-content: center; padding: 7px 12px; border-radius: 6px; font: inherit; font-weight: 650; text-decoration: none; cursor: pointer; }
