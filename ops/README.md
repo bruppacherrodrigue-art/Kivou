@@ -88,6 +88,22 @@ ne contient de secret.
 Codes de sortie : `64` configuration, `69` dépendance manquante, `70` sauvegarde
 refusée, `75` verrou déjà tenu.
 
+### Routage et plafonds des modèles
+
+Les cinq routes `enrichment_judge`, `enrichment_arbiter`, `for_you`, `hermes`
+et `document_classifier` lisent leur modèle et leur plafond journalier au
+démarrage de chaque lot. La journée comptable est toujours `Europe/Zurich` et
+le compteur persiste dans PostgreSQL. Les variables suivent les formes
+`KIVOU_MODEL_<USAGE>` et `KIVOU_MODEL_BUDGET_<USAGE>_USD`; les valeurs de
+référence complètes sont dans `.env.example`.
+
+Un plafond est un coupe-circuit, jamais un rythme de dépense. Un appel réserve
+avant le réseau puis réconcilie le coût réel. Les taux de réservation sont
+configurables avec
+`KIVOU_MODEL_RESERVE_{INPUT,OUTPUT}_<USAGE>_USD_PER_MILLION`. Le benchmark des
+30 fiches publie le ratio réservé/réel ; au-dessus de 3, recalibrer ces taux
+avant tout lot d'enrichissement.
+
 ## Installation
 
 `KIVOU_DATABASE_URL` vit dans `/etc/kivou/staging.env`, **hors du dépôt**. Ce
