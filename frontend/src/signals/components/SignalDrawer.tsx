@@ -226,7 +226,7 @@ export function SignalDrawer({
       </div>
 
       {sourceText && item.source.url ? (
-        <a className={`${styles.source} ${styles.decisionSourceLine} source-link`} href={item.source.url} target="_blank" rel="noopener noreferrer">{sourceText} ↗</a>
+        <a className={`${styles.source} ${styles.decisionSourceLine}`} href={item.source.url} target="_blank" rel="noopener noreferrer">{sourceText} ↗</a>
       ) : sourceText ? <p className={`${styles.source} ${styles.decisionSourceLine}`}>{sourceText}</p> : null}
     </aside>
   )

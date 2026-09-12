@@ -98,6 +98,18 @@ def _person_name(value: str) -> str:
     return " ".join(without_parentheses.split()).title()
 
 
+def _director_role(value: str) -> str:
+    formatted = value.strip().capitalize()
+    for acronym in ("sas", "sarl", "sa", "scop", "selarl"):
+        formatted = re.sub(
+            rf"\b{acronym}\b",
+            acronym.upper(),
+            formatted,
+            flags=re.IGNORECASE,
+        )
+    return formatted
+
+
 def _clean_directors(
     value: object, *, preferred_name: str | None = None
 ) -> list[dict[str, str]]:
@@ -126,7 +138,7 @@ def _clean_directors(
         director = {"name": client_name}
         title = entry.get("title")
         if isinstance(title, str) and title.strip():
-            director["title"] = title.strip().capitalize()
+            director["title"] = _director_role(title)
         result.append(director)
     return result
 
