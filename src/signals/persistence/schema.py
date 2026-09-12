@@ -949,6 +949,70 @@ supplier_directory = sa.Table(
 )
 
 
+_MODEL_USAGE_SQL = ", ".join(
+    f"'{usage}'"
+    for usage in (
+        "enrichment_judge",
+        "enrichment_arbiter",
+        "for_you",
+        "hermes",
+        "document_classifier",
+    )
+)
+
+model_daily_budget = sa.Table(
+    "model_daily_budget",
+    METADATA,
+    sa.Column("usage_date", sa.Date, primary_key=True),
+    sa.Column("usage", sa.String(64), primary_key=True),
+    sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False, server_default="0"),
+    sa.Column("actual_usd", sa.Numeric(14, 8), nullable=False, server_default="0"),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        f"usage IN ({_MODEL_USAGE_SQL})", name="ck_model_daily_budget_usage"
+    ),
+    sa.CheckConstraint("reserved_usd >= 0", name="ck_model_daily_budget_reserved_cost"),
+    sa.CheckConstraint("actual_usd >= 0", name="ck_model_daily_budget_actual_cost"),
+)
+
+model_call_journal = sa.Table(
+    "model_call_journal",
+    METADATA,
+    sa.Column("call_id", sa.String(36), primary_key=True),
+    sa.Column("usage", sa.String(64), nullable=False),
+    sa.Column("model", sa.String(160), nullable=False),
+    sa.Column("siren", sa.String(9)),
+    sa.Column("batch_id", sa.String(64)),
+    sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False),
+    sa.Column("actual_usd", sa.Numeric(14, 8)),
+    sa.Column("input_tokens", sa.Integer),
+    sa.Column("output_tokens", sa.Integer),
+    sa.Column("status", sa.String(24), nullable=False),
+    sa.Column("error_code", sa.String(128)),
+    sa.Column("called_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(f"usage IN ({_MODEL_USAGE_SQL})", name="ck_model_call_usage"),
+    sa.CheckConstraint("reserved_usd >= 0", name="ck_model_call_reserved_cost"),
+    sa.CheckConstraint(
+        "actual_usd IS NULL OR actual_usd >= 0", name="ck_model_call_actual_cost"
+    ),
+    sa.CheckConstraint(
+        "input_tokens IS NULL OR input_tokens >= 0", name="ck_model_call_input_tokens"
+    ),
+    sa.CheckConstraint(
+        "output_tokens IS NULL OR output_tokens >= 0",
+        name="ck_model_call_output_tokens",
+    ),
+    sa.CheckConstraint(
+        "status IN ('reserved', 'succeeded', 'failed', 'rejected_budget')",
+        name="ck_model_call_status",
+    ),
+    sa.Index("ix_model_call_usage_called_at", "usage", "called_at"),
+    sa.Index("ix_model_call_siren_called_at", "siren", "called_at"),
+    sa.Index("ix_model_call_batch_id", "batch_id"),
+)
+
+
 prospect_target = sa.Table(
     "prospect_target",
     METADATA,

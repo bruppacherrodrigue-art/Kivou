@@ -29,6 +29,8 @@ from signals.persistence.schema import (
     contract_award,
     evidence,
     materialized_signal,
+    model_call_journal,
+    model_daily_budget,
     opportunity_representation,
     procedure_documents,
     source_event,
@@ -46,6 +48,31 @@ ALL_TABLES = (
 
 def columns(table: sa.Table) -> set[str]:
     return {column.name for column in table.columns}
+
+
+def test_model_budget_tables_match_the_persistent_ledger_contract():
+    assert columns(model_daily_budget) == {
+        "usage_date",
+        "usage",
+        "reserved_usd",
+        "actual_usd",
+        "updated_at",
+    }
+    assert columns(model_call_journal) == {
+        "call_id",
+        "usage",
+        "model",
+        "siren",
+        "batch_id",
+        "reserved_usd",
+        "actual_usd",
+        "input_tokens",
+        "output_tokens",
+        "status",
+        "error_code",
+        "called_at",
+        "completed_at",
+    }
 
 
 # ─── §3 — portabilité PostgreSQL, testée sans serveur ──────────────────────────
