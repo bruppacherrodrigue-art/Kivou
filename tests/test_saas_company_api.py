@@ -3,22 +3,64 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+import sqlalchemy as sa
 from billing_helpers import subscribe
 from engagement_helpers import events
 from fastapi.testclient import TestClient
 from feed_helpers import (
+    BOAMP_AGING,
     COMPLETE_ICP_INPUT,
     ORIGIN,
     PASSWORD,
     SIMAP_RICH,
+    boamp_award,
+    materialize,
     materialize_simap,
 )
 
 from signals.api import ApiConfig, create_app
+from signals.billing.schema import discovery_signal_grant
+from signals.client_value.contact_lookup import ContactLookupQuotaExceeded
 from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.companies.schema import saas_company
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import contract_award, materialized_signal, supplier_directory
 
 NOW = dt.datetime(2026, 8, 25, 9, tzinfo=dt.UTC)
+
+
+def _insert_directory_company(
+    connection,
+    *,
+    siren: str,
+    name: str,
+    department: str = "38",
+    city: str = "Grenoble",
+) -> None:
+    connection.execute(
+        sa.insert(supplier_directory).values(
+            siren=siren,
+            legal_name=name,
+            legal_name_observed_at=NOW,
+            naf_code="23.63Z",
+            naf_observed_at=NOW,
+            family_keys=["ready_mix_concrete"],
+            families_observed_at=NOW,
+            department=department,
+            department_observed_at=NOW,
+            city=city,
+            city_observed_at=NOW,
+            employees=24,
+            employees_observed_at=NOW,
+            website_url="https://egli.example/",
+            domain_source="registre",
+            domain_observed_at=NOW,
+            directors=[{"name": "Anna Egli", "title": "Présidente"}],
+            directors_observed_at=NOW,
+            created_at=NOW,
+            updated_at=NOW,
+        )
+    )
 
 
 @pytest.fixture
@@ -99,6 +141,206 @@ def test_company_endpoint_requires_authentication(app) -> None:
     assert response.json()["detail"]["code"] == "not_authenticated"
 
 
+def test_company_contact_lookup_is_injected_and_receives_the_scoped_identity(engine) -> None:
+    class LookupService:
+        def __init__(self) -> None:
+            self.views = []
+            self.researches = []
+
+        def view(self, **values):
+            self.views.append(values)
+            return {
+                "state": "available",
+                "remaining": 100,
+                "monthly_quota": 100,
+                "source": "apollo",
+                "removal_path": "/contact",
+            }
+
+        def research(self, **values):
+            self.researches.append(values)
+            return {
+                "state": "no_contact",
+                "remaining": 99,
+                "monthly_quota": 100,
+                "source": "apollo",
+                "removal_path": "/contact",
+                "researched_at": NOW.isoformat(),
+            }
+
+    lookup = LookupService()
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+        ),
+        now_override=lambda: NOW,
+        company_contact_lookup_service=lookup,
+    )
+    client = _signup(configured, email="company-contact-lookup@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    profile = client.get(f"/companies/{company_key}")
+    response = client.post(f"/companies/{company_key}/contact-lookup")
+
+    assert profile.json()["contact_lookup"] == {
+        "state": "available",
+        "remaining": 100,
+        "monthly_quota": 100,
+        "source": "apollo",
+        "removal_path": "/contact",
+    }
+    assert response.status_code == 200
+    assert response.json() == {
+        "state": "no_contact",
+        "remaining": 99,
+        "monthly_quota": 100,
+        "source": "apollo",
+        "removal_path": "/contact",
+        "researched_at": NOW.isoformat().replace("+00:00", "Z"),
+    }
+    assert lookup.views[0]["plan_code"] == "pro"
+    assert lookup.researches[0]["plan_code"] == "pro"
+    assert lookup.researches[0]["identity"].company_key == company_key
+    assert lookup.researches[0]["identity"].name == "Egli Gartenbau AG Sursee"
+    assert lookup.researches[0]["identity"].city is None
+
+
+def test_company_contact_lookup_fails_closed_without_a_provider(app, engine) -> None:
+    client = _signup(app, email="company-contact-unavailable@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    response = client.post(f"/companies/{company_key}/contact-lookup")
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "contact_lookup_unavailable"
+
+
+def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
+    engine,
+) -> None:
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            company_profile_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="company-contact-discovery@example.com")
+    icp_id = _icp(client)
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        signal = materialize_simap(
+            connection, SIMAP_RICH, target_icp_id=icp_id
+        )
+        signal_key = signal.signal_key
+        connection.execute(
+            sa.insert(discovery_signal_grant).values(
+                account_id=account_id,
+                signal_key=signal.signal_key,
+                opportunity_key=signal.opportunity_key,
+                granted_at=NOW,
+                created_at=NOW,
+            )
+        )
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="company-contact-discovery", limit=10
+        )
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+                official_observed_at=NOW,
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "331364729")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="model",
+                director_observed_at=NOW,
+                professional_email="contact@egli.example",
+                email_source="site",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=NOW,
+                phone="+33 4 76 00 00 00",
+                phone_source="model",
+                phone_observed_at=NOW,
+                enrichment_observed_at=NOW,
+            )
+        )
+
+    response = client.get(f"/companies/{company_key}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["contact_lookup"] == {
+        "state": "locked",
+        "remaining": 0,
+        "monthly_quota": 0,
+        "source": "apollo",
+        "removal_path": "/contact",
+    }
+    assert body["directory"]["directors"] == [
+        {"name": "Anna Egli", "title": "Présidente"}
+    ]
+    assert "director_display_name" not in body["directory"]
+    assert "phone" not in body["directory"]
+    assert "published_email" not in body["directory"]
+
+
+def test_paid_company_contact_lookup_reports_monthly_quota_exhaustion(engine) -> None:
+    class ExhaustedLookup:
+        def view(self, **_values):
+            return {
+                "state": "quota_exhausted",
+                "remaining": 0,
+                "monthly_quota": 100,
+                "source": "apollo",
+                "removal_path": "/contact",
+                "next_reset_at": "2026-09-01T00:00:00+00:00",
+            }
+
+        def research(self, **_values):
+            raise ContactLookupQuotaExceeded("pro")
+
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+        ),
+        now_override=lambda: NOW,
+        company_contact_lookup_service=ExhaustedLookup(),
+    )
+    client = _signup(configured, email="company-contact-quota@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+
+    response = client.post(f"/companies/{company_key}/contact-lookup")
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "contact_lookup_quota_exhausted"
+
+
 def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engine) -> None:
     client = _signup(app, email="company-api@example.com")
     signal_key = _seed_unlocked(engine, client)
@@ -120,6 +362,261 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert body["related_signals"][0]["signal_id"] == signal_key
     assert "apollo" not in response.text.lower()
     assert "contact_ref" not in response.text.lower()
+
+
+def test_signal_and_company_expose_the_same_holder_market_history(app, engine) -> None:
+    client = _signup(app, email="company-market-history@example.com")
+    signal_key = _seed_unlocked(engine, client)
+
+    signal = client.get(f"/signals/{signal_key}").json()
+    profile = client.get(f"/companies/{signal['company_key']}").json()
+
+    assert signal["holder_history"]["resolution"] == "company_key"
+    assert signal["holder_history"]["last_12_months"]["awards_count"] == 1
+    assert signal["holder_history"]["source"] == "public_awards"
+    assert profile["market_summary"] == {
+        **signal["holder_history"]["summary"],
+        "last_12_months": signal["holder_history"]["last_12_months"],
+        "resolution": "company_key",
+        "source": "public_awards",
+    }
+
+
+def test_company_profile_adds_matching_directory_facts_without_contact_data(app, engine) -> None:
+    client = _signup(app, email="company-directory@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+
+    profile = client.get(f"/companies/{company_key}").json()
+
+    assert profile["directory"] == {
+        "siren": "331364729",
+        "name": "Egli Gartenbau AG Sursee",
+        "naf_code": "23.63Z",
+        "family_labels": ["Béton prêt à l'emploi"],
+        "department": "38",
+        "department_label": "Isère",
+        "city": "Grenoble",
+        "employees": 24,
+        "website_url": "https://egli.example/",
+        "website_source": "registre",
+        "website_observed_at": NOW.replace(tzinfo=None).isoformat(),
+        "directors": [{"name": "Anna Egli", "title": "Présidente"}],
+        "directors_observed_at": NOW.replace(tzinfo=None).isoformat(),
+        "source": "registre",
+        "removal_path": "/contact",
+    }
+    assert "professional_email" not in profile
+
+
+def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) -> None:
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            company_profile_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="company-directory-contact@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "331364729")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="model",
+                director_observed_at=NOW,
+                professional_email="contact@egli.example",
+                email_source="site",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=NOW,
+                phone="+33 4 76 00 00 00",
+                phone_source="model",
+                phone_observed_at=NOW,
+                enrichment_observed_at=NOW,
+            )
+        )
+
+    profile = client.get(f"/companies/{company_key}").json()
+
+    assert profile["company_profile_v2_enabled"] is True
+    assert profile["plan_code"] == "pro"
+    assert profile["directory"]["director_display_name"] == "Anna Egli"
+    assert profile["directory"]["director_display_title"] == "Présidente"
+    assert profile["directory"]["published_email"] == "contact@egli.example"
+    assert profile["directory"]["published_email_source_url"] == (
+        "https://egli.example/contact"
+    )
+    assert profile["directory"]["phone"] == "+33 4 76 00 00 00"
+    assert profile["directory"]["phone_source"] == "model"
+    assert profile["directory"]["phone_observed_at"] == NOW.replace(tzinfo=None).isoformat()
+    assert profile["directory"]["published_email_observed_at"] == NOW.replace(
+        tzinfo=None
+    ).isoformat()
+    assert "professional_email" not in profile["directory"]
+
+
+def test_discovery_directory_profile_never_serializes_contact_details(engine) -> None:
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            company_profile_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="directory-contact-discovery@example.com")
+    with engine.begin() as connection:
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "331364729")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="model",
+                director_observed_at=NOW,
+                professional_email="contact@egli.example",
+                email_source="site",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=NOW,
+                phone="+33 4 76 00 00 00",
+                phone_source="model",
+                phone_observed_at=NOW,
+                enrichment_observed_at=NOW,
+            )
+        )
+
+    response = client.get("/companies/directory/331364729")
+
+    assert response.status_code == 200
+    directory = response.json()["directory"]
+    assert directory["directors"] == [{"name": "Anna Egli", "title": "Présidente"}]
+    assert directory["website_url"] == "https://egli.example/"
+    assert "director_display_name" not in directory
+    assert "phone" not in directory
+    assert "published_email" not in directory
+    assert "published_email_source_url" not in directory
+
+
+def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, engine) -> None:
+    client = _signup(app, email="signal-local-circuit@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    with engine.begin() as connection:
+        award_key = connection.scalar(
+            sa.select(materialized_signal.c.materialization_award_key).where(
+                materialized_signal.c.signal_key == signal_key
+            )
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == award_key)
+            .values(
+                place_country="FR",
+                place_of_performance={
+                    "country": "FR",
+                    "subdivision_code": "FR-38",
+                    "locality": "Grenoble",
+                },
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Fournisseur local",
+        )
+
+    detail = client.get(f"/signals/{signal_key}").json()
+
+    assert detail["local_circuit"] == [
+        {
+            "siren": "331364729",
+            "name": "Fournisseur local",
+            "trade": "Béton prêt à l'emploi",
+            "city": "Grenoble",
+            "employees": 24,
+            "href": "/app/companies/directory/331364729",
+            "source": "registre",
+        }
+    ]
+
+
+def test_authenticated_directory_profile_has_a_closed_not_found_shape(app, engine) -> None:
+    client = _signup(app, email="directory-route@example.com")
+    icp_id = _icp(client)
+    with engine.begin() as connection:
+        event, awards = boamp_award(BOAMP_AGING)
+        materialize(connection, event, awards[0], target_icp_id=icp_id)
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="SARL ALCIS TRANSPORTS",
+            department="31",
+            city="Toulouse",
+        )
+
+    profile = client.get("/companies/directory/331364729")
+    missing = client.get("/companies/directory/000000000")
+
+    assert profile.status_code == 200
+    assert profile.json()["directory"]["name"] == "SARL ALCIS TRANSPORTS"
+    assert profile.json()["markets"][0]["title"]
+    assert profile.json()["markets"][0]["source"] == "public_awards"
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "company_not_found"
+
+
+def test_company_profiles_publish_the_closed_directory_contract(app) -> None:
+    schemas = app.openapi()["components"]["schemas"]
+    directory_response = app.openapi()["paths"]["/companies/directory/{siren}"]["get"][
+        "responses"
+    ]["200"]["content"]["application/json"]["schema"]
+
+    assert directory_response == {
+        "$ref": "#/components/schemas/DirectoryCompanyProfileView"
+    }
+    company_directory = schemas["CompanyProfile"]["properties"]["directory"]["anyOf"]
+    assert {item.get("$ref") for item in company_directory} >= {
+        "#/components/schemas/DirectoryCompanyView"
+    }
+    assert schemas["DirectoryCompanyView"]["additionalProperties"] is False
 
 
 def test_company_list_projects_a_named_holder_even_before_enrichment(app, engine) -> None:
@@ -208,6 +705,7 @@ def test_locked_signal_detail_never_reveals_a_company_key(app, engine) -> None:
     assert response.status_code == 200
     assert response.json()["locked"] is True
     assert "company_key" not in response.json()
+    assert "holder_history" not in response.json()
 
 
 def test_missing_and_malformed_company_keys_share_the_same_not_found_shape(app, engine) -> None:

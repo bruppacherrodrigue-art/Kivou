@@ -8,7 +8,7 @@ import styles from './signals.module.css'
 
 /** Un champ que l'API ne publie pas. L'interface le montre absent ; elle ne le
  *  commente pas, ne l'excuse pas et n'invente rien à sa place. */
-export const MISSING = '—'
+export const MISSING = ''
 
 /** L'objet client réécrit par l'API prime toujours sur les références source. */
 export function signalObject(item: UnlockedFeedItem): string | null {
@@ -22,7 +22,7 @@ export function truncate(text: string, max = 60): string {
 }
 
 /* Un lieu se lit, il ne se décode pas. Un code NUTS ou ISO (« FR-31 ») ne dit
- * rien à un commercial : à défaut d'un libellé lisible, mieux vaut un tiret. */
+ * rien à un commercial : à défaut d'un libellé lisible, le champ est omis. */
 export function placeLabel(place: Place | null, locale: Locale): string {
   if (!place) return MISSING
   if (place.locality) return place.locality

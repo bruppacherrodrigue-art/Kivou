@@ -8,7 +8,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 
 PREVIOUS = "0040_for_you_raw_diagnostics"
 HEAD = "0041_for_you_model_fit"
-CURRENT_HEAD = "0055_company_enrichment"
+CURRENT_HEAD = "0057_directory_contact_keys"
 
 
 def test_for_you_migration_adds_bounded_raw_diagnostics(tmp_path) -> None:

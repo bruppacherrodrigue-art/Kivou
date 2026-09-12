@@ -18,6 +18,7 @@ import { ConfirmProfile } from './pages/ConfirmProfile'
 import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
 import { CompaniesPage } from './companies/CompaniesPage'
+import { DirectoryCompanyPage } from './companies/DirectoryCompanyPage'
 import { Icps } from './pages/Icps'
 import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
@@ -105,6 +106,7 @@ export function AppRoutes() {
               <Route path="signals/:signalKey" element={<SignalsFeed />} />
               <Route path="companies" element={<CompaniesPage />} />
               <Route path="companies/:companyKey" element={<CompaniesPage />} />
+              <Route path="companies/directory/:directorySiren" element={<DirectoryCompanyPage />} />
               <Route path="icps" element={<Icps />} />
               <Route path="billing" element={<Billing />} />
               <Route path="notifications" element={<Notifications />} />

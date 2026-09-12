@@ -290,6 +290,61 @@
   text-decoration: underline;
 }
 
+.valueBlock {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.valueBlock h3,
+.valueBlock p {
+  margin: 0;
+}
+
+.valueBlock p {
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.valueBlock small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.valueLink,
+.localCircuit a {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.valueLink:hover,
+.localCircuit a:hover {
+  text-decoration: underline;
+}
+
+.localCircuit {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.localCircuit li {
+  display: grid;
+  gap: 2px;
+}
+
+.localCircuit span {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .needs,
 .why {
   padding: 10px 12px;

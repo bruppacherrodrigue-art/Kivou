@@ -8,6 +8,7 @@
 .object { margin: 0; overflow: hidden; color: #203a2c; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .meta { color: #617267; font-size: 13px; }
 .meta strong { color: #173c2b; font-variant-numeric: tabular-nums; }
+.calendar { margin: 0; color: #315c45; font-size: 12px; font-weight: 650; }
 .reason { min-height: 38px; margin: 0; padding: 9px 10px; border-radius: 6px; background: #f2f7f3; color: #435a4b; font-size: 12px; line-height: 1.45; }
 .actions { justify-content: flex-end; margin-top: auto; }
 .actions button, .followUp a, .empty a { border: 1px solid #cbd9cf; border-radius: 6px; padding: 6px 10px; background: #fff; color: #174a32; font: inherit; font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; }

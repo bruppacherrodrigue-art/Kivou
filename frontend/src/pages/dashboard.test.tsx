@@ -72,12 +72,34 @@ describe('Aujourd’hui', () => {
   })
 
   it('ouvre le drawer partagé depuis une carte', async () => {
-    mockApi(routes())
+    const detail = {
+      ...signal(1),
+      holder_history: {
+        resolution: 'company_key' as const,
+        last_12_months: { awards_count: 3 },
+        summary: { consortium_share: '0.0' },
+        source: 'public_awards' as const,
+      },
+    }
+    mockApi({ ...routes(), 'GET /signals/sig_1': { body: detail } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     const user = userEvent.setup()
     const card = (await screen.findByText('Titulaire 1')).closest('article')!
     await user.click(within(card).getByRole('button', { name: 'Ouvrir' }))
     expect(screen.getByRole('complementary', { name: 'Marché prioritaire 1' })).toBeVisible()
+    expect(await screen.findByText(/3 marchés gagnés sur 12 mois/)).toBeVisible()
+    expect(callsTo('/signals/sig_1', 'GET')).toHaveLength(1)
+  })
+
+  it('affiche le calendrier commercial dans la carte Aujourd’hui', async () => {
+    const timed = {
+      ...signal(1),
+      commercial_calendar: { start_month: '2026-10', duration_months: 8, source: 'public_notice' as const },
+    }
+    mockApi(routes(dashboard([timed])))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Démarrage probable octobre 2026')).toBeVisible()
   })
 
   it('ignore une priorité et charge la suivante', async () => {

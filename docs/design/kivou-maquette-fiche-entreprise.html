@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kivou — maquette fiche entreprise enrichie</title>
+<style>
+  :root{--bg:#fff;--ink:#1c2420;--muted:#6b756f;--line:#e3e8e5;--soft:#f4f7f5;--green:#1f5a3c;--green-soft:#e6f1eb;--amber:#b8861b;--amber-soft:#fbf3df}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--soft);color:var(--ink);font:14px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
+  a{color:var(--green);text-decoration:none;font-weight:600}
+  .wrap{max-width:1100px;margin:24px auto;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px}
+  h1{font-size:20px;margin:0 0 2px;letter-spacing:-.01em}
+  .sub{color:var(--muted);margin:0 0 14px;font-size:13px}
+  h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);margin:18px 0 8px}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:13.5px}
+  .kv div:nth-child(odd){color:var(--muted)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--green-soft);color:var(--green)}
+  .pill.a{background:var(--amber-soft);color:var(--amber)}
+  .pill.n{background:var(--soft);color:var(--muted)}
+  .src{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .btn{padding:7px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;font:inherit;cursor:pointer}
+  .btn.p{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .contact{border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--soft)}
+  .contact .name{font-weight:700}
+  .market{display:grid;grid-template-columns:1fr auto auto auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;align-items:center}
+  .market:last-child{border-bottom:0}
+  .dots{color:var(--green);letter-spacing:1px}.dots i{color:var(--line);font-style:normal}
+  .note{font-size:12.5px;color:var(--muted);background:var(--soft);border-radius:6px;padding:8px 10px;margin-top:8px}
+  .badge-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+  .empty{color:var(--muted);font-size:13px}
+  .hint{grid-column:1/3;text-align:center;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ FICHE 1 : PME avec site, adresse, dirigeant (annuaire) ============ -->
+  <div class="panel">
+    <h1>ALYA BATIMENT</h1>
+    <p class="sub">Maçonnerie générale et gros œuvre · Belleville-en-Beaujolais (Rhône) · 5 salariés · depuis 2005</p>
+
+    <h2>Contact</h2>
+    <div class="contact">
+      <div class="row"><span class="name">Mosbah Benzaoui</span><span class="pill n">Président</span></div>
+      <div class="kv" style="margin-top:8px">
+        <div>Téléphone</div><div><a href="tel:+33668073963">06 68 07 39 63</a></div>
+        <div>E-mail</div><div><a href="mailto:alya.batiment@hotmail.fr">alya.batiment@hotmail.fr</a> <span class="pill">publié sur le site</span></div>
+        <div>Site</div><div><a href="https://alyabat.fr" target="_blank">alyabat.fr ↗</a></div>
+        <div>Adresse</div><div>350 route de Jasseron, 69220 Belleville-en-Beaujolais</div>
+      </div>
+      <div class="src">Registre national des entreprises · site alyabat.fr, vérifié le 12 septembre 2026</div>
+    </div>
+
+    <h2>Identité</h2>
+    <div class="kv">
+      <div>SIREN</div><div>481 153 435</div>
+      <div>Activité</div><div>43.99C — Travaux de maçonnerie générale et gros œuvre</div>
+      <div>Forme</div><div>SAS, créée le 3 mars 2005</div>
+      <div>Effectif</div><div>5 salariés (2023)</div>
+      <div>Dirigeants</div><div>Mosbah Benzaoui, président</div>
+    </div>
+
+    <h2>Marchés publics</h2>
+    <p class="empty">Aucun marché public attribué connu.</p>
+
+    <h2>Vous et cette entreprise</h2>
+    <div class="row" style="margin-bottom:10px"><button class="btn p">Marquer contactée</button><button class="btn">A répondu</button><button class="btn">Ajouter une note</button></div>
+    <div class="empty">Aucune action pour l'instant.</div>
+  </div>
+
+  <!-- ============ FICHE 2 : titulaire d'un signal, enrichi ============ -->
+  <div class="panel">
+    <h1>PAUL BROCHIER</h1>
+    <p class="sub">Charpente et couverture · Saint-Étienne-de-Saint-Geoirs (Isère) · 45 salariés · depuis 1978</p>
+
+    <h2>Contact</h2>
+    <div class="contact">
+      <div class="row"><span class="name">Jean-Luc Brochier</span><span class="pill n">Président</span></div>
+      <div class="kv" style="margin-top:8px">
+        <div>Téléphone</div><div><a href="tel:+33476930000">04 76 93 00 00</a></div>
+        <div>E-mail</div><div><a href="mailto:contact@brochier-charpente.fr">contact@brochier-charpente.fr</a> <span class="pill">publié sur le site</span></div>
+        <div>Site</div><div><a href="#" target="_blank">brochier-charpente.fr ↗</a></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn p">Trouver le décideur</button>
+        <span class="src" style="margin:0">e-mail nominatif vérifié · 19 recherches restantes ce mois</span>
+      </div>
+      <div class="src">Registre national des entreprises · site vérifié le 12 septembre 2026</div>
+    </div>
+
+    <h2>Identité</h2>
+    <div class="kv">
+      <div>SIREN</div><div>312 345 678</div>
+      <div>Activité</div><div>43.91A — Travaux de charpente</div>
+      <div>Forme</div><div>SAS, créée en 1978</div>
+      <div>Effectif</div><div>45 salariés (2023)</div>
+      <div>Dirigeants</div><div>Jean-Luc Brochier, président · Marie Brochier, directrice générale</div>
+    </div>
+
+    <h2>Marchés publics — 3 gagnés en 12 mois · 612 k€ · acheteurs récurrents : Département de l'Isère, Commune de Voiron</h2>
+    <div class="market"><span>Charpente, isolation et couverture, Isère</span><span>258 k€</span><span class="src">8 sept. 2026</span><span class="dots">●●●●</span></div>
+    <div class="market"><span>Réfection de toiture, groupe scolaire de Voiron</span><span>214 k€</span><span class="src">12 mai 2026</span><span class="dots">●●●<i>●</i></span></div>
+    <div class="market"><span>Charpente bois, gymnase de Tullins</span><span>140 k€</span><span class="src">3 févr. 2026</span><span class="dots">●●<i>●●</i></span></div>
+    <div class="note">Démarrage probable du dernier chantier : novembre 2026 · durée 8 mois</div>
+
+    <h2>Vous et cette entreprise</h2>
+    <div class="row" style="margin-bottom:10px"><button class="btn p">Marquer contactée</button><button class="btn">A répondu</button><button class="btn">Ajouter une note</button></div>
+    <div class="src">Historique : signal sauvé · 10 septembre 2026</div>
+  </div>
+
+  <div class="hint">Gauche : entreprise de l'annuaire (5 salariés, tout ce qu'on a trouvé est gratuit et affiché). Droite : titulaire d'un signal, enrichi par la même chaîne ; seul l'e-mail nominatif d'un décideur est derrière le bouton et son quota. Données PAUL BROCHIER illustratives hors le marché du 8 septembre.</div>
+</div>
+</body>
+</html>

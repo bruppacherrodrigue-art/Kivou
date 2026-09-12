@@ -83,6 +83,7 @@ def base_environment(monkeypatch: pytest.MonkeyPatch, sqlite_url: str) -> None:
         "SMTP_HOST",
         "SMTP_FROM_EMAIL",
         "KIVOU_PUBLIC_APP_URL",
+        "KIVOU_APOLLO_API_KEY",
         *INSTANTLY_ENV,
         *INSTANTLY_OPTIONAL_ENV_NAMES,
     ):
@@ -95,6 +96,64 @@ def base_environment(monkeypatch: pytest.MonkeyPatch, sqlite_url: str) -> None:
 def _configure_instantly(monkeypatch: pytest.MonkeyPatch) -> None:
     for name, value in INSTANTLY_ENV.items():
         monkeypatch.setenv(name, value)
+
+
+# ─── activation explicite de la phrase « Pour vous » ────────────────────────
+
+
+def test_generated_for_you_is_disabled_until_backfill_activation(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert ApiConfig().generated_for_you_enabled is False
+
+    monkeypatch.delenv("KIVOU_GENERATED_FOR_YOU_ENABLED", raising=False)
+
+    assert ApiConfig.from_environment().generated_for_you_enabled is False
+
+    monkeypatch.setenv("KIVOU_GENERATED_FOR_YOU_ENABLED", "true")
+
+    assert ApiConfig.from_environment().generated_for_you_enabled is True
+
+
+def test_company_profile_v2_is_disabled_until_explicit_activation(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert ApiConfig().company_profile_v2_enabled is False
+
+    monkeypatch.delenv("KIVOU_COMPANY_PROFILE_V2_ENABLED", raising=False)
+
+    assert ApiConfig.from_environment().company_profile_v2_enabled is False
+
+    monkeypatch.setenv("KIVOU_COMPANY_PROFILE_V2_ENABLED", "true")
+
+    assert ApiConfig.from_environment().company_profile_v2_enabled is True
+
+
+def test_commercial_calendar_cpv_delays_are_explicit_configuration(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(
+        "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON",
+        '{"45": 3, "452331": 5}',
+    )
+
+    assert ApiConfig.from_environment().commercial_start_delay_months_by_cpv_prefix == {
+        "45": 3,
+        "452331": 5,
+    }
+
+
+def test_apollo_key_is_secret_and_wires_the_client_lookup_without_network_io(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    secret = "synthetic-apollo-secret"
+    monkeypatch.setenv("KIVOU_APOLLO_API_KEY", secret)
+
+    module = importlib.import_module(MODULE)
+    app = module.build_application()
+
+    assert app.state.company_contact_lookup_service is not None
+    assert secret not in repr(app.state.config)
 
 
 # ─── configuration Instantly atomique et expurgée ────────────────────────────

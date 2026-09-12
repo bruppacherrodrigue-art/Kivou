@@ -178,7 +178,7 @@ describe('écran Signaux — tableau dense', () => {
 
     const grid = await table()
     const row = within(grid).getAllByRole('row')[1]
-    expect(row.textContent).toContain('—')
+    expect(row.textContent).not.toContain('—')
     expect(row.textContent).toContain('Votre accès actuel conserve cet aperçu')
     expect(row.textContent).toContain('2 août')
     expect(row.textContent).toContain('1 240 000 €')
@@ -422,8 +422,9 @@ describe('écran Signaux — tiroir', () => {
     expect(within(panel).getByText('Attribué le')).toBeInTheDocument()
     expect(within(panel).getByText('CPV')).toBeInTheDocument()
     expect(within(panel).getByText('45233120')).toBeInTheDocument()
-    expect(within(panel).getByText('Pourquoi ça vous concerne')).toBeInTheDocument()
+    expect(within(panel).getByText('Pour vous')).toBeInTheDocument()
     expect(within(panel).getByRole('link', { name: /Source : BOAMP 26-104412/ })).toBeInTheDocument()
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
     // La ligne sélectionnée reste marquée, et les filtres survivent.
     expect(within(grid).getAllByRole('row')[1]).toHaveAttribute('aria-current', 'true')
     expect(screen.getByLabelText('Zone')).toHaveValue('FR-31')

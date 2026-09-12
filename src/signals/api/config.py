@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import json
 import os
 import re
+from collections.abc import Mapping
 from urllib.parse import urlsplit
 
 from signals.campaigns.runtime_webhook import (
@@ -49,6 +51,10 @@ ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
 ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
 ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
+GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
+COMPANY_PROFILE_V2_ENABLED_ENV = "KIVOU_COMPANY_PROFILE_V2_ENABLED"
+COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
+APOLLO_API_KEY_ENV = "KIVOU_APOLLO_API_KEY"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -78,6 +84,34 @@ def _duration(name: str, default: dt.timedelta) -> dt.timedelta:
     if seconds <= 0:
         raise ValueError(f"{name} doit être un nombre de secondes positif")
     return dt.timedelta(seconds=seconds)
+
+
+def _cpv_start_delays(name: str) -> dict[str, int]:
+    raw = os.environ.get(name)
+    if not raw:
+        return {}
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise ValueError(f"{name} doit être un objet JSON") from error
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} doit être un objet JSON")
+    result: dict[str, int] = {}
+    for prefix, months in value.items():
+        if (
+            not isinstance(prefix, str)
+            or not prefix.isdigit()
+            or not 1 <= len(prefix) <= 8
+            or isinstance(months, bool)
+            or not isinstance(months, int)
+            or not 0 <= months <= 60
+        ):
+            raise ValueError(
+                f"{name} attend des préfixes CPV de 1 à 8 chiffres "
+                "et des délais entiers de 0 à 60 mois"
+            )
+        result[prefix] = months
+    return result
 
 
 @dataclasses.dataclass(frozen=True)
@@ -150,9 +184,7 @@ class ApiConfig:
     # SPEC-026 — absent by default: the provider-specific route fails closed.
     instantly_webhook_secret: str | None = dataclasses.field(default=None, repr=False)
     instantly_webhook_workspace_ref: str | None = None
-    instantly_webhook_fingerprint_key: bytes | None = dataclasses.field(
-        default=None, repr=False
-    )
+    instantly_webhook_fingerprint_key: bytes | None = dataclasses.field(default=None, repr=False)
     instantly_webhook_fingerprint_key_version: str | None = None
     suppression_identity_key: bytes | None = dataclasses.field(default=None, repr=False)
     suppression_identity_key_version: str | None = None
@@ -168,6 +200,18 @@ class ApiConfig:
     # SPEC-031 — workers never infer production. The absent default is deliberately
     # unusable as autonomous-readiness evidence.
     acquisition_environment: str = "UNCONFIGURED"
+    # PR6b — coupe seulement la phrase rédigée dans l'app client. Le repli
+    # déterministe reste toujours disponible et les e-mails ne changent pas.
+    generated_for_you_enabled: bool = False
+    # PR6b correction #226 — la fiche validée reste désactivée tant que la
+    # capture staging n'a pas reçu l'accord produit.
+    company_profile_v2_enabled: bool = False
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] = dataclasses.field(
+        default_factory=dict
+    )
+    # PR6b — secret du fournisseur utilisé uniquement par la recherche explicite
+    # d'un décideur. Son absence laisse la route indisponible, sans appel réseau.
+    apollo_api_key: str | None = dataclasses.field(default=None, repr=False)
 
     @property
     def stripe_livemode(self) -> bool:
@@ -270,9 +314,7 @@ class ApiConfig:
             )
         if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
             raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
-        instantly = _api_webhook_values(
-            load_instantly_webhook_runtime_config(required=False)
-        )
+        instantly = _api_webhook_values(load_instantly_webhook_runtime_config(required=False))
         acquisition_environment = resolve_acquisition_environment()
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
@@ -333,10 +375,17 @@ class ApiConfig:
                 attribution_key_raw.encode("utf-8") if attribution_key_raw else None
             ),
             attribution_hmac_key_version=attribution_key_version,
-            cockpit_operator_account_ids=_account_ref_allowlist(
-                COCKPIT_OPERATOR_ACCOUNT_IDS_ENV
-            ),
+            cockpit_operator_account_ids=_account_ref_allowlist(COCKPIT_OPERATOR_ACCOUNT_IDS_ENV),
             acquisition_environment=acquisition_environment,
+            # L'activation d'environnement vient seulement après le backfill
+            # borné des comptes actifs. Le défaut fermé empêche un déploiement
+            # d'afficher un mélange involontaire de phrases générées et de replis.
+            generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=False),
+            company_profile_v2_enabled=_flag(COMPANY_PROFILE_V2_ENABLED_ENV, default=False),
+            commercial_start_delay_months_by_cpv_prefix=_cpv_start_delays(
+                COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV
+            ),
+            apollo_api_key=os.environ.get(APOLLO_API_KEY_ENV) or None,
         )
 
 
@@ -552,10 +601,10 @@ def resolve_acquisition_environment() -> str:
     return value
 
 
-def _flag(name: str) -> bool:
-    """Un drapeau d'environnement. Absent vaut faux : aucun défaut permissif."""
+def _flag(name: str, *, default: bool = False) -> bool:
+    """Un drapeau d'environnement avec un défaut explicite par fonctionnalité."""
     raw = os.environ.get(name)
-    return bool(raw) and raw.lower() in {"1", "true", "yes"}
+    return default if raw is None else raw.lower() in {"1", "true", "yes"}
 
 
 def _account_ref_allowlist(name: str) -> frozenset[str]:

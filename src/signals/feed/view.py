@@ -18,10 +18,12 @@ réévaluée est la FRAÎCHEUR, parce que c'est la seule qui change toute seule.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
 from signals.card_intelligence.contracts import PublishedCardPresentation
+from signals.client_value.calendar import commercial_calendar
 from signals.domain.award_dates import attribution_date
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import copy as feed_copy
@@ -238,7 +240,9 @@ def _needs(item: FeedSignal, *, lang: str, full: bool) -> dict[str, Any]:
     return {"note": feed_copy.PLAUSIBLE_NEEDS_NOTE[lang], "items": entries}
 
 
-def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
+def _fit(
+    item: FeedSignal, *, lang: str, generated_for_you_enabled: bool | None = None
+) -> dict[str, Any]:
     """Pourquoi Kivou montre ceci à CE client — expliqué, jamais noté (§12).
 
     Les raisons sont dérivées de ce qui est stocké : les besoins de l'ICP
@@ -289,25 +293,46 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
             cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
         )
     )
+    band = "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band)
+    stored_sentence = client_safe_sentence(item.for_you_sentence)
+    # `None` conserve le contrat historique des canaux e-mail, qui appellent
+    # cette vue sans configuration client. Un booléen explicite est réservé
+    # aux routes de l'app et applique alors la politique PR6b.
+    generated_for_you = (
+        stored_sentence
+        if generated_for_you_enabled is None
+        or (generated_for_you_enabled and band == "strong" and item.model_fit != "none")
+        else None
+    )
     return {
         "label": feed_copy.FIT_LABELS[key][lang],
         # PR2b — même table que `companies.listing` (§45) : `feed.policy.fit_band`
         # est l'UNIQUE source du vocabulaire, pour que les deux surfaces ne
         # divergent jamais.
-        "band": "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band),
+        "band": band,
         "target_icp_id": signal.target_icp_id,
         "target_icp_label": item.target_icp_label,
         "reasons": rendered_reasons,
-        "for_you_sentence": client_safe_sentence(item.for_you_sentence) or deterministic_for_you,
+        "for_you_sentence": generated_for_you or deterministic_for_you,
     }
 
 
-def _analysis(item: FeedSignal, *, lang: str, full: bool) -> dict[str, Any]:
+def _analysis(
+    item: FeedSignal,
+    *,
+    lang: str,
+    full: bool,
+    generated_for_you_enabled: bool | None = None,
+) -> dict[str, Any]:
     """Le bloc des INFÉRENCES. Séparé des faits, et nommé comme tel."""
     signal = item.signal
     analysis: dict[str, Any] = {
         "plausible_needs": _needs(item, lang=lang, full=full),
-        "fit": _fit(item, lang=lang),
+        "fit": _fit(
+            item,
+            lang=lang,
+            generated_for_you_enabled=generated_for_you_enabled,
+        ),
     }
     if full:
         analysis["contract_reading"] = {
@@ -396,10 +421,12 @@ def feed_item(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None = None,
+    generated_for_you_enabled: bool | None = None,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """La carte du feed : compacte, sans preuve, sans raisonnement long (§16)."""
     feed_copy.check_language(lang)
-    return {
+    rendered = {
         "signal_id": item.signal.signal_key,
         "target_icp_id": item.signal.target_icp_id,
         # PR2b §46 — fait PUBLIC (un groupement se lit dans l'avis lui-même) :
@@ -409,10 +436,26 @@ def feed_item(
         "factual_display": factual_display(item, lang=lang),
         "event": _event(item, lang=lang),
         "contract": _contract(item, lang=lang),
-        "analysis": _analysis(item, lang=lang, full=False),
+        "analysis": _analysis(
+            item,
+            lang=lang,
+            full=False,
+            generated_for_you_enabled=generated_for_you_enabled,
+        ),
         "source": _source(item),
         "presentation": (None if presentation is None else presentation.model_dump(mode="json")),
     }
+    calendar = commercial_calendar(
+        notification_date=item.signal.award.contract_notification_date,
+        cpv_code=item.signal.award.cpv_main,
+        duration_value=item.signal.award.duration_value,
+        duration_unit=item.signal.award.duration_unit,
+        delay_months_by_cpv_prefix=commercial_start_delay_months_by_cpv_prefix,
+        contract_start_date=item.signal.award.contract_start_date,
+    )
+    if calendar is not None:
+        rendered["commercial_calendar"] = calendar
+    return rendered
 
 
 def signal_detail(
@@ -420,10 +463,25 @@ def signal_detail(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None = None,
+    generated_for_you_enabled: bool | None = None,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """Le détail : la carte, plus de quoi VÉRIFIER (§15)."""
-    detail = feed_item(item, lang=lang, presentation=presentation)
-    detail["analysis"] = _analysis(item, lang=lang, full=True)
+    detail = feed_item(
+        item,
+        lang=lang,
+        presentation=presentation,
+        generated_for_you_enabled=generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            commercial_start_delay_months_by_cpv_prefix
+        ),
+    )
+    detail["analysis"] = _analysis(
+        item,
+        lang=lang,
+        full=True,
+        generated_for_you_enabled=generated_for_you_enabled,
+    )
     detail["evidence"] = _evidence(item, lang=lang)
     detail["opportunity_id"] = item.signal.opportunity_key
     detail["customer_ready"] = item.display is not None

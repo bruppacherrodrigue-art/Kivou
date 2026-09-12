@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Annotated, Any, Literal, get_args
 
@@ -55,6 +56,8 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.client_value.directory import local_circuit
+from signals.client_value.history import department_for_place, history_for_company
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.service import (
@@ -371,6 +374,10 @@ def list_signals(
                 company_key=company_keys.get(item.signal.signal_key),
                 enrichment=enrichments.get(item.signal.signal_key),
                 status=resolve_status(item.signal.signal_key),
+                generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+                commercial_start_delay_months_by_cpv_prefix=(
+                    request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+                ),
             )
             for item in page.items
         ],
@@ -444,6 +451,8 @@ def _render(
     company_key: str | None,
     enrichment: WinnerEnrichmentView | None,
     status: str,
+    generated_for_you_enabled: bool,
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int],
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
@@ -454,6 +463,10 @@ def _render(
             company_key=company_key,
             enrichment=enrichment,
             status=status,
+            generated_for_you_enabled=generated_for_you_enabled,
+            commercial_start_delay_months_by_cpv_prefix=(
+                commercial_start_delay_months_by_cpv_prefix
+            ),
         )
     return paywall.locked_teaser(item, lang=lang, status=status)
 
@@ -506,6 +519,8 @@ def get_signal(
     company_key = None
     enrichment = None
     presentation = None
+    holder_history = None
+    circuit = ()
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
@@ -584,6 +599,24 @@ def get_signal(
                 enrichment = winner_enrichments_for_signals(
                     connection, signal_keys=(signal_key,)
                 ).get(signal_key)
+                holder_history = history_for_company(
+                    connection,
+                    company_key=company_key,
+                    winner_name=(
+                        enrichment.official_name
+                        if enrichment is not None and enrichment.official_name is not None
+                        else item.display.name if item.display is not None else None
+                    ),
+                    department=department_for_place(item.signal.award.place_of_performance),
+                    as_of=as_of,
+                )
+                place = item.signal.award.place_of_performance or {}
+                circuit = local_circuit(
+                    connection,
+                    target_icp_id=item.signal.target_icp_id,
+                    department=department_for_place(item.signal.award.place_of_performance),
+                    city=place.get("locality"),
+                )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -602,7 +635,15 @@ def get_signal(
         locked["language"] = lang
         return locked
 
-    detail = view.signal_detail(item, lang=lang, presentation=presentation)
+    detail = view.signal_detail(
+        item,
+        lang=lang,
+        presentation=presentation,
+        generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+        commercial_start_delay_months_by_cpv_prefix=(
+            request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+        ),
+    )
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False
@@ -613,6 +654,10 @@ def get_signal(
         detail["winner_enrichment"] = enrichment.model_dump(mode="json")
         if enrichment.official_name is not None:
             detail["company"]["name"] = enrichment.official_name
+    if holder_history is not None:
+        detail["holder_history"] = holder_history
+    if circuit:
+        detail["local_circuit"] = list(circuit)
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.

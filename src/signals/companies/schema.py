@@ -44,6 +44,116 @@ saas_company = sa.Table(
 )
 
 
+# PR6b — account-scoped decision-maker cache plus an append-only provider
+# attempt ledger. Person data remains only in the cache; the ledger has costs.
+company_contact_lookup = sa.Table(
+    "company_contact_lookup",
+    METADATA,
+    sa.Column("lookup_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "company_key",
+        sa.String(64),
+        nullable=False,
+    ),
+    sa.Column(
+        "directory_siren",
+        sa.String(9),
+        sa.ForeignKey("supplier_directory.siren", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("provider_organization_id", sa.String(128), nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("organization", sa.JSON),
+    sa.Column("contacts", sa.JSON, nullable=False),
+    sa.Column("requested_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("researched_at", sa.DateTime(timezone=True)),
+    sa.Column("refresh_after", sa.DateTime(timezone=True)),
+    sa.Column("lease_id", sa.String(64)),
+    sa.Column("lease_expires_at", sa.DateTime(timezone=True)),
+    sa.Column("error_code", sa.String(64)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint(
+        "account_id", "company_key", name="uq_company_contact_lookup_account_company"
+    ),
+    sa.CheckConstraint(
+        "status IN ('running', 'ready', 'no_contact', 'failed')",
+        name="ck_company_contact_lookup_status",
+    ),
+    sa.Index(
+        "ix_company_contact_lookup_account_requested",
+        "account_id",
+        "requested_at",
+    ),
+)
+
+
+company_contact_lookup_attempt = sa.Table(
+    "company_contact_lookup_attempt",
+    METADATA,
+    sa.Column("attempt_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "company_key",
+        sa.String(64),
+        nullable=False,
+    ),
+    sa.Column(
+        "directory_siren",
+        sa.String(9),
+        sa.ForeignKey("supplier_directory.siren", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("provider_organization_id", sa.String(128), nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("requested_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.Column("lease_expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("organization_enrichment_requests", sa.Integer, nullable=False),
+    sa.Column("people_search_requests", sa.Integer, nullable=False),
+    sa.Column("people_match_requests", sa.Integer, nullable=False),
+    sa.Column("planned_credit_units", sa.Integer, nullable=False),
+    sa.Column("attempted_credit_units", sa.Integer, nullable=False),
+    # Apollo's merged contracts do not report billed credits. Keep this null
+    # rather than presenting locally estimated units as observed provider cost.
+    sa.Column("observed_credit_units", sa.Integer),
+    sa.Column("error_code", sa.String(64)),
+    sa.CheckConstraint(
+        "status IN ('running', 'success', 'no_contact', 'failed', 'expired', 'suppressed')",
+        name="ck_company_contact_attempt_status",
+    ),
+    sa.CheckConstraint(
+        "organization_enrichment_requests >= 0 "
+        "AND organization_enrichment_requests <= 1 "
+        "AND people_search_requests >= 0 "
+        "AND people_search_requests <= 1 "
+        "AND people_match_requests >= 0 "
+        "AND people_match_requests <= 3 "
+        "AND planned_credit_units >= 0 "
+        "AND attempted_credit_units >= 0 "
+        "AND attempted_credit_units <= planned_credit_units "
+        "AND (observed_credit_units IS NULL OR observed_credit_units >= 0)",
+        name="ck_company_contact_attempt_costs",
+    ),
+    sa.Index(
+        "ix_company_contact_attempt_account_requested",
+        "account_id",
+        "requested_at",
+    ),
+)
+
+
 winner_enrichment_job = sa.Table(
     "winner_enrichment_job",
     METADATA,

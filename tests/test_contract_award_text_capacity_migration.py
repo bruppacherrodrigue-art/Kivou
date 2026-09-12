@@ -55,7 +55,10 @@ ASSISTED_PROSPECTION_REVISION = "0051_assisted_prospection"
 ASSISTED_OBSERVATION_REVISION = "0052_assisted_observation"
 SUPPLIER_ACTIVITY_REVISION = "0053_supplier_activity"
 PROSPECT_MAIL_REVISION = "0054_prospect_mail_contract"
-CURRENT_HEAD = "0055_company_enrichment"
+COMPANY_ENRICHMENT_REVISION = "0055_company_enrichment"
+COMPANY_CONTACT_REVISION = "0054_company_contact_lookup"
+COMPANY_CONTACT_MERGE_REVISION = "0056_company_contact_merge"
+CURRENT_HEAD = "0057_directory_contact_keys"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -144,11 +147,17 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == PROSPECT_MAIL_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == COMPANY_CONTACT_MERGE_REVISION
+    assert set(script.get_revision(COMPANY_CONTACT_MERGE_REVISION).down_revision) == {
+        COMPANY_ENRICHMENT_REVISION,
+        COMPANY_CONTACT_REVISION,
+    }
     assert (
-        script.get_revision(PROSPECT_MAIL_REVISION).down_revision
-        == SUPPLIER_ACTIVITY_REVISION
+        script.get_revision(COMPANY_ENRICHMENT_REVISION).down_revision
+        == PROSPECT_MAIL_REVISION
     )
+    assert script.get_revision(PROSPECT_MAIL_REVISION).down_revision == SUPPLIER_ACTIVITY_REVISION
+    assert script.get_revision(COMPANY_CONTACT_REVISION).down_revision == SUPPLIER_ACTIVITY_REVISION
     assert (
         script.get_revision(SUPPLIER_ACTIVITY_REVISION).down_revision
         == ASSISTED_OBSERVATION_REVISION

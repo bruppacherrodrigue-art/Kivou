@@ -110,12 +110,12 @@ describe('placeLabel', () => {
   })
 
   it('ne rend jamais un code de subdivision seul', () => {
-    expect(placeLabel(place({ subdivision_code: 'FR-31' }), 'fr')).toBe('—')
+    expect(placeLabel(place({ subdivision_code: 'FR-31' }), 'fr')).toBe('')
   })
 
-  it('rend le tiret quand rien n’est publié', () => {
-    expect(placeLabel(null, 'fr')).toBe('—')
-    expect(placeLabel(place(), 'fr')).toBe('—')
+  it('omet le lieu quand rien n’est publié', () => {
+    expect(placeLabel(null, 'fr')).toBe('')
+    expect(placeLabel(place(), 'fr')).toBe('')
   })
 })
 
@@ -134,7 +134,7 @@ describe('SignalRow', () => {
     expect(within(cells[5]).getByLabelText(/Correspondance/)).toBeInTheDocument()
   })
 
-  it('rend le tiret pour un titulaire ou un montant absent', () => {
+  it('omet un titulaire ou un montant absent', () => {
     renderRow({
       signal: item({
         company: { ...UNLOCKED_ITEM.company, name: null },
@@ -143,8 +143,8 @@ describe('SignalRow', () => {
     })
 
     const cells = within(screen.getByRole('row')).getAllByRole('cell')
-    expect(flat(cells[1].textContent ?? '')).toBe('—')
-    expect(flat(cells[3].textContent ?? '')).toBe('—')
+    expect(flat(cells[1].textContent ?? '')).toBe('')
+    expect(flat(cells[3].textContent ?? '')).toBe('')
   })
 
   it('tronque l’objet à soixante caractères et garde le texte complet en infobulle', () => {

@@ -30,6 +30,7 @@ from feed_helpers import (
 from signals.api import ApiConfig, create_app
 from signals.domain.awards import Awardee, AwardeeParty
 from signals.domain.cpv_labels import cpv_label
+from signals.domain.values import Duration
 from signals.feed.policy import FIT_BANDS
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import for_you_sentence, materialized_signal
@@ -207,6 +208,41 @@ def test_model_fit_none_reduces_match_to_weak_in_detail_and_history(client, engi
     assert detail(client, signal.signal_key)["analysis"]["fit"]["band"] == "weak"
     item = next(i for i in feed_items(client) if i["signal_id"] == signal.signal_key)
     assert item["analysis"]["fit"]["band"] == "weak"
+
+
+# ─── commercial_calendar ──────────────────────────────────────────────────
+
+
+def test_commercial_calendar_is_shared_by_feed_and_detail(client, engine):
+    icp = icp_of(client)
+    event, awards = simap_award(SIMAP_RICH)
+    dated = awards[0].model_copy(
+        update={
+            "contract_notification_date": dt.date(2026, 7, 31),
+            "duration": Duration(value=18, unit="month"),
+        }
+    )
+    with engine.begin() as connection:
+        signal = materialize(connection, event, dated, target_icp_id=icp)
+
+    expected = {
+        "start_month": "2026-09",
+        "duration_months": 18,
+        "source": "public_notice",
+    }
+    assert detail(client, signal.signal_key)["commercial_calendar"] == expected
+    item = next(i for i in feed_items(client) if i["signal_id"] == signal.signal_key)
+    assert item["commercial_calendar"] == expected
+
+
+def test_commercial_calendar_key_is_omitted_without_notification(client, engine):
+    icp = icp_of(client)
+    with engine.begin() as connection:
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp)
+
+    assert "commercial_calendar" not in detail(client, signal.signal_key)
+    item = next(i for i in feed_items(client) if i["signal_id"] == signal.signal_key)
+    assert "commercial_calendar" not in item
 
 
 # ─── contract.cpv_label ─────────────────────────────────────────────────────

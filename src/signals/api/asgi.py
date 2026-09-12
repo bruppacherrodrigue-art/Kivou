@@ -49,6 +49,9 @@ from signals.campaigns.runtime_webhook import (
     build_instantly_webhook_service,
     load_instantly_webhook_runtime_config,
 )
+from signals.client_value.contact_lookup import CompanyContactLookupService
+from signals.company_research.apollo import ApolloCompanyResearchClient
+from signals.contact_discovery.apollo import ApolloContactDiscoveryClient
 from signals.conversion.token import AttributionTokenKeyring
 from signals.persistence.database import create_database_engine
 from signals.prospection_actions.unsubscribe import ProspectUnsubscribeService
@@ -80,6 +83,20 @@ def build_application() -> FastAPI:
         prospect_unsubscribe_service=_prospect_unsubscribe_service(
             engine, config, webhook_configuration
         ),
+        company_contact_lookup_service=_company_contact_lookup_service(engine, config),
+    )
+
+
+def _company_contact_lookup_service(
+    engine: Engine, config: ApiConfig
+) -> CompanyContactLookupService | None:
+    """Build the on-demand client lookup without performing provider I/O."""
+    if config.apollo_api_key is None:
+        return None
+    return CompanyContactLookupService(
+        engine,
+        company_research=ApolloCompanyResearchClient(api_key=config.apollo_api_key),
+        contact_discovery=ApolloContactDiscoveryClient(api_key=config.apollo_api_key),
     )
 
 

@@ -296,9 +296,11 @@ export function SignalsFeed() {
   const rowItem = selectedKey
     ? items.find((entry) => entry.signal_id === selectedKey) ?? null
     : null
+  const rowItemLocked = rowItem?.locked === true
 
-  /* Un lien profond vers un signal absent de la page chargée demande le détail.
-   * Un signal verrouillé ne passe jamais par là : il part à la facturation. */
+  /* Toute ouverture demande le détail : la ligne ne porte que le résumé du
+   * flux et ne contient pas les blocs de valeur de la fiche. Un signal
+   * verrouillé ne passe jamais par là : il part à la facturation. */
   useEffect(() => {
     if (!selectedKey) {
       detailGeneration.current += 1
@@ -306,18 +308,12 @@ export function SignalsFeed() {
       return
     }
     if (feed.loading) return
-    if (rowItem?.locked) {
+    if (rowItemLocked) {
       detailGeneration.current += 1
       setDetail({ key: selectedKey, data: null, loading: false, error: null })
       navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
       return
     }
-    if (rowItem) {
-      detailGeneration.current += 1
-      setDetail({ key: selectedKey, data: null, loading: false, error: null })
-      return
-    }
-
     const generation = ++detailGeneration.current
     setDetail({ key: selectedKey, data: null, loading: true, error: null })
     signals.detail(selectedKey).then(
@@ -336,12 +332,12 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [detailRetryToken, feed.loading, navigate, rowItem, selectedKey])
+  }, [detailRetryToken, feed.loading, navigate, rowItemLocked, selectedKey])
 
-  const selectedItem: UnlockedFeedItem | null = rowItem && !rowItem.locked
-    ? rowItem
-    : detail.key === selectedKey
-      ? detail.data
+  const selectedItem: UnlockedFeedItem | null = detail.key === selectedKey && detail.data
+    ? detail.data
+    : rowItem && !rowItem.locked
+      ? rowItem
       : null
   const drawerLoading = Boolean(selectedKey) && !selectedItem && (feed.loading || detail.loading)
   const drawerError = detail.key === selectedKey ? detail.error : null

@@ -59,6 +59,13 @@ ERROR_CODES: tuple[str, ...] = (
     # PR1 Task 4 — GET /companies
     "invalid_contact_status",
     "invalid_company_cursor",
+    # PR6b — recherche explicite d'un décideur depuis la fiche entreprise.
+    "contact_lookup_unavailable",
+    "contact_lookup_locked",
+    "contact_lookup_quota_exhausted",
+    "contact_lookup_failed",
+    "contact_lookup_identity_unavailable",
+    "contact_lookup_suppressed",
     "invalid_notification_email",
     # SPEC-026 — provider-specific, authenticated transport ingress.
     "instantly_webhook_unavailable",

@@ -13,7 +13,9 @@ import type {
   CompanyProfile,
   CompanyListPage,
   CompanyContactResult,
+  CompanyContactLookup,
   CompanyContactStatus,
+  DirectoryCompanyProfile,
   DashboardResponse,
   CompanyNoteResult,
   Currency,
@@ -145,10 +147,18 @@ export const companies = {
   get: (companyKey: string) =>
     request<CompanyProfile>(`/companies/${encodeURIComponent(companyKey)}`),
 
+  directoryGet: (siren: string) =>
+    request<DirectoryCompanyProfile>(`/companies/directory/${encodeURIComponent(siren)}`),
+
   contact: (companyKey: string, status: CompanyContactStatus) =>
     request<CompanyContactResult>(`/companies/${encodeURIComponent(companyKey)}/contact`, {
       method: 'POST',
       body: { status },
+    }),
+
+  contactLookup: (companyKey: string) =>
+    request<CompanyContactLookup>(`/companies/${encodeURIComponent(companyKey)}/contact-lookup`, {
+      method: 'POST',
     }),
 
   note: (companyKey: string, body: string) =>
