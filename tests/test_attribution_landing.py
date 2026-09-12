@@ -255,6 +255,7 @@ def test_kqa1_and_kat1_prefill_the_same_family_profile(tmp_path) -> None:
 
         assert response.status_code == 303
         profile = client.get("/target-icps").json()[0]
+        assert profile["provisional"] is True
         assert profile["label"] == "Bois et charpente"
         assert profile["customer_input"]["territory_subdivisions"] == ["FR-38"]
         assert profile["customer_input"]["sector_cpv_prefixes"] == ["452611"]
