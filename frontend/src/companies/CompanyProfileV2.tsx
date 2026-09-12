@@ -13,6 +13,7 @@ import type {
   PlanCode,
 } from '../api/types'
 import { useI18n } from '../i18n'
+import { normalCasePlace } from '../presentation/locationText'
 import styles from './CompaniesPage.module.css'
 
 export interface CompanyProfileMarket {
@@ -98,7 +99,7 @@ function calendarLabel(calendar: CommercialCalendar, locale: string): string | n
   return `Démarrage probable du dernier chantier : ${month}${calendar.duration_months ? ` · durée ${calendar.duration_months} mois` : ''}`
 }
 
-function ContactBlock({
+export function CompanyContactBlock({
   companyKey,
   directory,
   fallbackAddress,
@@ -107,6 +108,7 @@ function ContactBlock({
   planCode,
   initialLookup,
   onReloadLookup,
+  showHeading = true,
 }: {
   companyKey: string
   directory?: DirectoryCompany | null
@@ -116,6 +118,7 @@ function ContactBlock({
   planCode: PlanCode
   initialLookup?: CompanyContactLookup | null
   onReloadLookup: () => Promise<CompanyContactLookup | null>
+  showHeading?: boolean
 }) {
   const { date } = useI18n()
   const [lookup, setLookup] = useState(initialLookup ?? null)
@@ -201,18 +204,15 @@ function ContactBlock({
 
   if (discovery) {
     return (
-      <section className={styles.companyV2Section}>
-        <h3>Contact</h3>
+      <section className={`${styles.companyV2Section} ${showHeading ? '' : styles.companyContactEmbedded}`}>
+        {showHeading ? <h3>Contact</h3> : null}
         <div className={`${styles.companyContactCard} ${styles.companyContactLocked}`}>
           <div className={styles.companyContactBlur} aria-hidden="true">
-            <div className={styles.companyContactLead}>
-              <strong>Camille Martin</strong>
-              <span className={styles.companyPillNeutral}>Direction</span>
+            <div className={styles.companyContactSkeleton}>
+              <span data-size="long" />
+              <span data-size="short" />
+              <span data-size="medium" />
             </div>
-            <dl className={styles.companyKeyValues}>
-              <dt>Téléphone</dt><dd>01 84 80 20 10</dd>
-              <dt>Site</dt><dd>entreprise.fr ↗</dd>
-            </dl>
           </div>
           <div className={styles.companyContactOffer}>
             <strong>Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois</strong>
@@ -224,8 +224,8 @@ function ContactBlock({
   }
 
   return (
-    <section className={styles.companyV2Section}>
-      <h3>Contact</h3>
+    <section className={`${styles.companyV2Section} ${showHeading ? '' : styles.companyContactEmbedded}`}>
+      {showHeading ? <h3>Contact</h3> : null}
       <div className={styles.companyContactCard}>
         <div>
           {director ? (
@@ -445,9 +445,10 @@ export function CompanyProfileV2({
   standalone = false,
 }: CompanyProfileV2Props) {
   const activity = directory?.naf_label ?? directory?.family_labels?.[0]
-  const location = directory?.city
-    ? `${directory.city}${directory.department_label ? ` (${directory.department_label})` : ''}`
-    : fallbackCity
+  const city = normalCasePlace(directory?.city)
+  const location = city
+    ? `${city}${directory?.department_label ? ` (${directory.department_label})` : ''}`
+    : normalCasePlace(fallbackCity)
   const subtitle = [
     activity,
     location,
@@ -463,7 +464,7 @@ export function CompanyProfileV2({
         </div>
         {onClose ? <button type="button" onClick={onClose} aria-label="Fermer">×</button> : null}
       </header>
-      <ContactBlock
+      <CompanyContactBlock
         companyKey={companyKey}
         directory={directory}
         fallbackAddress={fallbackAddress}

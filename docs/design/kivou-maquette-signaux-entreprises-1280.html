@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kivou — maquette Entreprises</title>
+<style>
+  :root{--bg:#fff;--ink:#1c2420;--muted:#6b756f;--line:#e3e8e5;--soft:#f4f7f5;--green:#1f5a3c;--green-soft:#e6f1eb;--amber:#b8861b;--amber-soft:#fbf3df}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--soft);color:var(--ink);font:14px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
+  a{color:var(--green);text-decoration:none;font-weight:600}
+  .app{display:grid;grid-template-columns:200px 1fr;min-height:100vh}
+  nav{background:#173f33;color:#fff;padding:18px 14px}
+  nav .brand{font-weight:700;letter-spacing:.06em;margin:4px 8px 22px}
+  nav div.i{padding:9px 10px;border-radius:6px;opacity:.85}
+  nav div.i.on{background:rgba(255,255,255,.12);opacity:1;font-weight:600}
+  main{padding:22px 26px}
+  .page{max-width:1280px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 14px;font-size:13px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+  .seg span{padding:6px 10px;font-size:13px;color:var(--muted)}
+  .seg span.on{background:var(--green-soft);color:var(--green);font-weight:600}
+  .filters input,.filters select{font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .layout{display:grid;grid-template-columns:640px 600px;gap:20px;align-items:start;justify-content:start}
+  @media (max-width:1330px){.layout{grid-template-columns:1fr 1fr}}
+  .screen{display:none}.screen.on{display:block}
+  .switch{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 12px;border-radius:999px;font-size:12px;opacity:.9;cursor:pointer}
+  body{background:var(--soft)} .app{background:var(--soft)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:9px 10px;border-bottom:1px solid var(--line)}
+  td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.sel td{background:var(--green-soft)}
+  td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .why{font-size:12px;color:var(--green);font-weight:600}
+  .drawer{background:#fff;border:1px solid var(--line);border-radius:10px;padding:20px;position:sticky;top:18px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--green-soft);color:var(--green)}
+  .pill.n{background:var(--soft);color:var(--muted)}
+  h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--green);margin:16px 0 8px}
+  .drawer h3{font-size:18px;margin:8px 0 2px}
+  .drawer .meta{color:var(--muted);font-size:13px}
+  .titulaire{display:grid;grid-template-columns:1fr auto;gap:10px;border:1px solid var(--line);border-radius:8px;padding:12px;background:var(--soft);margin-top:12px}
+  .titulaire .name{font-size:16px;font-weight:700}
+  .titulaire .kv{font-size:13px;margin-top:6px;display:grid;grid-template-columns:auto 1fr;gap:3px 10px}
+  .titulaire .kv div:nth-child(odd){color:var(--muted)}
+  .btn{padding:7px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;font:inherit;cursor:pointer}
+  .btn.p{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+  .box{background:var(--green-soft);border-radius:8px;padding:12px;font-size:13.5px}
+  .kv2{display:grid;grid-template-columns:110px 1fr;gap:5px 12px;font-size:13.5px}
+  .kv2 div:nth-child(odd){color:var(--muted)}
+  .circuit{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px}
+  .circuit .c{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
+  .src{font-size:12px;color:var(--muted);margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="brand">KIVOU</div>
+    <div class="i">Aujourd'hui</div><div class="i">Signaux</div><div class="i on">Entreprises</div><div class="i">Profil cible</div><div class="i">Alertes</div><div class="i">Réglages</div>
+  </nav>
+  <main><div class="page">
+  <section class="screen" id="sig">
+    <h1>Signaux</h1>
+    <p class="sub">Marchés publics attribués dans votre zone et votre secteur</p>
+    <div class="filters">
+      <div class="seg"><span class="on">Nouveaux 41</span><span>Sauvés 0</span><span>Contactés 3</span><span>Ignorés</span><span>Tous</span></div>
+      <input placeholder="Zone" style="width:120px"><input placeholder="Secteur" style="width:130px"><input placeholder="Montant min." style="width:110px"><select><option>30 derniers jours</option></select><input placeholder="Rechercher un titulaire, un objet…" style="min-width:240px">
+    </div>
+
+    <div class="layout">
+      <table>
+        <colgroup><col style="width:72px"><col style="width:170px"><col><col style="width:90px"><col style="width:110px"></colgroup>
+        <thead><tr><th>Date</th><th>Titulaire</th><th>Objet</th><th style="text-align:right">Montant</th><th>Lieu</th></tr></thead>
+        <tbody>
+          <tr><td>10 sept.</td><td><b>RAZEL-BEC</b></td><td>Ouvrages d'art et génie civil</td><td class="num">1,49 M€</td><td>Paris</td></tr>
+          <tr><td>10 sept.</td><td><b>GJG FONCIÈRE</b></td><td>Construction de bâtiments</td><td class="num">33,7 M€</td><td>Les Abymes</td></tr>
+          <tr class="sel"><td>9 sept.</td><td><b>SAS ANDRIEU CONSTRUCTION</b></td><td>Bâtiments d'hébergement, CH de Rodez</td><td class="num">1,39 M€</td><td>Rodez</td></tr>
+          <tr><td>9 sept.</td><td><b>THERMATIC</b></td><td>Bâtiments d'hébergement, CH de Rodez</td><td class="num">950 k€</td><td>Rodez</td></tr>
+          <tr><td>9 sept.</td><td><b>PUECHOULTRES</b></td><td>Bâtiments d'hébergement, CH de Rodez</td><td class="num">676 k€</td><td>Rodez</td></tr>
+          <tr><td>6 sept.</td><td><b>THERMIQUE SUD VENDÉE</b></td><td>Terrassement</td><td class="num">1,04 M€</td><td>Luçon</td></tr>
+          <tr><td>6 sept.</td><td><b>LEFÈVRE CENTRE OUEST</b></td><td>Réparations et entretien de bâtiments</td><td class="num">3,0 M€</td><td>Le Mans</td></tr>
+          <tr><td>6 sept.</td><td><b>BLI</b></td><td>Terrassement</td><td class="num">570 k€</td><td>Luçon</td></tr>
+          <tr><td>3 sept.</td><td><b>SOCIÉTÉ NOUVELLE FRANCHET</b></td><td>Menuiseries extérieures aluminium</td><td class="num">580 k€</td><td>Selles-sur-Cher</td></tr>
+        </tbody>
+      </table>
+
+      <aside class="drawer">
+        <div class="row"><span class="pill">Nouveau</span><span class="pill n">Attribué le 9 septembre</span><span style="flex:1"></span><button class="btn" style="padding:4px 10px">Fermer</button></div>
+        <h3>Construction de bâtiments d'hébergement, Centre hospitalier de Rodez</h3>
+        <div class="meta">1 390 645 € · Rodez (Aveyron) · acheteur : CH de Rodez, GHT du Rouergue</div>
+
+        <div class="titulaire">
+          <div>
+            <div class="name">SAS ANDRIEU CONSTRUCTION</div>
+            <div class="meta">Gros œuvre · Onet-le-Château (Aveyron) · 38 salariés · 4 marchés gagnés en 12 mois</div>
+            <div class="kv">
+              <div>Dirigeant</div><div>Pierre Andrieu, président</div>
+              <div>Téléphone</div><div><a href="#">05 65 00 00 00</a></div>
+              <div>E-mail</div><div><a href="#">contact@andrieu-construction.fr</a> <span class="pill">publié sur le site</span></div>
+              <div>Site</div><div><a href="#">andrieu-construction.fr ↗</a></div>
+            </div>
+          </div>
+          <div style="text-align:right"><a href="#">Voir la fiche →</a><br><br><button class="btn">Trouver le décideur</button></div>
+        </div>
+
+        <h2>Pourquoi ça vous concerne</h2>
+        <div class="box">Gros œuvre neuf de 1,4 M€ à Rodez : le titulaire va commander du béton et des armatures dans les prochaines semaines. Vous livrez l'Aveyron.</div>
+
+        <h2>Calendrier</h2>
+        <div class="kv2"><div>Démarrage</div><div>probable en novembre 2026</div><div>Durée</div><div>14 mois</div><div>Acheteur récurrent</div><div>CH de Rodez a attribué 6 marchés à ce titulaire depuis 2024</div></div>
+
+        <h2>Le circuit local</h2>
+        <div class="circuit">
+          <div class="c"><span><b>BÉTONS DU ROUERGUE</b> · béton</span><span class="meta">Rodez · 22 sal.</span></div>
+          <div class="c"><span><b>ARMATURES 12</b> · ferraillage</span><span class="meta">Onet · 15 sal.</span></div>
+          <div class="c"><span><b>ROUERGUE COFFRAGE</b> · coffrage</span><span class="meta">Baraqueville · 9 sal.</span></div>
+          <div class="c"><span><b>LOCA TP AVEYRON</b> · location</span><span class="meta">Rodez · 30 sal.</span></div>
+        </div>
+
+        <div class="row" style="margin-top:16px"><button class="btn p">Marquer contacté</button><button class="btn">Sauver</button><button class="btn">Ignorer</button></div>
+        <div class="src">Source : BOAMP 26-86740 ↗ · attribution publiée le 9 septembre 2026</div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="screen on" id="ent">
+    <h1>Entreprises</h1>
+    <p class="sub">Les titulaires de vos signaux, avec où vous en êtes</p>
+    <div class="filters">
+      <div class="seg"><span class="on">Toutes 26</span><span>À contacter 22</span><span>Contactées 3</span><span>Ont répondu 1</span></div>
+      <input placeholder="Rechercher…" style="min-width:240px">
+    </div>
+    <div class="layout">
+      <table>
+        <thead><tr><th>Entreprise</th><th>Ville</th><th style="text-align:right">Marchés</th><th>Statut</th></tr></thead>
+        <tbody>
+          <tr class="sel"><td><b>SAS ANDRIEU CONSTRUCTION</b></td><td>Onet-le-Château</td><td class="num">4</td><td><span class="pill n">À contacter</span></td></tr>
+          <tr><td><b>THERMATIC</b></td><td>Rodez</td><td class="num">1</td><td><span class="pill n">À contacter</span></td></tr>
+          <tr><td><b>RAZEL-BEC</b></td><td>Paris</td><td class="num">2</td><td><span class="pill">Contactée · 3 j</span></td></tr>
+          <tr><td><b>LEFÈVRE CENTRE OUEST</b></td><td>Le Mans</td><td class="num">1</td><td><span class="pill n">À contacter</span></td></tr>
+          <tr><td><b>SOCIÉTÉ NOUVELLE FRANCHET</b></td><td>Selles-sur-Cher</td><td class="num">1</td><td><span class="pill">A répondu</span></td></tr>
+          <tr><td><b>BLI</b></td><td>Luçon</td><td class="num">1</td><td><span class="pill n">À contacter</span></td></tr>
+          <tr><td><b>THERMIQUE SUD VENDÉE</b></td><td>Luçon</td><td class="num">1</td><td><span class="pill n">À contacter</span></td></tr>
+        </tbody>
+      </table>
+      <aside class="drawer">
+        <div class="row"><h3 style="margin:0;font-size:20px">SAS ANDRIEU CONSTRUCTION</h3><span style="flex:1"></span><button class="btn" style="padding:4px 10px">Fermer</button></div>
+        <div class="meta">Gros œuvre · Onet-le-Château (Aveyron) · 38 salariés · depuis 1992</div>
+        <h2>Contact</h2>
+        <div class="titulaire" style="grid-template-columns:1fr">
+          <div>
+            <div class="name" style="font-size:15px">Pierre Andrieu <span class="pill n">Président</span></div>
+            <div class="kv">
+              <div>Téléphone</div><div><a href="#">05 65 00 00 00</a></div>
+              <div>E-mail</div><div><a href="#">contact@andrieu-construction.fr</a> <span class="pill">publié sur le site</span></div>
+              <div>Site</div><div><a href="#">andrieu-construction.fr ↗</a></div>
+              <div>Adresse</div><div>ZA de Cantaranne, 12850 Onet-le-Château</div>
+            </div>
+            <div class="row" style="margin-top:10px"><button class="btn p">Trouver le décideur</button><span class="meta">e-mail nominatif vérifié · 19 recherches restantes</span></div>
+            <div class="meta" style="margin-top:6px">Registre national des entreprises · site vérifié le 12 septembre 2026</div>
+          </div>
+        </div>
+        <h2>Identité</h2>
+        <div class="kv2"><div>SIREN</div><div>388 123 456</div><div>Activité</div><div>41.20A — Construction de bâtiments</div><div>Forme</div><div>SAS, créée en 1992</div><div>Effectif</div><div>38 salariés (2023)</div><div>Dirigeants</div><div>Pierre Andrieu, président · Claire Andrieu, DG</div></div>
+        <h2>Marchés publics — 4 gagnés en 12 mois · 3,1 M€ · acheteur récurrent : CH de Rodez</h2>
+        <div class="circuit" style="grid-template-columns:1fr">
+          <div class="c"><span>Bâtiments d'hébergement, CH de Rodez</span><span class="meta">1,39 M€ · 9 sept. 2026</span></div>
+          <div class="c"><span>Extension du bloc opératoire, CH de Rodez</span><span class="meta">890 k€ · 2 avr. 2026</span></div>
+          <div class="c"><span>Gymnase de Baraqueville, gros œuvre</span><span class="meta">540 k€ · 14 janv. 2026</span></div>
+          <div class="c"><span>Logements, Onet-le-Château</span><span class="meta">310 k€ · 3 nov. 2025</span></div>
+        </div>
+        <h2>Vous et cette entreprise</h2>
+        <div class="row"><button class="btn p">Marquer contactée</button><button class="btn">A répondu</button><button class="btn">Ajouter une note</button></div>
+        <div class="meta" style="margin-top:8px">Aucune action pour l'instant.</div>
+      </aside>
+    </div>
+  </section>
+  </div>
+  <div class="switch" onclick="document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on'))">Signaux ⇄ Entreprises</div>
+</main>
+</div>
+</body>
+</html>

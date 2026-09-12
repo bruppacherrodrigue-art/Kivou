@@ -904,6 +904,20 @@ export const VISUAL_SIGNAL_UNLOCKED_ITEMS = [{
     ...visualPublicationItem.contract,
     buyer: null,
   },
+  commercial_calendar: {
+    start_month: '2026-10',
+    duration_months: 6,
+    source: 'public_notice',
+  },
+  local_circuit: [{
+    siren: '481153435',
+    name: 'ALYA BATIMENT',
+    trade: 'Construction de bâtiments',
+    city: 'GRENOBLE',
+    employees: 5,
+    href: '/app/companies/directory/481153435',
+    source: 'registre',
+  }],
   analysis: {
     ...visualPublicationItem.analysis,
     fit: {
@@ -1258,6 +1272,7 @@ function feedPage(
       : scenario === 'connected-essential-veteran'
         ? 'essential'
         : 'pro',
+    signals_companies_v2_enabled: true,
     view: history ? 'history' : 'recent',
     history_access: scenario === 'connected-discovery'
       ? { scope: 'grants_only', history_days: 0 }
@@ -1382,6 +1397,7 @@ function responseForConnected(
           : scenario === 'connected-essential-veteran'
             ? 'essential'
             : 'pro',
+        signals_companies_v2_enabled: true,
       } satisfies CompanyListPage,
     }
   }
@@ -1413,6 +1429,36 @@ function responseForConnected(
     const discoveryAllowed = VISUAL_SIGNAL_UNLOCKED_ITEMS.some(
       (candidate) => candidate.company_key === companyMatch[1],
     )
+    if (company && scenario === 'connected-discovery') {
+      const directory = company.directory
+        ? {
+            ...company.directory,
+            director_display_name: undefined,
+            director_display_title: undefined,
+            phone: undefined,
+            phone_source: undefined,
+            phone_observed_at: undefined,
+            published_email: undefined,
+            published_email_source_url: undefined,
+            published_email_observed_at: undefined,
+            contact_observed_at: undefined,
+          }
+        : null
+      return {
+        body: {
+          ...company,
+          plan_code: 'discovery',
+          directory,
+          contact_lookup: {
+            state: 'locked',
+            remaining: 0,
+            monthly_quota: 0,
+            source: 'apollo',
+            removal_path: '/contact',
+          },
+        },
+      }
+    }
     return company && (
       scenario === 'connected-pro'
       || scenario === 'connected-essential-veteran'

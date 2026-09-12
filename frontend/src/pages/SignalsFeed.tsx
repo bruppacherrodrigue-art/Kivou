@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { billing, feedback, signals } from '../api/endpoints'
+import { billing, companies, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import type {
   BillingStatus,
+  CompanyProfile,
   FeedItem,
   FeedPage,
   LockedFeedItem,
@@ -13,8 +14,9 @@ import type {
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
+import { visiblePlaceName } from '../presentation/locationText'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
-import { MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
+import { compactAmount, MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 import styles from './SignalsFeed.module.css'
 
@@ -142,15 +144,22 @@ function useCompact(): boolean {
 function LockedRow({
   item,
   compact,
+  redesigned = false,
   note,
   onOpen,
 }: {
   item: LockedFeedItem
   compact: boolean
+  redesigned?: boolean
   note: string
   onOpen: () => void
 }) {
-  const { amount, shortDate } = useI18n()
+  const { amount, locale, shortDate } = useI18n()
+  const lockedAmount = item.teaser.amount
+    ? redesigned
+      ? compactAmount(item.teaser.amount.value, item.teaser.amount.currency, locale)
+      : amount(item.teaser.amount.value, item.teaser.amount.currency)
+    : MISSING
   return (
     <tr className={styles.lockedRow} onClick={onOpen}>
       <td>{shortDate(item.teaser.date) ?? MISSING}</td>
@@ -163,9 +172,9 @@ function LockedRow({
         </button>
       </td>
       <td className={styles.lockedNote}>{note}</td>
-      <td className={styles.cellNumeric}>{item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : MISSING}</td>
-      {compact ? null : <td>{item.teaser.department ?? MISSING}</td>}
-      <td>{MISSING}</td>
+      <td className={styles.cellNumeric}>{lockedAmount}</td>
+      {compact ? null : <td>{redesigned ? visiblePlaceName(item.teaser.department) ?? MISSING : item.teaser.department ?? MISSING}</td>}
+      {redesigned ? null : <td>{MISSING}</td>}
     </tr>
   )
 }
@@ -341,6 +350,24 @@ export function SignalsFeed() {
       : null
   const drawerLoading = Boolean(selectedKey) && !selectedItem && (feed.loading || detail.loading)
   const drawerError = detail.key === selectedKey ? detail.error : null
+  const redesigned = feed.data?.signals_companies_v2_enabled === true
+  const [holderProfile, setHolderProfile] = useState<CompanyProfile | null>(null)
+
+  useEffect(() => {
+    const selectedCompanyKey = selectedItem?.company_key
+    if (!redesigned || !selectedCompanyKey) {
+      setHolderProfile(null)
+      return
+    }
+    let active = true
+    setHolderProfile(null)
+    void companies.get(selectedCompanyKey).then((value) => {
+      if (active) setHolderProfile(value)
+    }).catch(() => {
+      if (active) setHolderProfile(null)
+    })
+    return () => { active = false }
+  }, [redesigned, selectedItem?.company_key])
 
   // ── Filtres navigateur ────────────────────────────────────────────────────
 
@@ -557,6 +584,9 @@ export function SignalsFeed() {
       error={drawerError}
       busy={busy}
       compact={compact}
+      redesigned={redesigned}
+      holderProfile={holderProfile}
+      planCode={feed.data?.plan_code ?? null}
       onClose={closeDrawer}
       onRetry={() => setDetailRetryToken((token) => token + 1)}
       onContacted={() => void runAction('contacted', (key) => feedback.markContacted(key))}
@@ -568,7 +598,7 @@ export function SignalsFeed() {
   )
 
   return (
-    <div className={styles.page} data-page="signals">
+    <div className={`${styles.page} ${redesigned ? styles.pageRedesigned : ''}`} data-page="signals">
       <ScreenHeader title={copy.title} description={copy.subtitle} />
 
       {feed.data?.provisional_profile ? (
@@ -675,13 +705,13 @@ export function SignalsFeed() {
         <p className={styles.alert} role="alert">{copy.actionError}</p>
       ) : null}
 
-      <div className={styles.layout}>
-        <section className={styles.tableColumn} aria-busy={feed.loading}>
+      <div className={`${styles.layout} ${redesigned ? styles.layoutRedesigned : ''}`}>
+        <section className={`${styles.tableColumn} ${redesigned ? styles.tableColumnRedesigned : ''}`} aria-busy={feed.loading}>
           {compact ? <div className={styles.cardList} role="list">
             {displayedRows.map((entry) => entry.locked ? (
-              <LockedSignalCardRow key={entry.signal_id} item={entry} onOpen={() => openBilling(entry.signal_id)} />
+              <LockedSignalCardRow key={entry.signal_id} item={entry} redesigned={redesigned} onOpen={() => openBilling(entry.signal_id)} />
             ) : (
-              <SignalCardRow key={entry.signal_id} item={entry} selected={entry.signal_id === selectedKey} onOpen={openSignal} />
+              <SignalCardRow key={entry.signal_id} item={entry} redesigned={redesigned} selected={entry.signal_id === selectedKey} onOpen={openSignal} />
             ))}
             {hiddenDiscoveryCount ? <Link className={styles.lockedCardRow} to="/tarifs">{hiddenDiscoveryCount} autres signaux — voir les offres</Link> : null}
           </div> : <table className={styles.table}>
@@ -692,7 +722,7 @@ export function SignalsFeed() {
                 <th scope="col">{copy.columns.object}</th>
                 <th scope="col" className={styles.cellNumeric}>{copy.columns.amount}</th>
                 {compact ? null : <th scope="col">{copy.columns.place}</th>}
-                <th scope="col">{copy.columns.match}</th>
+                {redesigned ? null : <th scope="col">{copy.columns.match}</th>}
               </tr>
             </thead>
             <tbody>
@@ -701,6 +731,7 @@ export function SignalsFeed() {
                   key={entry.signal_id}
                   item={entry}
                   compact={compact}
+                  redesigned={redesigned}
                   note={t.reference.signalsPage.lockedReason}
                   onOpen={() => openBilling(entry.signal_id)}
                 />
@@ -710,12 +741,13 @@ export function SignalsFeed() {
                   item={entry}
                   selected={entry.signal_id === selectedKey}
                   compact={compact}
+                  redesigned={redesigned}
                   onOpen={openSignal}
                 />
               )))}
               {hiddenDiscoveryCount ? (
                 <tr className={styles.lockedRow}>
-                  <td colSpan={compact ? 5 : 6}>
+                  <td colSpan={redesigned ? 5 : compact ? 5 : 6}>
                     {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/tarifs">voir les offres</Link>
                   </td>
                 </tr>

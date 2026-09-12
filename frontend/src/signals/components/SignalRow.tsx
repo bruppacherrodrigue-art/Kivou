@@ -3,12 +3,17 @@ import { LockKeyhole } from 'lucide-react'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
 import type { Locale, Place, LockedFeedItem, UnlockedFeedItem } from '../../api/types'
 import { useI18n } from '../../i18n'
+import { normalCasePlace, visiblePlaceName } from '../../presentation/locationText'
 import { MatchDots } from './MatchDots'
 import styles from './signals.module.css'
 
 /** Un champ que l'API ne publie pas. L'interface le montre absent ; elle ne le
  *  commente pas, ne l'excuse pas et n'invente rien à sa place. */
 export const MISSING = ''
+
+function folded(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
+}
 
 /** L'objet client réécrit par l'API prime toujours sur les références source. */
 export function signalObject(item: UnlockedFeedItem): string | null {
@@ -19,6 +24,49 @@ export function signalObject(item: UnlockedFeedItem): string | null {
  *  infobulle : tronquer ne doit jamais faire perdre l'information. */
 export function truncate(text: string, max = 60): string {
   return text.length <= max ? text : `${text.slice(0, max)}…`
+}
+
+export function sentenceCase(value: string | null): string | null {
+  if (!value) return null
+  const trimmed = value.trim()
+  return trimmed ? `${trimmed.charAt(0).toLocaleUpperCase('fr-FR')}${trimmed.slice(1)}` : null
+}
+
+/** La nouvelle cellule Objet ne dépasse jamais 60 caractères, ellipse
+ * comprise. */
+export function shortSignalObject(item: UnlockedFeedItem): string | null {
+  const value = sentenceCase(signalObject(item))
+  if (!value) return null
+  return value.length <= 60 ? value : `${value.slice(0, 59).trimEnd()}…`
+}
+
+export function tablePlaceLabel(place: Place | null): string {
+  if (!place) return MISSING
+  return normalCasePlace(place.locality) ?? visiblePlaceName(place.subdivision_label) ?? MISSING
+}
+
+export function drawerPlaceLabel(place: Place | null): string {
+  if (!place) return MISSING
+  const locality = normalCasePlace(place.locality)
+  const usableDepartment = visiblePlaceName(place.subdivision_label)
+  if (locality && usableDepartment && folded(locality) !== folded(usableDepartment)) {
+    return `${locality} (${usableDepartment})`
+  }
+  return locality ?? usableDepartment ?? MISSING
+}
+
+export function compactAmount(value: string | null | undefined, currency: string | null | undefined, locale: Locale): string {
+  const parsed = Number.parseFloat(value ?? '')
+  if (!Number.isFinite(parsed) || !currency) return MISSING
+  const formatterLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
+  const unit = currency === 'EUR' ? '€' : currency
+  if (Math.abs(parsed) >= 1_000_000) {
+    return `${new Intl.NumberFormat(formatterLocale, { maximumFractionDigits: 2 }).format(parsed / 1_000_000)} M${unit}`
+  }
+  if (Math.abs(parsed) >= 1_000) {
+    return `${new Intl.NumberFormat(formatterLocale, { maximumFractionDigits: 0 }).format(parsed / 1_000)} k${unit}`
+  }
+  return `${new Intl.NumberFormat(formatterLocale, { maximumFractionDigits: 0 }).format(parsed)} ${unit}`
 }
 
 /* Un lieu se lit, il ne se décode pas. Un code NUTS ou ISO (« FR-31 ») ne dit
@@ -39,18 +87,22 @@ export function SignalRow({
   selected,
   compact,
   companyCompact = false,
+  redesigned = false,
   onOpen,
 }: {
   item: UnlockedFeedItem
   selected: boolean
   compact: boolean
   companyCompact?: boolean
+  redesigned?: boolean
   onOpen: (signalKey: string) => void
 }) {
   const { t, locale, amount, shortDate } = useI18n()
 
-  const object = signalObject(item)
-  const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
+  const object = redesigned ? shortSignalObject(item) : signalObject(item)
+  const money = redesigned
+    ? compactAmount(item.contract.amount?.value, item.contract.amount?.currency, locale)
+    : amount(item.contract.amount?.value, item.contract.amount?.currency)
 
   /* La ligne entière est cliquable à la souris ; le bouton du titulaire porte
    * l'accès clavier. Sans l'arrêt de propagation, un clic sur le bouton
@@ -72,47 +124,48 @@ export function SignalRow({
         <button type="button" className={styles.winnerButton} onClick={openFromButton}>
           {item.company.name ?? MISSING}
         </button>
-        {item.company.consortium ? (
+        {item.company.consortium && !redesigned ? (
           <span className={styles.consortium}>{t.signalsTable.consortium}</span>
         ) : null}
       </td>}
       <td className={companyCompact ? styles.companyCellObject : styles.cellObject}>
-        {object ? <span title={object}>{companyCompact ? object : truncate(object)}</span> : MISSING}
+        {object ? <span title={signalObject(item) ?? object}>{companyCompact || redesigned ? object : truncate(object)}</span> : MISSING}
       </td>
       <td className={styles.cellAmount}>{money ?? MISSING}</td>
       {compact ? null : (
-        <td className={styles.cellPlace}>{placeLabel(item.contract.location, locale)}</td>
+        <td className={styles.cellPlace}>{redesigned ? tablePlaceLabel(item.contract.location) : placeLabel(item.contract.location, locale)}</td>
       )}
-      <td className={styles.cellMatch}>
-        <MatchDots item={item} />
-      </td>
+      {redesigned ? null : <td className={styles.cellMatch}><MatchDots item={item} /></td>}
     </tr>
   )
 }
 
-export function SignalCardRow({ item, selected, onOpen }: {
+export function SignalCardRow({ item, selected, redesigned = false, onOpen }: {
   item: UnlockedFeedItem
   selected: boolean
+  redesigned?: boolean
   onOpen: (signalKey: string) => void
 }) {
   const { locale, amount, shortDate } = useI18n()
-  const object = signalObject(item)
-  const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
+  const object = redesigned ? shortSignalObject(item) : signalObject(item)
+  const money = redesigned
+    ? compactAmount(item.contract.amount?.value, item.contract.amount?.currency, locale)
+    : amount(item.contract.amount?.value, item.contract.amount?.currency)
   return (
     <SignalCardFrame signalKey={item.signal_id} selected={selected} onOpen={() => onOpen(item.signal_id)}
       title={item.company.name ?? MISSING} object={object ?? ''}
-      metadata={[money, placeLabel(item.contract.location, locale), shortDate(item.factual_display.date.value)]}
-      match={<MatchDots item={item} />} />
+      metadata={[money, redesigned ? tablePlaceLabel(item.contract.location) : placeLabel(item.contract.location, locale), shortDate(item.factual_display.date.value)]}
+      match={redesigned ? null : <MatchDots item={item} />} />
   )
 }
 
-export function LockedSignalCardRow({ item, onOpen }: { item: LockedFeedItem; onOpen: () => void }) {
+export function LockedSignalCardRow({ item, redesigned = false, onOpen }: { item: LockedFeedItem; redesigned?: boolean; onOpen: () => void }) {
   const { amount, shortDate } = useI18n()
   return <SignalCardFrame signalKey={item.signal_id} locked selected={false} onOpen={onOpen}
     title="Réservé aux offres Essentiel et Pro" object={item.headline}
     metadata={[item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : null,
-      item.teaser.department, shortDate(item.teaser.date)]}
-    match={<span className={styles.matchDots} role="img" aria-label="Correspondance réservée">
+      redesigned ? visiblePlaceName(item.teaser.department) : item.teaser.department, shortDate(item.teaser.date)]}
+    match={redesigned ? null : <span className={styles.matchDots} role="img" aria-label="Correspondance réservée">
       {[1, 2, 3, 4].map((dot) => <i key={dot} aria-hidden="true" data-dot="empty" />)}
     </span>} />
 }

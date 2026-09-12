@@ -541,6 +541,7 @@ export function isLocked(item: FeedItem | SignalDetail): item is LockedFeedItem 
 
 export interface FeedPage {
   items: FeedItem[]
+  signals_companies_v2_enabled?: boolean
   total_returned: number
   page: {
     limit: number
@@ -781,6 +782,7 @@ export interface CompanyListItem {
 
 export interface CompanyListPage {
   items: CompanyListItem[]
+  signals_companies_v2_enabled?: boolean
   page: {
     limit: number
     cursor: string | null

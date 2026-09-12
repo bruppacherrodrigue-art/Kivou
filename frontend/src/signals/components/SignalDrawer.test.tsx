@@ -47,6 +47,7 @@ function renderDrawer({
   error = null as unknown,
   busy = false,
   compact = false,
+  redesigned = false,
   onClose = noop,
   onRetry = noop,
   onContacted = noop,
@@ -58,6 +59,7 @@ function renderDrawer({
   error?: unknown
   busy?: boolean
   compact?: boolean
+  redesigned?: boolean
   onClose?: () => void
   onRetry?: () => void
   onContacted?: () => void
@@ -71,6 +73,7 @@ function renderDrawer({
       error={error}
       busy={busy}
       compact={compact}
+      redesigned={redesigned}
       onClose={onClose}
       onRetry={onRetry}
       onContacted={onContacted}
@@ -90,6 +93,106 @@ function fact(label: string): string {
 }
 
 describe('SignalDrawer', () => {
+  it('rend la fiche de décision dans l’ordre validé et sans grille répétée', () => {
+    renderDrawer({
+      redesigned: true,
+      signal: item({
+        commercial_calendar: {
+          start_month: '2026-10',
+          duration_months: 6,
+          source: 'public_notice',
+        },
+        local_circuit: [{
+          siren: '331364729',
+          name: 'Bétons du Midi',
+          trade: 'Béton prêt à l’emploi',
+          city: 'GRENOBLE',
+          employees: 24,
+          href: '/app/companies/directory/331364729',
+          source: 'registre',
+        }],
+      }),
+    })
+
+    const panel = screen.getByRole('complementary')
+    const headings = within(panel).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)
+    expect(headings).toEqual([
+      'Titulaire',
+      'Pourquoi ça vous concerne',
+      'Calendrier',
+      'Le circuit local',
+    ])
+    expect(panel).toHaveTextContent('Grenoble')
+    expect(panel).not.toHaveTextContent('GRENOBLE')
+    expect(within(panel).queryByText('CPV')).not.toBeInTheDocument()
+    expect(within(panel).queryByLabelText(/Correspondance/)).not.toBeInTheDocument()
+  })
+
+  it('remplace un titre répété par le repli client et corrige « à Isère »', () => {
+    const repeated = item({
+      analysis: {
+        ...UNLOCKED_ITEM.analysis,
+        fit: {
+          ...UNLOCKED_ITEM.analysis.fit,
+          for_you_sentence: 'Voirie : un marché pertinent pour votre activité.',
+        },
+      },
+    })
+    const { unmount } = renderDrawer({ redesigned: true, signal: repeated })
+    expect(screen.getByText('Ce marché correspond à votre profil cible dans cette zone et ce secteur.')).toBeVisible()
+    unmount()
+
+    renderDrawer({
+      redesigned: true,
+      signal: item({
+        analysis: {
+          ...UNLOCKED_ITEM.analysis,
+          fit: {
+            ...UNLOCKED_ITEM.analysis.fit,
+            for_you_sentence: 'Votre savoir-faire est recherché à Isère pour ce chantier.',
+          },
+        },
+        contract: {
+          ...UNLOCKED_ITEM.contract,
+          location: {
+            country: 'FR',
+            subdivision_code: 'FR-38',
+            subdivision_label: 'ISÈRE',
+            locality: null,
+            postal_code: null,
+          },
+        },
+      }),
+    })
+    expect(screen.getByText('Votre savoir-faire est recherché en Isère pour ce chantier.')).toBeVisible()
+  })
+
+  it('omet calendrier et circuit local quand leurs données manquent', () => {
+    renderDrawer({ redesigned: true })
+
+    expect(screen.queryByRole('heading', { name: 'Calendrier' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Le circuit local' })).not.toBeInTheDocument()
+  })
+
+  it('conserve le lieu historique quand le flag est désactivé', () => {
+    renderDrawer({
+      signal: item({
+        local_circuit: [{
+          siren: '331364729',
+          name: 'Bétons du Midi',
+          trade: 'Béton prêt à l’emploi',
+          city: 'GRENOBLE',
+          employees: 24,
+          href: '/app/companies/directory/331364729',
+          source: 'registre',
+        }],
+      }),
+    })
+
+    expect(screen.getByText(/GRENOBLE/)).toBeVisible()
+  })
+
+
   it('masque le bloc des besoins quand timing et quantité sont indéterminés', () => {
     renderDrawer({ signal: withNeeds([need({ timing: null, timing_label: null, timing_status: null, quantity_status: null })]) })
     expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
