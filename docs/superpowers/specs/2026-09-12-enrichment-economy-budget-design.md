@@ -48,6 +48,14 @@ des changements d'heure. Une variable absente prend la valeur par défaut du
 tableau ; une valeur fournie négative, non numérique ou non finie rend la
 configuration invalide. Aucun usage n'est implicitement illimité.
 
+Le plafond de `enrichment_judge` est un coupe-circuit, pas un objectif de
+dépense ni un rythme de traitement. La configuration est relue au démarrage de
+chaque lot : un opérateur peut relever ou abaisser un plafond dans le fichier
+d'environnement puis démarrer le lot suivant, sans reconstruire ni redéployer
+l'application. La valeur capturée au démarrage est figée pour toute la durée du
+lot et enregistrée avec celui-ci ; une modification en cours de lot ne change
+pas rétroactivement ses admissions.
+
 ### 2.1 Tables
 
 `model_daily_budget` contient une ligne par `(budget_date, timezone, usage)` :
@@ -79,6 +87,13 @@ workers reçoivent `DAILY_MODEL_BUDGET_EXHAUSTED`, terminent proprement le lot e
 n'entament aucun nouvel appel. Les timeouts, HTTP non 200 et JSON invalides
 finalisent aussi le journal et libèrent leur réservation ; le coût réel est
 enregistré lorsqu'OpenRouter le fournit.
+
+Le benchmark publie, par modèle et globalement, `somme des réservations / somme
+des coûts réels`. Si ce ratio dépasse 3, la formule ou ses tarifs sont recalibrés
+sur les observations, puis le benchmark de mesure de réservation est rejoué
+avant toute passe. L'ajustement ne peut jamais rendre la réservation inférieure
+au coût maximal observé pour une entrée de taille équivalente ; il évite qu'une
+borne théorique grossière bloque artificiellement des appels économiques.
 
 ## 3. Entrée économique
 
@@ -151,8 +166,9 @@ déterministiquement après validation, sans transmettre le nom au modèle.
 
 Le rapport donne par candidat : accord site, adresse, famille et nom, accord
 global sur l'ensemble des champs, JSON invalides, latence médiane, coût pour 30
-et projection pour 20 000. Les valeurs nulles sont des réponses évaluées, pas
-des champs ignorés. Le premier candidat atteignant au moins 95 % d'accord global
+et projection pour 20 000, ainsi que le ratio réservé/réel. Les valeurs nulles
+sont des réponses évaluées, pas des champs ignorés. Le premier candidat
+atteignant au moins 95 % d'accord global
 est retenu ; Mistral gagne toute égalité. Si aucun ne passe, Sonnet reste juge
 avec l'entrée réduite. Le modèle sélectionné n'est configuré en production
 qu'après publication du rapport.

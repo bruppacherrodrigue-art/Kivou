@@ -44,4 +44,6 @@ placeholders, contrôles MX et listes noires restent appliqués après le modèl
 Avant bascule, le rapport donne sur les mêmes 20 fiches les tokens d'entrée
 avant/après. Le benchmark de 30 fiches donne par modèle les accords site,
 adresse, famille et nom, les JSON invalides, la latence médiane, le coût réel et
-la projection pour 20 000 fiches.
+la projection pour 20 000 fiches. Il publie aussi le ratio entre le coût réservé
+et le coût réel ; au-delà de 3, la réservation est recalibrée et remesurée avant
+toute passe.
