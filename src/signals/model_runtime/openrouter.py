@@ -26,12 +26,18 @@ def estimate_reservation(
     messages: Sequence[Mapping[str, object]],
     max_tokens: int,
 ) -> Decimal:
-    serialized = json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
-    input_tokens = max(1, math.ceil(len(serialized.encode("utf-8")) / 3))
+    input_tokens = estimate_input_tokens(messages)
     return (
         Decimal(input_tokens) * route.reserve_input_usd_per_million
         + Decimal(max_tokens) * route.reserve_output_usd_per_million
     ) / _PER_MILLION
+
+
+def estimate_input_tokens(messages: Sequence[Mapping[str, object]]) -> int:
+    """Conservative preflight estimate used before a budgeted network call."""
+
+    serialized = json.dumps(messages, ensure_ascii=False, separators=(",", ":"))
+    return max(1, math.ceil(len(serialized.encode("utf-8")) / 3))
 
 
 @dataclass(frozen=True)
@@ -240,5 +246,6 @@ __all__ = [
     "OPENROUTER_URL",
     "MeteredModelResponse",
     "OpenRouterGateway",
+    "estimate_input_tokens",
     "estimate_reservation",
 ]

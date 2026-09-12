@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
 from signals.company_research.enrichment import CompanyEnrichmentInput, CompanyWebCollector
 from signals.company_research.evidence import (
+    PlaywrightPageRenderer,
     RawRenderedPage,
     directory_clues_from_text,
     reduce_rendered_page,
@@ -186,3 +189,25 @@ def test_directory_domain_is_never_rendered_as_candidate_destination() -> None:
 
     assert evidence.candidate_pages == ()
     assert renderer.seen == [directory_url]
+
+
+def test_playwright_renderer_runs_all_browser_work_on_one_owned_thread() -> None:
+    class RecordingRenderer(PlaywrightPageRenderer):
+        def __init__(self) -> None:
+            super().__init__()
+            self.thread_ids: list[int] = []
+
+        def _render_on_browser_thread(self, url: str) -> RawRenderedPage | None:
+            self.thread_ids.append(threading.get_ident())
+            return RawRenderedPage(url=url, status_code=200)
+
+        def _close_on_browser_thread(self) -> None:
+            self.thread_ids.append(threading.get_ident())
+
+    renderer = RecordingRenderer()
+    with ThreadPoolExecutor(max_workers=4) as callers:
+        pages = tuple(callers.map(renderer.render, (f"https://site{i}.fr" for i in range(8))))
+    renderer.close()
+
+    assert all(page is not None for page in pages)
+    assert len(set(renderer.thread_ids)) == 1

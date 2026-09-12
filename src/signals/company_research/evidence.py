@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -93,11 +94,15 @@ class PageRenderer(Protocol):
 
 
 class PlaywrightPageRenderer:
-    """Render one page at a time; a lock makes the shared batch browser safe."""
+    """Own a browser on one dedicated thread for the whole concurrent batch."""
 
     def __init__(self, *, timeout_ms: int = 8_000) -> None:
         self._timeout_ms = timeout_ms
         self._lock = threading.Lock()
+        self._executor = ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="company-playwright"
+        )
+        self._closed = False
         self._playwright = None
         self._browser = None
 
@@ -110,50 +115,67 @@ class PlaywrightPageRenderer:
 
     def render(self, url: str) -> RawRenderedPage | None:
         with self._lock:
-            self._start()
-            page = self._browser.new_page()  # type: ignore[union-attr]
-            try:
-                response = page.goto(
-                    url, wait_until="domcontentloaded", timeout=self._timeout_ms
-                )
-                if response is None:
-                    return None
-                status = response.status
-                if status < 200 or status >= 400:
-                    return None
-                title = page.title()
-                main_text = page.locator("main").first.inner_text(timeout=500) \
-                    if page.locator("main").count() else ""
-                body_text = page.locator("body").inner_text(timeout=1_000)
-                if not main_text:
-                    main_text = page.evaluate(
-                        """() => {
-                          const clone = document.body.cloneNode(true);
-                          clone.querySelectorAll('nav,footer,script,style,noscript,svg')
-                            .forEach(node => node.remove());
-                          return clone.innerText || clone.textContent || '';
-                        }"""
-                    )
-                return RawRenderedPage(
-                    url=page.url,
-                    status_code=status,
-                    title=title,
-                    main_text=main_text,
-                    body_text=body_text,
-                )
-            except Exception:  # noqa: BLE001 - an unrenderable public page is no evidence
+            if self._closed:
+                raise RuntimeError("renderer is closed")
+            future = self._executor.submit(self._render_on_browser_thread, url)
+        return future.result()
+
+    def _render_on_browser_thread(self, url: str) -> RawRenderedPage | None:
+        self._start()
+        page = self._browser.new_page()  # type: ignore[union-attr]
+        try:
+            response = page.goto(
+                url, wait_until="domcontentloaded", timeout=self._timeout_ms
+            )
+            if response is None:
                 return None
-            finally:
-                page.close()
+            status = response.status
+            if status < 200 or status >= 400:
+                return None
+            title = page.title()
+            main_text = (
+                page.locator("main").first.inner_text(timeout=500)
+                if page.locator("main").count()
+                else ""
+            )
+            body_text = page.locator("body").inner_text(timeout=1_000)
+            if not main_text:
+                main_text = page.evaluate(
+                    """() => {
+                      const clone = document.body.cloneNode(true);
+                      clone.querySelectorAll('nav,footer,script,style,noscript,svg')
+                        .forEach(node => node.remove());
+                      return clone.innerText || clone.textContent || '';
+                    }"""
+                )
+            return RawRenderedPage(
+                url=page.url,
+                status_code=status,
+                title=title,
+                main_text=main_text,
+                body_text=body_text,
+            )
+        except Exception:  # noqa: BLE001 - an unrenderable public page is no evidence
+            return None
+        finally:
+            page.close()
+
+    def _close_on_browser_thread(self) -> None:
+        if self._browser is not None:
+            self._browser.close()
+            self._browser = None
+        if self._playwright is not None:
+            self._playwright.stop()
+            self._playwright = None
 
     def close(self) -> None:
         with self._lock:
-            if self._browser is not None:
-                self._browser.close()
-                self._browser = None
-            if self._playwright is not None:
-                self._playwright.stop()
-                self._playwright = None
+            if self._closed:
+                return
+            self._closed = True
+            future = self._executor.submit(self._close_on_browser_thread)
+        future.result()
+        self._executor.shutdown(wait=True)
 
 
 __all__ = [
