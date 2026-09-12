@@ -31,6 +31,7 @@ from signals.founder_api.prospection import (
     FounderProspection,
     FounderProspectionReadService,
 )
+from signals.founder_api.providers import FounderProviderName
 from signals.founder_api.system_status import (
     FounderProviderCost,
     FounderSystemHostReader,
@@ -339,33 +340,33 @@ class FounderReadService:
             day=1, hour=0, minute=0, second=0, microsecond=0
         ).astimezone(dt.UTC)
         with self._engine.connect() as connection:
-            openrouter_today = _sum_between(
+            llm_today = _sum_between(
                 connection,
                 supplier_directory.c.enrichment_cost_usd,
                 supplier_directory.c.enrichment_observed_at,
                 today_start,
                 now,
             )
-            openrouter_month = _sum_between(
+            llm_month = _sum_between(
                 connection,
                 supplier_directory.c.enrichment_cost_usd,
                 supplier_directory.c.enrichment_observed_at,
                 month_start,
                 now,
             )
-            serper_today = _count_between(
+            web_search_today = _count_between(
                 connection,
                 supplier_directory.c.enrichment_observed_at,
                 today_start,
                 now,
             )
-            serper_month = _count_between(
+            web_search_month = _count_between(
                 connection,
                 supplier_directory.c.enrichment_observed_at,
                 month_start,
                 now,
             )
-            apollo_today = sum(
+            contact_data_today = sum(
                 _sum_between(
                     connection,
                     table.c.observed_provider_credit_units,
@@ -375,7 +376,7 @@ class FounderReadService:
                 )
                 for table in (contact_discovery_run, company_research_run)
             )
-            apollo_month = sum(
+            contact_data_month = sum(
                 _sum_between(
                     connection,
                     table.c.observed_provider_credit_units,
@@ -385,14 +386,14 @@ class FounderReadService:
                 )
                 for table in (contact_discovery_run, company_research_run)
             )
-            instantly_today = _sum_between(
+            delivery_today = _sum_between(
                 connection,
                 prospect_target.c.instantly_credit_units,
                 prospect_target.c.sent_at,
                 today_start,
                 now,
             )
-            instantly_month = _sum_between(
+            delivery_month = _sum_between(
                 connection,
                 prospect_target.c.instantly_credit_units,
                 prospect_target.c.sent_at,
@@ -401,28 +402,28 @@ class FounderReadService:
             )
         return (
             FounderProviderCost(
-                provider="OpenRouter",
+                provider=FounderProviderName.LLM,
                 unit="USD",
-                today=openrouter_today,
-                month=openrouter_month,
+                today=llm_today,
+                month=llm_month,
             ),
             FounderProviderCost(
-                provider="Serper",
+                provider=FounderProviderName.WEB_SEARCH,
                 unit="request",
-                today=Decimal(serper_today),
-                month=Decimal(serper_month),
+                today=Decimal(web_search_today),
+                month=Decimal(web_search_month),
             ),
             FounderProviderCost(
-                provider="Apollo",
+                provider=FounderProviderName.CONTACT_DATA,
                 unit="credit",
-                today=apollo_today,
-                month=apollo_month,
+                today=contact_data_today,
+                month=contact_data_month,
             ),
             FounderProviderCost(
-                provider="Instantly",
+                provider=FounderProviderName.DELIVERY,
                 unit="credit",
-                today=instantly_today,
-                month=instantly_month,
+                today=delivery_today,
+                month=delivery_month,
             ),
         )
 

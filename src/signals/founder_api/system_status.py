@@ -18,6 +18,7 @@ from pydantic import Field, field_validator
 
 from signals.founder_api.acquisition_status import FounderAcquisitionStatus
 from signals.founder_api.contracts import FounderContract
+from signals.founder_api.providers import FounderProviderName
 from signals.operations.contracts import AcquisitionOperationalHealth, AutonomousReadiness
 
 FOUNDER_SYSTEM_VERSION = "founder-system-v1"
@@ -117,7 +118,7 @@ class FounderSystemHostSnapshot(FounderContract):
 
 
 class FounderProviderCost(FounderContract):
-    provider: Literal["OpenRouter", "Serper", "Apollo", "Instantly"]
+    provider: FounderProviderName
     unit: Literal["USD", "request", "credit"]
     today: Decimal = Field(ge=0)
     month: Decimal = Field(ge=0)
