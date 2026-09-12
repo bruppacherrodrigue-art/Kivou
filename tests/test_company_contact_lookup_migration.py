@@ -16,7 +16,8 @@ from signals.persistence.database import (
 from signals.persistence.schema import supplier_directory
 
 PREVIOUS = "0052_assisted_observation"
-HEAD = "0057_directory_contact_keys"
+CONTACT_LOOKUP_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0058_model_call_budget"
 NOW = dt.datetime(2026, 9, 11, 9, tzinfo=dt.UTC)
 
 
@@ -25,7 +26,7 @@ def test_company_contact_lookup_is_account_scoped_and_audits_provider_attempts(t
     config = alembic_config(engine)
     command.upgrade(config, PREVIOUS)
 
-    command.upgrade(config, HEAD)
+    command.upgrade(config, CONTACT_LOOKUP_HEAD)
 
     inspector = sa.inspect(engine)
     columns = {column["name"]: column for column in inspector.get_columns("company_contact_lookup")}
@@ -99,8 +100,8 @@ def test_company_contact_lookup_is_account_scoped_and_audits_provider_attempts(t
             sa.text("SELECT name FROM sqlite_master WHERE type = 'trigger'")
         )
     }
-    assert ScriptDirectory.from_config(config).get_heads() == [HEAD]
-    assert current_revision(engine) == HEAD
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
+    assert current_revision(engine) == CONTACT_LOOKUP_HEAD
 
 
 def test_company_contact_lookup_migration_roundtrips(tmp_path) -> None:
@@ -108,12 +109,12 @@ def test_company_contact_lookup_migration_roundtrips(tmp_path) -> None:
         f"sqlite+pysqlite:///{tmp_path / 'contact-lookup-roundtrip.db'}"
     )
     config = alembic_config(engine)
-    command.upgrade(config, HEAD)
+    command.upgrade(config, CONTACT_LOOKUP_HEAD)
     command.downgrade(config, PREVIOUS)
     assert "company_contact_lookup" not in sa.inspect(engine).get_table_names()
     assert "company_contact_lookup_attempt" not in sa.inspect(engine).get_table_names()
-    command.upgrade(config, HEAD)
-    assert current_revision(engine) == HEAD
+    command.upgrade(config, CONTACT_LOOKUP_HEAD)
+    assert current_revision(engine) == CONTACT_LOOKUP_HEAD
 
 
 def test_downgrade_preserves_directory_only_attempt_history(tmp_path) -> None:
@@ -121,7 +122,7 @@ def test_downgrade_preserves_directory_only_attempt_history(tmp_path) -> None:
         f"sqlite+pysqlite:///{tmp_path / 'contact-lookup-directory-downgrade.db'}"
     )
     config = alembic_config(engine)
-    command.upgrade(config, HEAD)
+    command.upgrade(config, CONTACT_LOOKUP_HEAD)
     with engine.begin() as connection:
         account_id = make_account(connection, "directory-downgrade@example.test", "Client")
         connection.execute(
@@ -171,9 +172,9 @@ def test_downgrade_preserves_directory_only_attempt_history(tmp_path) -> None:
             )
         } == {"account", "supplier_directory"}
 
-    command.upgrade(config, HEAD)
+    command.upgrade(config, CONTACT_LOOKUP_HEAD)
 
-    assert current_revision(engine) == HEAD
+    assert current_revision(engine) == CONTACT_LOOKUP_HEAD
     with engine.connect() as connection:
         assert connection.scalar(
             sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
@@ -184,10 +185,10 @@ def test_company_contact_lookup_postgresql_sql_is_scoped_and_secret_free(capsys)
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
     config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
 
-    command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
+    command.upgrade(config, f"{PREVIOUS}:{CONTACT_LOOKUP_HEAD}", sql=True)
 
     sql = capsys.readouterr().out
-    assert len(HEAD) <= 32
+    assert len(CONTACT_LOOKUP_HEAD) <= 32
     assert sql.count("CREATE TABLE") == 2
     assert "CREATE TABLE company_contact_lookup" in sql
     assert "CREATE TABLE company_contact_lookup_attempt" in sql
