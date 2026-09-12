@@ -132,10 +132,28 @@ def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost
         prompt = json.loads(payload["messages"][0]["content"])
         assert prompt["instruction"].startswith("Voici une entreprise française")
         assert prompt["company"]["siren"] == "481153435"
+        assert set(prompt["required_output_schema"]["required"]) == {
+            "website",
+            "website_confidence",
+            "email",
+            "email_confidence",
+            "email_is_placeholder",
+            "family",
+            "family_confidence",
+            "director_display_name",
+            "phone",
+            "notes",
+        }
         return httpx.Response(
             200,
             json={
-                "choices": [{"message": {"content": _decision().model_dump_json()}}],
+                "choices": [
+                    {
+                        "message": {
+                            "content": f"```json\n{_decision().model_dump_json()}\n```"
+                        }
+                    }
+                ],
                 "usage": {"prompt_tokens": 321, "completion_tokens": 87, "cost": 0.0042},
             },
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from decimal import Decimal
 
 import httpx
@@ -25,6 +26,17 @@ _INSTRUCTION = (
     "Voici une entreprise française et ce que le web dit d'elle. "
     "Dis-moi ce que tu peux confirmer. Ne devine pas : si tu n'es pas sûr, laisse vide."
 )
+_JSON_FENCE = re.compile(r"^```(?:json)?\s*(\{.*\})\s*```$", re.DOTALL | re.IGNORECASE)
+
+
+def _strict_decision(content: object) -> CompanyEnrichmentDecision:
+    if not isinstance(content, str):
+        raise TypeError("company enrichment content must be JSON text")
+    value = content.strip()
+    fenced = _JSON_FENCE.fullmatch(value)
+    if fenced is not None:
+        value = fenced.group(1)
+    return CompanyEnrichmentDecision.model_validate_json(value)
 
 
 class OpenRouterCompanyEnrichmentProvider:
@@ -67,8 +79,10 @@ class OpenRouterCompanyEnrichmentProvider:
             "company": identity.model_dump(mode="json"),
             "allowed_families": families,
             "web_evidence": evidence.model_dump(mode="json"),
+            "required_output_schema": CompanyEnrichmentDecision.model_json_schema(),
             "rules": [
-                "Retourne uniquement le JSON demandé.",
+                "Retourne exactement les dix champs du schéma, sans autre champ.",
+                "La réponse commence par { et finit par }, sans commentaire ni Markdown.",
                 "Ne construis ni domaine, ni adresse e-mail, ni nom absent des éléments fournis.",
                 "Un annuaire peut fournir un indice mais ne peut jamais être le site retenu.",
                 "Une famille décrit l'activité réellement démontrée par les éléments web, pas le seul code NAF.",
@@ -108,9 +122,7 @@ class OpenRouterCompanyEnrichmentProvider:
             if response.status_code != 200 or len(response.content) > 262_144:
                 raise RuntimeError(f"company enrichment provider HTTP {response.status_code}")
             payload = response.json()
-            decision = CompanyEnrichmentDecision.model_validate_json(
-                payload["choices"][0]["message"]["content"]
-            )
+            decision = _strict_decision(payload["choices"][0]["message"]["content"])
             usage = payload.get("usage") or {}
             return CompanyEnrichmentProviderResult(
                 decision=decision,
