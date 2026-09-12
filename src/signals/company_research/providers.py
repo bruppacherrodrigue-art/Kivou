@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from decimal import Decimal
 
 import httpx
@@ -12,6 +13,7 @@ from signals.company_research.enrichment import (
     MODEL_MAX_TOKENS,
     CompanyEnrichmentDecision,
     CompanyEnrichmentInput,
+    CompanyEnrichmentProvider,
     CompanyEnrichmentProviderResult,
     CompanyWebEvidence,
 )
@@ -121,4 +123,17 @@ class OpenRouterCompanyEnrichmentProvider:
             raise RuntimeError("company enrichment provider returned no valid decision") from e
 
 
-__all__ = ["DEFAULT_MODEL", "OpenRouterCompanyEnrichmentProvider"]
+def company_enrichment_provider_from_environment(
+    *, client: httpx.Client | None = None
+) -> CompanyEnrichmentProvider:
+    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not key:
+        raise ValueError("company enrichment model is not configured")
+    return OpenRouterCompanyEnrichmentProvider(api_key=key, client=client)
+
+
+__all__ = [
+    "DEFAULT_MODEL",
+    "OpenRouterCompanyEnrichmentProvider",
+    "company_enrichment_provider_from_environment",
+]

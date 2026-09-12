@@ -97,7 +97,7 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
-from signals.company_research.providers import OpenRouterCompanyEnrichmentProvider
+from signals.company_research.providers import company_enrichment_provider_from_environment
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.conversion.link import AttributionLinkBuilder
@@ -661,17 +661,17 @@ def build_runtime_execution_composition(
         serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
         if not serper_key:
             raise RuntimeExecutionConfigurationError("SERPER_NOT_CONFIGURED")
-        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        if not openrouter_key:
-            raise RuntimeExecutionConfigurationError("CONTACT_MODEL_NOT_CONFIGURED")
         director_client = AnnuaireRawDirectorClient(client=client)
+        try:
+            company_enrichment_provider = company_enrichment_provider_from_environment(
+                client=client
+            )
+        except ValueError as error:
+            raise RuntimeExecutionConfigurationError("CONTACT_MODEL_NOT_CONFIGURED") from error
         company_enrichment_service = CompanyEnrichmentService(
             directory=supplier_directory,
             collector=CompanyWebCollector(serper_api_key=serper_key, client=client),
-            provider=OpenRouterCompanyEnrichmentProvider(
-                api_key=openrouter_key,
-                client=client,
-            ),
+            provider=company_enrichment_provider,
             mx_verifier=EmailMxVerifier().verify,
             director_source=director_client.find,
             clock=clock,

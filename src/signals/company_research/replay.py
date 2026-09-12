@@ -18,7 +18,7 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
-from signals.company_research.providers import OpenRouterCompanyEnrichmentProvider
+from signals.company_research.providers import company_enrichment_provider_from_environment
 from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import supplier_directory
@@ -97,25 +97,26 @@ def main(argv: list[str] | None = None) -> int:
         print("status=INVALID_ARGUMENTS", file=sys.stderr)
         return 2
     serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
-    openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not serper_key or not openrouter_key:
+    if not serper_key:
         print("status=PROVIDER_CONFIGURATION_MISSING", file=sys.stderr)
         return 2
     engine = create_database_engine()
     client = httpx.Client(timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True)
     directory = SupplierDirectoryStore(engine)
     director_client = AnnuaireRawDirectorClient(client=client)
-    service = CompanyEnrichmentService(
-        directory=directory,
-        collector=CompanyWebCollector(serper_api_key=serper_key, client=client),
-        provider=OpenRouterCompanyEnrichmentProvider(
-            api_key=openrouter_key,
-            client=client,
-        ),
-        mx_verifier=EmailMxVerifier().verify,
-        director_source=director_client.find,
-    )
     try:
+        try:
+            provider = company_enrichment_provider_from_environment(client=client)
+        except ValueError:
+            print("status=PROVIDER_CONFIGURATION_MISSING", file=sys.stderr)
+            return 2
+        service = CompanyEnrichmentService(
+            directory=directory,
+            collector=CompanyWebCollector(serper_api_key=serper_key, client=client),
+            provider=provider,
+            mx_verifier=EmailMxVerifier().verify,
+            director_source=director_client.find,
+        )
         sirens = _cohort(engine, arguments)
         before = _metrics(engine, sirens)
         costs = Decimal("0")
