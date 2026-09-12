@@ -504,6 +504,9 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .control-read-boundary strong { color: #bbf7d0; }
 .control-read-boundary span { color: #7e9488; font-size: 12px; }
 .control-system-columns { align-items: start; }
+.control-system-page > .control-panel { margin-top: 16px; }
+.control-system-page .control-system-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.control-system-page .control-status-list strong { color: #dcebe4; font-size: 12px; }
 
 .control-runtime {
   display: grid;
@@ -696,6 +699,24 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .prospection-kpi-warning::before { background: #fbbf24; }
 .prospection-kpi > span { display: block; color: #758b84; font-size: 11px; font-weight: 680; }
 .prospection-kpi > strong { display: block; margin-top: 13px; color: #f0faf5; font-family: "Lora Variable", Georgia, serif; font-size: 30px; font-weight: 500; }
+
+.prospection-enrichment {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  gap: 14px;
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.11);
+  border-radius: 13px;
+  background: rgba(8, 20, 27, 0.62);
+}
+.prospection-enrichment-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; }
+.prospection-enrichment .prospection-compact-metric,
+.prospection-enrichment .prospection-inline-list { min-height: 76px; padding: 12px 14px; }
+.prospection-review-reasons { display: flex; align-content: flex-start; flex-wrap: wrap; gap: 7px; }
+.prospection-review-reasons > small { width: 100%; color: #70867f; font-weight: 740; letter-spacing: 0.07em; text-transform: uppercase; }
+.prospection-review-reasons button { padding: 7px 9px; border: 1px solid rgba(251, 191, 36, 0.2); border-radius: 8px; color: #fde68a; background: rgba(161, 98, 7, 0.08); }
+.prospection-review-reasons button[aria-pressed="true"] { border-color: #fbbf24; background: rgba(161, 98, 7, 0.2); }
 
 .prospection-facets {
   display: grid;
@@ -973,7 +994,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .control-week-select { margin-top: 20px; }
   .control-tunnel-toolbar, .control-current-heading { align-items: flex-start; flex-direction: column; }
   .control-tunnel-toolbar .control-week-select { width: 100%; margin-top: 0; }
-  .control-summary-grid, .control-two-column, .control-system-summary, .control-blocker-columns { grid-template-columns: 1fr; }
+  .control-summary-grid, .control-two-column, .control-system-summary, .control-system-page .control-system-summary, .control-blocker-columns { grid-template-columns: 1fr; }
   .control-runtime { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .control-metric-grid, .control-metric-grid-quality { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .control-attention-head { align-items: flex-start; flex-direction: column; gap: 8px; }
@@ -982,6 +1003,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .prospection-section-heading > span { max-width: none; text-align: left; }
   .prospection-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .prospection-facets { grid-template-columns: 1fr; }
+  .prospection-enrichment, .prospection-enrichment-metrics { grid-template-columns: 1fr; }
   .prospection-facets > div { align-items: flex-start; flex-direction: column; }
   .prospection-targeting-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .prospection-signal { grid-column: 1 / -1; grid-row: auto; }

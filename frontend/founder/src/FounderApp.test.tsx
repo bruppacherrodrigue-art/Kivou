@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FounderApp } from './FounderApp'
-import type { FounderOverview, FounderSession, GateEvidence } from './types'
+import type { FounderOverview, FounderSession, FounderSystem, GateEvidence } from './types'
 
 const SESSION: FounderSession = {
   version: 'founder-session-v1',
@@ -196,6 +196,52 @@ const OVERVIEW: FounderOverview = {
   },
 }
 
+const SYSTEM: FounderSystem = {
+  version: 'founder-system-v1',
+  generated_at: '2026-09-12T08:00:00Z',
+  read_only: true,
+  database_access: 'READ_ONLY',
+  acquisition_status: OVERVIEW.acquisition_status,
+  health: OVERVIEW.system.health,
+  readiness: OVERVIEW.system.readiness,
+  timers: [
+    {
+      name: 'kivou-alerts.timer',
+      state: 'active',
+      last_run_at: '2026-09-12T07:00:01Z',
+      next_run_at: '2026-09-12T09:00:00Z',
+    },
+    {
+      name: 'kivou-disk-alert.timer',
+      state: 'absent',
+      last_run_at: null,
+      next_run_at: null,
+    },
+  ],
+  readiness_checks: [
+    { name: 'API', status: 'ready', http_status: 200, checked_at: '2026-09-12T08:00:00Z' },
+    { name: 'Founder', status: 'ready', http_status: 200, checked_at: '2026-09-12T08:00:00Z' },
+  ],
+  disk: {
+    path: '/srv/kivou',
+    total_bytes: 1000,
+    used_bytes: 720,
+    available_bytes: 280,
+    used_percent: '72.0',
+  },
+  backups: [
+    { kind: 'local', status: 'success', last_success_at: '2026-09-12T03:18:00Z' },
+    { kind: 'offsite', status: 'success', last_success_at: '2026-09-12T03:24:00Z' },
+  ],
+  provider_costs: [
+    { provider: 'OpenRouter', unit: 'USD', today: '0.004200', month: '0.007200' },
+    { provider: 'Serper', unit: 'request', today: '1', month: '2' },
+    { provider: 'Apollo', unit: 'credit', today: '0', month: '0' },
+    { provider: 'Instantly', unit: 'credit', today: '0', month: '0' },
+  ],
+  deployed_sha: 'a'.repeat(40),
+}
+
 function overviewFor(url: string): FounderOverview {
   const query = new URL(url, 'https://control.kivou.eu')
   const periodKind = query.searchParams.get('period') === 'today' ? 'today' : 'last_7_days'
@@ -271,26 +317,79 @@ describe('FounderApp', () => {
     )
   })
 
-  it('affiche la source acquisition unique sur Aujourd’hui et Système', async () => {
+  it('renders zero MRR as 0 € and reserves the dash for unavailable data', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => ({
+      ok: true,
+      status: 200,
+      json: async () => String(input).includes('/overview')
+        ? {
+            ...OVERVIEW,
+            commercial_tunnel: {
+              ...OVERVIEW.commercial_tunnel,
+              current: { ...OVERVIEW.commercial_tunnel.current, mrr_by_currency: [] },
+            },
+          }
+        : SESSION,
+    })))
+
+    render(<FounderApp />)
+
+    const current = (await screen.findByRole('heading', { name: 'Situation actuelle' })).closest('article')
+    expect(within(current!).getByText('0 €')).toBeInTheDocument()
+    expect(within(current!).queryByText('—')).not.toBeInTheDocument()
+  })
+
+  it('renders the dedicated read-only system page', async () => {
+    window.history.replaceState({}, '', '/system')
+    const fetchMock = vi.fn(async (input: string | URL | Request) => ({
+      ok: true,
+      status: 200,
+      json: async () => String(input).includes('/api/founder/system') ? SYSTEM : SESSION,
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<FounderApp />)
+
+    expect(await screen.findByRole('heading', { name: 'Système', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Système' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('row', { name: /kivou-alerts\.timer.*Actif/ })).toHaveTextContent(
+      /12 sept\. 2026.*09:00.*12 sept\. 2026.*11:00/,
+    )
+    expect(screen.getByRole('row', { name: /kivou-disk-alert\.timer.*Absent/ })).toBeInTheDocument()
+    expect(screen.getByText('API prête')).toBeInTheDocument()
+    expect(screen.getByText('Founder prêt')).toBeInTheDocument()
+    expect(screen.getByText('72 %')).toBeInTheDocument()
+    expect(screen.getByText('Sauvegarde locale')).toBeInTheDocument()
+    expect(screen.getByText('Sauvegarde hors site')).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /OpenRouter/ })).toHaveTextContent(/0[.,]0042.*0[.,]0072/)
+    expect(screen.getByText('aaaaaaaaaaaa')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/founder/system',
+      expect.objectContaining({ credentials: 'same-origin' }),
+    )
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/overview'))).toBe(false)
+  })
+
+  it('affiche une seule source acquisition sur Aujourd’hui', async () => {
     installSuccessfulFetch()
 
     render(<FounderApp />)
 
     await screen.findByRole('heading', { name: 'Aujourd’hui', level: 1 })
     const statuses = screen.getAllByLabelText('État de l’acquisition')
-    expect(statuses).toHaveLength(2)
+    expect(statuses).toHaveLength(1)
     statuses.forEach((status) => {
       expect(within(status).getByText('Mode observation')).toBeInTheDocument()
       expect(within(status).getByText(/Arrêté depuis le/)).toBeInTheDocument()
       expect(within(status).getByText(/cycle-safe-ref/)).toBeInTheDocument()
     })
-    expect(statuses[1]).toHaveClass('control-runtime--compact')
+    expect(statuses[0]).not.toHaveClass('control-runtime--compact')
     expect(screen.queryByText('État global')).not.toBeInTheDocument()
     expect(screen.queryByText('Hermes')).not.toBeInTheDocument()
     expect(screen.queryByText('Mode sûr actuel')).not.toBeInTheDocument()
     expect(screen.queryByText('Runtime Hermes')).not.toBeInTheDocument()
-    expect(screen.getByText('Dead-letter queue')).toBeInTheDocument()
-    expect(screen.getByText('État durable')).toBeInTheDocument()
+    expect(screen.queryByText('Dead-letter queue')).not.toBeInTheDocument()
+    expect(screen.queryByText('État durable')).not.toBeInTheDocument()
   })
 
   it('ouvre sur 7 jours et permet période, aujourd’hui et cohorte', async () => {

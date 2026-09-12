@@ -51,6 +51,18 @@ const DIRECTORY_STATUS_LABELS: Record<FounderDirectoryStatus, string> = {
   reverification_required: 'À revérifier',
 }
 
+const REVERIFICATION_REASON_LABELS: Record<string, string> = {
+  email_below_threshold: 'E-mail sous le seuil',
+  website_below_threshold: 'Site sous le seuil',
+  legacy_domain_not_validated: 'Ancien domaine non validé',
+  model_confidence_below_threshold: 'Confiance modèle insuffisante',
+  no_website: 'Sans site confirmé',
+  placeholder_email: 'Adresse factice',
+  instantly_bounce: 'Rejet Instantly',
+  founder_wrong_address: 'Adresse écartée',
+  blocked_domain_audit: 'Domaine bloqué',
+}
+
 type ProspectionPageProps = {
   data: FounderProspection
   filters: FounderProspectionFilters
@@ -154,6 +166,43 @@ function DirectorySection({
         <ProspectionKpi label="À revérifier" value={directory.summary.reverification_required_count} tone="warning" />
       </div>
 
+      <div className="prospection-enrichment" role="region" aria-label="Enrichissement">
+        <div>
+          <p className="control-panel-kicker">Enrichissement</p>
+          <div className="prospection-enrichment-metrics">
+            <CompactMetric label="Fiches aujourd’hui" value={directory.enrichment.enriched_today_count} />
+            <CompactMetric label="Fiches cette semaine" value={directory.enrichment.enriched_week_count} />
+            <div className="prospection-inline-list">
+              <small>Modèle</small>
+              <strong>{modelLabel(directory.enrichment.model)}</strong>
+            </div>
+            <div className="prospection-inline-list">
+              <small>Coût cumulé</small>
+              <strong>{formatUsd(directory.enrichment.cumulative_cost_usd)}</strong>
+            </div>
+          </div>
+        </div>
+        <div className="prospection-review-reasons">
+          <small>À revérifier par motif</small>
+          {directory.reverification_reason_counts.length === 0 ? (
+            <span>Aucune fiche à revérifier.</span>
+          ) : directory.reverification_reason_counts.map((reason) => (
+            <button
+              key={reason.key}
+              type="button"
+              aria-pressed={filters.reverification_reason === reason.key}
+              disabled={refreshing}
+              onClick={() => changeFilter({
+                status: 'reverification_required',
+                reverification_reason: reason.key,
+              })}
+            >
+              {reverificationReasonLabel(reason.key)} · {formatCount(reason.count)}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="prospection-facets">
         <FacetList
           label="Par famille"
@@ -209,7 +258,10 @@ function DirectorySection({
           label="Statut"
           value={filters.status}
           disabled={refreshing}
-          onChange={(value) => changeFilter({ status: value as FounderDirectoryStatus | '' })}
+          onChange={(value) => changeFilter({
+            status: value as FounderDirectoryStatus | '',
+            reverification_reason: '',
+          })}
           options={Object.entries(DIRECTORY_STATUS_LABELS).map(([value, label]) => ({ value, label }))}
         />
       </form>
@@ -867,9 +919,11 @@ function ResultsSection({ data }: { data: FounderProspection }) {
         <CompactMetric label="Comptes payants" value={results.paid_account_count} />
         <CompactMetric
           label="MRR"
-          value={results.mrr_by_currency.length > 0
-            ? results.mrr_by_currency.map((money) => formatMoney(money.minor_units, money.currency)).join(' · ')
-            : '0'}
+          value={results.mrr_by_currency === null
+            ? '—'
+            : results.mrr_by_currency.length > 0
+              ? results.mrr_by_currency.map((money) => formatMoney(money.minor_units, money.currency)).join(' · ')
+              : '0 €'}
         />
       </div>
       {results.no_sends_yet ? <p className="prospection-no-send">Aucun envoi à ce jour.</p> : null}
@@ -1163,9 +1217,38 @@ function familyLabel(value: string): string {
   return FAMILY_LABELS[value] ?? 'Famille non répertoriée'
 }
 
+function reverificationReasonLabel(value: string): string {
+  return REVERIFICATION_REASON_LABELS[value] ?? value
+    .replaceAll('_', ' ')
+    .replace(/^./, (letter) => letter.toUpperCase())
+}
+
+function modelLabel(value: string | null): string {
+  if (!value) return '—'
+  return value
+    .split('/').at(-1)!
+    .replace(/^claude-/, 'Claude ')
+    .replaceAll('-', ' ')
+    .replace(/\bsonnet\b/i, 'Sonnet')
+}
+
+function formatUsd(value: string): string {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return '—'
+  return `${new Intl.NumberFormat('fr-CH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parsed)} $US`
+}
+
 function sourceLabel(value: string | null): string {
   if (!value) return 'Source inconnue'
-  const labels: Record<string, string> = { apollo: 'Apollo', site: 'Site', manual: 'Manuel' }
+  const labels: Record<string, string> = {
+    apollo: 'Apollo',
+    site: 'Site',
+    manual: 'Manuel',
+    model: 'Modèle',
+  }
   return labels[value.toLowerCase()] ?? 'Source non répertoriée'
 }
 

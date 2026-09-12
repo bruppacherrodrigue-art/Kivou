@@ -43,6 +43,16 @@ const PROSPECTION: FounderProspection = {
       verified_email_count: 16,
       reverification_required_count: 20,
     },
+    enrichment: {
+      enriched_today_count: 7,
+      enriched_week_count: 31,
+      model: 'anthropic/claude-sonnet-4.6',
+      cumulative_cost_usd: '0.954200',
+    },
+    reverification_reason_counts: [
+      { key: 'email_below_threshold', label: 'email_below_threshold', count: 12 },
+      { key: 'website_below_threshold', label: 'website_below_threshold', count: 8 },
+    ],
     family_counts: [
       { key: 'subcontracted_structural_work', label: 'subcontracted_structural_work', count: 29 },
       { key: 'reinforcement_steel', label: 'reinforcement_steel', count: 27 },
@@ -320,6 +330,12 @@ describe('ProspectionPage', () => {
     expect(within(counters).getByText('35')).toBeInTheDocument()
     expect(within(counters).getByText('16')).toBeInTheDocument()
     expect(within(counters).getByText('20')).toBeInTheDocument()
+    const enrichment = screen.getByRole('region', { name: 'Enrichissement' })
+    expect(within(enrichment).getByText('7')).toBeInTheDocument()
+    expect(within(enrichment).getByText('31')).toBeInTheDocument()
+    expect(within(enrichment).getByText('Claude Sonnet 4.6')).toBeInTheDocument()
+    expect(within(enrichment).getByText(/0[.,]95.*US/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'E-mail sous le seuil · 12' })).toBeInTheDocument()
     expect(screen.getByText('Acier Rhône')).toBeInTheDocument()
     const acquisitionStatus = screen.getByRole('region', { name: 'État de l’acquisition' })
     expect(acquisitionStatus).toHaveClass('control-runtime--compact')
@@ -455,6 +471,22 @@ describe('ProspectionPage', () => {
     await user.click(next)
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('page=2&page_size=25'),
+      expect.objectContaining({ credentials: 'same-origin' }),
+    ))
+  })
+
+  it('filters the directory from a clickable reverification reason', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/prospection')
+    const fetchMock = installProspectionFetch()
+
+    render(<FounderApp />)
+
+    await screen.findByRole('heading', { name: 'Annuaire' })
+    await user.click(screen.getByRole('button', { name: 'E-mail sous le seuil · 12' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringMatching(/status=reverification_required.*reason=email_below_threshold/),
       expect.objectContaining({ credentials: 'same-origin' }),
     ))
   })

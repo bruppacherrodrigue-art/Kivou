@@ -444,6 +444,76 @@ def test_period_counts_each_stage_at_its_own_date_and_deduplicates_entities(
     assert tunnel.period.paid_count == 1
 
 
+def test_qa_token_and_account_events_are_excluded_from_clicks_paid_and_mrr(
+    engine: sa.Engine,
+) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(acquisition_conversion_event),
+            [
+                _click(
+                    event_ref="click-real",
+                    member_ref="member-real",
+                    occurred_at=NOW - dt.timedelta(hours=2),
+                ),
+                _click(
+                    event_ref="click-qa",
+                    member_ref="member-qa",
+                    occurred_at=NOW - dt.timedelta(hours=1),
+                ),
+            ],
+        )
+        _insert_current_journey(
+            connection,
+            suffix="real",
+            events=(
+                ("PAID", NOW - dt.timedelta(hours=2), None, None, None),
+                ("MRR_CHANGED", NOW - dt.timedelta(hours=1), True, 12_900, "eur"),
+            ),
+        )
+        _insert_current_journey(
+            connection,
+            suffix="qa",
+            events=(
+                ("PAID", NOW - dt.timedelta(hours=2), None, None, None),
+                ("MRR_CHANGED", NOW - dt.timedelta(hours=1), True, 99_900, "eur"),
+            ),
+        )
+        connection.execute(
+            sa.insert(account_landing_signal),
+            [
+                {
+                    "account_id": "account-current-real",
+                    "token_fingerprint": "token-click-real",
+                    "created_at": NOW - dt.timedelta(hours=2),
+                    "profile_confirmed_at": NOW - dt.timedelta(hours=1),
+                    "qa": False,
+                },
+                {
+                    "account_id": "account-current-qa",
+                    "token_fingerprint": "token-click-qa",
+                    "created_at": NOW - dt.timedelta(hours=2),
+                    "profile_confirmed_at": NOW - dt.timedelta(hours=1),
+                    "qa": True,
+                },
+            ],
+        )
+
+    tunnel = FounderCommercialTunnelReadService(engine).read(
+        now=NOW,
+        period=FounderTunnelPeriod.TODAY,
+        week_offset=0,
+    )
+
+    assert tunnel.period.click_count == 1
+    assert tunnel.period.landing_count == 1
+    assert tunnel.period.confirmed_profile_count == 1
+    assert tunnel.period.paid_count == 1
+    assert [item.model_dump() for item in tunnel.current.mrr_by_currency] == [
+        {"currency": "EUR", "minor_units": 12_900}
+    ]
+
+
 def test_period_includes_both_bounds_and_excludes_events_outside_them(
     engine: sa.Engine,
 ) -> None:

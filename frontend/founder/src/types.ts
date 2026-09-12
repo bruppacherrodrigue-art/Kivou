@@ -43,7 +43,7 @@ export interface FounderTunnelSlice extends FounderTunnelCounts {
 
 export interface FounderTunnelCurrent {
   observed_at: string
-  mrr_by_currency: MoneyTotal[]
+  mrr_by_currency: MoneyTotal[] | null
   churn_count: number
 }
 
@@ -222,6 +222,14 @@ export interface FounderProspectionFilters {
   family: string
   department: string
   status: FounderDirectoryStatus | ''
+  reverification_reason: string
+}
+
+export interface FounderDirectoryEnrichment {
+  enriched_today_count: number
+  enriched_week_count: number
+  model: string | null
+  cumulative_cost_usd: string
 }
 
 export interface FounderProspection {
@@ -241,6 +249,8 @@ export interface FounderProspection {
       verified_email_count: number
       reverification_required_count: number
     }
+    enrichment: FounderDirectoryEnrichment
+    reverification_reason_counts: FounderCountFacet[]
     family_counts: FounderCountFacet[]
     department_counts: FounderCountFacet[]
     rows: FounderDirectoryRow[]
@@ -259,7 +269,7 @@ export interface FounderProspection {
     landing_count: number
     confirmed_profile_count: number
     paid_account_count: number
-    mrr_by_currency: MoneyTotal[]
+    mrr_by_currency: MoneyTotal[] | null
     no_sends_yet: boolean
   }
 }
@@ -302,7 +312,7 @@ export interface FounderProspectionQueueItem {
   director_name: string | null
   director_title: string | null
   email_address: string
-  email_source: 'apollo' | 'site' | 'manual'
+  email_source: 'apollo' | 'site' | 'manual' | 'model'
   email_verification_status: string
   bait_holder: string
   bait_subject: string
@@ -311,6 +321,51 @@ export interface FounderProspectionQueueItem {
   mail_subject: string
   mail_body: string
   mail_html: string
+}
+
+export interface FounderSystemTimer {
+  name: string
+  state: 'active' | 'inactive' | 'failed' | 'absent' | 'unknown'
+  last_run_at: string | null
+  next_run_at: string | null
+}
+
+export interface FounderServiceReadiness {
+  name: 'API' | 'Founder'
+  status: 'ready' | 'not_ready' | 'unavailable'
+  http_status: number | null
+  checked_at: string
+}
+
+export interface FounderSystem {
+  version: 'founder-system-v1'
+  generated_at: string
+  read_only: true
+  database_access: 'READ_ONLY'
+  acquisition_status: FounderAcquisitionStatus
+  health: OperationalHealth
+  readiness: AutonomousReadiness
+  timers: FounderSystemTimer[]
+  readiness_checks: FounderServiceReadiness[]
+  disk: {
+    path: string
+    total_bytes: number
+    used_bytes: number
+    available_bytes: number
+    used_percent: string
+  } | null
+  backups: Array<{
+    kind: 'local' | 'offsite'
+    status: 'success' | 'failed' | 'unavailable'
+    last_success_at: string | null
+  }>
+  provider_costs: Array<{
+    provider: 'OpenRouter' | 'Serper' | 'Apollo' | 'Instantly'
+    unit: 'USD' | 'request' | 'credit'
+    today: string
+    month: string
+  }>
+  deployed_sha: string | null
 }
 
 export type FounderProspectionActionStatus =
@@ -337,7 +392,7 @@ export interface FounderProspectionActionTarget {
   } | null
   email: {
     address: string
-    source: 'apollo' | 'site' | 'manual'
+    source: 'apollo' | 'site' | 'manual' | 'model'
     verification_status: 'mx_verified' | 'mx_failed'
   }
   signal: {
