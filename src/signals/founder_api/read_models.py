@@ -33,10 +33,13 @@ from signals.founder_api.prospection import (
 )
 from signals.founder_api.providers import FounderProviderName
 from signals.founder_api.system_status import (
+    FounderModelBudget,
     FounderProviderCost,
     FounderSystemHostReader,
     FounderSystemPage,
 )
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import routes_from_environment
 from signals.operations.contracts import (
     AcquisitionOperationalHealth,
     AutonomousReadiness,
@@ -143,6 +146,7 @@ class FounderSystemSummary(FounderContract):
     health: AcquisitionOperationalHealth
     readiness: AutonomousReadiness
     hermes: FounderAgentStatus
+    model_budgets: tuple[FounderModelBudget, ...]
     database_access: Literal["READ_ONLY"] = "READ_ONLY"
 
 
@@ -239,6 +243,7 @@ class FounderReadService:
             disk=host.disk,
             backups=host.backups,
             provider_costs=self._provider_costs(now=now),
+            model_budgets=self._model_budgets(now=now),
             deployed_sha=host.deployed_sha,
         )
 
@@ -275,6 +280,7 @@ class FounderReadService:
             health=health,
             readiness=readiness,
             hermes=hermes,
+            model_budgets=self._model_budgets(now=now),
         )
         today = FounderTodaySummary(
             generated_at=now,
@@ -330,6 +336,26 @@ class FounderReadService:
                 )
                 for row in rows
             )
+
+    def _model_budgets(self, *, now: dt.datetime) -> tuple[FounderModelBudget, ...]:
+        model_routes = routes_from_environment(batch_id="founder-system")
+        model_store = ModelBudgetStore(self._engine, clock=lambda: now)
+        return tuple(
+            FounderModelBudget(
+                usage=route.usage,
+                model=route.model,
+                usage_date=(summary := model_store.summary(route.usage)).usage_date,
+                actual_usd=summary.actual_usd,
+                reserved_usd=summary.reserved_usd,
+                cap_usd=route.daily_budget_usd,
+                remaining_usd=(
+                    route.daily_budget_usd
+                    - summary.actual_usd
+                    - summary.reserved_usd
+                ),
+            )
+            for route in model_routes.routes
+        )
 
     def _provider_costs(self, *, now: dt.datetime) -> tuple[FounderProviderCost, ...]:
         local_now = now.astimezone(_ZURICH)
@@ -660,6 +686,7 @@ __all__ = [
     "FounderAgentStatus",
     "FounderAttentionItem",
     "FounderConsoleOverview",
+    "FounderModelBudget",
     "FounderQualitySummary",
     "FounderReadService",
     "FounderReasonCount",

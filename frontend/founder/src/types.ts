@@ -203,6 +203,16 @@ export interface FounderOverview {
       observed_at: string
       reason_codes: string[]
     }
+    model_budgets: Array<{
+      usage: 'enrichment_judge' | 'enrichment_arbiter' | 'for_you' | 'hermes' | 'document_classifier'
+      model: string
+      usage_date: string
+      timezone: 'Europe/Zurich'
+      actual_usd: string
+      reserved_usd: string
+      cap_usd: string
+      remaining_usd: string
+    }>
     database_access: 'READ_ONLY'
   }
 }
@@ -365,6 +375,7 @@ export interface FounderSystem {
     today: string
     month: string
   }>
+  model_budgets: FounderOverview['system']['model_budgets']
   deployed_sha: string | null
 }
 

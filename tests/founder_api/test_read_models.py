@@ -203,6 +203,37 @@ def test_overview_composes_only_authoritative_read_models() -> None:
     assert {"health", "readiness", "hermes"} <= set(overview.system.model_dump())
 
 
+def test_system_summary_exposes_today_persisted_model_budgets(monkeypatch) -> None:
+    from decimal import Decimal
+
+    from signals.model_runtime.budget import ModelBudgetStore
+    from signals.model_runtime.config import routes_from_environment
+
+    engine = _engine()
+    monkeypatch.setenv("KIVOU_MODEL_BUDGET_ENRICHMENT_JUDGE_USD", "2.50")
+    route = routes_from_environment(batch_id="founder-seed").route("enrichment_judge")
+    store = ModelBudgetStore(engine, clock=lambda: NOW)
+    store.reserve(route=route, estimated_usd=Decimal("0.10"), call_id="seed")
+    store.succeed(
+        call_id="seed",
+        actual_usd=Decimal("0.04"),
+        input_tokens=900,
+        output_tokens=80,
+    )
+
+    overview = FounderReadService(engine, timer_reader=_stopped_timer).overview(now=NOW)
+
+    budget = next(
+        item for item in overview.system.model_budgets if item.usage == "enrichment_judge"
+    )
+    assert budget.model == "mistralai/mistral-small"
+    assert budget.timezone == "Europe/Zurich"
+    assert budget.cap_usd == Decimal("2.50")
+    assert budget.actual_usd == Decimal("0.04000000")
+    assert budget.reserved_usd == Decimal("0E-8")
+    assert budget.remaining_usd == Decimal("2.46000000")
+
+
 def test_overview_and_prospection_share_the_acquisition_status_read_model() -> None:
     engine = _engine()
     service = FounderReadService(engine, timer_reader=_stopped_timer)

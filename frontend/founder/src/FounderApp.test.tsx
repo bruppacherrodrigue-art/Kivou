@@ -193,6 +193,18 @@ const OVERVIEW: FounderOverview = {
       reason_codes: ['RUNTIME_OBSERVATION_UNAVAILABLE'],
     },
     database_access: 'READ_ONLY',
+    model_budgets: [
+      {
+        usage: 'enrichment_judge',
+        model: 'mistralai/mistral-small',
+        usage_date: '2026-08-29',
+        timezone: 'Europe/Zurich',
+        actual_usd: '0.42',
+        reserved_usd: '0.03',
+        cap_usd: '2',
+        remaining_usd: '1.55',
+      },
+    ],
   },
 }
 
@@ -239,6 +251,7 @@ const SYSTEM: FounderSystem = {
     { provider: 'Apollo', unit: 'credit', today: '0', month: '0' },
     { provider: 'Instantly', unit: 'credit', today: '0', month: '0' },
   ],
+  model_budgets: OVERVIEW.system.model_budgets,
   deployed_sha: 'a'.repeat(40),
 }
 
