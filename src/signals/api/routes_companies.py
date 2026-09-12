@@ -305,6 +305,9 @@ def list_companies_route(
         },
         "read_at": as_of.isoformat(),
         "plan_code": access.plan_code,
+        "signals_companies_v2_enabled": (
+            request.app.state.config.signals_companies_v2_enabled
+        ),
     }
 
 
@@ -363,7 +366,10 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             legal_name=profile.official_identity.name,
             department=department_for_place(most_recent.signal.award.place_of_performance),
             include_public_contact=(
-                request.app.state.config.company_profile_v2_enabled
+                (
+                    request.app.state.config.company_profile_v2_enabled
+                    or request.app.state.config.signals_companies_v2_enabled
+                )
                 and access.plan_code != "discovery"
             ),
         )
@@ -377,7 +383,10 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
         "history": history,
         "market_summary": market_summary,
         "directory": directory,
-        "company_profile_v2_enabled": request.app.state.config.company_profile_v2_enabled,
+        "company_profile_v2_enabled": (
+            request.app.state.config.company_profile_v2_enabled
+            or request.app.state.config.signals_companies_v2_enabled
+        ),
         "plan_code": access.plan_code,
     }
     lookup_service = request.app.state.company_contact_lookup_service

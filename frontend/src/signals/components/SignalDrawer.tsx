@@ -1,17 +1,22 @@
 import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import type { UnifiedStatus, UnlockedFeedItem } from '../../api/types'
+import { companies } from '../../api/endpoints'
+import type { CompanyProfile, PlanCode, UnifiedStatus, UnlockedFeedItem } from '../../api/types'
+import { CompanyContactBlock } from '../../companies/CompanyProfileV2'
 import { interpolate, useI18n } from '../../i18n'
 import { MatchDots } from './MatchDots'
 import { StatusPill } from './StatusPill'
-import { MISSING, placeLabel, signalObject } from './SignalRow'
+import {
+  MISSING,
+  drawerPlaceLabel,
+  placeLabel,
+  sentenceCase,
+  shortFitReason,
+  signalObject,
+} from './SignalRow'
 import { monthLabel } from '../valueFormat'
 import styles from './signals.module.css'
-
-function sentenceCase(value: string | null): string | null {
-  return value ? `${value.charAt(0).toLocaleUpperCase()}${value.slice(1)}` : null
-}
 
 function Fact({
   label,
@@ -42,6 +47,9 @@ export function SignalDrawer({
   onIgnore,
   busy,
   compact = false,
+  redesigned = false,
+  holderProfile = null,
+  planCode = null,
 }: {
   item: UnlockedFeedItem | null
   loading: boolean
@@ -56,6 +64,9 @@ export function SignalDrawer({
    *  propre bouton de fermeture : afficher aussi le nôtre donnerait DEUX
    *  contrôles « Fermer » pour un seul geste. */
   compact?: boolean
+  redesigned?: boolean
+  holderProfile?: CompanyProfile | null
+  planCode?: PlanCode | null
 }) {
   const { t, locale, amount, date } = useI18n()
   const copy = t.signalsTable.drawer
@@ -177,6 +188,120 @@ export function SignalDrawer({
         notice: item.source.notice_id ?? '',
       }).replace(/\s+/g, ' ').trim()
     : null
+
+  if (redesigned) {
+    const decisionPlace = drawerPlaceLabel(item.contract.location)
+    const profileDirectory = holderProfile?.directory
+    const holderMarketCount = holderProfile?.market_summary?.last_12_months?.awards_count
+      ?? item.holder_history?.last_12_months?.awards_count
+    const holderActivity = profileDirectory?.naf_label ?? profileDirectory?.family_labels?.[0]
+    const holderLocation = profileDirectory?.city
+    const holderFacts = [
+      holderActivity,
+      holderLocation,
+      profileDirectory?.employees === undefined ? null : `${profileDirectory.employees} salariés`,
+      holderMarketCount === undefined
+        ? null
+        : `${holderMarketCount} marché${holderMarketCount > 1 ? 's' : ''} gagné${holderMarketCount > 1 ? 's' : ''} en 12 mois`,
+    ].filter((value): value is string => Boolean(value))
+    const generatedWhy = item.analysis.fit.for_you_sentence?.trim() ?? ''
+    const foldedTitle = (title ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
+    const foldedWhy = generatedWhy.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
+    const titleRepeated = foldedTitle.length > 20 && foldedWhy.includes(foldedTitle)
+    const fallbackWhy = `Les besoins publiés correspondent à votre profil cible${shortFitReason(item) ? ` : ${shortFitReason(item)}` : ''}.`
+    let why = generatedWhy && !titleRepeated ? generatedWhy : fallbackWhy
+    const department = item.contract.location?.subdivision_label?.trim()
+    if (!item.contract.location?.locality && department) {
+      const escapedDepartment = department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      why = why.replace(new RegExp(`\\bà ${escapedDepartment}\\b`, 'gi'), `en ${department}`)
+    }
+    const clockDate = date(clock.value)
+
+    return (
+      <aside className={`${styles.drawer} ${styles.decisionDrawer}`} aria-labelledby={titleId} data-signal-key={item.signal_id}>
+        <div className={styles.drawerHead}>
+          <StatusPill status={item.status} />
+          {clockDate ? <span className={styles.datePill}>{clock.label} {clockDate}</span> : null}
+          {compact ? null : <button type="button" className={styles.drawerClose} onClick={onClose}>{copy.close}</button>}
+        </div>
+
+        <h2 className={styles.decisionTitle} id={titleId}>{title ?? copy.select}</h2>
+        <p className={styles.decisionMeta}>
+          {[money, decisionPlace === MISSING ? null : decisionPlace, item.contract.buyer?.name ? `acheteur : ${item.contract.buyer.name}` : null]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+
+        <section className={styles.holderBlock}>
+          <div className={styles.holderHead}>
+            <div>
+              <h3 className="section-label">Titulaire</h3>
+              {item.company.name ? item.company_key ? (
+                <Link className={styles.holderName} to={`/app/companies/${item.company_key}`}>{item.company.name}</Link>
+              ) : <strong className={styles.holderName}>{item.company.name}</strong> : null}
+              {holderFacts.length ? <p>{holderFacts.join(' · ')}</p> : null}
+            </div>
+            {item.company_key ? <Link className={styles.holderProfileLink} to={`/app/companies/${item.company_key}`}>Voir la fiche →</Link> : null}
+          </div>
+          {item.company_key ? (
+            <CompanyContactBlock
+              companyKey={item.company_key}
+              directory={profileDirectory}
+              fallbackAddress={holderProfile?.official_identity.address}
+              fallbackWebsite={holderProfile?.official_identity.website_url}
+              fallbackSource={holderProfile?.official_identity.source}
+              planCode={holderProfile?.plan_code ?? planCode ?? 'discovery'}
+              initialLookup={holderProfile?.contact_lookup}
+              onReloadLookup={async () => (await companies.get(item.company_key as string)).contact_lookup ?? null}
+              showHeading={false}
+            />
+          ) : null}
+        </section>
+
+        <section className={styles.decisionSection}>
+          <h3 className="section-label">Pourquoi ça vous concerne</h3>
+          <p className={styles.whySentence}>{why}</p>
+        </section>
+
+        {calendarMonth ? (
+          <section className={styles.decisionSection}>
+            <h3 className="section-label">Calendrier</h3>
+            <dl className={styles.calendarFacts}>
+              <dt>Démarrage</dt><dd>probable en {calendarMonth}</dd>
+              {item.commercial_calendar?.duration_months ? <><dt>Durée</dt><dd>{item.commercial_calendar.duration_months} mois</dd></> : null}
+            </dl>
+          </section>
+        ) : null}
+
+        {item.local_circuit?.length ? (
+          <section className={styles.decisionSection}>
+            <h3 className="section-label">Le circuit local</h3>
+            <ul className={styles.decisionCircuit}>
+              {item.local_circuit.slice(0, 4).map((company) => (
+                <li key={company.siren}>
+                  <span><Link to={company.href}>{company.name}</Link>{company.trade ? ` · ${company.trade}` : ''}</span>
+                  <small>{[company.city, company.employees === undefined ? null : `${company.employees} sal.`].filter(Boolean).join(' · ')}</small>
+                </li>
+              ))}
+            </ul>
+            <small className={styles.decisionSource}>{copy.registerSource}</small>
+          </section>
+        ) : null}
+
+        <div className={styles.actions}>
+          {actions.map((action) => item.status === action.status ? (
+            <button key={action.status} type="button" className={styles.actionState} data-state={action.status} disabled>{action.state} ✓</button>
+          ) : (
+            <button key={action.status} type="button" className={action.primary ? styles.actionPrimary : styles.action} disabled={busy} onClick={action.onClick}>{action.action}</button>
+          ))}
+        </div>
+
+        {sourceText && item.source.url ? (
+          <a className={`${styles.source} ${styles.decisionSourceLine} source-link`} href={item.source.url} target="_blank" rel="noopener noreferrer">{sourceText} ↗</a>
+        ) : sourceText ? <p className={`${styles.source} ${styles.decisionSourceLine}`}>{sourceText}</p> : null}
+      </aside>
+    )
+  }
 
   return (
     <aside

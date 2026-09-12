@@ -45,6 +45,7 @@ export function CompaniesPage() {
   const [profile, setProfile] = useState<CompanyProfile | null>(null)
   const [contactBusy, setContactBusy] = useState(false)
   const [contactError, setContactError] = useState<string | null>(null)
+  const [redesigned, setRedesigned] = useState(false)
   const generation = useRef(0)
   const contactInFlight = useRef(false)
 
@@ -65,6 +66,7 @@ export function CompaniesPage() {
         if (generation.current !== current) return
         setItems(response.items)
         setNextCursor(response.page.next_cursor)
+        setRedesigned(response.signals_companies_v2_enabled === true)
       })
       .finally(() => { if (generation.current === current) setLoading(false) })
   }, [status, q])
@@ -81,6 +83,7 @@ export function CompaniesPage() {
     const response = await companies.list({ contact_status: status ? [status] : null, q: q || null, limit: PAGE_SIZE, cursor: nextCursor })
     setItems((current) => [...new Map([...current, ...response.items].map((item) => [item.company_key, item])).values()])
     setNextCursor(response.page.next_cursor)
+    setRedesigned(response.signals_companies_v2_enabled === true)
   }
 
   const changeContactStatus = async (nextStatus: CompanyContactStatus) => {
@@ -130,7 +133,7 @@ export function CompaniesPage() {
   }
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${redesigned ? styles.pageRedesigned : ''}`}>
       <ScreenHeader title="Entreprises" description="Les titulaires de vos signaux, avec où vous en êtes" />
       <div className={styles.filters}>
         <ScreenSegments label="Statut de contact">
@@ -144,14 +147,14 @@ export function CompaniesPage() {
       </div>
 
       {loading ? <p role="status">Chargement…</p> : (
-        <div className={styles.contentLayout}>
-        <div className={styles.tableWrap}>
+        <div className={`${styles.contentLayout} ${redesigned ? styles.contentLayoutRedesigned : ''}`}>
+        <div className={`${styles.tableWrap} ${redesigned ? styles.tableWrapRedesigned : ''}`}>
           <table className={styles.table}>
-            <thead><tr><th>Entreprise</th>{profile ? null : <><th>Ville</th><th>Marchés</th><th>Total</th><th>Dernier</th></>}<th>Statut</th></tr></thead>
+            <thead><tr><th>Entreprise</th>{redesigned ? <><th>Ville</th><th>Marchés</th></> : profile ? null : <><th>Ville</th><th>Marchés</th><th>Total</th><th>Dernier</th></>}<th>Statut</th></tr></thead>
             <tbody>{items.map((item) => (
               <tr key={item.company_key} aria-current={item.company_key === companyKey ? 'true' : undefined} onClick={() => navigate(`/app/companies/${item.company_key}`)}>
                 <td><button type="button">{item.name}</button></td>
-                {profile ? null : <><td>{item.city}</td><td className={styles.numeric}>{item.awards_count}</td><td className={styles.numeric}>{item.total_amount.map((money) => amount(money.value, money.currency)).filter(Boolean).join(' · ')}</td><td>{shortDate(item.last_award_at)}</td></>}
+                {redesigned ? <><td>{item.city}</td><td className={styles.numeric}>{item.awards_count}</td></> : profile ? null : <><td>{item.city}</td><td className={styles.numeric}>{item.awards_count}</td><td className={styles.numeric}>{item.total_amount.map((money) => amount(money.value, money.currency)).filter(Boolean).join(' · ')}</td><td>{shortDate(item.last_award_at)}</td></>}
                 <td><span className={styles.status}>{SEGMENTS.find((segment) => segment.status === item.contact_status)?.label}</span></td>
               </tr>
             ))}</tbody>

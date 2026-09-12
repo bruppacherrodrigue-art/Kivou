@@ -182,6 +182,20 @@
   white-space: nowrap;
 }
 
+.cellWhy,
+.cardWhy,
+.lockedWhy {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.25;
+}
+
+.cellWhy {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Tiroir ─────────────────────────────────────────────────────────────── */
 
 .drawer {
@@ -203,6 +217,156 @@
 
 .drawerHead .matchDots {
   margin-left: auto;
+}
+
+.datePill {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.decisionDrawer {
+  gap: 0;
+  padding: 20px;
+}
+
+.decisionDrawer .drawerHead {
+  margin-bottom: 8px;
+}
+
+.decisionDrawer .drawerClose {
+  margin-left: auto;
+}
+
+.decisionTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 730;
+  line-height: 1.32;
+}
+
+.decisionMeta {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.holderBlock {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.holderHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.holderHead h3 {
+  margin: 0 0 3px;
+}
+
+.holderHead p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.42;
+}
+
+.holderName {
+  display: inline-block;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 730;
+  text-decoration: none;
+}
+
+a.holderName:hover {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.holderProfileLink {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 680;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.decisionSection {
+  margin-top: 16px;
+}
+
+.decisionSection > h3 {
+  margin: 0 0 8px;
+}
+
+.whySentence {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--green-state);
+  color: var(--ink);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.calendarFacts {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 5px 12px;
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.calendarFacts dt { color: var(--text-muted); }
+.calendarFacts dd { margin: 0; }
+
+.decisionCircuit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.decisionCircuit li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.decisionCircuit li > span { min-width: 0; }
+.decisionCircuit a { color: var(--green); font-weight: 700; text-decoration: none; }
+.decisionCircuit small { flex: 0 0 auto; color: var(--text-muted); font-size: 11px; }
+.decisionSource { display: block; margin-top: 6px; color: var(--text-muted); font-size: 11px; }
+.decisionDrawer .actions { margin-top: 16px; }
+.decisionSourceLine { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+
+@media (max-width: 1080px) and (min-width: 900px) {
+  .decisionCircuit { grid-template-columns: 1fr; }
+  .holderHead { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 899px) {
+  .decisionDrawer { min-height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+  .decisionCircuit { grid-template-columns: 1fr; }
 }
 
 .drawerClose {

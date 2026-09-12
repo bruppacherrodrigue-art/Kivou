@@ -405,6 +405,9 @@ def list_signals(
         "view": view_mode,
         "language": lang,
         "plan_code": access.plan_code,
+        "signals_companies_v2_enabled": (
+            request.app.state.config.signals_companies_v2_enabled
+        ),
         "provisional_profile": provisional_profile,
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
