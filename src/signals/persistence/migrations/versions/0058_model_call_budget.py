@@ -24,6 +24,37 @@ _USAGES = (
 _USAGE_SQL = ", ".join(f"'{usage}'" for usage in _USAGES)
 
 
+def _create_sqlite_directory_trigger() -> None:
+    op.execute(
+        """
+        CREATE TRIGGER trg_company_contact_lookup_directory_change
+        AFTER UPDATE OF suppressed_at, apollo_organization_id, apollo_status
+        ON supplier_directory
+        WHEN NEW.suppressed_at IS NOT NULL
+          OR NEW.apollo_organization_id IS NOT OLD.apollo_organization_id
+          OR NEW.apollo_status IS NOT OLD.apollo_status
+        BEGIN
+            UPDATE company_contact_lookup_attempt
+               SET status = CASE
+                                WHEN NEW.suppressed_at IS NOT NULL
+                                THEN 'suppressed'
+                                ELSE 'expired'
+                            END,
+                   completed_at = COALESCE(NEW.suppressed_at, CURRENT_TIMESTAMP),
+                   error_code = CASE
+                                    WHEN NEW.suppressed_at IS NOT NULL
+                                    THEN 'directory_suppressed'
+                                    ELSE 'directory_identity_changed'
+                                END
+             WHERE directory_siren = NEW.siren
+               AND status = 'running';
+            DELETE FROM company_contact_lookup
+             WHERE directory_siren = NEW.siren;
+        END
+        """
+    )
+
+
 def upgrade() -> None:
     op.create_table(
         "model_daily_budget",
@@ -75,6 +106,9 @@ def upgrade() -> None:
     op.create_index("ix_model_call_usage_called_at", "model_call_journal", ["usage", "called_at"])
     op.create_index("ix_model_call_siren_called_at", "model_call_journal", ["siren", "called_at"])
     op.create_index("ix_model_call_batch_id", "model_call_journal", ["batch_id"])
+    sqlite = op.get_bind().dialect.name == "sqlite"
+    if sqlite:
+        op.execute("DROP TRIGGER IF EXISTS trg_company_contact_lookup_directory_change")
     with op.batch_alter_table("supplier_directory") as batch_op:
         batch_op.add_column(sa.Column("enrichment_call_id", sa.String(36)))
         batch_op.create_foreign_key(
@@ -84,12 +118,19 @@ def upgrade() -> None:
             ["call_id"],
             ondelete="SET NULL",
         )
+    if sqlite:
+        _create_sqlite_directory_trigger()
 
 
 def downgrade() -> None:
+    sqlite = op.get_bind().dialect.name == "sqlite"
+    if sqlite:
+        op.execute("DROP TRIGGER IF EXISTS trg_company_contact_lookup_directory_change")
     with op.batch_alter_table("supplier_directory") as batch_op:
         batch_op.drop_constraint("fk_supplier_directory_enrichment_call", type_="foreignkey")
         batch_op.drop_column("enrichment_call_id")
+    if sqlite:
+        _create_sqlite_directory_trigger()
     op.drop_index("ix_model_call_batch_id", table_name="model_call_journal")
     op.drop_index("ix_model_call_siren_called_at", table_name="model_call_journal")
     op.drop_index("ix_model_call_usage_called_at", table_name="model_call_journal")

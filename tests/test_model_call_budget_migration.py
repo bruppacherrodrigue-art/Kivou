@@ -117,3 +117,18 @@ def test_model_calls_and_current_judgment_have_traceable_nullable_links(tmp_path
         and item["referred_table"] == "model_call_journal"
         for item in supplier_foreign_keys
     )
+
+
+def test_model_budget_migration_preserves_directory_suppression_trigger(tmp_path) -> None:
+    engine = _migrated_engine(tmp_path)
+
+    with engine.connect() as connection:
+        trigger = connection.scalar(
+            sa.text(
+                "SELECT name FROM sqlite_master "
+                "WHERE type = 'trigger' "
+                "AND name = 'trg_company_contact_lookup_directory_change'"
+            )
+        )
+
+    assert trigger == "trg_company_contact_lookup_directory_change"
