@@ -22,6 +22,20 @@ def backfill_client_locations(
         raise ValueError("at least one account id is required")
     if not 1 <= limit <= 1_000:
         raise ValueError("limit must be between 1 and 1000")
+    award_keys = (
+        sa.select(materialized_signal.c.materialization_award_key)
+        .select_from(
+            target_icp.join(
+                materialized_signal,
+                target_icp.c.target_icp_id == materialized_signal.c.target_icp_id,
+            )
+        )
+        .where(target_icp.c.account_id.in_(tuple(sorted(set(account_ids)))))
+        .distinct()
+        .order_by(materialized_signal.c.materialization_award_key)
+        .limit(limit)
+        .subquery("client_location_award_keys")
+    )
     rows = connection.execute(
         sa.select(
             contract_award.c.award_key,
@@ -29,21 +43,13 @@ def backfill_client_locations(
             source_event.c.procedure_buyers,
         )
         .select_from(
-            target_icp.join(
-                materialized_signal,
-                target_icp.c.target_icp_id == materialized_signal.c.target_icp_id,
-            )
-            .join(
+            award_keys.join(
                 contract_award,
-                materialized_signal.c.materialization_award_key
-                == contract_award.c.award_key,
+                award_keys.c.materialization_award_key == contract_award.c.award_key,
             )
             .join(source_event, contract_award.c.event_key == source_event.c.event_key)
         )
-        .where(target_icp.c.account_id.in_(tuple(sorted(set(account_ids)))))
-        .distinct()
         .order_by(contract_award.c.award_key)
-        .limit(limit)
     ).mappings()
     updated = 0
     for row in rows:
