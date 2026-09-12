@@ -11,8 +11,9 @@ import type {
 import { companies, signals as signalApi } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
-import { SignalRow } from '../signals/components/SignalRow'
+import { SignalRow, signalObject } from '../signals/components/SignalRow'
 import { useI18n } from '../i18n'
+import { CompanyProfileV2 } from './CompanyProfileV2'
 import styles from './CompaniesPage.module.css'
 
 function identifier(profile: CompanyProfile): string | null {
@@ -348,7 +349,39 @@ export function CompanyDrawer({
   const identity = profile.official_identity
   return (
     <>
-      <aside className={styles.drawer} aria-label={identity.name}>
+      {profile.company_profile_v2_enabled ? (
+        <CompanyProfileV2
+          companyKey={profile.company_key}
+          name={identity.name}
+          directory={profile.directory}
+          fallbackCity={city}
+          fallbackAddress={identity.address}
+          fallbackWebsite={identity.website_url}
+          fallbackSource={identity.source}
+          planCode={profile.plan_code ?? 'discovery'}
+          contactLookup={profile.contact_lookup}
+          marketSummary={profile.market_summary}
+          markets={profile.signals.map((signal) => ({
+            id: signal.signal_id,
+            title: signalObject(signal),
+            date: signal.factual_display.date.value,
+            amount: signal.contract.amount,
+            buyers: signal.contract.buyer?.name ? [signal.contract.buyer.name] : undefined,
+            sourceUrl: signal.source.url,
+            calendar: signal.commercial_calendar,
+            onOpen: () => void openSignal(signal),
+          }))}
+          contactStatus={profile.contact_status}
+          history={profile.history}
+          note={profile.note}
+          contactBusy={contactBusy}
+          contactError={contactError}
+          onContact={onContact}
+          onReloadLookup={async () => (await companies.get(profile.company_key)).contact_lookup ?? null}
+          onClose={onClose}
+        />
+      ) : (
+        <aside className={styles.drawer} aria-label={identity.name}>
         <header className={styles.drawerHeader}>
           <h2>{identity.name}</h2>
           <button type="button" onClick={onClose} aria-label="Fermer">×</button>
@@ -405,7 +438,8 @@ export function CompanyDrawer({
             </ul>
           ) : <p>Aucune action pour l'instant</p>}
         </section>
-      </aside>
+        </aside>
+      )}
       {selectedSignal ? (
         <div className={styles.signalLayer}>
           <SignalDrawer

@@ -117,10 +117,13 @@ class WinnerEnrichmentView(CompanyContract):
         default=(), max_length=MAX_ENRICHMENT_MISSING_FIELDS
     )
     last_verified_at: dt.datetime | None = None
-    error_code: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
-    ] | None = None
+    error_code: (
+        Annotated[
+            str,
+            StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
+        ]
+        | None
+    ) = None
     source: WinnerEnrichmentSource
 
     _aware_verification = field_validator("last_verified_at")(aware_optional_datetime)
@@ -164,9 +167,7 @@ class CompanyRelatedSignal(CompanyContract):
 
 class CompanyCoverage(CompanyContract):
     related_signals_complete: bool
-    unavailable_fields: tuple[ShortText, ...] = Field(
-        default=(), max_length=MAX_UNAVAILABLE_FIELDS
-    )
+    unavailable_fields: tuple[ShortText, ...] = Field(default=(), max_length=MAX_UNAVAILABLE_FIELDS)
 
 
 class CompanyContactLookupOrganization(CompanyContract):
@@ -210,15 +211,9 @@ class CompanyContactLookupView(CompanyContract):
     monthly_quota: int = Field(ge=0)
     source: Literal["apollo"]
     removal_path: Literal["/contact"]
-    researched_at: dt.datetime | None = Field(
-        default=None, exclude_if=lambda value: value is None
-    )
-    refresh_after: dt.datetime | None = Field(
-        default=None, exclude_if=lambda value: value is None
-    )
-    next_reset_at: dt.datetime | None = Field(
-        default=None, exclude_if=lambda value: value is None
-    )
+    researched_at: dt.datetime | None = Field(default=None, exclude_if=lambda value: value is None)
+    refresh_after: dt.datetime | None = Field(default=None, exclude_if=lambda value: value is None)
+    next_reset_at: dt.datetime | None = Field(default=None, exclude_if=lambda value: value is None)
     can_refresh: bool | None = Field(default=None, exclude_if=lambda value: value is None)
     organization: CompanyContactLookupOrganization | None = Field(
         default=None, exclude_if=lambda value: value is None
@@ -256,5 +251,7 @@ class CompanyProfile(CompanyContract):
     contact_lookup: CompanyContactLookupView | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    company_profile_v2_enabled: bool = False
+    plan_code: Literal["discovery", "essential", "pro"] = "discovery"
 
     _aware_contacted_at = field_validator("contacted_at")(aware_optional_datetime)

@@ -49,6 +49,7 @@ router = APIRouter()
 
 _COMPANY_KEY = re.compile(r"^cmp_[A-Za-z0-9_-]{12,60}$")
 _SIREN = re.compile(r"^\d{9}$")
+_DIRECTORY_COMPANY_KEY = re.compile(r"^cmp_directory_(?P<siren>\d{9})$")
 
 
 class CompanyContactRequest(BaseModel):
@@ -124,9 +125,7 @@ def _company_signals(
     """The same card `GET /signals` would render for each item — same
     presentation, same winner enrichment — so this list can never drift from
     the feed's idea of what an unlocked card looks like (§4 F2)."""
-    resolve_status = status_resolver(
-        feedback.feedback_by_signal(connection, account_id=account_id)
-    )
+    resolve_status = status_resolver(feedback.feedback_by_signal(connection, account_id=account_id))
     ordered = sorted(items, key=lambda item: history_sort_key(item.signal))
     signal_keys = tuple(item.signal.signal_key for item in ordered)
     presentation_bindings = presentation_bindings_for_items(connection, ordered)
@@ -154,7 +153,9 @@ def _company_signals(
     )
 
 
-def _company_history(connection, *, account_id: str, company_key: str, items) -> tuple[dict[str, Any], ...]:
+def _company_history(
+    connection, *, account_id: str, company_key: str, items
+) -> tuple[dict[str, Any], ...]:
     signal_keys = {item.signal.signal_key for item in items}
     rows = connection.execute(
         sa.select(product_event).where(product_event.c.account_id == account_id)
@@ -198,6 +199,23 @@ def _siren_for_profile(profile: CompanyProfile) -> str | None:
         if scheme == "siret" and len(digits) == 14:
             return digits[:9]
     return None
+
+
+def _directory_siren_for_company_key(company_key: str) -> str | None:
+    match = _DIRECTORY_COMPANY_KEY.fullmatch(company_key)
+    return match.group("siren") if match is not None else None
+
+
+def _require_directory_company(connection, siren: str) -> dict[str, Any]:
+    directory = directory_company(
+        connection,
+        siren=siren,
+        legal_name=None,
+        department=None,
+    )
+    if directory is None:
+        raise api_error(404, "company_not_found", "entreprise introuvable")
+    return directory
 
 
 @router.get("/companies")
@@ -329,6 +347,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
         if holder_history is not None:
             market_summary = {
                 **holder_history["summary"],
+                "last_12_months": holder_history["last_12_months"],
                 "resolution": holder_history["resolution"],
                 "source": holder_history["source"],
             }
@@ -339,6 +358,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             siren=_siren_for_profile(profile),
             legal_name=profile.official_identity.name,
             department=department_for_place(most_recent.signal.award.place_of_performance),
+            include_public_contact=request.app.state.config.company_profile_v2_enabled,
         )
         account_id = session.account_id
     update = {
@@ -350,6 +370,8 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
         "history": history,
         "market_summary": market_summary,
         "directory": directory,
+        "company_profile_v2_enabled": request.app.state.config.company_profile_v2_enabled,
+        "plan_code": access.plan_code,
     }
     lookup_service = request.app.state.company_contact_lookup_service
     if lookup_service is not None:
@@ -387,25 +409,54 @@ def get_directory_company(siren: str, request: Request) -> dict[str, Any]:
     if _SIREN.fullmatch(siren) is None:
         raise api_error(404, "company_not_found", "entreprise introuvable")
     with request.app.state.engine.begin() as connection:
-        current_session(request, connection, now)
+        session = current_session(request, connection, now)
+        access = feed_access(connection, account_id=session.account_id, as_of=now.date())
         directory = directory_company(
             connection,
             siren=siren,
             legal_name=None,
             department=None,
+            include_public_contact=request.app.state.config.company_profile_v2_enabled,
         )
         if directory is None:
             raise api_error(404, "company_not_found", "entreprise introuvable")
+        company_key = f"cmp_directory_{siren}"
+        contact = company_engagement.get_contact(
+            connection, account_id=session.account_id, company_key=company_key
+        )
+        note = company_engagement.get_note(
+            connection, account_id=session.account_id, company_key=company_key
+        )
+        history = _company_history(
+            connection,
+            account_id=session.account_id,
+            company_key=company_key,
+            items=(),
+        )
         holder_history, markets = directory_history_and_markets(
             connection,
             winner_name=directory["name"],
             department=directory.get("department", ""),
             as_of=now.date(),
         )
-    result: dict[str, Any] = {"directory": directory, "markets": list(markets)}
+        account_id = session.account_id
+    result: dict[str, Any] = {
+        "company_key": company_key,
+        "company_profile_v2_enabled": request.app.state.config.company_profile_v2_enabled,
+        "plan_code": access.plan_code,
+        "directory": directory,
+        "markets": list(markets),
+        "contact_status": contact.status if contact is not None else "to_contact",
+        "contacted_at": contact.contacted_at.isoformat()
+        if contact is not None and contact.contacted_at
+        else None,
+        "note": note.body if note is not None else None,
+        "history": list(history),
+    }
     if holder_history is not None:
         result["market_summary"] = {
             **holder_history["summary"],
+            "last_12_months": holder_history["last_12_months"],
             "resolution": holder_history["resolution"],
             "source": holder_history["source"],
             **(
@@ -413,6 +464,25 @@ def get_directory_company(siren: str, request: Request) -> dict[str, Any]:
                 if "resolution_note" in holder_history
                 else {}
             ),
+        }
+    lookup_service = request.app.state.company_contact_lookup_service
+    if lookup_service is not None:
+        lookup = lookup_service.view(
+            account_id=account_id,
+            company_key=company_key,
+            plan_code=access.plan_code,
+            now=now,
+            siren=siren,
+        )
+        if lookup is not None:
+            result["contact_lookup"] = lookup
+    elif access.plan_code == "discovery":
+        result["contact_lookup"] = {
+            "state": "locked",
+            "remaining": 0,
+            "monthly_quota": 0,
+            "source": "apollo",
+            "removal_path": "/contact",
         }
     return result
 
@@ -426,7 +496,11 @@ def set_company_contact(
     now = request_now(request)
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        _accessible_company(connection, session, company_key, now)
+        directory_siren = _directory_siren_for_company_key(company_key)
+        if directory_siren is None:
+            _accessible_company(connection, session, company_key, now)
+        else:
+            _require_directory_company(connection, directory_siren)
         # `payload.status` is already restricted by the pydantic `Literal` —
         # `InvalidContactStatus` in `engagement/company.py` exists for direct
         # (non-HTTP) callers, and can never fire from here.
@@ -466,27 +540,37 @@ def find_company_decision_maker(company_key: str, request: Request) -> dict[str,
     now = request_now(request)
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        profile, items, access, _lang = _accessible_company(
-            connection, session, company_key, now
-        )
-        most_recent = min(items, key=lambda item: history_sort_key(item.signal))
-        department = department_for_place(
-            most_recent.signal.award.place_of_performance
-        )
-        directory = directory_company(
-            connection,
-            siren=_siren_for_profile(profile),
-            legal_name=profile.official_identity.name,
-            department=department,
-        )
-        identity = CompanyLookupIdentity(
-            company_key=company_key,
-            siren=_siren_for_profile(profile),
-            name=profile.official_identity.name,
-            city=(directory or {}).get("city"),
-            website_url=(directory or {}).get("website_url")
-            or profile.official_identity.website_url,
-        )
+        directory_siren = _directory_siren_for_company_key(company_key)
+        if directory_siren is not None:
+            access = feed_access(connection, account_id=session.account_id, as_of=now.date())
+            directory = _require_directory_company(connection, directory_siren)
+            identity = CompanyLookupIdentity(
+                company_key=company_key,
+                siren=directory_siren,
+                name=directory["name"],
+                city=directory.get("city"),
+                website_url=directory.get("website_url"),
+            )
+        else:
+            profile, items, access, _lang = _accessible_company(
+                connection, session, company_key, now
+            )
+            most_recent = min(items, key=lambda item: history_sort_key(item.signal))
+            department = department_for_place(most_recent.signal.award.place_of_performance)
+            directory = directory_company(
+                connection,
+                siren=_siren_for_profile(profile),
+                legal_name=profile.official_identity.name,
+                department=department,
+            )
+            identity = CompanyLookupIdentity(
+                company_key=company_key,
+                siren=_siren_for_profile(profile),
+                name=profile.official_identity.name,
+                city=(directory or {}).get("city"),
+                website_url=(directory or {}).get("website_url")
+                or profile.official_identity.website_url,
+            )
         account_id = session.account_id
 
     lookup_service = request.app.state.company_contact_lookup_service
@@ -543,7 +627,11 @@ def set_company_note(
     now = request_now(request)
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        _accessible_company(connection, session, company_key, now)
+        directory_siren = _directory_siren_for_company_key(company_key)
+        if directory_siren is None:
+            _accessible_company(connection, session, company_key, now)
+        else:
+            _require_directory_company(connection, directory_siren)
         stored = company_engagement.put_note(
             connection,
             account_id=session.account_id,

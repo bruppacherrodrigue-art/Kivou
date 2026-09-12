@@ -52,9 +52,8 @@ ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
 ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
 GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
-COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = (
-    "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
-)
+COMPANY_PROFILE_V2_ENABLED_ENV = "KIVOU_COMPANY_PROFILE_V2_ENABLED"
+COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
 APOLLO_API_KEY_ENV = "KIVOU_APOLLO_API_KEY"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
@@ -185,9 +184,7 @@ class ApiConfig:
     # SPEC-026 — absent by default: the provider-specific route fails closed.
     instantly_webhook_secret: str | None = dataclasses.field(default=None, repr=False)
     instantly_webhook_workspace_ref: str | None = None
-    instantly_webhook_fingerprint_key: bytes | None = dataclasses.field(
-        default=None, repr=False
-    )
+    instantly_webhook_fingerprint_key: bytes | None = dataclasses.field(default=None, repr=False)
     instantly_webhook_fingerprint_key_version: str | None = None
     suppression_identity_key: bytes | None = dataclasses.field(default=None, repr=False)
     suppression_identity_key_version: str | None = None
@@ -206,8 +203,11 @@ class ApiConfig:
     # PR6b — coupe seulement la phrase rédigée dans l'app client. Le repli
     # déterministe reste toujours disponible et les e-mails ne changent pas.
     generated_for_you_enabled: bool = False
-    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] = (
-        dataclasses.field(default_factory=dict)
+    # PR6b correction #226 — la fiche validée reste désactivée tant que la
+    # capture staging n'a pas reçu l'accord produit.
+    company_profile_v2_enabled: bool = False
+    commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] = dataclasses.field(
+        default_factory=dict
     )
     # PR6b — secret du fournisseur utilisé uniquement par la recherche explicite
     # d'un décideur. Son absence laisse la route indisponible, sans appel réseau.
@@ -314,9 +314,7 @@ class ApiConfig:
             )
         if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
             raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
-        instantly = _api_webhook_values(
-            load_instantly_webhook_runtime_config(required=False)
-        )
+        instantly = _api_webhook_values(load_instantly_webhook_runtime_config(required=False))
         acquisition_environment = resolve_acquisition_environment()
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
@@ -377,14 +375,13 @@ class ApiConfig:
                 attribution_key_raw.encode("utf-8") if attribution_key_raw else None
             ),
             attribution_hmac_key_version=attribution_key_version,
-            cockpit_operator_account_ids=_account_ref_allowlist(
-                COCKPIT_OPERATOR_ACCOUNT_IDS_ENV
-            ),
+            cockpit_operator_account_ids=_account_ref_allowlist(COCKPIT_OPERATOR_ACCOUNT_IDS_ENV),
             acquisition_environment=acquisition_environment,
             # L'activation d'environnement vient seulement après le backfill
             # borné des comptes actifs. Le défaut fermé empêche un déploiement
             # d'afficher un mélange involontaire de phrases générées et de replis.
             generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=False),
+            company_profile_v2_enabled=_flag(COMPANY_PROFILE_V2_ENABLED_ENV, default=False),
             commercial_start_delay_months_by_cpv_prefix=_cpv_start_delays(
                 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV
             ),

@@ -9,6 +9,7 @@ import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
 from signals.companies.contracts import safe_https_url
+from signals.domain.french_departments import DEPARTMENTS
 from signals.feed.text import normalize_text
 from signals.persistence.schema import supplier_directory
 from signals.supplier_discovery.families import (
@@ -79,13 +80,21 @@ def _clean_directors(value: object) -> list[dict[str, str]]:
     return result
 
 
-def _company_view(row: Mapping[str, Any], *, matched_by_name: bool) -> dict[str, Any]:
+def _director_title(row: Mapping[str, Any], display_name: str | None) -> str | None:
+    if not display_name:
+        return None
+    wanted = _normalized_name(display_name)
+    for director in _clean_directors(row["directors"]):
+        if _normalized_name(director["name"]) == wanted:
+            return director.get("title")
+    return None
+
+
+def _company_view(
+    row: Mapping[str, Any], *, matched_by_name: bool, include_public_contact: bool
+) -> dict[str, Any]:
     families = _family_index()
-    family_labels = [
-        families[key].label_fr
-        for key in row["family_keys"] or ()
-        if key in families
-    ]
+    family_labels = [families[key].label_fr for key in row["family_keys"] or () if key in families]
     result: dict[str, Any] = {
         "siren": row["siren"],
         "name": row["legal_name"],
@@ -94,7 +103,9 @@ def _company_view(row: Mapping[str, Any], *, matched_by_name: bool) -> dict[str,
     }
     optional = {
         "naf_code": row["naf_code"],
+        "naf_label": row["naf_label"],
         "department": row["department"],
+        "department_label": DEPARTMENTS.get(row["department"]),
         "city": row["city"],
         "employees": row["employees"],
         "website_url": _safe_website(row["website_url"]),
@@ -102,12 +113,31 @@ def _company_view(row: Mapping[str, Any], *, matched_by_name: bool) -> dict[str,
     result.update({key: value for key, value in optional.items() if value is not None})
     if result.get("website_url") and row["domain_source"]:
         result["website_source"] = row["domain_source"]
+    if result.get("website_url") and row["domain_observed_at"]:
+        result["website_observed_at"] = row["domain_observed_at"].isoformat()
     if family_labels:
         result["family_labels"] = family_labels
     if row["suppressed_at"] is None:
         directors = _clean_directors(row["directors"])
         if directors:
             result["directors"] = directors
+        if include_public_contact:
+            display_name = row["director_display_name"]
+            if display_name:
+                result["director_display_name"] = display_name
+                title = _director_title(row, display_name)
+                if title:
+                    result["director_display_title"] = title
+            if row["phone"]:
+                result["phone"] = row["phone"]
+            email_evidence_url = _safe_website(row["email_evidence_url"])
+            if row["professional_email"] and email_evidence_url:
+                result["published_email"] = row["professional_email"]
+                result["published_email_source_url"] = email_evidence_url
+            if row["enrichment_observed_at"]:
+                result["contact_observed_at"] = row["enrichment_observed_at"].isoformat()
+    if include_public_contact and row["legal_name_observed_at"]:
+        result["register_observed_at"] = row["legal_name_observed_at"].isoformat()
     if matched_by_name:
         result["resolution_note"] = "rapprochement par nom"
     return result
@@ -119,15 +149,24 @@ def directory_company(
     siren: str | None,
     legal_name: str | None,
     department: str | None,
+    include_public_contact: bool = False,
 ) -> dict[str, Any] | None:
     """Return public directory facts, preferring the stable SIREN."""
 
     if siren:
-        exact = connection.execute(
-            sa.select(supplier_directory).where(supplier_directory.c.siren == siren)
-        ).mappings().first()
+        exact = (
+            connection.execute(
+                sa.select(supplier_directory).where(supplier_directory.c.siren == siren)
+            )
+            .mappings()
+            .first()
+        )
         if exact is not None:
-            return _company_view(exact, matched_by_name=False)
+            return _company_view(
+                exact,
+                matched_by_name=False,
+                include_public_contact=include_public_contact,
+            )
 
     wanted_name = _normalized_name(legal_name)
     if not wanted_name or not department:
@@ -139,7 +178,15 @@ def directory_company(
         (row for row in candidates if _normalized_name(row["legal_name"]) == wanted_name),
         None,
     )
-    return None if match is None else _company_view(match, matched_by_name=True)
+    return (
+        None
+        if match is None
+        else _company_view(
+            match,
+            matched_by_name=True,
+            include_public_contact=include_public_contact,
+        )
+    )
 
 
 def _matching_family(

@@ -634,13 +634,23 @@ export interface DirectoryCompany {
   siren: string
   name: string
   naf_code?: string
+  naf_label?: string
   family_labels?: string[]
   department?: string
+  department_label?: string
   city?: string
   employees?: number
   website_url?: string
   website_source?: string
+  website_observed_at?: string
   directors?: DirectoryDirector[]
+  director_display_name?: string
+  director_display_title?: string
+  phone?: string
+  published_email?: string
+  published_email_source_url?: string
+  contact_observed_at?: string
+  register_observed_at?: string
   resolution_note?: 'rapprochement par nom'
   source: 'registre'
   removal_path: '/contact'
@@ -657,13 +667,22 @@ export interface PublicMarket {
 }
 
 export interface DirectoryCompanyProfile {
+  company_key?: string
+  company_profile_v2_enabled?: boolean
+  plan_code?: PlanCode
   directory: DirectoryCompany
   market_summary?: HolderMarketSummary & {
+    last_12_months?: HolderHistory['last_12_months']
     resolution: HolderHistory['resolution']
     resolution_note?: HolderHistory['resolution_note']
     source: HolderHistory['source']
   }
   markets: PublicMarket[]
+  contact_status?: CompanyContactStatus
+  contacted_at?: string | null
+  history?: CompanyProfile['history']
+  note?: string | null
+  contact_lookup?: CompanyContactLookup | null
 }
 
 export interface CompanyContactLookup {
@@ -736,6 +755,8 @@ export interface CompanyProfile {
   market_summary?: DirectoryCompanyProfile['market_summary'] | null
   directory?: DirectoryCompany | null
   contact_lookup?: CompanyContactLookup | null
+  company_profile_v2_enabled?: boolean
+  plan_code?: PlanCode
 }
 
 export type CompanyContactStatus = 'to_contact' | 'contacted' | 'replied'
