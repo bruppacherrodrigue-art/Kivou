@@ -16,6 +16,9 @@ from signals.company_research.enrichment import (
 )
 from signals.company_research.evidence import RawRenderedPage
 from signals.company_research.providers import OpenRouterCompanyEnrichmentProvider
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import routes_from_environment
+from signals.model_runtime.openrouter import OpenRouterGateway
 from signals.persistence.database import alembic_config, create_database_engine
 from signals.supplier_directory.store import SupplierDirectoryStore
 
@@ -60,6 +63,7 @@ def _decision(**updates: object) -> CompanyEnrichmentDecision:
         "family_confidence": 0.94,
         "director_display_name": "Mosbah Benzaoui",
         "phone": "06 68 07 39 63",
+        "requested_page_url": None,
         "notes": "site alyabat.fr trouvé via verif.com, adresse publiée page contact",
     }
     values.update(updates)
@@ -235,16 +239,21 @@ def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() 
     assert all(page.url != "https://groupement-mh.org/" for page in evidence.candidate_pages)
 
 
-def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost() -> None:
+def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost(
+    migrated_sqlite_engine,
+) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)
-        assert payload["model"] == "anthropic/claude-sonnet-4.6"
-        assert payload["max_tokens"] == 1000
+        assert payload["model"] == "mistralai/mistral-small"
+        assert payload["max_tokens"] == 300
         assert payload["response_format"]["json_schema"]["strict"] is True
         assert payload["usage"] == {"include": True}
         prompt = json.loads(payload["messages"][0]["content"])
         assert prompt["instruction"].startswith("Voici une entreprise française")
         assert prompt["company"]["siren"] == "481153435"
+        assert all(set(item) == {"key", "name"} for item in prompt["allowed_families"])
+        assert "naf_codes" not in request.content.decode()
+        assert "activity_examples" not in request.content.decode()
         assert set(prompt["required_output_schema"]["required"]) == {
             "website",
             "website_confidence",
@@ -255,6 +264,7 @@ def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost
             "family_confidence",
             "director_display_name",
             "phone",
+            "requested_page_url",
             "notes",
         }
         return httpx.Response(
@@ -271,9 +281,18 @@ def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost
             },
         )
 
+    store = ModelBudgetStore(migrated_sqlite_engine, clock=lambda: NOW)
+    route = routes_from_environment(batch_id="test-provider", environment={}).route(
+        "enrichment_judge"
+    )
     provider = OpenRouterCompanyEnrichmentProvider(
-        api_key="openrouter-test",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        gateway=OpenRouterGateway(
+            api_key="openrouter-test",
+            budgets=store,
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        ),
+        route=route,
+        batch_id="test-provider",
     )
     evidence = CompanyWebCollector.empty_evidence(_identity())
 
@@ -283,6 +302,7 @@ def test_openrouter_provider_uses_sonnet_strict_json_max_tokens_and_reports_cost
     assert result.cost_usd == Decimal("0.0042")
     assert result.input_tokens == 321
     assert result.output_tokens == 87
+    assert store.calls()[0].usage == "enrichment_judge"
 
 
 def test_service_applies_thresholds_mx_placeholder_and_persists_one_model_decision(tmp_path) -> None:

@@ -37,7 +37,7 @@ from signals.supplier_discovery.families import (
     supplier_family_keys,
 )
 
-MODEL_MAX_TOKENS = 1_000
+MODEL_MAX_TOKENS = 300
 WEBSITE_CONFIDENCE_THRESHOLD = Decimal("0.8")
 EMAIL_CONFIDENCE_THRESHOLD = Decimal("0.8")
 FAMILY_CONFIDENCE_THRESHOLD = Decimal("0.7")
@@ -48,6 +48,10 @@ _DOMAIN_MENTION = re.compile(
     r"([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{2,63})+)",
     re.IGNORECASE,
 )
+
+
+class InvalidCompanyEnrichmentDecision(RuntimeError):
+    """The provider answered, but its judgment did not satisfy the JSON contract."""
 
 
 class EnrichmentContract(BaseModel):
@@ -98,6 +102,7 @@ class CompanyEnrichmentDecision(EnrichmentContract):
     family_confidence: Decimal = Field(ge=0, le=1)
     director_display_name: str | None = Field(max_length=256)
     phone: str | None = Field(max_length=32)
+    requested_page_url: str | None = Field(max_length=2048)
     notes: str = Field(max_length=2000)
 
     @field_validator("website", mode="before")
@@ -245,6 +250,32 @@ class CompanyWebCollector:
             candidate_pages=unique_pages,
         )
 
+    def fetch_requested(
+        self, evidence: CompanyWebEvidence, requested_url: str
+    ) -> CompanyWebEvidence:
+        if len(evidence.candidate_pages) >= 3:
+            return evidence
+        parsed = domain_from_url(requested_url)
+        if parsed is None:
+            return evidence
+        requested_domain, normalized_url = parsed
+        candidate_domains = {
+            (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
+            for page in evidence.candidate_pages
+        }
+        if (
+            requested_domain not in candidate_domains
+            or is_directory_domain(requested_domain)
+            or rejected_supplier_domain(requested_domain)
+        ):
+            return evidence
+        page = self._fetch(normalized_url)
+        if page is None or page.url in {item.url for item in evidence.candidate_pages}:
+            return evidence
+        return evidence.model_copy(
+            update={"candidate_pages": (*evidence.candidate_pages, page)}
+        )
+
     @staticmethod
     def empty_evidence(identity: CompanyEnrichmentInput) -> CompanyWebEvidence:
         return CompanyWebEvidence(
@@ -387,6 +418,7 @@ class CompanyEnrichmentService:
         directory: SupplierDirectoryStore,
         collector: CompanyWebCollector,
         provider: CompanyEnrichmentProvider,
+        arbiter: CompanyEnrichmentProvider | None = None,
         mx_verifier: Callable[[str], bool],
         director_source: Callable[[str], tuple[Mapping[str, object], ...]] | None = None,
         clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
@@ -394,6 +426,7 @@ class CompanyEnrichmentService:
         self._directory = directory
         self._collector = collector
         self._provider = provider
+        self._arbiter = arbiter
         self._mx = mx_verifier
         self._director_source = director_source
         self._clock = clock
@@ -438,7 +471,38 @@ class CompanyEnrichmentService:
             directors_raw=raw_directors,
         )
         evidence = self._collector.collect(identity)
-        provided = self._provider.enrich(identity, evidence)
+        total_cost = Decimal("0")
+        try:
+            provided = self._provider.enrich(identity, evidence)
+            total_cost += provided.cost_usd
+        except InvalidCompanyEnrichmentDecision:
+            if self._arbiter is None:
+                raise
+            provided = self._arbiter.enrich(identity, evidence)
+            total_cost += provided.cost_usd
+        decision = provided.decision
+        if (
+            decision.website
+            and not decision.email
+            and decision.requested_page_url
+            and len(evidence.candidate_pages) < 3
+        ):
+            expanded = self._collector.fetch_requested(
+                evidence, decision.requested_page_url
+            )
+            if len(expanded.candidate_pages) > len(evidence.candidate_pages):
+                evidence = expanded
+                provided = self._provider.enrich(identity, evidence)
+                total_cost += provided.cost_usd
+                decision = provided.decision
+        if self._arbiter is not None and (
+            decision.website_confidence < WEBSITE_CONFIDENCE_THRESHOLD
+            or decision.email_confidence < EMAIL_CONFIDENCE_THRESHOLD
+        ):
+            provided = self._arbiter.enrich(identity, evidence)
+            total_cost += provided.cost_usd
+        if total_cost != provided.cost_usd:
+            provided = provided.model_copy(update={"cost_usd": total_cost})
         decision = provided.decision
         candidate_domains = {
             (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
@@ -561,6 +625,7 @@ __all__ = [
     "CompanyEnrichmentService",
     "CompanyWebCollector",
     "CompanyWebEvidence",
+    "InvalidCompanyEnrichmentDecision",
     "RenderedPage",
     "SearchEvidence",
 ]

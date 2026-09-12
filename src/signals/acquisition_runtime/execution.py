@@ -97,7 +97,7 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
-from signals.company_research.providers import company_enrichment_provider_from_environment
+from signals.company_research.providers import company_enrichment_providers_from_environment
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.conversion.link import AttributionLinkBuilder
@@ -663,15 +663,19 @@ def build_runtime_execution_composition(
             raise RuntimeExecutionConfigurationError("SERPER_NOT_CONFIGURED")
         director_client = AnnuaireRawDirectorClient(client=client)
         try:
-            company_enrichment_provider = company_enrichment_provider_from_environment(
-                client=client
+            company_enrichment_providers = company_enrichment_providers_from_environment(
+                engine=engine,
+                batch_id=f"acquisition-{uuid.uuid4()}",
+                client=client,
+                clock=clock,
             )
         except ValueError as error:
             raise RuntimeExecutionConfigurationError("CONTACT_MODEL_NOT_CONFIGURED") from error
         company_enrichment_service = CompanyEnrichmentService(
             directory=supplier_directory,
             collector=CompanyWebCollector(serper_api_key=serper_key, client=client),
-            provider=company_enrichment_provider,
+            provider=company_enrichment_providers.judge,
+            arbiter=company_enrichment_providers.arbiter,
             mx_verifier=EmailMxVerifier().verify,
             director_source=director_client.find,
             clock=clock,
