@@ -25,6 +25,10 @@ from signals.persistence.schema import (
     source_event,
 )
 from signals.recency import assess_recency
+from signals.supplier_discovery.families import (
+    families_for_signal,
+    families_named_in_object,
+)
 from signals.understanding import ContractUnderstandingEngine
 
 logger = logging.getLogger(__name__)
@@ -353,6 +357,31 @@ def _department_code(subdivision: str | None) -> str | None:
     return NUTS3_DEPARTMENTS.get(subdivision)
 
 
+def _landing_families(prepared: dict[str, object]):
+    award = prepared["award"]
+    understanding = prepared["understanding"]
+    object_text = " ".join(filter(None, (award.title, award.description)))
+    explicit = families_named_in_object(object_text)
+    if explicit:
+        return explicit
+    cpv_codes = tuple(
+        value
+        for value in (
+            award.cpv_main.code if award.cpv_main else None,
+            *(str(code) for code in award.cpv_additional),
+        )
+        if value
+    )
+    try:
+        return families_for_signal(
+            understanding.trade_domain.value,
+            cpv_codes=cpv_codes,
+            object_text=object_text,
+        )
+    except ValueError:
+        return ()
+
+
 def materialize_landing_feed_in_transaction(
     connection: sa.Connection,
     *,
@@ -382,6 +411,8 @@ def materialize_landing_feed_in_transaction(
         location_subdivision(bait_place.model_dump(mode="json") if bait_place else None)
     )
     prefixes = tuple(profile.included_cpv_prefixes)
+    bait_families = _landing_families(bait)
+    bait_family_keys = {family.key for family in bait_families}
     effective_date = sa.func.coalesce(
         contract_award.c.award_date,
         contract_award.c.contract_notification_date,
@@ -408,7 +439,27 @@ def materialize_landing_feed_in_transaction(
             ),
         )
     )
-    if prefixes:
+    if bait_families:
+        cpv_prefixes = {
+            prefix for family in bait_families for prefix in family.cpv_prefixes
+        }
+        object_terms = {
+            term for family in bait_families for term in family.object_terms
+        }
+        statement = statement.where(
+            sa.or_(
+                *(contract_award.c.cpv_main.startswith(prefix) for prefix in cpv_prefixes),
+                *(
+                    sa.func.lower(
+                        sa.func.coalesce(contract_award.c.title, "")
+                        + " "
+                        + sa.func.coalesce(contract_award.c.description, "")
+                    ).contains(term.casefold())
+                    for term in object_terms
+                ),
+            )
+        )
+    elif prefixes:
         statement = statement.where(
             sa.or_(*(contract_award.c.cpv_main.startswith(prefix) for prefix in prefixes))
         )
@@ -416,7 +467,7 @@ def materialize_landing_feed_in_transaction(
         connection.execute(
             statement.group_by(opportunity_representation.c.opportunity_key)
             .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
-            .limit(80)
+            .limit(CANDIDATE_SCAN_CAP)
         ).scalars()
     )
     representatives = {
@@ -457,6 +508,10 @@ def materialize_landing_feed_in_transaction(
             materialized_at=materialized_at,
         )
         if candidate is None:
+            continue
+        if bait_family_keys and not (
+            bait_family_keys & {family.key for family in _landing_families(candidate)}
+        ):
             continue
         prepared_rows.append((key, candidate))
         used_procedures.add(procedure)
