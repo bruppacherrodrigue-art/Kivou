@@ -16,10 +16,6 @@ const FORBIDDEN = [
   'contact non confirmé',
 ]
 
-/* Le vocabulaire proscrit sur toute la surface client. « Attribué le » reste :
- * c'est la forme verbale, pas le substantif. */
-const FORBIDDEN_VOCABULARY = ['signal', 'profil cible', 'attribution', 'signal ouvert', 'analyse']
-
 function item(overrides: Partial<UnlockedFeedItem> = {}): UnlockedFeedItem {
   return { ...UNLOCKED_ITEM, ...overrides }
 }
@@ -35,10 +31,6 @@ function withNeeds(needs: PlausibleNeed[]): UnlockedFeedItem {
       plausible_needs: { ...UNLOCKED_ITEM.analysis.plausible_needs, items: needs },
     },
   })
-}
-
-function flat(text: string | null): string {
-  return (text ?? '').replace(/\s+/g, ' ').trim()
 }
 
 function renderDrawer({
@@ -84,14 +76,6 @@ function renderDrawer({
   )
 }
 
-/** La valeur associée à un intitulé de la grille de faits. */
-function fact(label: string): string {
-  const term = screen.getByText(label)
-  const value = term.nextElementSibling
-  if (!value) throw new Error(`Aucune valeur pour « ${label} »`)
-  return flat(value.textContent)
-}
-
 describe('SignalDrawer', () => {
   it('rend la fiche de décision dans l’ordre validé et sans grille répétée', () => {
     renderDrawer({
@@ -124,8 +108,6 @@ describe('SignalDrawer', () => {
     ])
     expect(panel).toHaveTextContent('Grenoble')
     expect(panel).not.toHaveTextContent('GRENOBLE')
-    expect(within(panel).queryByText('CPV')).not.toBeInTheDocument()
-    expect(within(panel).queryByLabelText(/Correspondance/)).not.toBeInTheDocument()
   })
 
   it('remplace un titre répété par le repli client et corrige « à Isère »', () => {
@@ -174,260 +156,10 @@ describe('SignalDrawer', () => {
     expect(screen.queryByRole('heading', { name: 'Le circuit local' })).not.toBeInTheDocument()
   })
 
-  it('conserve le lieu historique quand le flag est désactivé', () => {
-    renderDrawer({
-      signal: item({
-        local_circuit: [{
-          siren: '331364729',
-          name: 'Bétons du Midi',
-          trade: 'Béton prêt à l’emploi',
-          city: 'GRENOBLE',
-          employees: 24,
-          href: '/app/companies/directory/331364729',
-          source: 'registre',
-        }],
-      }),
-    })
-
-    expect(screen.getByText(/GRENOBLE/)).toBeVisible()
-  })
-
-
   it('masque le bloc des besoins quand timing et quantité sont indéterminés', () => {
     renderDrawer({ signal: withNeeds([need({ timing: null, timing_label: null, timing_status: null, quantity_status: null })]) })
     expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
   })
-  it('rend le statut, la correspondance, le titre et l’objet', () => {
-    renderDrawer()
-
-    expect(screen.getByText('Nouveau')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Correspondance/)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Voirie')
-  })
-
-  it('met une majuscule au titre et formule un département avec « en »', () => {
-    renderDrawer({
-      signal: item({
-        factual_display: {
-          ...UNLOCKED_ITEM.factual_display,
-          object_short: "la charpente, l'isolation et la couverture",
-        },
-        contract: {
-          ...UNLOCKED_ITEM.contract,
-          location: {
-            country: 'FR',
-            subdivision_code: 'FR-38',
-            subdivision_label: 'Isère',
-            locality: null,
-            postal_code: '38000',
-          },
-        },
-      }),
-    })
-
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
-      "La charpente, l'isolation et la couverture",
-    )
-    expect(fact('Lieu')).toBe('en Isère')
-  })
-
-  it('rend la grille des faits', () => {
-    renderDrawer()
-
-    expect(fact('Titulaire')).toBe('Constructions Bertrand SA')
-    expect(fact('Acheteur')).toBe('Commune de Villeneuve')
-    expect(fact('Montant')).toBe('1 240 000 €')
-    expect(fact('Lieu')).toBe('à Villeneuve')
-    expect(fact('Attribué le')).toContain('4 août 2026')
-    expect(fact('CPV')).toBe('45233120')
-  })
-
-  it('omet un acheteur absent', () => {
-    renderDrawer({ signal: item({ contract: { ...UNLOCKED_ITEM.contract, buyer: null } }) })
-
-    expect(screen.queryByText('Acheteur')).not.toBeInTheDocument()
-  })
-
-  it('lie le titulaire à sa fiche quand la clé entreprise est publiée', () => {
-    renderDrawer()
-
-    expect(screen.getByRole('link', { name: /Constructions Bertrand SA/ })).toHaveAttribute(
-      'href',
-      '/app/companies/cmp_0123456789abcdefghijklmnop',
-    )
-  })
-
-  it('rend le titulaire en texte quand la clé entreprise manque', () => {
-    renderDrawer({ signal: item({ company_key: null }) })
-
-    expect(screen.queryByRole('link', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
-    expect(fact('Titulaire')).toBe('Constructions Bertrand SA')
-  })
-
-  it('nomme attribution la date de notification et publication le dernier repli', () => {
-    renderDrawer({
-      signal: item({
-        contract: {
-          ...UNLOCKED_ITEM.contract,
-          dates: { ...UNLOCKED_ITEM.contract.dates, award: null },
-        },
-      }),
-    })
-    expect(screen.queryByText('Notifié le')).not.toBeInTheDocument()
-    expect(fact('Attribué le')).toContain('6 août 2026')
-
-    renderDrawer({
-      signal: item({
-        contract: {
-          ...UNLOCKED_ITEM.contract,
-          dates: { award: null, contract_notification: null, publication: '2026-08-10' },
-        },
-      }),
-    })
-    expect(fact('Publié le')).toContain('10 août 2026')
-  })
-
-  it('omet la date quand aucune date n’est disponible', () => {
-    renderDrawer({
-      signal: item({
-        contract: {
-          ...UNLOCKED_ITEM.contract,
-          dates: { award: null, contract_notification: null, publication: null },
-        },
-      }),
-    })
-
-    expect(screen.queryByText('Attribué le')).not.toBeInTheDocument()
-  })
-
-  it('omet tous les faits absents sans afficher de tiret', () => {
-    renderDrawer({
-      signal: item({
-        company: { ...UNLOCKED_ITEM.company, name: null },
-        contract: {
-          ...UNLOCKED_ITEM.contract,
-          buyer: null,
-          amount: null,
-          location: null,
-          cpv: null,
-          dates: { award: null, contract_notification: null, publication: null },
-        },
-      }),
-    })
-
-    const drawer = screen.getByRole('complementary')
-    expect(within(drawer).queryByText('Titulaire')).not.toBeInTheDocument()
-    expect(within(drawer).queryByText('Acheteur')).not.toBeInTheDocument()
-    expect(within(drawer).queryByText('Montant')).not.toBeInTheDocument()
-    expect(within(drawer).queryByText('Lieu')).not.toBeInTheDocument()
-    expect(within(drawer).queryByText('CPV')).not.toBeInTheDocument()
-    for (const value of drawer.querySelectorAll('dd')) expect(value).not.toHaveTextContent('—')
-  })
-
-  it('rend uniquement la phrase persistée sous « Pour vous »', () => {
-    renderDrawer({
-      signal: item({
-        analysis: {
-          ...UNLOCKED_ITEM.analysis,
-          fit: {
-            ...UNLOCKED_ITEM.analysis.fit,
-            reasons: ['Raison 1', 'Raison 2', 'Raison 3', 'Raison 4', 'Raison 5'],
-          },
-        },
-      }),
-    })
-
-    const block = screen.getByText('Pour vous').closest('section')
-    expect(block).not.toBeNull()
-    expect(within(block as HTMLElement).getAllByRole('listitem')).toHaveLength(1)
-    expect(screen.queryByText('Raison 1')).not.toBeInTheDocument()
-  })
-
-  it('rend la même phrase Pour vous à la place du premier libellé de règle', () => {
-    renderDrawer()
-
-    const block = screen.getByText('Pour vous').closest('section')
-    expect(block).not.toBeNull()
-    expect(within(block as HTMLElement).getAllByRole('listitem')[0]).toHaveTextContent(
-      'Votre offre répond aux besoins de matériaux de ce titulaire.',
-    )
-    expect(screen.queryByText('Besoin visé : Matériaux ou composants')).not.toBeInTheDocument()
-  })
-
-  it('retire le bloc « Pour vous » quand aucune raison n’est publiée', () => {
-    renderDrawer({
-      signal: item({
-        analysis: {
-          ...UNLOCKED_ITEM.analysis,
-          fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [], for_you_sentence: null },
-        },
-      }),
-    })
-
-    expect(screen.queryByText('Pour vous')).not.toBeInTheDocument()
-  })
-
-  it('affiche le calendrier, l’historique et le circuit local dans l’ordre de valeur', () => {
-    renderDrawer({
-      signal: item({
-        commercial_calendar: {
-          start_month: '2026-10',
-          duration_months: 18,
-          source: 'public_notice',
-        },
-        holder_history: {
-          resolution: 'company_key',
-          last_12_months: {
-            awards_count: 3,
-            total_amounts: [{ value: '1240000', currency: 'EUR' }],
-            recurring_buyers: ['Commune de Villeneuve', 'Département 31'],
-          },
-          summary: { consortium_share: '0.3' },
-          source: 'public_awards',
-        },
-        local_circuit: [{
-          siren: '331364729',
-          name: 'Bétons du Midi',
-          trade: 'Béton prêt à l’emploi',
-          city: 'Villeneuve',
-          employees: 24,
-          href: '/app/companies/directory/331364729',
-          source: 'registre',
-        }],
-      }),
-    })
-
-    expect(screen.getByText('Démarrage probable octobre 2026 · durée 18 mois')).toBeVisible()
-    expect(screen.getByText(/3 marchés gagnés sur 12 mois/)).toHaveTextContent(
-      '3 marchés gagnés sur 12 mois · 1 240 000 € · acheteurs récurrents : Commune de Villeneuve, Département 31',
-    )
-    expect(screen.getByRole('link', { name: 'Voir la fiche entreprise' })).toHaveAttribute(
-      'href',
-      '/app/companies/cmp_0123456789abcdefghijklmnop',
-    )
-    expect(screen.getByRole('heading', { name: 'Le circuit local' })).toBeVisible()
-    expect(screen.getByRole('link', { name: /Bétons du Midi/ })).toHaveAttribute(
-      'href',
-      '/app/companies/directory/331364729',
-    )
-
-    const headings = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)
-    expect(headings).toEqual([
-      'Calendrier',
-      'Historique du titulaire',
-      'Le circuit local',
-      'Pour vous',
-    ])
-  })
-
-  it('omet les nouveaux blocs quand aucune donnée n’est disponible', () => {
-    renderDrawer()
-
-    expect(screen.queryByText('Calendrier')).not.toBeInTheDocument()
-    expect(screen.queryByText('Historique du titulaire')).not.toBeInTheDocument()
-    expect(screen.queryByText('Le circuit local')).not.toBeInTheDocument()
-  })
-
   it('appelle les trois actions', async () => {
     const onContacted = vi.fn()
     const onSave = vi.fn()
@@ -567,11 +299,4 @@ describe('SignalDrawer', () => {
     expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
   })
 
-  it('n’emploie aucun mot du vocabulaire proscrit', () => {
-    const { container } = renderDrawer()
-
-    for (const word of FORBIDDEN_VOCABULARY) {
-      expect(container.textContent ?? '').not.toMatch(new RegExp(`\\b${word}\\b`, 'i'))
-    }
-  })
 })

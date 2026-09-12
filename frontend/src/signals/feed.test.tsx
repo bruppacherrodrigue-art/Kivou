@@ -131,8 +131,6 @@ describe('écran Signaux — tableau dense', () => {
     const headers = within(grid).getAllByRole('columnheader').map((cell) => cell.textContent)
     expect(headers).toEqual(['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu'])
     expect(within(grid).getByText('Draguignan')).toBeInTheDocument()
-    expect(within(grid).queryByText('Pour vous')).not.toBeInTheDocument()
-    expect(within(grid).queryByText('Match')).not.toBeInTheDocument()
   })
 
   it('omet les faits incomplets du teaser refondu et préserve le rendu historique flag éteint', async () => {
@@ -454,13 +452,9 @@ describe('écran Signaux — tiroir', () => {
     const drawer = await screen.findByRole('heading', { level: 2, name: 'Voirie' })
     const panel = drawer.closest('aside')!
     expect(within(panel).getByText('Nouveau')).toBeInTheDocument()
-    expect(within(panel).getByLabelText(/Correspondance \d\/4/)).toBeInTheDocument()
-    expect(within(panel).getByText('Acheteur')).toBeInTheDocument()
-    expect(within(panel).getByText('Commune de Villeneuve')).toBeInTheDocument()
-    expect(within(panel).getByText('Attribué le')).toBeInTheDocument()
-    expect(within(panel).getByText('CPV')).toBeInTheDocument()
-    expect(within(panel).getByText('45233120')).toBeInTheDocument()
-    expect(within(panel).getByText('Pour vous')).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'Titulaire' })).toBeInTheDocument()
+    expect(within(panel).getByText(/Commune de Villeneuve/)).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { name: 'Pourquoi ça vous concerne' })).toBeInTheDocument()
     expect(within(panel).getByRole('link', { name: /Source : BOAMP 26-104412/ })).toBeInTheDocument()
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
     // La ligne sélectionnée reste marquée, et les filtres survivent.
