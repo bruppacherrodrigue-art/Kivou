@@ -489,7 +489,10 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
             legal_name=None,
             department=None,
             include_public_contact=(
-                request.app.state.config.company_profile_v2_enabled
+                (
+                    request.app.state.config.company_profile_v2_enabled
+                    or request.app.state.config.signals_companies_v2_enabled
+                )
                 and access.plan_code != "discovery"
             ),
         )
@@ -518,7 +521,10 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
         account_id = session.account_id
     result: dict[str, Any] = {
         "company_key": company_key,
-        "company_profile_v2_enabled": request.app.state.config.company_profile_v2_enabled,
+        "company_profile_v2_enabled": (
+            request.app.state.config.company_profile_v2_enabled
+            or request.app.state.config.signals_companies_v2_enabled
+        ),
         "plan_code": access.plan_code,
         "directory": directory,
         "markets": list(markets),
