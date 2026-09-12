@@ -41,6 +41,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from signals.ingestion.client_location import resolve_client_location
 from signals.persistence.identity import award_key, event_key, signal_key
 from signals.persistence.opportunity import resolve_or_create_opportunity
 from signals.persistence.schema import (
@@ -135,10 +136,19 @@ def _upsert_source_event(connection: sa.Connection, event: Any, *, now: dt.datet
 
 
 def _upsert_award(
-    connection: sa.Connection, award: Any, *, event_reference: str, now: dt.datetime
+    connection: sa.Connection,
+    award: Any,
+    *,
+    event_reference: str,
+    procedure_buyers: Sequence[Any],
+    now: dt.datetime,
 ) -> str:
     key = award_key(award)
     place = award.place_of_performance
+    client_location = resolve_client_location(
+        execution=place,
+        buyers=procedure_buyers,
+    )
     values = {
         "award_key": key,
         "event_key": event_reference,
@@ -159,6 +169,12 @@ def _upsert_award(
         "contract_signatories": _json(award.contract_signatories),
         "place_of_performance": _json(place),
         "place_country": place.country if place else None,
+        "client_location": (
+            client_location.location if client_location is not None else None
+        ),
+        "client_location_basis": (
+            client_location.basis if client_location is not None else None
+        ),
         # §6 — quatre horloges, quatre colonnes, jamais repliées.
         "award_date": award.award_date,
         "contract_signature_date": award.contract_signature_date,
@@ -355,7 +371,11 @@ def persist_award_facts(
     """Persist published facts and stable opportunity identity without a customer match."""
     event_reference = _upsert_source_event(connection, event, now=persisted_at)
     award_reference = _upsert_award(
-        connection, award, event_reference=event_reference, now=persisted_at
+        connection,
+        award,
+        event_reference=event_reference,
+        procedure_buyers=event.procedure_buyers,
+        now=persisted_at,
     )
     resolved = resolve_or_create_opportunity(
         connection,

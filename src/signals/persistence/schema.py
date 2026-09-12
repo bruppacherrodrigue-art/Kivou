@@ -184,6 +184,9 @@ contract_award = sa.Table(
     # Géographie — la charge complète, plus le pays seul pour filtrer (§10).
     sa.Column("place_of_performance", sa.JSON),
     sa.Column("place_country", sa.String(2), index=True),
+    # Projection strictement cliente : le fait source ci-dessus reste intact.
+    sa.Column("client_location", sa.JSON),
+    sa.Column("client_location_basis", sa.String(32)),
     # §6 — quatre horloges contractuelles, quatre colonnes. Les replier serait
     # exactement le défaut que SPEC-009E a corrigé.
     sa.Column("award_date", sa.Date, index=True),

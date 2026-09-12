@@ -161,6 +161,12 @@ export const companies = {
       method: 'POST',
     }),
 
+  queueDirectoryEnrichment: (companyKey: string) =>
+    request<{ queued: boolean; state: 'queued' | 'already_queued' | 'ready' }>(
+      `/companies/${encodeURIComponent(companyKey)}/directory-enrichment`,
+      { method: 'POST' },
+    ),
+
   note: (companyKey: string, body: string) =>
     request<CompanyNoteResult>(`/companies/${encodeURIComponent(companyKey)}/note`, {
       method: 'PUT',

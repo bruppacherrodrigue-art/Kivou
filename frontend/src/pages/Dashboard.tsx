@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useOutletContext } from 'react-router-dom'
-import { feedback, signals as signalApi } from '../api/endpoints'
-import type { UnlockedFeedItem } from '../api/types'
+import { companies, feedback, signals as signalApi } from '../api/endpoints'
+import type { CompanyProfile, UnlockedFeedItem } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
 import type { DashboardOutletContext } from '../layouts/AppShell'
@@ -25,6 +25,7 @@ function TodayDashboard() {
   const [selected, setSelected] = useState<UnlockedFeedItem | null>(null)
   const [drawerLoading, setDrawerLoading] = useState(false)
   const [drawerError, setDrawerError] = useState<unknown | null>(null)
+  const [holderProfile, setHolderProfile] = useState<CompanyProfile | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState(false)
 
@@ -60,11 +61,17 @@ function TodayDashboard() {
 
   const openSignal = async (item: UnlockedFeedItem) => {
     setSelected(item)
+    setHolderProfile(null)
     setDrawerLoading(true)
     setDrawerError(null)
     try {
       const detail = await signalApi.detail(item.signal_id)
-      if (!detail.locked) setSelected(detail)
+      if (!detail.locked) {
+        setSelected(detail)
+        if (detail.company_key) {
+          setHolderProfile(await companies.get(detail.company_key).catch(() => null))
+        }
+      }
     } catch (error) {
       setDrawerError(error)
     } finally {
@@ -108,7 +115,7 @@ function TodayDashboard() {
                   Démarrage probable {monthLabel(item.commercial_calendar.start_month, locale)}
                 </p>
               ) : null}
-              {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0] ? <p className={styles.reason}><b>Pour vous :</b> {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0]}</p> : null}
+              {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0] ? <p className={styles.reason}><b>Pourquoi :</b> {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0]}</p> : null}
               <div className={styles.actions}>
                 <button type="button" className={styles.primary} onClick={() => void openSignal(item)}>Ouvrir</button>
                 <button type="button" disabled={busy === item.signal_id} onClick={() => void ignore(item)}>Ignorer</button>
@@ -145,13 +152,15 @@ function TodayDashboard() {
 
       {selected ? (
         <div className={styles.drawerLayer}>
-          <button className={styles.backdrop} type="button" aria-label="Fermer" onClick={() => setSelected(null)} />
+          <button className={styles.backdrop} type="button" aria-label="Fermer" onClick={() => { setSelected(null); setHolderProfile(null) }} />
           <SignalDrawer
             item={selected}
             loading={drawerLoading}
             error={drawerError}
             busy={busy === selected.signal_id}
-            onClose={() => setSelected(null)}
+            holderProfile={holderProfile}
+            planCode={holderProfile?.plan_code ?? null}
+            onClose={() => { setSelected(null); setHolderProfile(null) }}
             onRetry={() => void openSignal(selected)}
             onContacted={() => void drawerAction('contacted')}
             onSave={() => void drawerAction('saved')}

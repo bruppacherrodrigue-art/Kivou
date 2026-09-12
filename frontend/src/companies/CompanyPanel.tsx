@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { companies } from '../api/endpoints'
 import type {
@@ -18,6 +18,7 @@ import styles from './CompaniesPage.module.css'
 
 export interface CompanyProfileMarket {
   id: string
+  signalKey?: string
   title?: string | null
   date?: string | null
   amount?: Money | null
@@ -27,7 +28,7 @@ export interface CompanyProfileMarket {
   onOpen?: () => void
 }
 
-interface CompanyProfileV2Props {
+interface CompanyPanelProps {
   companyKey: string
   name: string
   directory?: DirectoryCompany | null
@@ -48,6 +49,8 @@ interface CompanyProfileV2Props {
   onReloadLookup: () => Promise<CompanyContactLookup | null>
   onClose?: () => void
   standalone?: boolean
+  mode?: 'holder' | 'full'
+  companyHref?: string
 }
 
 function safeWebsite(value: string | null | undefined): string | null {
@@ -99,7 +102,7 @@ function calendarLabel(calendar: CommercialCalendar, locale: string): string | n
   return `Démarrage probable du dernier chantier : ${month}${calendar.duration_months ? ` · durée ${calendar.duration_months} mois` : ''}`
 }
 
-export function CompanyContactBlock({
+function CompanyContactBlock({
   companyKey,
   directory,
   fallbackAddress,
@@ -124,11 +127,13 @@ export function CompanyContactBlock({
   const [lookup, setLookup] = useState(initialLookup ?? null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [directoryQueueFailed, setDirectoryQueueFailed] = useState(false)
 
   useEffect(() => {
     setLookup(initialLookup ?? null)
     setBusy(false)
     setError(null)
+    setDirectoryQueueFailed(false)
   }, [companyKey, initialLookup])
 
   useEffect(() => {
@@ -168,7 +173,7 @@ export function CompanyContactBlock({
         setError('L’identité annuaire de cette entreprise ne permet pas encore la recherche.')
       } else {
         setLookup((current) => current ? { ...current, state: 'failed' } : null)
-        setError('La recherche n’a pas abouti. Réessayez dans quelques instants.')
+        setError('Service temporairement indisponible, réessayez plus tard')
       }
     } finally {
       setBusy(false)
@@ -193,14 +198,28 @@ export function CompanyContactBlock({
   )
   const addressSource = factSource(fallbackSource, undefined, date)
   const discovery = planCode === 'discovery'
+  const directoryReady = Boolean(directory)
+
+  useEffect(() => {
+    if (discovery || directoryReady) return
+    let active = true
+    void companies.queueDirectoryEnrichment(companyKey).catch(() => {
+      if (active) setDirectoryQueueFailed(true)
+    })
+    return () => { active = false }
+  }, [companyKey, directoryReady, discovery])
+
   const planQuota = planCode === 'essential' ? 20 : planCode === 'pro' ? 100 : 0
   const remainingLabel = lookup
     ? `${lookup.remaining} recherche${lookup.remaining > 1 ? 's' : ''} restante${lookup.remaining > 1 ? 's' : ''} ce mois`
     : planQuota > 0
       ? `${planQuota} recherches restantes ce mois`
       : null
-  const showInitialButton = !discovery && (!lookup || ['available', 'quota_exhausted', 'identity_unavailable'].includes(lookup.state))
-  const showRefreshButton = lookup && (lookup.state === 'failed' || Boolean(lookup.can_refresh))
+  const lookupAvailable = directoryReady && lookup?.state === 'available'
+  const providerUnavailable = directoryReady && (!lookup || lookup.state === 'failed' || lookup.state === 'identity_unavailable')
+  const showLookupButton = lookupAvailable
+    || Boolean(directoryReady && lookup?.state === 'failed' && lookup.remaining !== 0)
+    || Boolean(directoryReady && lookup?.can_refresh)
 
   if (discovery) {
     return (
@@ -215,7 +234,7 @@ export function CompanyContactBlock({
             </div>
           </div>
           <div className={styles.companyContactOffer}>
-            <strong>Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois</strong>
+            <strong>Inclus dans Essentiel — 49 €/mois</strong>
             <Link className={styles.companyPrimaryButton} to="/tarifs">Voir l'offre Essentiel</Link>
           </div>
         </div>
@@ -243,7 +262,7 @@ export function CompanyContactBlock({
             </dl>
           ) : null}
 
-          {!discovery && lookup?.contacts?.length ? (
+          {directoryReady && lookup?.contacts?.length ? (
             <ul className={styles.companyDecisionMakers}>
               {lookup.contacts.map((contact) => (
                 <li key={`${contact.email}-${contact.name}`}>
@@ -255,19 +274,25 @@ export function CompanyContactBlock({
               ))}
             </ul>
           ) : null}
-          {!discovery && lookup?.state === 'no_contact' ? <p className={styles.companyMuted}>Aucun décideur avec un e-mail professionnel vérifié n’a été trouvé.</p> : null}
-          {!discovery ? (
+          {directoryReady && lookup?.state === 'no_contact' ? <p className={styles.companyMuted}>Aucun décideur avec un e-mail professionnel vérifié n’a été trouvé.</p> : null}
+          {!directoryReady ? (
+            <p className={directoryQueueFailed ? styles.actionError : styles.companyMuted} role={directoryQueueFailed ? 'alert' : undefined}>
+              {directoryQueueFailed
+                ? 'Service temporairement indisponible, réessayez plus tard'
+                : 'Contact en cours de recherche — revenez dans une heure'}
+            </p>
+          ) : null}
+          {providerUnavailable ? <p className={styles.companyMuted}>Service temporairement indisponible, réessayez plus tard</p> : null}
+          {directoryReady ? (
             <div className={styles.companyActionRow}>
-              {showInitialButton ? <button className={styles.companyPrimaryButton} type="button" disabled={!lookup || lookup.state !== 'available' || busy} onClick={() => void runLookup()}>Trouver le décideur</button> : null}
-              {lookup?.state === 'researching' ? <button className={styles.companyPrimaryButton} type="button" disabled>Recherche en cours…</button> : null}
-              {showRefreshButton ? <button className={styles.companyPrimaryButton} type="button" disabled={busy || lookup.remaining === 0} onClick={() => void runLookup()}>{lookup.can_refresh ? 'Actualiser' : 'Réessayer'}</button> : null}
+              {showLookupButton ? <button className={styles.companyPrimaryButton} type="button" disabled={busy} onClick={() => void runLookup()}>Trouver le décideur</button> : null}
               {remainingLabel ? <span className={styles.companySource}>e-mail nominatif vérifié · {remainingLabel}</span> : null}
             </div>
           ) : null}
-          {!discovery && !lookup ? <p className={styles.companyMuted}>Recherche temporairement indisponible.</p> : null}
-          {!discovery && error ? <p className={styles.actionError} role="alert">{error}</p> : null}
-          {!discovery && lookup?.remaining === 0 && lookup.next_reset_at ? <p className={styles.companyMuted}>Quota mensuel épuisé · reprise le {date(lookup.next_reset_at)}</p> : null}
-          {!discovery && lookup?.researched_at ? <p className={styles.companySource}>Source du décideur : Apollo · recherche du {date(lookup.researched_at)} · <Link to={lookup.removal_path}>Retrait</Link></p> : null}
+          {directoryReady && lookup?.state === 'researching' ? <p className={styles.companyMuted}>Recherche du décideur en cours…</p> : null}
+          {directoryReady && error && !providerUnavailable ? <p className={styles.actionError} role="alert">{error}</p> : null}
+          {directoryReady && lookup?.remaining === 0 ? <p className={styles.companyMuted}>Quota mensuel épuisé{lookup.next_reset_at ? ` · reprise le ${date(lookup.next_reset_at)}` : ''}</p> : null}
+          {directoryReady && lookup?.researched_at ? <p className={styles.companySource}>Source du décideur : Apollo · recherche du {date(lookup.researched_at)} · <Link to={lookup.removal_path}>Retrait</Link></p> : null}
         </div>
       </div>
     </section>
@@ -397,8 +422,8 @@ function EngagementBlock({
     <section className={styles.companyV2Section}>
       <h3>Vous et cette entreprise</h3>
       <div className={styles.companyActionRow}>
-        <button type="button" className={status === 'contacted' ? styles.companyPrimaryButton : styles.companySecondaryButton} disabled={busy || status === 'contacted'} onClick={() => void onContact('contacted')}>Marquer contactée</button>
-        <button type="button" className={status === 'replied' ? styles.companyPrimaryButton : styles.companySecondaryButton} disabled={busy || status === 'replied'} onClick={() => void onContact('replied')}>A répondu</button>
+        <button type="button" className={styles.companySecondaryButton} disabled={busy || status === 'contacted'} onClick={() => void onContact('contacted')}>Marquer contactée</button>
+        <button type="button" className={styles.companySecondaryButton} disabled={busy || status === 'replied'} onClick={() => void onContact('replied')}>A répondu</button>
         <button type="button" className={styles.companySecondaryButton} aria-expanded={noteOpen} onClick={() => setNoteOpen((current) => !current)}>Ajouter une note</button>
       </div>
       {error ? <p className={styles.actionError} role="alert">{error}</p> : null}
@@ -422,7 +447,7 @@ function EngagementBlock({
   )
 }
 
-export function CompanyProfileV2({
+export function CompanyPanel({
   companyKey,
   name,
   directory,
@@ -443,7 +468,10 @@ export function CompanyProfileV2({
   onReloadLookup,
   onClose,
   standalone = false,
-}: CompanyProfileV2Props) {
+  mode = 'full',
+  companyHref,
+}: CompanyPanelProps) {
+  const navigate = useNavigate()
   const activity = directory?.naf_label ?? directory?.family_labels?.[0]
   const city = normalCasePlace(directory?.city)
   const location = city
@@ -454,6 +482,45 @@ export function CompanyProfileV2({
     location,
     directory?.employees === undefined ? null : `${directory.employees} salariés`,
   ].filter((value): value is string => Boolean(value))
+
+  if (mode === 'holder') {
+    return (
+      <div className={styles.companyHolderPanel} aria-label={name}>
+        <div className={styles.companyV2Header}>
+          <div>
+            <h2>{name}</h2>
+            {subtitle.length ? <p>{subtitle.join(' · ')}</p> : null}
+          </div>
+          {companyHref ? <Link className={styles.companySource} to={companyHref}>Voir la fiche →</Link> : null}
+        </div>
+        <CompanyContactBlock
+          companyKey={companyKey}
+          directory={directory}
+          fallbackAddress={fallbackAddress}
+          fallbackWebsite={fallbackWebsite}
+          fallbackSource={fallbackSource}
+          planCode={planCode}
+          initialLookup={contactLookup}
+          onReloadLookup={onReloadLookup}
+          showHeading={false}
+        />
+      </div>
+    )
+  }
+
+  const routedMarkets = markets.map((market) => ({
+    ...market,
+    onOpen: market.onOpen ?? (market.signalKey
+      ? () => navigate(`/app/signals/${encodeURIComponent(market.signalKey as string)}`, {
+          state: {
+            returnToCompany: {
+              href: companyHref ?? `/app/companies/${encodeURIComponent(companyKey)}`,
+              name,
+            },
+          },
+        })
+      : undefined),
+  }))
 
   return (
     <aside className={`${styles.drawer} ${styles.companyV2} ${standalone ? styles.directoryProfile : ''}`} aria-label={name}>
@@ -475,7 +542,7 @@ export function CompanyProfileV2({
         onReloadLookup={onReloadLookup}
       />
       <IdentityBlock directory={directory} />
-      <MarketsBlock markets={markets} summary={marketSummary} />
+      <MarketsBlock markets={routedMarkets} summary={marketSummary} />
       <EngagementBlock
         companyKey={companyKey}
         status={contactStatus}

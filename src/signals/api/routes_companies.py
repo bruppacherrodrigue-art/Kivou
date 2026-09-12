@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal
@@ -35,7 +36,10 @@ from signals.companies.contracts import (
     CompanyProfile,
     DirectoryCompanyProfileView,
 )
-from signals.companies.enrichment import winner_enrichments_for_signals
+from signals.companies.enrichment import (
+    requeue_winner_enrichments,
+    winner_enrichments_for_signals,
+)
 from signals.companies.listing import InvalidCompanyCursor, list_companies
 from signals.companies.schema import saas_company
 from signals.companies.service import company_profile_with_items
@@ -52,6 +56,7 @@ from signals.feed.history import history_sort_key
 from signals.persistence.schema import supplier_directory
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 _COMPANY_KEY = re.compile(r"^cmp_[A-Za-z0-9_-]{12,60}$")
 _SIREN = re.compile(r"^\d{9}$")
@@ -392,7 +397,11 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             connection, account_id=session.account_id, company_key=company_key
         )
         most_recent = min(items, key=lambda item: history_sort_key(item.signal))
-        place = most_recent.signal.award.place_of_performance or {}
+        client_place = (
+            most_recent.signal.award.client_location
+            or most_recent.signal.award.place_of_performance
+        )
+        place = client_place or {}
         history = _company_history(
             connection,
             account_id=session.account_id,
@@ -403,7 +412,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             connection,
             company_key=company_key,
             winner_name=profile.official_identity.name,
-            department=department_for_place(most_recent.signal.award.place_of_performance),
+            department=department_for_place(client_place),
             as_of=now.date(),
         )
         market_summary = None
@@ -420,7 +429,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             connection,
             siren=_siren_for_profile(profile),
             legal_name=profile.official_identity.name,
-            department=department_for_place(most_recent.signal.award.place_of_performance),
+            department=department_for_place(client_place),
             include_public_contact=(
                 (
                     request.app.state.config.company_profile_v2_enabled
@@ -612,6 +621,53 @@ def set_company_contact(
 
 
 @router.post(
+    "/companies/{company_key}/directory-enrichment",
+)
+def queue_company_directory_enrichment(
+    company_key: str, request: Request
+) -> dict[str, Any]:
+    """Queue the shared directory enrichment without calling Apollo here."""
+
+    enforce_origin(request, request.app.state.config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        directory_siren = _directory_siren_for_company_key(company_key)
+        if directory_siren is not None:
+            _require_directory_company(connection, directory_siren)
+            return {"queued": False, "state": "ready"}
+        profile, items, _access, _lang = _accessible_company(
+            connection, session, company_key, now
+        )
+        siren = _siren_for_profile(profile)
+        if siren is not None and directory_company(
+            connection,
+            siren=siren,
+            legal_name=profile.official_identity.name,
+            department=None,
+            include_public_contact=False,
+        ) is not None:
+            return {"queued": False, "state": "ready"}
+        queued = requeue_winner_enrichments(
+            connection,
+            signal_keys=tuple(item.signal.signal_key for item in items),
+            now=now,
+        )
+        logger.info(
+            "company_directory_enrichment_queued",
+            extra={
+                "account_id": session.account_id,
+                "company_key": company_key,
+                "queued_signal_count": queued,
+            },
+        )
+    return {
+        "queued": queued > 0,
+        "state": "queued" if queued > 0 else "already_queued",
+    }
+
+
+@router.post(
     "/companies/{company_key}/contact-lookup",
     response_model=CompanyContactLookupView,
     response_model_exclude_none=True,
@@ -638,7 +694,11 @@ def find_company_decision_maker(company_key: str, request: Request) -> dict[str,
                 connection, session, company_key, now
             )
             most_recent = min(items, key=lambda item: history_sort_key(item.signal))
-            department = department_for_place(most_recent.signal.award.place_of_performance)
+            client_place = (
+                most_recent.signal.award.client_location
+                or most_recent.signal.award.place_of_performance
+            )
+            department = department_for_place(client_place)
             directory = directory_company(
                 connection,
                 siren=_siren_for_profile(profile),
@@ -657,6 +717,14 @@ def find_company_decision_maker(company_key: str, request: Request) -> dict[str,
 
     lookup_service = request.app.state.company_contact_lookup_service
     if lookup_service is None:
+        logger.warning(
+            "company_contact_lookup_unavailable",
+            extra={
+                "account_id": account_id,
+                "company_key": company_key,
+                "contact_lookup_error_code": "provider_not_configured",
+            },
+        )
         raise api_error(
             503,
             "contact_lookup_unavailable",
@@ -682,6 +750,14 @@ def find_company_decision_maker(company_key: str, request: Request) -> dict[str,
             "le quota mensuel de recherches de contact est épuisé",
         ) from error
     except ContactLookupProviderFailure as error:
+        logger.warning(
+            "company_contact_lookup_unavailable",
+            extra={
+                "account_id": account_id,
+                "company_key": company_key,
+                "contact_lookup_error_code": "provider_failure",
+            },
+        )
         raise api_error(
             503,
             "contact_lookup_failed",

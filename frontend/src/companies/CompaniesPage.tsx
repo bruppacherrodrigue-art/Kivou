@@ -4,7 +4,8 @@ import { companies } from '../api/endpoints'
 import type { CompanyContactStatus, CompanyListItem, CompanyProfile } from '../api/types'
 import { useI18n } from '../i18n'
 import { normalCasePlace } from '../presentation/locationText'
-import { CompanyDrawer } from './CompanyDrawer'
+import { signalObject } from '../signals/components/SignalRow'
+import { CompanyPanel } from './CompanyPanel'
 import styles from './CompaniesPage.module.css'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 
@@ -163,7 +164,40 @@ export function CompaniesPage() {
           {items.length === 0 ? <p>Les titulaires de vos signaux apparaîtront ici.</p> : null}
           {nextCursor ? <button className={styles.more} type="button" onClick={() => void loadMore()}>Charger plus</button> : null}
         </div>
-        {profile ? <CompanyDrawer key={profile.company_key} city={profile.city} profile={profile} onClose={() => navigate('/app/companies')} onContact={changeContactStatus} contactBusy={contactBusy} contactError={contactError} /> : null}
+        {profile ? (
+          <CompanyPanel
+            key={profile.company_key}
+            companyKey={profile.company_key}
+            companyHref={`/app/companies/${encodeURIComponent(profile.company_key)}`}
+            name={profile.official_identity.name}
+            directory={profile.directory}
+            fallbackCity={profile.city}
+            fallbackAddress={profile.official_identity.address}
+            fallbackWebsite={profile.official_identity.website_url}
+            fallbackSource={profile.official_identity.source}
+            planCode={profile.plan_code ?? 'discovery'}
+            contactLookup={profile.contact_lookup}
+            marketSummary={profile.market_summary}
+            markets={profile.signals.map((signal) => ({
+              id: signal.signal_id,
+              signalKey: signal.signal_id,
+              title: signalObject(signal),
+              date: signal.factual_display.date.value,
+              amount: signal.contract.amount,
+              buyers: signal.contract.buyer?.name ? [signal.contract.buyer.name] : undefined,
+              sourceUrl: signal.source.url,
+              calendar: signal.commercial_calendar,
+            }))}
+            contactStatus={profile.contact_status}
+            history={profile.history}
+            note={profile.note}
+            contactBusy={contactBusy}
+            contactError={contactError}
+            onContact={changeContactStatus}
+            onReloadLookup={async () => (await companies.get(profile.company_key)).contact_lookup ?? null}
+            onClose={() => navigate('/app/companies')}
+          />
+        ) : null}
         </div>
       )}
     </main>

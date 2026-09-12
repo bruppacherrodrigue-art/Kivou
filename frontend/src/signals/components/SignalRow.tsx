@@ -3,7 +3,7 @@ import { LockKeyhole } from 'lucide-react'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
 import type { Locale, Place, LockedFeedItem, UnlockedFeedItem } from '../../api/types'
 import { useI18n } from '../../i18n'
-import { normalCasePlace, visiblePlaceName } from '../../presentation/locationText'
+import { visiblePlaceName } from '../../presentation/locationText'
 import { MatchDots } from './MatchDots'
 import styles from './signals.module.css'
 
@@ -42,12 +42,12 @@ export function shortSignalObject(item: UnlockedFeedItem): string | null {
 
 export function tablePlaceLabel(place: Place | null): string {
   if (!place) return MISSING
-  return normalCasePlace(place.locality) ?? visiblePlaceName(place.subdivision_label) ?? MISSING
+  return visiblePlaceName(place.locality) ?? visiblePlaceName(place.subdivision_label) ?? MISSING
 }
 
 export function drawerPlaceLabel(place: Place | null): string {
   if (!place) return MISSING
-  const locality = normalCasePlace(place.locality)
+  const locality = visiblePlaceName(place.locality)
   const usableDepartment = visiblePlaceName(place.subdivision_label)
   if (locality && usableDepartment && folded(locality) !== folded(usableDepartment)) {
     return `${locality} (${usableDepartment})`

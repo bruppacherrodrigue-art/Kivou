@@ -76,6 +76,11 @@
 /* Fiche entreprise validée — reproduction des rythmes et de la hiérarchie de
  * docs/design/kivou-maquette-fiche-entreprise.html, sous flag serveur. */
 .companyV2 { padding: 20px; }
+.companyHolderPanel { min-width: 0; }
+.companyHolderPanel .companyV2Header { padding: 0; }
+.companyHolderPanel .companyV2Header h2 { font-size: 16px; }
+.companyHolderPanel .companyV2Header > a { align-self: flex-start; flex: 0 0 auto; margin-top: 1px; color: var(--green); font-weight: 680; text-decoration: none; white-space: nowrap; }
+.companyHolderPanel .companyContactCard { border: 0; padding: 10px 0 0; background: transparent; }
 .companyV2Header { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 14px; border-bottom: 0; }
 .companyV2Header h2 { margin: 0 0 2px; font-size: 20px; letter-spacing: -.01em; }
 .companyV2Header p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.45; }

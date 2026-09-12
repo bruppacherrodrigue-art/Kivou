@@ -256,6 +256,7 @@ class _Organizations:
                     country=_country(company),
                     address=_address(company),
                     website=_text(company.get("cbc:WebsiteURI")),
+                    location=_organization_location(company),
                 )
         return cls(by_ref=by_ref)
 
@@ -296,6 +297,26 @@ def _address(company: dict) -> str | None:
     ]
     joined = ", ".join(part for part in parts if part)
     return joined or None
+
+
+def _organization_location(company: dict) -> Location | None:
+    address = _dig(company, "cac:PostalAddress")
+    if not isinstance(address, dict):
+        return None
+    nuts = _text(address.get("cbc:CountrySubentityCode"))
+    city = _text(address.get("cbc:CityName"))
+    postal = _text(address.get("cbc:PostalZone"))
+    country = _text(_dig(address, "cac:Country", "cbc:IdentificationCode"))
+    country = {"FRA": "FR"}.get(country or "", country)
+    if not any((nuts, city, postal, country)):
+        return None
+    return Location(
+        country=country if country and len(country) == 2 else None,
+        subdivision_code=nuts,
+        subdivision_scheme="NUTS" if nuts else None,
+        locality=city,
+        postal_code=postal,
+    )
 
 
 def _money(node: Any) -> Money | None:

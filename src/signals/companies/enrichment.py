@@ -108,6 +108,66 @@ def enqueue_winner_enrichment(
     connection.execute(statement)
 
 
+def requeue_winner_enrichments(
+    connection: sa.Connection,
+    *,
+    signal_keys: tuple[str, ...],
+    now: dt.datetime,
+) -> int:
+    """Idempotently request another directory pass for selected signals.
+
+    This function only mutates the durable queue.  It deliberately performs no
+    provider call, and therefore cannot consume a decision-maker quota.  A
+    one-hour cooldown prevents repeated panel mounts from turning a partial
+    directory record into a tight retry loop.
+    """
+
+    keys = tuple(sorted(set(signal_keys)))
+    if not keys:
+        return 0
+    if len(keys) > MAX_ENRICHMENT_BATCH:
+        raise ValueError(f"at most {MAX_ENRICHMENT_BATCH} signal keys can be queued")
+    rows = {
+        row["signal_key"]: row
+        for row in connection.execute(
+            sa.select(
+                winner_enrichment_job.c.signal_key,
+                winner_enrichment_job.c.status,
+                winner_enrichment_job.c.updated_at,
+            ).where(winner_enrichment_job.c.signal_key.in_(keys))
+        ).mappings()
+    }
+    queued = 0
+    for signal_key in keys:
+        if signal_key not in rows:
+            enqueue_winner_enrichment(connection, signal_key=signal_key, now=now)
+            queued += 1
+    terminal = tuple(
+        signal_key
+        for signal_key, row in rows.items()
+        if row["status"] in {"completed", "partial", "failed"}
+        and (_aware(row["updated_at"]) or now - dt.timedelta(hours=2))
+        <= now - dt.timedelta(hours=1)
+    )
+    if terminal:
+        result = connection.execute(
+            sa.update(winner_enrichment_job)
+            .where(winner_enrichment_job.c.signal_key.in_(terminal))
+            .values(
+                status="pending",
+                attempt_count=0,
+                error_code=None,
+                claimed_by=None,
+                queued_at=now,
+                started_at=None,
+                finished_at=None,
+                updated_at=now,
+            )
+        )
+        queued += int(result.rowcount or 0)
+    return queued
+
+
 def _claim(
     connection: sa.Connection,
     *,
@@ -539,6 +599,7 @@ __all__ = [
     "MAX_ENRICHMENT_ATTEMPTS",
     "WinnerEnrichmentBatch",
     "enqueue_winner_enrichment",
+    "requeue_winner_enrichments",
     "run_winner_enrichment_batch",
     "winner_enrichments_for_signals",
 ]

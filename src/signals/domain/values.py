@@ -200,6 +200,7 @@ class OrganizationRef(CanonicalModel):
     country: CountryCode | None = None
     address: NonEmptyStr | None = None
     website: NonEmptyStr | None = None
+    location: Location | None = None
 
     def identifier(self, scheme: str) -> str | None:
         """Valeur dans un référentiel donné, ou `None` si l'avis ne la publie pas."""

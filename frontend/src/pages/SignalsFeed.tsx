@@ -16,6 +16,7 @@ import { interpolate, plural, useI18n } from '../i18n'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { visiblePlaceName } from '../presentation/locationText'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
+import type { SignalReturnCompany } from '../signals/components/SignalDrawer'
 import { compactAmount, MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 import styles from './SignalsFeed.module.css'
@@ -53,6 +54,7 @@ type Period = (typeof PERIODS)[number]
 
 export interface ActivationNavigationState {
   activationCompleted?: boolean
+  returnToCompany?: SignalReturnCompany
 }
 
 interface PageFilters {
@@ -206,6 +208,7 @@ export function SignalsFeed() {
   const [activationMoment] = useState(
     () => (location.state as ActivationNavigationState | null)?.activationCompleted === true,
   )
+  const returnToCompany = (location.state as ActivationNavigationState | null)?.returnToCompany ?? null
   const postFeedBilling = useRef(activationMoment)
   const [postActivationBilling, setPostActivationBilling] = useState<BillingStatus | null>(null)
 
@@ -355,7 +358,7 @@ export function SignalsFeed() {
 
   useEffect(() => {
     const selectedCompanyKey = selectedItem?.company_key
-    if (!redesigned || !selectedCompanyKey) {
+    if (!selectedCompanyKey) {
       setHolderProfile(null)
       return
     }
@@ -367,7 +370,7 @@ export function SignalsFeed() {
       if (active) setHolderProfile(null)
     })
     return () => { active = false }
-  }, [redesigned, selectedItem?.company_key])
+  }, [selectedItem?.company_key])
 
   // ── Filtres navigateur ────────────────────────────────────────────────────
 
@@ -584,9 +587,9 @@ export function SignalsFeed() {
       error={drawerError}
       busy={busy}
       compact={compact}
-      redesigned={redesigned}
       holderProfile={holderProfile}
       planCode={feed.data?.plan_code ?? null}
+      returnToCompany={returnToCompany}
       onClose={closeDrawer}
       onRetry={() => setDetailRetryToken((token) => token + 1)}
       onContacted={() => void runAction('contacted', (key) => feedback.markContacted(key))}

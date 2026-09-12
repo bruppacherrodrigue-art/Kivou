@@ -7,7 +7,7 @@ import datetime as dt
 from defusedxml import ElementTree as DefusedET
 
 from signals.documents.discovery import references_from_ted_notice
-from signals.domain import OrganizationRef, Provenance, PublicEvent, TenderNotice
+from signals.domain import Location, OrganizationRef, Provenance, PublicEvent, TenderNotice
 
 CAC = "{urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2}"
 CBC = "{urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2}"
@@ -48,6 +48,16 @@ def _buyers(root) -> tuple[OrganizationRef, ...]:
                     )
                 ),
                 website=_text(company, f"{CBC}WebsiteURI"),
+                location=Location(
+                    country=_country(
+                        _text(
+                            company,
+                            f"{CAC}PostalAddress/{CAC}Country/{CBC}IdentificationCode",
+                        )
+                    ),
+                    locality=_text(company, f"{CAC}PostalAddress/{CBC}CityName"),
+                    postal_code=_text(company, f"{CAC}PostalAddress/{CBC}PostalZone"),
+                ),
             )
         )
     return tuple(buyers)

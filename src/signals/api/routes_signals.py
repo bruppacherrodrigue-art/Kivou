@@ -610,14 +610,21 @@ def get_signal(
                         if enrichment is not None and enrichment.official_name is not None
                         else item.display.name if item.display is not None else None
                     ),
-                    department=department_for_place(item.signal.award.place_of_performance),
+                    department=department_for_place(
+                        item.signal.award.client_location
+                        or item.signal.award.place_of_performance
+                    ),
                     as_of=as_of,
                 )
-                place = item.signal.award.place_of_performance or {}
+                client_place = (
+                    item.signal.award.client_location
+                    or item.signal.award.place_of_performance
+                )
+                place = client_place or {}
                 circuit = local_circuit(
                     connection,
                     target_icp_id=item.signal.target_icp_id,
-                    department=department_for_place(item.signal.award.place_of_performance),
+                    department=department_for_place(client_place),
                     city=place.get("locality"),
                 )
     if item is None:

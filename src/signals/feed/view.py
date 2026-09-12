@@ -32,6 +32,7 @@ from signals.feed.factual_display import factual_display
 from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
+from signals.ingestion.client_location import resolve_client_location
 from signals.personalization.for_you import ForYouInput, client_safe_sentence, fallback_sentence
 from signals.personalization.prospect_mail import client_market_object
 from signals.recency.claim import claim_for_status
@@ -175,6 +176,13 @@ def _contract(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     inventé pour combler l'absence.
     """
     award, event = item.signal.award, item.signal.event
+    resolved_location = resolve_client_location(
+        execution=award.place_of_performance,
+        buyers=event.procedure_buyers,
+    )
+    client_location = award.client_location or (
+        resolved_location.location if resolved_location is not None else None
+    )
     return {
         "title": award.title,
         "lot": award.lot_identifier,
@@ -184,7 +192,7 @@ def _contract(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         "amount": _amount(award.amount, award.currency),
         "cpv": award.cpv_main,
         "cpv_label": cpv_label(award.cpv_main, lang=lang),
-        "location": _location(award.place_of_performance),
+        "location": _location(client_location),
         "dates": {
             "award": _iso(award.award_date),
             "contract_notification": _iso(award.contract_notification_date),
@@ -276,7 +284,14 @@ def _fit(
             (need.get("category") for need in signal.plausible_needs or () if need.get("category")),
             None,
         )
-    place = _location(signal.award.place_of_performance)
+    resolved_location = resolve_client_location(
+        execution=signal.award.place_of_performance,
+        buyers=signal.event.procedure_buyers,
+    )
+    place = _location(
+        signal.award.client_location
+        or (resolved_location.location if resolved_location is not None else None)
+    )
     location = None
     if place:
         location = place.get("locality") or place.get("subdivision_label")
