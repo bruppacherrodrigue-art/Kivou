@@ -207,7 +207,7 @@ export function SignalDrawer({
     const generatedWhy = item.analysis.fit.for_you_sentence?.trim() ?? ''
     const foldedTitle = (title ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
     const foldedWhy = generatedWhy.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
-    const titleRepeated = foldedTitle.length > 20 && foldedWhy.includes(foldedTitle)
+    const titleRepeated = foldedTitle.length > 5 && foldedWhy.includes(foldedTitle)
     const fallbackWhy = `Les besoins publiés correspondent à votre profil cible${shortFitReason(item) ? ` : ${shortFitReason(item)}` : ''}.`
     let why = generatedWhy && !titleRepeated ? generatedWhy : fallbackWhy
     const department = item.contract.location?.subdivision_label?.trim()
