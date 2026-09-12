@@ -296,6 +296,7 @@ export function SignalsFeed() {
   const rowItem = selectedKey
     ? items.find((entry) => entry.signal_id === selectedKey) ?? null
     : null
+  const rowItemLocked = rowItem?.locked === true
 
   /* Toute ouverture demande le détail : la ligne ne porte que le résumé du
    * flux et ne contient pas les blocs de valeur de la fiche. Un signal
@@ -307,7 +308,7 @@ export function SignalsFeed() {
       return
     }
     if (feed.loading) return
-    if (rowItem?.locked) {
+    if (rowItemLocked) {
       detailGeneration.current += 1
       setDetail({ key: selectedKey, data: null, loading: false, error: null })
       navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
@@ -331,7 +332,7 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [detailRetryToken, feed.loading, navigate, rowItem, selectedKey])
+  }, [detailRetryToken, feed.loading, navigate, rowItemLocked, selectedKey])
 
   const selectedItem: UnlockedFeedItem | null = detail.key === selectedKey && detail.data
     ? detail.data
