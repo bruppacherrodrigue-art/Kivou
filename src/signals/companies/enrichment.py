@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
+from signals.accounts.schema import target_icp
 from signals.companies.contracts import (
     WinnerEnrichmentSource,
     WinnerEnrichmentView,
@@ -117,14 +118,34 @@ def _claim(
     retry_failed: bool,
     signal_keys: tuple[str, ...] | None = None,
 ) -> tuple[str, ...]:
-    eligible = winner_enrichment_job.c.status == "pending"
+    active_account_signal = sa.exists(
+        sa.select(sa.literal(1))
+        .select_from(
+            materialized_signal.join(
+                target_icp,
+                materialized_signal.c.target_icp_id == target_icp.c.target_icp_id,
+            )
+        )
+        .where(
+            materialized_signal.c.signal_key == winner_enrichment_job.c.signal_key,
+            materialized_signal.c.invalidated_at.is_(None),
+            materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
+            target_icp.c.status == "active",
+        )
+    )
+    eligible = sa.and_(
+        winner_enrichment_job.c.status == "pending", active_account_signal
+    )
     if retry_failed:
-        eligible = sa.or_(
-            eligible,
-            sa.and_(
-                winner_enrichment_job.c.status == "failed",
-                winner_enrichment_job.c.attempt_count < MAX_ENRICHMENT_ATTEMPTS,
+        eligible = sa.and_(
+            sa.or_(
+                winner_enrichment_job.c.status == "pending",
+                sa.and_(
+                    winner_enrichment_job.c.status == "failed",
+                    winner_enrichment_job.c.attempt_count < MAX_ENRICHMENT_ATTEMPTS,
+                ),
             ),
+            active_account_signal,
         )
     if signal_keys is not None:
         if not signal_keys:
