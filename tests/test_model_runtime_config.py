@@ -30,6 +30,18 @@ def test_default_routes_cover_exactly_the_five_declared_usages() -> None:
     assert snapshot.route("enrichment_judge").daily_budget_usd == Decimal("2")
     assert snapshot.route("for_you").daily_budget_usd == Decimal("1")
     assert snapshot.route("hermes").daily_budget_usd == Decimal("1")
+    assert snapshot.route("enrichment_judge").reserve_input_usd_per_million == Decimal(
+        "0.20"
+    )
+    assert snapshot.route("enrichment_judge").reserve_output_usd_per_million == Decimal(
+        "0.60"
+    )
+    assert snapshot.route("enrichment_arbiter").reserve_input_usd_per_million == Decimal(
+        "6"
+    )
+    assert snapshot.route("enrichment_arbiter").reserve_output_usd_per_million == Decimal(
+        "30"
+    )
     assert snapshot.timezone == "Europe/Zurich"
 
 
@@ -46,6 +58,20 @@ def test_route_snapshot_reads_model_and_cap_once_per_batch(monkeypatch) -> None:
     second = routes_from_environment(batch_id="bench-2")
     assert second.route("enrichment_judge").model == "deepseek/deepseek-chat"
     assert second.route("enrichment_judge").daily_budget_usd == Decimal("9")
+
+
+def test_reservation_rates_can_be_recalibrated_at_the_next_batch(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "KIVOU_MODEL_RESERVE_INPUT_ENRICHMENT_JUDGE_USD_PER_MILLION", "0.11"
+    )
+    monkeypatch.setenv(
+        "KIVOU_MODEL_RESERVE_OUTPUT_ENRICHMENT_JUDGE_USD_PER_MILLION", "0.31"
+    )
+
+    route = routes_from_environment(batch_id="calibrated").route("enrichment_judge")
+
+    assert route.reserve_input_usd_per_million == Decimal("0.11")
+    assert route.reserve_output_usd_per_million == Decimal("0.31")
 
 
 @pytest.mark.parametrize("value", ["", "-1", "NaN", "Infinity", "one"])

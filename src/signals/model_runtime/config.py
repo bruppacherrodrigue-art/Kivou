@@ -39,6 +39,13 @@ _DEFAULT_BUDGETS: dict[ModelUsage, Decimal] = {
     "hermes": Decimal("1"),
     "document_classifier": Decimal("1"),
 }
+_DEFAULT_RESERVATION_RATES: dict[ModelUsage, tuple[Decimal, Decimal]] = {
+    "enrichment_judge": (Decimal("0.20"), Decimal("0.60")),
+    "enrichment_arbiter": (Decimal("6"), Decimal("30")),
+    "for_you": (Decimal("6"), Decimal("30")),
+    "hermes": (Decimal("6"), Decimal("30")),
+    "document_classifier": (Decimal("6"), Decimal("30")),
+}
 
 
 def model_environment_name(usage: ModelUsage) -> str:
@@ -49,11 +56,19 @@ def budget_environment_name(usage: ModelUsage) -> str:
     return f"KIVOU_MODEL_BUDGET_{usage.upper()}_USD"
 
 
+def reservation_environment_name(usage: ModelUsage, direction: str) -> str:
+    if direction not in {"INPUT", "OUTPUT"}:
+        raise ValueError("reservation direction must be INPUT or OUTPUT")
+    return f"KIVOU_MODEL_RESERVE_{direction}_{usage.upper()}_USD_PER_MILLION"
+
+
 @dataclass(frozen=True)
 class ModelRoute:
     usage: ModelUsage
     model: str
     daily_budget_usd: Decimal
+    reserve_input_usd_per_million: Decimal = Decimal("6")
+    reserve_output_usd_per_million: Decimal = Decimal("30")
 
 
 @dataclass(frozen=True)
@@ -73,6 +88,22 @@ def _budget(value: str | None, *, usage: ModelUsage) -> Decimal:
     name = budget_environment_name(usage)
     if value is None:
         return _DEFAULT_BUDGETS[usage]
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation as error:
+        raise ValueError(f"{name} must be a finite non-negative decimal") from error
+    if not parsed.is_finite() or parsed < 0 or not value.strip():
+        raise ValueError(f"{name} must be a finite non-negative decimal")
+    return parsed
+
+
+def _reservation_rate(
+    value: str | None, *, usage: ModelUsage, direction: str
+) -> Decimal:
+    name = reservation_environment_name(usage, direction)
+    default_index = 0 if direction == "INPUT" else 1
+    if value is None:
+        return _DEFAULT_RESERVATION_RATES[usage][default_index]
     try:
         parsed = Decimal(value)
     except InvalidOperation as error:
@@ -106,6 +137,16 @@ def routes_from_environment(
                 daily_budget_usd=_budget(
                     values.get(budget_environment_name(usage)), usage=usage
                 ),
+                reserve_input_usd_per_million=_reservation_rate(
+                    values.get(reservation_environment_name(usage, "INPUT")),
+                    usage=usage,
+                    direction="INPUT",
+                ),
+                reserve_output_usd_per_million=_reservation_rate(
+                    values.get(reservation_environment_name(usage, "OUTPUT")),
+                    usage=usage,
+                    direction="OUTPUT",
+                ),
             )
         )
     return ModelRouteSnapshot(batch_id=normalized_batch_id, routes=tuple(routes))
@@ -119,5 +160,6 @@ __all__ = [
     "ModelUsage",
     "budget_environment_name",
     "model_environment_name",
+    "reservation_environment_name",
     "routes_from_environment",
 ]
