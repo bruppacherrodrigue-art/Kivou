@@ -5,6 +5,7 @@ from pathlib import Path
 
 from signals.personalization.prospect_mail import (
     RenderedProspectMail,
+    client_work_description,
     render_prospect_mail,
     validate_prospect_mail,
 )
@@ -57,6 +58,12 @@ def test_renders_the_complete_arbonis_mail_from_the_single_catalog() -> None:
     assert mail.html.count('href="https://kivou.eu/unsubscribe/unsubscribe-token"') == 1
     assert '>Ne plus recevoir</a>' in mail.html
     assert '>https://kivou.eu/unsubscribe/unsubscribe-token</a>' not in mail.html
+
+
+def test_client_work_description_removes_the_lot_reference() -> None:
+    assert client_work_description(
+        "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE"
+    ) == "la charpente, l'isolation et la couverture"
 
 
 def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:
@@ -153,6 +160,7 @@ def test_keeps_a_surname_particle_in_the_greeting() -> None:
 
     assert mail.text.startswith("Bonjour Adil El Mansouri,")
     assert mail.contract_status == "passed"
+
 
 def test_every_supplier_family_has_reviewed_mail_copy() -> None:
     from signals.supplier_discovery.families import load_supplier_family_catalog

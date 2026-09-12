@@ -3,7 +3,9 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 
+import pytest
 import sqlalchemy as sa
+from pydantic import ValidationError
 
 from signals.persistence.schema import prospect_target, supplier_directory
 from signals.personalization.prospect_mail import RenderedProspectMail
@@ -49,6 +51,11 @@ def signal(**changes) -> AssistedSignal:
     }
     values.update(changes)
     return AssistedSignal(**values)
+
+
+def test_assisted_signal_refuses_an_identifier_in_place_of_the_holder_name() -> None:
+    with pytest.raises(ValidationError, match="holder must be a named company"):
+        signal(holder="38443721600029")
 
 
 def seed_directory(engine, count: int = 30, *, eligible_department_count: int = 26) -> None:

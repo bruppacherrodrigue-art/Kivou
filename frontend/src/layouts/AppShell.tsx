@@ -56,7 +56,7 @@ const navigation = [
 export function AppShell() {
   const me = useCurrentUser()
 
-  if (me.onboarding_status !== 'ready_for_signals') {
+  if (me.onboarding_status !== 'ready_for_signals' && !me.provisional_profile) {
     return <Outlet />
   }
 

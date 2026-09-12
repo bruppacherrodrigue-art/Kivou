@@ -10,11 +10,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from signals.domain.award_dates import attribution_date
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import policy
 from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
+from signals.personalization.prospect_mail import client_market_object
 
 _MAX_OBJECT_LENGTH = 180
 _MAX_HEADLINE_LENGTH = 220
@@ -125,14 +127,21 @@ def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     """
 
     company = item.display.name if item.display is not None else ""
-    market_object = _clean(item.signal.award.title, limit=_MAX_OBJECT_LENGTH) or _clean(
-        cpv_label(item.signal.award.cpv_main, lang=lang), limit=_MAX_OBJECT_LENGTH
-    )
+    raw_object = _clean(item.signal.award.title)
+    market_object = _clean(
+        client_market_object(raw_object), limit=_MAX_OBJECT_LENGTH
+    ) or _clean(cpv_label(item.signal.award.cpv_main, lang=lang), limit=_MAX_OBJECT_LENGTH)
     amount = _amount(item.signal.award.amount, item.signal.award.currency, lang=lang)
     location = _location(item.signal.award.place_of_performance, lang=lang)
     buyer = _buyer(item)
-    clock = policy.STATUS_CLOCK.get(item.status)
-    event_date = item.event_date
+    source_date = attribution_date(item.signal.award)
+    if item.signal.award.award_date is not None:
+        clock = "award"
+    elif item.signal.award.contract_notification_date is not None:
+        clock = "notification"
+    else:
+        clock = policy.STATUS_CLOCK.get(item.status)
+    event_date = source_date or item.event_date
 
     values = {
         "market_object": market_object,

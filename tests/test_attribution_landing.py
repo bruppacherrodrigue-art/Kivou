@@ -24,22 +24,30 @@ from signals.api.routes_auth import SESSION_COOKIE_NAME
 from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
+from signals.conversion import qa_token
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement.schema import product_event
 from signals.persistence.schema import (
     acquisition_conversion_journey,
     contract_award,
     materialized_signal,
+    opportunity_representation,
+    source_event,
 )
 
 CLICKED_AT = NOW + dt.timedelta(hours=1)
+TOKEN_SECRET = b"synthetic-attribution-secret"
 
 
 def client_for(engine, service, *, now: dt.datetime) -> TestClient:
     return TestClient(
         create_app(
             engine,
-            ApiConfig(cookie_secure=True),
+            ApiConfig(
+                cookie_secure=True,
+                attribution_hmac_key=TOKEN_SECRET,
+                attribution_hmac_key_version="attribution-test-v1",
+            ),
             now_override=lambda: now,
             conversion_attribution_service=service,
         ),
@@ -131,6 +139,120 @@ def test_the_landing_session_really_opens_the_product(tmp_path) -> None:
     assert me.status_code == 200
     assert me.json()["account_id"] == only_account_id(engine)
     assert me.json()["onboarding_status"] == "icp_incomplete"
+    assert me.json()["provisional_profile"] is True
+    feed = client.get("/signals?freshness=all")
+    assert feed.status_code == 200
+    assert feed.json()["provisional_profile"] is True
+    assert [item["signal_id"] for item in feed.json()["items"]]
+
+
+def test_kqa1_and_kat1_share_the_provisional_product_landing(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    payload = qa_token.QaTokenPayload(
+        opportunity_key=token.payload.opportunity_key,
+        wedge=token.payload.wedge,
+        country=token.payload.country,
+        sector="travaux de construction",
+        need=token.payload.need_ref,
+        issued_at=NOW,
+        expires_at=NOW + dt.timedelta(days=7),
+    )
+    raw = qa_token.issue(
+        payload,
+        keyring=AttributionTokenKeyring(
+            current_key_version="attribution-test-v1",
+            keys={"attribution-test-v1": TOKEN_SECRET},
+        ),
+    )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, raw)
+    pin_session_cookie(client, response)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/app/signals/")
+    me = client.get("/me").json()
+    assert me["onboarding_status"] == "icp_incomplete"
+    assert me["provisional_profile"] is True
+    body = client.get("/signals?freshness=all").json()
+    assert body["provisional_profile"] is True
+    assert len(body["items"]) >= 1
+    with engine.connect() as connection:
+        landing = connection.execute(sa.select(account_landing_signal)).mappings().one()
+        assert landing["qa"] is True
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_conversion_journey)
+        ) == 0
+
+
+def test_kat1_qa_uses_the_same_landing_without_recording_a_campaign_click(
+    tmp_path,
+) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = client.get(
+        f"/a/{token.raw_token}?qa=true",
+        follow_redirects=False,
+    )
+    pin_session_cookie(client, response)
+
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/app/signals/")
+    assert client.get("/me").json()["provisional_profile"] is True
+    assert client.get("/signals?freshness=all").json()["items"]
+    with engine.connect() as connection:
+        landing = connection.execute(sa.select(account_landing_signal)).mappings().one()
+        assert landing["qa"] is True
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_conversion_journey)
+        ) == 0
+
+
+def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    with engine.begin() as connection:
+        source = dict(connection.execute(sa.select(source_event)).mappings().one())
+        award = dict(connection.execute(sa.select(contract_award)).mappings().one())
+        for index in (1, 2):
+            event_key = f"manual:landing-neighbour-{index}:"
+            event = {
+                **source,
+                "event_key": event_key,
+                "source_system": "manual",
+                "source_notice_id": f"landing-neighbour-{index}",
+                "source_procedure_id": f"landing-procedure-{index}",
+                "published_at_raw": CLICKED_AT.date().isoformat(),
+                "published_on": CLICKED_AT.date(),
+            }
+            connection.execute(sa.insert(source_event).values(**event))
+            award_key = f"landing-award-{index}"
+            candidate = {
+                **award,
+                "award_key": award_key,
+                "event_key": event_key,
+                "title": f"Travaux de construction voisins {index}",
+                "award_date": CLICKED_AT.date() - dt.timedelta(days=index),
+            }
+            connection.execute(sa.insert(contract_award).values(**candidate))
+            connection.execute(
+                sa.insert(opportunity_representation).values(
+                    award_key=award_key,
+                    opportunity_key=f"landing-opportunity-{index}",
+                    created_at=CLICKED_AT,
+                )
+            )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert len(body["items"]) == 3
+    assert response.headers["location"].removeprefix("/app/signals/") in {
+        item["signal_id"] for item in body["items"]
+    }
+    assert all(item["locked"] is False for item in body["items"])
 
 
 def test_a_replayed_link_returns_to_the_same_account_without_duplicating_it(tmp_path) -> None:

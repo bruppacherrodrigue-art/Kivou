@@ -8,6 +8,7 @@ import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
+from signals.companies.official_cache import official_holders_for_opportunities
 from signals.companies.schema import saas_company, winner_enrichment_job
 from signals.persistence.schema import (
     acquisition_runtime_cycle,
@@ -93,7 +94,11 @@ def unresolved_dynamic_holder_signal_keys(
     if not 1 <= limit <= MAX_DYNAMIC_HOLDER_ENRICHMENT:
         raise ValueError("holder enrichment limit is invalid")
     horizon = observed_at.astimezone(dt.UTC).date()
-    latest = sa.func.max(source_event.c.published_on).label("latest")
+    decision_date = sa.func.coalesce(
+        contract_award.c.award_date,
+        contract_award.c.contract_notification_date,
+    )
+    latest = sa.func.max(decision_date).label("latest")
     official_holder_name = sa.func.nullif(
         sa.func.trim(sa.func.coalesce(saas_company.c.official_name, "")), ""
     )
@@ -135,8 +140,8 @@ def unresolved_dynamic_holder_signal_keys(
         )
         .where(
             source_event.c.source_country == country,
-            source_event.c.published_on >= horizon - dt.timedelta(days=30),
-            source_event.c.published_on <= horizon,
+            decision_date >= horizon - dt.timedelta(days=30),
+            decision_date <= horizon,
             contract_award.c.amount >= 50000,
             contract_award.c.winner_status == "identified",
             sa.func.lower(sa.func.coalesce(materialized_signal.c.winner_identifier_scheme, ""))
@@ -171,30 +176,11 @@ def unresolved_dynamic_holder_signal_keys(
 
 def resolved_holder_name_for_opportunity(engine: Engine, opportunity_key: str) -> str | None:
     """Read the official holder cache without altering the public source fact."""
-
-    statement = (
-        sa.select(saas_company.c.official_name)
-        .select_from(
-            materialized_signal.join(
-                saas_company,
-                saas_company.c.identity_fingerprint
-                == materialized_signal.c.company_identity_fingerprint,
-            )
-        )
-        .where(
-            materialized_signal.c.opportunity_key == opportunity_key,
-            sa.func.nullif(
-                sa.func.trim(sa.func.coalesce(saas_company.c.official_name, "")), ""
-            ).isnot(None),
-            saas_company.c.official_source == "official_register",
-            saas_company.c.official_name != materialized_signal.c.winner_identifier_value,
-        )
-        .order_by(saas_company.c.official_observed_at.desc(), saas_company.c.company_key)
-        .limit(1)
-    )
     with engine.connect() as connection:
-        value = connection.scalar(statement)
-    return str(value) if value is not None else None
+        holder = official_holders_for_opportunities(connection, (opportunity_key,)).get(
+            opportunity_key
+        )
+    return None if holder is None else holder.name
 
 
 def select_production_opportunity_key(
@@ -248,7 +234,11 @@ def select_production_opportunity_key(
             acquisition_runtime_cycle.c.updated_at > cooldown_floor,
         ),
     )
-    latest = sa.func.max(source_event.c.published_on).label("latest")
+    decision_date = sa.func.coalesce(
+        contract_award.c.award_date,
+        contract_award.c.contract_notification_date,
+    )
+    latest = sa.func.max(decision_date).label("latest")
     if vertical is not None or region is not None:
         if not (
             sa.inspect(engine).has_table(materialized_signal.name)
@@ -326,8 +316,8 @@ def select_production_opportunity_key(
             )
             .where(
                 source_event.c.source_country == country,
-                source_event.c.published_on >= horizon - dt.timedelta(days=30),
-                source_event.c.published_on <= horizon,
+                decision_date >= horizon - dt.timedelta(days=30),
+                decision_date <= horizon,
                 contract_award.c.amount >= 50000,
                 contract_award.c.winner_status == "identified",
                 sa.or_(published_holder_is_named, official_holder_is_resolved),

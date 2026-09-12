@@ -73,6 +73,7 @@ class MeResponse(BaseModel):
     account_display_name: str
     locale: str
     onboarding_status: str
+    provisional_profile: bool
     capabilities: InternalCapabilities
 
 

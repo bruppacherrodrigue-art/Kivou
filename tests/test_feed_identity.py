@@ -17,6 +17,7 @@ import datetime as dt
 import pathlib
 
 import pytest
+import sqlalchemy as sa
 from billing_helpers import subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import (
@@ -32,8 +33,10 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.companies.schema import saas_company
 from signals.feed.query import is_customer_ready
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import materialized_signal
 
 
 class Clock:
@@ -143,6 +146,47 @@ def test_no_company_name_is_ever_fabricated_from_an_identifier(client, icp, engi
     assert body["customer_ready"] is False
     identifier = body["company"]["identifier"]
     assert identifier is None or identifier["value"] != body["company"]["name"]
+
+
+def test_feed_and_mail_can_read_the_same_official_holder_cache(client, icp, engine):
+    """A SIRET-only source uses the official-register name already used by acquisition."""
+    from feed_helpers import simap_award
+
+    event, awards = simap_award(SIMAP_RICH)
+    anonymous = _strip_legal_names(awards[0])
+    observed_at = dt.datetime(2026, 8, 24, 9, tzinfo=dt.UTC)
+    fingerprint = "f" * 64
+    with engine.begin() as connection:
+        signal = materialize(connection, event, anonymous, target_icp_id=icp)
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == signal.signal_key)
+            .values(company_identity_fingerprint=fingerprint)
+        )
+        connection.execute(
+            sa.insert(saas_company).values(
+                company_key="company-official-holder",
+                identity_fingerprint=fingerprint,
+                identity_method="official_identifier",
+                identity_validation={"source": "register"},
+                source_award_key=signal.materialization_award_key,
+                origin_signal_key=signal.signal_key,
+                official_name="PAUL BROCHIER",
+                official_country="FR",
+                official_address=None,
+                official_identifiers=[],
+                official_website_url=None,
+                official_source="official_register",
+                official_observed_at=observed_at,
+                created_at=observed_at,
+                updated_at=observed_at,
+            )
+        )
+
+    body = feed(client, freshness="all")
+
+    assert [item["company"]["name"] for item in body["items"]] == ["PAUL BROCHIER"]
+    assert body["excluded"]["without_display_name"] == 0
 
 
 def test_an_identifier_copied_into_the_name_field_is_not_a_display_name(engine):

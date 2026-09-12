@@ -111,7 +111,13 @@ def _seed_cycle(
         )
 
 
-def _seed_dynamic_siret_holder(engine, *, resolved_name: str | None) -> None:
+def _seed_dynamic_siret_holder(
+    engine,
+    *,
+    resolved_name: str | None,
+    decision_date: dt.date | None = None,
+    published_on: dt.date | None = None,
+) -> None:
     identity_fingerprint = "d" * 64
     with engine.begin() as connection:
         connection.execute(
@@ -133,7 +139,7 @@ def _seed_dynamic_siret_holder(engine, *, resolved_name: str | None) -> None:
                 source_notice_id="notice-dynamic",
                 source_country="FR",
                 event_type="AWARD",
-                published_on=NOW.date(),
+                published_on=published_on or NOW.date(),
                 procedure_buyers=[],
                 created_at=NOW,
             )
@@ -143,6 +149,7 @@ def _seed_dynamic_siret_holder(engine, *, resolved_name: str | None) -> None:
                 award_key="award-dynamic",
                 event_key="event-dynamic",
                 title="Construction d'un équipement public",
+                contract_notification_date=decision_date or NOW.date(),
                 amount=100_000,
                 currency="EUR",
                 winner_status="identified",
@@ -236,6 +243,24 @@ def _seed_dynamic_siret_holder(engine, *, resolved_name: str | None) -> None:
                     updated_at=NOW,
                 )
             )
+
+
+def test_dynamic_selection_uses_attribution_date_not_publication(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    _seed_dynamic_siret_holder(
+        engine,
+        resolved_name="PAUL BROCHIER",
+        decision_date=NOW.date() - dt.timedelta(days=31),
+        published_on=NOW.date(),
+    )
+
+    assert select_production_opportunity_key(
+        engine,
+        country="FR",
+        vertical="general_building",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    ) is None
 
 
 def test_no_eligible_opportunity_returns_none(tmp_path) -> None:

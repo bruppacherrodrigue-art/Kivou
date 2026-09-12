@@ -10,10 +10,9 @@ import styles from './signals.module.css'
  *  commente pas, ne l'excuse pas et n'invente rien à sa place. */
 export const MISSING = ''
 
-/** Le libellé du marché : le lot d'abord, le marché ensuite, l'objet court en
- *  dernier recours. */
+/** L'objet client réécrit par l'API prime toujours sur les références source. */
 export function signalObject(item: UnlockedFeedItem): string | null {
-  return item.contract.lot_title ?? item.contract.title ?? item.factual_display.object_short ?? null
+  return item.factual_display.object_short ?? item.contract.title ?? item.contract.lot_title ?? null
 }
 
 /** Coupe un texte pour une cellule dense. Le texte complet reste accessible en

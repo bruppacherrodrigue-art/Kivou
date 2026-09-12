@@ -396,8 +396,8 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     promised_key = landing.headers["location"].rsplit("/", 1)[1]
     assert client.get(f"/signals/{promised_key}").status_code == 200
     profile = client.get("/target-icps").json()[0]
-    # La fixture runtime ne porte qu'un marché. Cinq projections du même marché
-    # rendent ici explicite le contrat d'accès « appât + cinq voisins » sans
+    # La fixture runtime ne porte qu'un marché. Deux projections du même marché
+    # rendent ici explicite le contrat d'accès « appât + deux voisins » sans
     # fabriquer de nouveaux faits publics ni court-circuiter l'API d'atterrissage.
     with engine.begin() as connection:
         promised = connection.execute(
@@ -405,7 +405,7 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
                 materialized_signal.c.signal_key == promised_key
             )
         ).mappings().one()
-        for index in range(5):
+        for index in range(2):
             copy = dict(promised)
             copy.update(
                 signal_key=f"{index + 1:064x}",
@@ -423,7 +423,7 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     account_id = client.get("/me").json()["account_id"]
     with engine.connect() as connection:
         landing_keys = account_service.landing_signal_keys(connection, account_id=account_id)
-    assert len(landing_keys) == 6
+    assert len(landing_keys) == 3
     assert promised_key in landing_keys
     assert client.patch(
         f'/target-icps/{profile["target_icp_id"]}',
