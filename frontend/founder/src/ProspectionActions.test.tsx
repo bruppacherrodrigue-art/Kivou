@@ -29,6 +29,13 @@ const READ_MODEL: FounderProspection = {
       verified_email_count: 16,
       reverification_required_count: 20,
     },
+    enrichment: {
+      enriched_today_count: 0,
+      enriched_week_count: 0,
+      model: null,
+      cumulative_cost_usd: '0.000000',
+    },
+    reverification_reason_counts: [],
     family_counts: [],
     department_counts: [],
     rows: [],
@@ -152,7 +159,14 @@ function renderPage() {
   render(
     <ProspectionPage
       data={READ_MODEL}
-      filters={{ page: 1, q: '', family: '', department: '', status: '' }}
+      filters={{
+        page: 1,
+        q: '',
+        family: '',
+        department: '',
+        status: '',
+        reverification_reason: '',
+      }}
       refreshing={false}
       onFiltersChange={vi.fn()}
     />,

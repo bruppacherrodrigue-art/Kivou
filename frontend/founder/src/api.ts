@@ -10,6 +10,7 @@ import type {
   FounderProspectionRejectionResponse,
   FounderProspectionSendResponse,
   FounderSession,
+  FounderSystem,
   FounderProspectionTargetResponse,
   FounderTunnelPeriod,
 } from './types'
@@ -83,6 +84,10 @@ export function loadFounderSession(signal: AbortSignal): Promise<FounderSession>
   return requestJson<FounderSession>('/api/founder/session', signal)
 }
 
+export function loadFounderSystem(signal: AbortSignal): Promise<FounderSystem> {
+  return requestJson<FounderSystem>('/api/founder/system', signal)
+}
+
 export function loadFounderOverview(
   weekOffset: number,
   signal: AbortSignal,
@@ -119,6 +124,7 @@ export function loadFounderProspection(
   if (filters.family) query.set('family', filters.family)
   if (filters.department) query.set('department', filters.department)
   if (filters.status) query.set('status', filters.status)
+  if (filters.reverification_reason) query.set('reason', filters.reverification_reason)
   return requestJson<FounderProspection>(`/api/founder/prospection?${query}`, signal)
 }
 

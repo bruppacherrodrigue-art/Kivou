@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadFounderOverview, loadFounderProspection, loadFounderSession } from './api'
+import {
+  loadFounderOverview,
+  loadFounderProspection,
+  loadFounderSession,
+  loadFounderSystem,
+} from './api'
 import { AcquisitionStatus } from './AcquisitionStatus'
 import { ProspectionPage } from './ProspectionPage'
 import type {
@@ -8,6 +13,7 @@ import type {
   FounderProspection,
   FounderProspectionFilters,
   FounderSession,
+  FounderSystem,
   FounderTunnelPeriod,
   GateStatus,
   HealthStatus,
@@ -26,7 +32,13 @@ type ProspectionSnapshot = {
   prospection: FounderProspection
 }
 
-type Snapshot = TodaySnapshot | ProspectionSnapshot
+type SystemSnapshot = {
+  page: 'system'
+  session: FounderSession
+  system: FounderSystem
+}
+
+type Snapshot = TodaySnapshot | ProspectionSnapshot | SystemSnapshot
 
 const INITIAL_PROSPECTION_FILTERS: FounderProspectionFilters = {
   page: 1,
@@ -34,6 +46,7 @@ const INITIAL_PROSPECTION_FILTERS: FounderProspectionFilters = {
   family: '',
   department: '',
   status: '',
+  reverification_reason: '',
 }
 
 const WEEK_OFFSETS = Array.from({ length: 52 }, (_, index) => index)
@@ -53,7 +66,9 @@ const GATE_LABELS = {
 } as const
 
 export function FounderApp() {
-  const isProspectionRoute = normalizedPathname() === '/prospection'
+  const route = normalizedPathname()
+  const isProspectionRoute = route === '/prospection'
+  const isSystemRoute = route === '/system'
   const [weekOffset, setWeekOffset] = useState(0)
   const [period, setPeriod] = useState<FounderTunnelPeriod>('last_7_days')
   const [prospectionFilters, setProspectionFilters] = useState(INITIAL_PROSPECTION_FILTERS)
@@ -75,6 +90,13 @@ export function FounderApp() {
     setLoading(true)
     setError(null)
     const readSnapshot = async () => {
+      if (isSystemRoute) {
+        const [session, system] = await Promise.all([
+          loadFounderSession(controller.signal),
+          loadFounderSystem(controller.signal),
+        ])
+        return { page: 'system', session, system } satisfies SystemSnapshot
+      }
       if (isProspectionRoute) {
         const [session, prospection] = await Promise.all([
           loadFounderSession(controller.signal),
@@ -106,6 +128,7 @@ export function FounderApp() {
     return () => controller.abort()
   }, [
     isProspectionRoute,
+    isSystemRoute,
     period,
     prospectionFilters,
     refreshKey,
@@ -127,9 +150,9 @@ export function FounderApp() {
         </a>
         <nav aria-label="Navigation de la console">
           <p>Console</p>
-          <a href="/" aria-current={isProspectionRoute ? undefined : 'page'}>Aujourd’hui</a>
+          <a href="/" aria-current={!isProspectionRoute && !isSystemRoute ? 'page' : undefined}>Aujourd’hui</a>
           <a href="/prospection" aria-current={isProspectionRoute ? 'page' : undefined}>Prospection</a>
-          <a href="/#system">Système</a>
+          <a href="/system" aria-current={isSystemRoute ? 'page' : undefined}>Système</a>
         </nav>
         <div className="control-sidebar-footer">
           <span className="control-environment">
@@ -153,7 +176,9 @@ export function FounderApp() {
                 Actualisé {formatDateTime(
                   snapshot.page === 'today'
                     ? snapshot.overview.generated_at
-                    : snapshot.prospection.generated_at,
+                    : snapshot.page === 'prospection'
+                      ? snapshot.prospection.generated_at
+                      : snapshot.system.generated_at,
                 )}
               </span>
             ) : null}
@@ -195,6 +220,7 @@ export function FounderApp() {
               onFiltersChange={setProspectionFilters}
             />
           ) : null}
+          {snapshot?.page === 'system' ? <SystemPage data={snapshot.system} /> : null}
         </main>
       </div>
     </div>
@@ -268,7 +294,6 @@ function Console({
         refreshing={refreshing}
       />
       <QualitySection overview={overview} />
-      <SystemSection overview={overview} />
     </>
   )
 }
@@ -537,8 +562,8 @@ function QualitySection({ overview }: { overview: FounderOverview }) {
   )
 }
 
-function SystemSection({ overview }: { overview: FounderOverview }) {
-  const { health, readiness } = overview.system
+function SystemPage({ data }: { data: FounderSystem }) {
+  const { health, readiness } = data
   const components: Array<[string, HealthStatus]> = [
     ['API', health.api],
     ['Base de données', health.database],
@@ -553,23 +578,111 @@ function SystemSection({ overview }: { overview: FounderOverview }) {
     evidence: readiness[key as keyof typeof GATE_LABELS],
   }))
   return (
-    <section id="system" className="control-section">
-      <SectionHeading
-        eyebrow="Exploitation"
-        title="Système"
-        description="Santé et niveau d’autonomie calculés depuis l’état durable, sans appel fournisseur pendant la consultation."
-      />
-      <AcquisitionStatus status={overview.acquisition_status} compact />
-      <div className="control-system-summary control-system-summary--single">
+    <section id="system" className="control-section control-system-page">
+      <div className="control-hero">
+        <div>
+          <p className="control-eyebrow">Exploitation en lecture seule</p>
+          <h1>Système</h1>
+          <p>État de l’hôte, des services et des coûts observés, sans appel fournisseur.</p>
+        </div>
+      </div>
+      <AcquisitionStatus status={data.acquisition_status} compact />
+
+      <div className="control-system-summary">
         <article className="control-panel">
           <p className="control-panel-kicker">Accès aux données</p>
           <h3>PostgreSQL</h3>
           <div className="control-read-boundary">
-            <strong>{overview.system.database_access === 'READ_ONLY' ? 'Consultation' : 'État inconnu'}</strong>
+            <strong>{data.database_access === 'READ_ONLY' ? 'Consultation' : 'État inconnu'}</strong>
             <span>Aucune mutation n’est montée dans cette API.</span>
           </div>
         </article>
+        <article className="control-panel">
+          <p className="control-panel-kicker">Readiness HTTP</p>
+          <h3>Services</h3>
+          <div className="control-status-list">
+            {data.readiness_checks.map((check) => (
+              <div key={check.name}>
+                <span>{check.name}</span>
+                <strong>{readinessCheckLabel(check.name, check.status)}</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="control-panel">
+          <p className="control-panel-kicker">Stockage</p>
+          <h3>Disque</h3>
+          {data.disk ? (
+            <div className="control-read-boundary">
+              <strong>{formatPercentNumber(data.disk.used_percent)}</strong>
+              <span>{formatBytes(data.disk.used_bytes)} utilisés sur {formatBytes(data.disk.total_bytes)}</span>
+              <small>{data.disk.path}</small>
+            </div>
+          ) : <p className="control-muted">Donnée indisponible.</p>}
+        </article>
+        <article className="control-panel">
+          <p className="control-panel-kicker">Version déployée</p>
+          <h3>SHA</h3>
+          <code>{data.deployed_sha?.slice(0, 12) ?? '—'}</code>
+        </article>
       </div>
+
+      <div className="control-two-column control-system-columns">
+        <article className="control-panel">
+          <p className="control-panel-kicker">Ordonnanceur</p>
+          <h3>Timers</h3>
+          <div className="control-table-wrap">
+            <table>
+              <thead>
+                <tr><th>Nom</th><th>État</th><th>Dernier passage</th><th>Prochain passage</th></tr>
+              </thead>
+              <tbody>
+                {data.timers.map((timer) => (
+                  <tr key={timer.name}>
+                    <td><code>{timer.name}</code></td>
+                    <td>{timerStateLabel(timer.state)}</td>
+                    <td>{formatOptionalDateTime(timer.last_run_at)}</td>
+                    <td>{formatOptionalDateTime(timer.next_run_at)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article className="control-panel">
+          <p className="control-panel-kicker">Protection des données</p>
+          <h3>Sauvegardes</h3>
+          <div className="control-status-list">
+            {data.backups.map((backup) => (
+              <div key={backup.kind}>
+                <span>{backup.kind === 'local' ? 'Sauvegarde locale' : 'Sauvegarde hors site'}</span>
+                <strong>{backupStatusLabel(backup.status)}</strong>
+                <small>{formatOptionalDateTime(backup.last_success_at)}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
+
+      <article className="control-panel">
+        <p className="control-panel-kicker">Consommation fournisseur</p>
+        <h3>Coût du jour et du mois</h3>
+        <div className="control-table-wrap">
+          <table>
+            <thead><tr><th>Fournisseur</th><th>Aujourd’hui</th><th>Mois courant</th></tr></thead>
+            <tbody>
+              {data.provider_costs.map((cost) => (
+                <tr key={cost.provider}>
+                  <td>{cost.provider}</td>
+                  <td>{formatProviderCost(cost.today, cost.unit)}</td>
+                  <td>{formatProviderCost(cost.month, cost.unit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="control-muted">Montants facturés quand disponibles ; sinon unités natives observées.</p>
+      </article>
 
       <div className="control-two-column control-system-columns">
         <article className="control-panel">
@@ -673,8 +786,9 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-function MoneyList({ values }: { values: MoneyTotal[] }) {
-  if (values.length === 0) return <span>—</span>
+function MoneyList({ values }: { values: MoneyTotal[] | null }) {
+  if (values === null) return <span>—</span>
+  if (values.length === 0) return <span>0 €</span>
   return (
     <span className="control-money-list">
       {values.map((value) => (
@@ -758,6 +872,58 @@ function formatBps(value: number | null): string {
     style: 'percent',
     maximumFractionDigits: 1,
   }).format(value / 10_000)
+}
+
+function formatOptionalDateTime(value: string | null): string {
+  return value === null ? '—' : formatDateTime(value)
+}
+
+function formatPercentNumber(value: string): string {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return '—'
+  return `${new Intl.NumberFormat('fr-CH', { maximumFractionDigits: 1 }).format(parsed)} %`
+}
+
+function formatBytes(value: number): string {
+  return new Intl.NumberFormat('fr-CH', {
+    style: 'unit',
+    unit: 'gigabyte',
+    maximumFractionDigits: 1,
+  }).format(value / 1_000_000_000)
+}
+
+function formatProviderCost(value: string, unit: 'USD' | 'request' | 'credit'): string {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return '—'
+  const formatted = new Intl.NumberFormat('fr-CH', { maximumFractionDigits: 6 }).format(parsed)
+  if (unit === 'USD') return `${formatted} $US`
+  if (unit === 'request') return `${formatted} requête${parsed === 1 ? '' : 's'}`
+  return `${formatted} crédit${parsed === 1 ? '' : 's'}`
+}
+
+function readinessCheckLabel(
+  name: 'API' | 'Founder',
+  status: 'ready' | 'not_ready' | 'unavailable',
+): string {
+  if (status === 'ready') return `${name} ${name === 'API' ? 'prête' : 'prêt'}`
+  if (status === 'not_ready') return `${name} non ${name === 'API' ? 'prête' : 'prêt'}`
+  return `${name} indisponible`
+}
+
+function timerStateLabel(
+  state: 'active' | 'inactive' | 'failed' | 'absent' | 'unknown',
+): string {
+  return ({
+    active: 'Actif',
+    inactive: 'Inactif',
+    failed: 'En échec',
+    absent: 'Absent',
+    unknown: 'Inconnu',
+  } as const)[state]
+}
+
+function backupStatusLabel(status: 'success' | 'failed' | 'unavailable'): string {
+  return ({ success: 'Réussie', failed: 'En échec', unavailable: 'Indisponible' } as const)[status]
 }
 
 function formatDateTime(value: string): string {

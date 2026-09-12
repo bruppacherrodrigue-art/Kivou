@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from enum import StrEnum
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from pydantic import Field, field_validator
@@ -19,6 +20,7 @@ from signals.accounts.schema import account_landing_signal
 from signals.domain.french_departments import DEPARTMENTS
 from signals.founder_api.acquisition_status import FounderAcquisitionStatus
 from signals.founder_api.contracts import FounderContract
+from signals.founder_api.qa_scope import non_qa_conversion_event
 from signals.persistence.schema import (
     acquisition_campaign_member,
     acquisition_contact,
@@ -37,6 +39,7 @@ from signals.persistence.schema import (
 )
 
 FOUNDER_PROSPECTION_VERSION = "founder-prospection-v1"
+_ZURICH = ZoneInfo("Europe/Zurich")
 
 
 def _aware(value: dt.datetime) -> dt.datetime:
@@ -69,6 +72,13 @@ class FounderDirectorySummary(FounderContract):
     confirmed_domain_count: int = Field(ge=0)
     verified_email_count: int = Field(ge=0)
     reverification_required_count: int = Field(ge=0)
+
+
+class FounderDirectoryEnrichment(FounderContract):
+    enriched_today_count: int = Field(ge=0)
+    enriched_week_count: int = Field(ge=0)
+    model: str | None = None
+    cumulative_cost_usd: Decimal = Field(ge=0)
 
 
 class FounderDirectoryRow(FounderContract):
@@ -106,6 +116,8 @@ class FounderDirectoryPagination(FounderContract):
 
 class FounderSupplierDirectory(FounderContract):
     summary: FounderDirectorySummary
+    enrichment: FounderDirectoryEnrichment
+    reverification_reason_counts: tuple[FounderCountFacet, ...]
     family_counts: tuple[FounderCountFacet, ...]
     department_counts: tuple[FounderCountFacet, ...]
     rows: tuple[FounderDirectoryRow, ...]
@@ -222,6 +234,7 @@ class FounderProspectionReadService:
         family: str | None = None,
         department: str | None = None,
         directory_status: FounderDirectoryStatus | None = None,
+        reverification_reason: str | None = None,
     ) -> FounderProspection:
         now = _aware(now)
         if page < 1:
@@ -229,12 +242,14 @@ class FounderProspectionReadService:
         if not 1 <= page_size <= 100:
             raise ValueError("page_size must be between 1 and 100")
         directory = self._directory(
+            now=now,
             page=page,
             page_size=page_size,
             q=q,
             family=family,
             department=department,
             directory_status=directory_status,
+            reverification_reason=reverification_reason,
         )
         targeting = self._targeting(now=now)
         results = self._results()
@@ -326,7 +341,10 @@ class FounderProspectionReadService:
                 connection,
                 sa.select(
                     sa.func.count(sa.distinct(acquisition_conversion_event.c.conversion_event_ref))
-                ).where(acquisition_conversion_event.c.milestone == "CLICK"),
+                ).where(
+                    acquisition_conversion_event.c.milestone == "CLICK",
+                    non_qa_conversion_event(),
+                ),
             )
             landing_count = _count(
                 connection,
@@ -348,6 +366,7 @@ class FounderProspectionReadService:
                 ).where(
                     acquisition_conversion_event.c.milestone == "PAID",
                     acquisition_conversion_event.c.account_id.is_not(None),
+                    non_qa_conversion_event(),
                 ),
             )
             conversion_rows = tuple(
@@ -361,7 +380,10 @@ class FounderProspectionReadService:
                         acquisition_conversion_event.c.currency,
                         acquisition_conversion_event.c.occurred_at,
                     )
-                    .where(acquisition_conversion_event.c.journey_ref.is_not(None))
+                    .where(
+                        acquisition_conversion_event.c.journey_ref.is_not(None),
+                        non_qa_conversion_event(),
+                    )
                     .order_by(
                         acquisition_conversion_event.c.occurred_at,
                         acquisition_conversion_event.c.conversion_event_ref,
@@ -555,12 +577,14 @@ class FounderProspectionReadService:
     def _directory(
         self,
         *,
+        now: dt.datetime,
         page: int,
         page_size: int,
         q: str | None,
         family: str | None,
         department: str | None,
         directory_status: FounderDirectoryStatus | None,
+        reverification_reason: str | None,
     ) -> FounderSupplierDirectory:
         with self._engine.connect() as connection:
             records = tuple(
@@ -571,6 +595,49 @@ class FounderProspectionReadService:
                 ).mappings()
             )
         rows = tuple(sorted((_directory_row(row) for row in records), key=_directory_sort_key))
+        local_now = now.astimezone(_ZURICH)
+        today_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(
+            dt.UTC
+        )
+        week_start = (local_now - dt.timedelta(days=local_now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).astimezone(dt.UTC)
+        enriched_records = tuple(
+            row for row in records if isinstance(row["enrichment_observed_at"], dt.datetime)
+        )
+        latest_enriched = max(
+            enriched_records,
+            key=lambda row: _aware(row["enrichment_observed_at"]),  # type: ignore[arg-type]
+            default=None,
+        )
+        enrichment = FounderDirectoryEnrichment(
+            enriched_today_count=sum(
+                today_start
+                <= _aware(row["enrichment_observed_at"])  # type: ignore[arg-type]
+                <= now
+                for row in enriched_records
+            ),
+            enriched_week_count=sum(
+                week_start
+                <= _aware(row["enrichment_observed_at"])  # type: ignore[arg-type]
+                <= now
+                for row in enriched_records
+            ),
+            model=(
+                str(latest_enriched["enrichment_model_id"])
+                if latest_enriched is not None
+                and latest_enriched["enrichment_model_id"] is not None
+                else None
+            ),
+            cumulative_cost_usd=sum(
+                (
+                    Decimal(str(row["enrichment_cost_usd"]))
+                    for row in records
+                    if row["enrichment_cost_usd"] is not None
+                ),
+                start=Decimal(0),
+            ),
+        )
         summary = FounderDirectorySummary(
             company_count=len(rows),
             confirmed_domain_count=sum(row.confirmed_domain for row in rows),
@@ -584,6 +651,12 @@ class FounderProspectionReadService:
         )
         family_counts = Counter(key for row in rows for key in row.family_keys)
         department_counts = Counter(row.department for row in rows if row.department is not None)
+        reverification_reason_counts = Counter(
+            row.reverification_reason
+            for row in rows
+            if row.reverification_required_at is not None
+            and row.reverification_reason is not None
+        )
         filtered = tuple(
             row
             for row in rows
@@ -593,11 +666,14 @@ class FounderProspectionReadService:
                 family=family,
                 department=department,
                 directory_status=directory_status,
+                reverification_reason=reverification_reason,
             )
         )
         start = (page - 1) * page_size
         return FounderSupplierDirectory(
             summary=summary,
+            enrichment=enrichment,
+            reverification_reason_counts=_facets(reverification_reason_counts),
             family_counts=_facets(family_counts),
             department_counts=_facets(department_counts, names=DEPARTMENTS),
             rows=filtered[start : start + page_size],
@@ -684,6 +760,7 @@ def _directory_matches(
     family: str | None,
     department: str | None,
     directory_status: FounderDirectoryStatus | None,
+    reverification_reason: str | None,
 ) -> bool:
     if q and _searchable(q) not in _searchable(row.legal_name):
         return False
@@ -691,9 +768,12 @@ def _directory_matches(
         return False
     if department and row.department != department:
         return False
-    if directory_status is not None:
-        return row.qualification_status.value == directory_status.value
-    return True
+    if (
+        directory_status is not None
+        and row.qualification_status.value != directory_status.value
+    ):
+        return False
+    return not reverification_reason or row.reverification_reason == reverification_reason
 
 
 def _count(connection: sa.Connection, statement: sa.Select[tuple[int]]) -> int:

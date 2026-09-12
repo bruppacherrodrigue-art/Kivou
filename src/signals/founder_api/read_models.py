@@ -6,6 +6,7 @@ import datetime as dt
 from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any, Literal, Protocol
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from pydantic import Field, field_validator
@@ -30,19 +31,32 @@ from signals.founder_api.prospection import (
     FounderProspection,
     FounderProspectionReadService,
 )
+from signals.founder_api.providers import FounderProviderName
+from signals.founder_api.system_status import (
+    FounderProviderCost,
+    FounderSystemHostReader,
+    FounderSystemPage,
+)
 from signals.operations.contracts import (
     AcquisitionOperationalHealth,
     AutonomousReadiness,
     HealthStatus,
 )
 from signals.operations.service import OperationsReadService
-from signals.persistence.schema import procedure_documents
+from signals.persistence.schema import (
+    company_research_run,
+    contact_discovery_run,
+    procedure_documents,
+    prospect_target,
+    supplier_directory,
+)
 from signals.policy.contracts import AutonomyMode
 
 FOUNDER_OVERVIEW_VERSION = "founder-console-overview-v1"
 FOUNDER_QUALITY_VERSION = "founder-quality-summary-v1"
 FOUNDER_QUALITY_WINDOW = dt.timedelta(days=30)
 QUALITY_SEMANTICS = "CURRENT_FEEDBACK_UPDATED_IN_WINDOW_V1"
+_ZURICH = ZoneInfo("Europe/Zurich")
 
 
 class CommercialReader(Protocol):
@@ -173,6 +187,7 @@ class FounderReadService:
         commercial: CommercialReader | None = None,
         operations: OperationsReader | None = None,
         timer_reader: AcquisitionActivityReader | None = None,
+        system_host_reader: FounderSystemHostReader | None = None,
     ) -> None:
         self._engine = engine
         self._commercial = commercial or WeeklyCommercialCockpitService(engine)
@@ -183,6 +198,7 @@ class FounderReadService:
         )
         self._commercial_tunnel = FounderCommercialTunnelReadService(engine)
         self._prospection = FounderProspectionReadService(engine)
+        self._system_host_reader = system_host_reader or FounderSystemHostReader()
 
     def prospection(
         self,
@@ -194,6 +210,7 @@ class FounderReadService:
         family: str | None = None,
         department: str | None = None,
         directory_status: FounderDirectoryStatus | None = None,
+        reverification_reason: str | None = None,
     ) -> FounderProspection:
         now = _aware(now)
         acquisition_status = self._acquisition_status.read(now=now)
@@ -206,6 +223,23 @@ class FounderReadService:
             family=family,
             department=department,
             directory_status=directory_status,
+            reverification_reason=reverification_reason,
+        )
+
+    def system(self, *, now: dt.datetime) -> FounderSystemPage:
+        now = _aware(now)
+        host = self._system_host_reader(now)
+        return FounderSystemPage(
+            generated_at=now,
+            acquisition_status=self._acquisition_status.read(now=now),
+            health=self._operations.health(observed_at=now),
+            readiness=self._operations.readiness(evaluated_at=now),
+            timers=host.timers,
+            readiness_checks=host.readiness,
+            disk=host.disk,
+            backups=host.backups,
+            provider_costs=self._provider_costs(now=now),
+            deployed_sha=host.deployed_sha,
         )
 
     def overview(
@@ -296,6 +330,102 @@ class FounderReadService:
                 )
                 for row in rows
             )
+
+    def _provider_costs(self, *, now: dt.datetime) -> tuple[FounderProviderCost, ...]:
+        local_now = now.astimezone(_ZURICH)
+        today_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(
+            dt.UTC
+        )
+        month_start = local_now.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        ).astimezone(dt.UTC)
+        with self._engine.connect() as connection:
+            llm_today = _sum_between(
+                connection,
+                supplier_directory.c.enrichment_cost_usd,
+                supplier_directory.c.enrichment_observed_at,
+                today_start,
+                now,
+            )
+            llm_month = _sum_between(
+                connection,
+                supplier_directory.c.enrichment_cost_usd,
+                supplier_directory.c.enrichment_observed_at,
+                month_start,
+                now,
+            )
+            web_search_today = _count_between(
+                connection,
+                supplier_directory.c.enrichment_observed_at,
+                today_start,
+                now,
+            )
+            web_search_month = _count_between(
+                connection,
+                supplier_directory.c.enrichment_observed_at,
+                month_start,
+                now,
+            )
+            contact_data_today = sum(
+                _sum_between(
+                    connection,
+                    table.c.observed_provider_credit_units,
+                    table.c.started_at,
+                    today_start,
+                    now,
+                )
+                for table in (contact_discovery_run, company_research_run)
+            )
+            contact_data_month = sum(
+                _sum_between(
+                    connection,
+                    table.c.observed_provider_credit_units,
+                    table.c.started_at,
+                    month_start,
+                    now,
+                )
+                for table in (contact_discovery_run, company_research_run)
+            )
+            delivery_today = _sum_between(
+                connection,
+                prospect_target.c.instantly_credit_units,
+                prospect_target.c.sent_at,
+                today_start,
+                now,
+            )
+            delivery_month = _sum_between(
+                connection,
+                prospect_target.c.instantly_credit_units,
+                prospect_target.c.sent_at,
+                month_start,
+                now,
+            )
+        return (
+            FounderProviderCost(
+                provider=FounderProviderName.LLM,
+                unit="USD",
+                today=llm_today,
+                month=llm_month,
+            ),
+            FounderProviderCost(
+                provider=FounderProviderName.WEB_SEARCH,
+                unit="request",
+                today=Decimal(web_search_today),
+                month=Decimal(web_search_month),
+            ),
+            FounderProviderCost(
+                provider=FounderProviderName.CONTACT_DATA,
+                unit="credit",
+                today=contact_data_today,
+                month=contact_data_month,
+            ),
+            FounderProviderCost(
+                provider=FounderProviderName.DELIVERY,
+                unit="credit",
+                today=delivery_today,
+                month=delivery_month,
+            ),
+        )
 
     def _attention(self, *, limit: int) -> tuple[FounderAttentionItem, ...]:
         fetch_limit = min(100, max(limit * 4, limit))
@@ -481,6 +611,41 @@ def _hermes_reason_codes(
     )
 
 
+def _sum_between(
+    connection: sa.Connection,
+    value: sa.ColumnElement[object],
+    occurred_at: sa.ColumnElement[object],
+    start: dt.datetime,
+    end: dt.datetime,
+) -> Decimal:
+    total = connection.scalar(
+        sa.select(sa.func.coalesce(sa.func.sum(value), 0)).where(
+            occurred_at.is_not(None),
+            occurred_at >= start,
+            occurred_at <= end,
+        )
+    )
+    return Decimal(str(total or 0))
+
+
+def _count_between(
+    connection: sa.Connection,
+    occurred_at: sa.ColumnElement[object],
+    start: dt.datetime,
+    end: dt.datetime,
+) -> int:
+    return int(
+        connection.scalar(
+            sa.select(sa.func.count()).where(
+                occurred_at.is_not(None),
+                occurred_at >= start,
+                occurred_at <= end,
+            )
+        )
+        or 0
+    )
+
+
 def _aware(value: dt.datetime) -> dt.datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         value = value.replace(tzinfo=dt.UTC)
@@ -498,6 +663,7 @@ __all__ = [
     "FounderQualitySummary",
     "FounderReadService",
     "FounderReasonCount",
+    "FounderSystemPage",
     "FounderSystemSummary",
     "FounderTodaySummary",
 ]

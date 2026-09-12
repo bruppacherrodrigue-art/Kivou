@@ -42,7 +42,7 @@ command -v "${RESTIC}" >/dev/null 2>&1 \
     || fail "${EX_UNAVAILABLE}" "dependency_missing name=$(basename -- "${RESTIC}")"
 command -v "${PG_RESTORE}" >/dev/null 2>&1 \
     || fail "${EX_UNAVAILABLE}" "dependency_missing name=$(basename -- "${PG_RESTORE}")"
-for dependency in basename date flock id ln mktemp realpath rm rmdir stat; do
+for dependency in basename date flock id ln mktemp realpath rm rmdir stat touch; do
     command -v "${dependency}" >/dev/null 2>&1 \
         || fail "${EX_UNAVAILABLE}" "dependency_missing name=${dependency}"
 done
@@ -194,4 +194,5 @@ if ! "${RESTIC}" forget \
     fail "${EX_SOFTWARE}" "retention_failed"
 fi
 
+touch -- "${BACKUP_DIR}/.kivou-backup-offsite.last-success"
 log "upload_complete name=${dump_name}"

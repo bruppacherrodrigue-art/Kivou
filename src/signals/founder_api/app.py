@@ -22,6 +22,7 @@ from signals.founder_api.read_models import (
     FounderConsoleOverview,
     FounderProcedureDocumentReview,
     FounderReadService,
+    FounderSystemPage,
 )
 from signals.prospection_actions.service import ProspectionActions
 
@@ -142,6 +143,10 @@ def create_founder_app(
             FounderDirectoryStatus | None,
             Query(alias="status"),
         ] = None,
+        reverification_reason: Annotated[
+            str | None,
+            Query(alias="reason", max_length=128),
+        ] = None,
     ) -> FounderProspection:
         del identity
         service: FounderReadService | None = app.state.read_service
@@ -159,11 +164,29 @@ def create_founder_app(
                 family=family,
                 department=department,
                 directory_status=directory_status,
+                reverification_reason=reverification_reason,
             )
         except (SQLAlchemyError, RuntimeError) as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="les données de prospection sont indisponibles",
+            ) from error
+
+    @app.get("/api/founder/system")
+    def founder_system(identity: FounderIdentityDependency) -> FounderSystemPage:
+        del identity
+        service: FounderReadService | None = app.state.read_service
+        if service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les données système ne sont pas configurées",
+            )
+        try:
+            return service.system(now=now())
+        except (SQLAlchemyError, RuntimeError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les données système sont indisponibles",
             ) from error
 
     return app

@@ -156,6 +156,55 @@ def test_directory_returns_real_global_counts_and_twenty_five_rows() -> None:
     ]
 
 
+def test_directory_reports_enrichment_and_filters_clickable_review_reasons() -> None:
+    engine = _engine()
+    today = _directory_row(0)
+    today.update(
+        enrichment_model_id="anthropic/claude-sonnet-4.6",
+        enrichment_cost_usd=Decimal("0.003000"),
+        enrichment_observed_at=NOW - dt.timedelta(hours=1),
+        reverification_required_at=NOW - dt.timedelta(hours=1),
+        reverification_reason="email_below_threshold",
+    )
+    this_week = _directory_row(1)
+    this_week.update(
+        enrichment_model_id="anthropic/claude-sonnet-4.6",
+        enrichment_cost_usd=Decimal("0.002000"),
+        enrichment_observed_at=dt.datetime(2026, 9, 7, 8, tzinfo=dt.UTC),
+        reverification_required_at=NOW - dt.timedelta(days=1),
+        reverification_reason="email_below_threshold",
+    )
+    older = _directory_row(2)
+    older.update(
+        enrichment_model_id="legacy/model",
+        enrichment_cost_usd=Decimal("0.001000"),
+        enrichment_observed_at=NOW - dt.timedelta(days=10),
+        reverification_required_at=NOW - dt.timedelta(days=2),
+        reverification_reason="website_below_threshold",
+    )
+    with engine.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), [today, this_week, older])
+
+    service = FounderReadService(engine, timer_reader=_stopped_timer)
+    result = service.prospection(now=NOW)
+
+    assert result.directory.enrichment.enriched_today_count == 1
+    assert result.directory.enrichment.enriched_week_count == 2
+    assert result.directory.enrichment.model == "anthropic/claude-sonnet-4.6"
+    assert result.directory.enrichment.cumulative_cost_usd == Decimal("0.006000")
+    assert [item.model_dump() for item in result.directory.reverification_reason_counts] == [
+        {"key": "email_below_threshold", "label": "email_below_threshold", "count": 2},
+        {"key": "website_below_threshold", "label": "website_below_threshold", "count": 1},
+    ]
+
+    filtered = service.prospection(
+        now=NOW,
+        directory_status=FounderDirectoryStatus.REVERIFICATION_REQUIRED,
+        reverification_reason="website_below_threshold",
+    )
+    assert [row.siren for row in filtered.directory.rows] == [older["siren"]]
+
+
 def test_directory_hides_unconfirmed_domain_and_names_departments() -> None:
     engine = _engine()
     record = _directory_row(1)
@@ -672,6 +721,90 @@ def test_empty_prospection_keeps_numeric_results_and_no_cycle() -> None:
     assert result.results.paid_account_count == 0
     assert result.results.mrr_by_currency == ()
     assert result.results.no_sends_yet is True
+
+
+def test_results_exclude_every_conversion_from_qa_tokens_and_accounts() -> None:
+    engine = _engine()
+    occurred_at = NOW - dt.timedelta(hours=1)
+
+    def event(
+        ref: str,
+        milestone: str,
+        *,
+        token: str | None = None,
+        journey: str | None = None,
+        account_id: str | None = None,
+        amount: int | None = None,
+    ) -> dict[str, object]:
+        return {
+            "conversion_event_ref": ref,
+            "event_fingerprint": ref,
+            "event_version": "conversion-event-v1",
+            "journey_ref": journey,
+            "milestone": milestone,
+            "token_fingerprint": token,
+            "account_id": account_id,
+            "mrr_known": True if milestone == "MRR_CHANGED" else None,
+            "mrr_minor_units": amount,
+            "currency": "eur" if amount is not None else None,
+            "occurred_at": occurred_at,
+            "observed_at": occurred_at,
+            "recorded_at": occurred_at,
+        }
+
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(account_landing_signal),
+            [
+                {
+                    "account_id": "account-real",
+                    "token_fingerprint": "token-real",
+                    "profile_confirmed_at": occurred_at,
+                    "created_at": occurred_at,
+                    "qa": False,
+                },
+                {
+                    "account_id": "account-qa",
+                    "token_fingerprint": "token-qa",
+                    "profile_confirmed_at": occurred_at,
+                    "created_at": occurred_at,
+                    "qa": True,
+                },
+            ],
+        )
+        connection.execute(
+            sa.insert(acquisition_conversion_event),
+            [
+                event("click-real", "CLICK", token="token-real"),
+                event("click-qa", "CLICK", token="token-qa"),
+                event("paid-real", "PAID", journey="journey-real", account_id="account-real"),
+                event(
+                    "mrr-real",
+                    "MRR_CHANGED",
+                    journey="journey-real",
+                    account_id="account-real",
+                    amount=12_900,
+                ),
+                event("paid-qa", "PAID", journey="journey-qa", account_id="account-qa"),
+                event(
+                    "mrr-qa",
+                    "MRR_CHANGED",
+                    journey="journey-qa",
+                    account_id="account-qa",
+                    amount=99_900,
+                ),
+            ],
+        )
+
+    result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(now=NOW)
+
+    assert result.results.attribution_click_count == 1
+    assert result.results.landing_count == 1
+    assert result.results.confirmed_profile_count == 1
+    assert result.results.paid_account_count == 1
+    assert [(item.currency, item.minor_units) for item in result.results.mrr_by_currency] == [
+        ("EUR", 12_900)
+    ]
 
 
 def test_results_read_persisted_events_and_keep_zero_capable_metrics() -> None:

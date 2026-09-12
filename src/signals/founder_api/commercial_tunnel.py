@@ -16,6 +16,7 @@ from sqlalchemy.engine import Connection, Engine
 from signals.accounts.schema import account_landing_signal
 from signals.cockpit.contracts import completed_week
 from signals.founder_api.contracts import FounderContract
+from signals.founder_api.qa_scope import non_qa_conversion_event
 from signals.persistence.schema import (
     acquisition_campaign_member,
     acquisition_conversion_event,
@@ -201,6 +202,7 @@ def _period_counts(
             acquisition_conversion_event.c.occurred_at,
             bounds,
             acquisition_conversion_event.c.milestone == "CLICK",
+            non_qa_conversion_event(),
         ),
         "landing_count": _distinct_between(
             connection,
@@ -223,6 +225,7 @@ def _period_counts(
             bounds,
             acquisition_conversion_event.c.milestone == "PAID",
             acquisition_conversion_event.c.account_id.is_not(None),
+            non_qa_conversion_event(),
         ),
     }
 
@@ -275,6 +278,7 @@ def _cohort_counts(
         )
         .where(
             acquisition_conversion_event.c.milestone == "CLICK",
+            non_qa_conversion_event(),
             acquisition_conversion_event.c.occurred_at >= cohort.c.sent_at,
             acquisition_conversion_event.c.occurred_at <= observed_at,
         ),
@@ -309,6 +313,7 @@ def _cohort_counts(
         )
         .where(
             acquisition_conversion_event.c.milestone == "PAID",
+            non_qa_conversion_event(),
             acquisition_conversion_event.c.occurred_at >= cohort.c.sent_at,
             acquisition_conversion_event.c.occurred_at <= observed_at,
         ),
@@ -377,6 +382,7 @@ def _assisted_cohort_counts(
         )
         .where(
             acquisition_conversion_event.c.milestone == "CLICK",
+            non_qa_conversion_event(),
             acquisition_conversion_event.c.occurred_at >= cohort.c.sent_at,
             acquisition_conversion_event.c.occurred_at <= observed_at,
         ),
@@ -411,6 +417,7 @@ def _assisted_cohort_counts(
         )
         .where(
             acquisition_conversion_event.c.milestone == "PAID",
+            non_qa_conversion_event(),
             acquisition_conversion_event.c.occurred_at >= cohort.c.sent_at,
             acquisition_conversion_event.c.occurred_at <= observed_at,
         ),
@@ -504,6 +511,7 @@ def _current_projection_statement(
             events.c.journey_ref.is_not(None),
             events.c.milestone.in_(_CURRENT_TRANSITIONS),
             events.c.occurred_at <= observed_at,
+            non_qa_conversion_event(events),
         )
         .cte("founder_current_transition_ranked")
     )
@@ -548,6 +556,7 @@ def _current_projection_statement(
             events.c.currency.is_not(None),
             events.c.occurred_at <= observed_at,
             events.c.occurred_at >= current_transition.c.occurred_at,
+            non_qa_conversion_event(events),
         )
         .cte("founder_current_mrr_ranked")
     )

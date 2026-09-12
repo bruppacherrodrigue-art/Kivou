@@ -180,3 +180,4 @@ print(deleted)
 PY
 )"
 log "rétention ${RETENTION_DAYS} j — ${DELETED} archive(s) supprimée(s)"
+touch -- "${BACKUP_DIR}/.kivou-backup-local.last-success"
