@@ -13,6 +13,7 @@ from dataclasses import asdict, replace
 from decimal import Decimal
 
 import httpx
+import sqlalchemy as sa
 
 from signals.company_research.benchmark import (
     BENCHMARK_MODELS,
@@ -36,6 +37,7 @@ from signals.model_runtime.budget import DailyModelBudgetExhausted, ModelBudgetS
 from signals.model_runtime.config import routes_from_environment
 from signals.model_runtime.openrouter import OpenRouterGateway, estimate_input_tokens
 from signals.persistence.database import create_database_engine
+from signals.persistence.schema import supplier_directory
 
 MAX_BENCHMARK_INPUT_TOKENS = 4_000
 
@@ -95,6 +97,20 @@ def execute_benchmark(*, batch_id: str) -> dict[str, object]:
     routes = routes_from_environment(batch_id=batch_id)
     base_route = routes.route("enrichment_judge")
     engine = create_database_engine()
+    with engine.connect() as connection:
+        historical_tokens = tuple(
+            connection.scalars(
+                sa.select(supplier_directory.c.enrichment_input_tokens)
+                .where(supplier_directory.c.enrichment_input_tokens.isnot(None))
+                .order_by(supplier_directory.c.enrichment_observed_at.desc())
+                .limit(20)
+            )
+        )
+    historical_mean = (
+        Decimal(sum(historical_tokens)) / Decimal(len(historical_tokens))
+        if historical_tokens
+        else None
+    )
     budgets = ModelBudgetStore(engine)
     client = httpx.Client(
         timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True
@@ -209,6 +225,7 @@ def execute_benchmark(*, batch_id: str) -> dict[str, object]:
         "reservation_adjustment_required": any(
             report.requires_reservation_adjustment for report in reports
         ),
+        "mean_input_tokens_before_last_20": _jsonable(historical_mean),
         "max_preflight_input_tokens": max(estimates),
         "observed_at": dt.datetime.now(dt.UTC).isoformat(),
     }
