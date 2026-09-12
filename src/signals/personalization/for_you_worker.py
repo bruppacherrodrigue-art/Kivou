@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import sqlalchemy as sa
 
+from signals.model_runtime.budget import DailyModelBudgetExhausted
 from signals.persistence.schema import for_you_sentence
 from signals.personalization.for_you import (
     ForYouInput,
@@ -49,6 +50,7 @@ class ForYouWorkerReport:
     generated_today: int
     daily_limit: int
     pending: int
+    budget_exhausted: bool = False
 
     @property
     def rejection_rate(self) -> float:
@@ -155,6 +157,8 @@ class ForYouWorker:
         value = ForYouInput.model_validate(row["input_snapshot"])
         try:
             output = self.provider.generate_sentence(value)
+        except DailyModelBudgetExhausted:
+            raise
         # Le fournisseur est une frontière externe : toute panne conserve le
         # repli déjà visible, sans faire échouer le lot ni la matérialisation.
         except Exception:  # noqa: BLE001
@@ -193,11 +197,43 @@ class ForYouWorker:
         if limit is not None and limit < 1:
             raise ValueError("limit must be positive")
         rows = self._claim(now=now, limit=limit, for_you_ids=for_you_ids)
+        outcomes: list[_Outcome] = []
+        requeue_ids: list[str] = []
+        budget_exhausted = False
+        next_row = 0
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.concurrency,
             thread_name_prefix="for-you",
         ) as pool:
-            outcomes = list(pool.map(self._generate, rows))
+            pending: dict[concurrent.futures.Future[_Outcome], dict] = {}
+
+            def submit_next() -> bool:
+                nonlocal next_row
+                if next_row >= len(rows):
+                    return False
+                row = rows[next_row]
+                next_row += 1
+                pending[pool.submit(self._generate, row)] = row
+                return True
+
+            for _ in range(min(self.concurrency, len(rows))):
+                submit_next()
+            while pending:
+                completed, _ = concurrent.futures.wait(
+                    tuple(pending),
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                )
+                for future in completed:
+                    row = pending.pop(future)
+                    try:
+                        outcomes.append(future.result())
+                    except DailyModelBudgetExhausted:
+                        budget_exhausted = True
+                        requeue_ids.append(row["for_you_id"])
+                    if not budget_exhausted:
+                        submit_next()
+            if budget_exhausted:
+                requeue_ids.extend(row["for_you_id"] for row in rows[next_row:])
 
         accepted = rejected = fallback = 0
         with self.engine.begin() as connection:
@@ -228,6 +264,18 @@ class ForYouWorker:
                     .where(for_you_sentence.c.for_you_id == outcome.for_you_id)
                     .values(**values)
                 )
+            if requeue_ids:
+                connection.execute(
+                    sa.update(for_you_sentence)
+                    .where(for_you_sentence.c.for_you_id.in_(requeue_ids))
+                    .values(
+                        state="pending",
+                        attempt_day=None,
+                        lease_owner=None,
+                        lease_expires_at=None,
+                        updated_at=now,
+                    )
+                )
             generated_today = (
                 connection.scalar(
                     sa.select(sa.func.count())
@@ -252,6 +300,7 @@ class ForYouWorker:
             generated_today=generated_today,
             daily_limit=self.daily_limit,
             pending=pending,
+            budget_exhausted=budget_exhausted,
         )
 
 
