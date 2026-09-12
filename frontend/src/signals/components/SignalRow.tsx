@@ -76,7 +76,7 @@ export function compactAmount(value: string | null | undefined, currency: string
 
 const SHORT_REASON_STOPWORDS = new Set([
   'a', 'au', 'aux', 'avec', 'ce', 'ces', 'dans', 'de', 'des', 'du', 'en', 'et',
-  'la', 'le', 'les', 'pour', 'sur', 'un', 'une', 'votre', 'vos',
+  'la', 'le', 'les', 'ou', 'pour', 'sur', 'un', 'une', 'votre', 'vos',
 ])
 
 export function shortFitReason(item: UnlockedFeedItem): string {

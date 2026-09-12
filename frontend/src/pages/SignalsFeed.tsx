@@ -15,7 +15,7 @@ import type {
 import { interpolate, plural, useI18n } from '../i18n'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
-import { MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
+import { compactAmount, MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
 import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
 import styles from './SignalsFeed.module.css'
 
@@ -153,7 +153,12 @@ function LockedRow({
   note: string
   onOpen: () => void
 }) {
-  const { amount, shortDate } = useI18n()
+  const { amount, locale, shortDate } = useI18n()
+  const lockedAmount = item.teaser.amount
+    ? redesigned
+      ? compactAmount(item.teaser.amount.value, item.teaser.amount.currency, locale)
+      : amount(item.teaser.amount.value, item.teaser.amount.currency)
+    : MISSING
   return (
     <tr className={styles.lockedRow} onClick={onOpen}>
       <td>{shortDate(item.teaser.date) ?? MISSING}</td>
@@ -166,7 +171,7 @@ function LockedRow({
         </button>
       </td>
       <td className={styles.lockedNote}>{note}</td>
-      <td className={styles.cellNumeric}>{item.teaser.amount ? amount(item.teaser.amount.value, item.teaser.amount.currency) : MISSING}</td>
+      <td className={styles.cellNumeric}>{lockedAmount}</td>
       {compact ? null : <td>{item.teaser.department ?? MISSING}</td>}
       <td className={redesigned ? styles.lockedWhy : undefined}>{MISSING}</td>
     </tr>

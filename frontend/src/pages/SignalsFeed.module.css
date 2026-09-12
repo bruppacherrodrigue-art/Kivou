@@ -229,6 +229,13 @@
 .tableColumnRedesigned .table th:nth-child(5) { width: 88px; }
 .tableColumnRedesigned .table th:nth-child(6) { width: 88px; }
 
+.tableColumnRedesigned .lockedNote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .tableColumn {
   min-width: 0;
 }

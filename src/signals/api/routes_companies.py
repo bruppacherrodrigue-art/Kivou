@@ -37,6 +37,7 @@ from signals.companies.contracts import (
 )
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
+from signals.companies.schema import saas_company
 from signals.companies.service import company_profile_with_items
 from signals.engagement import analytics, feedback
 from signals.engagement import company as company_engagement
@@ -48,6 +49,7 @@ from signals.engagement.schema import (
 from signals.engagement.status import status_resolver
 from signals.feed import query as feed_query
 from signals.feed.history import history_sort_key
+from signals.persistence.schema import supplier_directory
 
 router = APIRouter()
 
@@ -194,15 +196,62 @@ def _company_history(
     return tuple(sorted(events, key=lambda event: event["occurred_at"], reverse=True))
 
 
-def _siren_for_profile(profile: CompanyProfile) -> str | None:
-    for identifier in profile.official_identity.identifiers:
-        digits = "".join(character for character in identifier.value if character.isdigit())
-        scheme = identifier.scheme.casefold()
+def _siren_from_identifiers(identifiers) -> str | None:
+    for identifier in identifiers or ():
+        value = (
+            identifier.value
+            if hasattr(identifier, "value")
+            else identifier.get("value", "")
+        )
+        raw_scheme = (
+            identifier.scheme
+            if hasattr(identifier, "scheme")
+            else identifier.get("scheme", "")
+        )
+        digits = "".join(character for character in str(value) if character.isdigit())
+        scheme = str(raw_scheme).casefold()
         if scheme == "siren" and len(digits) == 9:
             return digits
         if scheme == "siret" and len(digits) == 14:
             return digits[:9]
     return None
+
+
+def _siren_for_profile(profile: CompanyProfile) -> str | None:
+    return _siren_from_identifiers(profile.official_identity.identifiers)
+
+
+def _directory_cities_for_companies(
+    connection: sa.Connection, company_keys: tuple[str, ...]
+) -> dict[str, str]:
+    if not company_keys:
+        return {}
+    identities = connection.execute(
+        sa.select(saas_company.c.company_key, saas_company.c.official_identifiers).where(
+            saas_company.c.company_key.in_(company_keys)
+        )
+    ).mappings()
+    siren_by_company = {
+        row["company_key"]: siren
+        for row in identities
+        if (siren := _siren_from_identifiers(row["official_identifiers"])) is not None
+    }
+    if not siren_by_company:
+        return {}
+    city_by_siren = dict(
+        connection.execute(
+            sa.select(supplier_directory.c.siren, supplier_directory.c.city).where(
+                supplier_directory.c.siren.in_(tuple(siren_by_company.values())),
+                supplier_directory.c.city.is_not(None),
+                supplier_directory.c.suppressed_at.is_(None),
+            )
+        ).all()
+    )
+    return {
+        company_key: city_by_siren[siren]
+        for company_key, siren in siren_by_company.items()
+        if siren in city_by_siren
+    }
 
 
 def _directory_siren_for_company_key(company_key: str) -> str | None:
@@ -277,12 +326,19 @@ def list_companies_route(
             )
         except InvalidCompanyCursor as error:
             raise api_error(422, "invalid_company_cursor", "curseur invalide") from error
+        directory_cities = (
+            _directory_cities_for_companies(
+                connection, tuple(row.company_key for row in page.rows)
+            )
+            if request.app.state.config.signals_companies_v2_enabled
+            else {}
+        )
     return {
         "items": [
             {
                 "company_key": row.company_key,
                 "name": row.name,
-                "city": row.city,
+                "city": directory_cities.get(row.company_key) or row.city,
                 "country": row.country,
                 "awards_count": row.awards_count,
                 "total_amount": [
