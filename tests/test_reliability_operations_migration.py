@@ -15,7 +15,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0020_hermes_learning_loop"
 HEAD = "0021_reliability_operations"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0058_model_call_budget"
 TABLES = (acquisition_operational_incident, acquisition_dead_letter)
 
 
