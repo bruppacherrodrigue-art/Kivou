@@ -24,7 +24,20 @@ function dashboard(top3 = signals.slice(0, 3), firstVisit = false) {
     new_since_last_visit: firstVisit ? 0 : 12,
     strong_matches: firstVisit ? 0 : 3,
     top3,
-    to_follow_up: firstVisit ? [] : [{ company_key: 'cmp_follow_up_abcdef', name: 'Amiaud SARL', last_signal: { ...signal(9), contract: { ...signal(9).contract, title: 'CVC plomberie' } }, days_since_contact: 9 }],
+    to_follow_up: firstVisit ? [] : [{
+      company_key: 'cmp_follow_up_abcdef',
+      name: 'Amiaud SARL',
+      last_signal: {
+        ...signal(9),
+        factual_display: {
+          ...signal(9).factual_display,
+          object_short: 'CVC plomberie',
+          market_summary: 'CVC plomberie',
+        },
+        contract: { ...signal(9).contract, title: 'CVC plomberie' },
+      },
+      days_since_contact: 9,
+    }],
     to_follow_up_truncated: false,
     week: { new: 12, saved: 5, contacted: 3, replied: 1 },
     scan_truncated: false,
