@@ -445,6 +445,7 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
         )
         holder_history, markets = directory_history_and_markets(
             connection,
+            siren=siren,
             winner_name=directory["name"],
             department=directory.get("department", ""),
             as_of=now.date(),

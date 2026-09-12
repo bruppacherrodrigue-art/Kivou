@@ -162,7 +162,11 @@ def _buyer_names(buyers: list[dict[str, Any]] | None) -> tuple[str, ...]:
     )
 
 
-def _award_rows(connection: sa.Connection, *, identity_fingerprint: str | None):
+def _award_rows(
+    connection: sa.Connection,
+    *,
+    identity_fingerprints: tuple[str, ...] | None,
+):
     columns = (
         contract_award.c.award_key,
         contract_award.c.title,
@@ -176,20 +180,29 @@ def _award_rows(connection: sa.Connection, *, identity_fingerprint: str | None):
         source_event.c.procedure_buyers,
         source_event.c.source_url,
     )
-    if identity_fingerprint is None:
+    if identity_fingerprints is None:
         statement = sa.select(*columns).select_from(
             contract_award.join(source_event, contract_award.c.event_key == source_event.c.event_key)
         )
     else:
+        award_keys = (
+            sa.select(materialized_signal.c.materialization_award_key)
+            .where(
+                materialized_signal.c.company_identity_fingerprint.in_(
+                    identity_fingerprints
+                )
+            )
+            .distinct()
+            .subquery("directory_award_keys")
+        )
         statement = (
             sa.select(*columns)
             .select_from(
-                materialized_signal.join(
+                award_keys.join(
                     contract_award,
-                    materialized_signal.c.materialization_award_key == contract_award.c.award_key,
+                    award_keys.c.materialization_award_key == contract_award.c.award_key,
                 ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
             )
-            .where(materialized_signal.c.company_identity_fingerprint == identity_fingerprint)
         )
     return connection.execute(statement.order_by(contract_award.c.award_key)).mappings()
 
@@ -205,7 +218,7 @@ def _fallback_award_rows(
         return ()
     return tuple(
         row
-        for row in _award_rows(connection, identity_fingerprint=None)
+        for row in _award_rows(connection, identity_fingerprints=None)
         if department_for_place(row["place_of_performance"]) == department
         and wanted_name
         in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
@@ -282,7 +295,7 @@ def history_for_company(
         return None
 
     rows = (
-        tuple(_award_rows(connection, identity_fingerprint=fingerprint))
+        tuple(_award_rows(connection, identity_fingerprints=(fingerprint,)))
         if fingerprint is not None
         else _fallback_award_rows(
             connection,
@@ -317,19 +330,52 @@ def directory_history_and_markets(
     department: str,
     as_of: dt.date,
     limit: int = 100,
+    siren: str | None = None,
 ) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
     """Read a directory company's summary and list from one award scan."""
 
-    rows = _fallback_award_rows(
-        connection,
-        winner_name=winner_name,
-        department=department,
+    fingerprints = (
+        set(
+            connection.scalars(
+                sa.select(materialized_signal.c.company_identity_fingerprint)
+                .select_from(
+                    materialized_signal.join(
+                        saas_company,
+                        saas_company.c.identity_fingerprint
+                        == materialized_signal.c.company_identity_fingerprint,
+                    )
+                )
+                .where(
+                    sa.func.lower(materialized_signal.c.winner_identifier_scheme)
+                    == "siret",
+                    materialized_signal.c.winner_identifier_value.like(f"{siren}_____"),
+                )
+                .distinct()
+            )
+        )
+        if siren
+        else set()
     )
+    if fingerprints:
+        rows = tuple(
+            _award_rows(
+                connection,
+                identity_fingerprints=tuple(sorted(fingerprints)),
+            )
+        )
+        resolution: Resolution = "company_key"
+    else:
+        rows = _fallback_award_rows(
+            connection,
+            winner_name=winner_name,
+            department=department,
+        )
+        resolution = "normalized_name_department"
     return (
         summarize_awards(
             _award_facts(rows),
             as_of=as_of,
-            resolution="normalized_name_department",
+            resolution=resolution,
         ),
         _markets_from_rows(rows, limit=limit),
     )
