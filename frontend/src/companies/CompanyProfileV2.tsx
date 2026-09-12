@@ -172,10 +172,13 @@ function ContactBlock({
       : null,
   ].filter((value): value is string => Boolean(value))
   const discovery = planCode === 'discovery'
+  const planQuota = planCode === 'essential' ? 20 : planCode === 'pro' ? 100 : 0
   const remainingLabel = lookup
     ? `${lookup.remaining} recherche${lookup.remaining > 1 ? 's' : ''} restante${lookup.remaining > 1 ? 's' : ''} ce mois`
-    : null
-  const showInitialButton = lookup && ['available', 'quota_exhausted', 'identity_unavailable'].includes(lookup.state)
+    : planQuota > 0
+      ? `${planQuota} recherches restantes ce mois`
+      : null
+  const showInitialButton = !discovery && (!lookup || ['available', 'quota_exhausted', 'identity_unavailable'].includes(lookup.state))
   const showRefreshButton = lookup && (lookup.state === 'failed' || Boolean(lookup.can_refresh))
 
   return (
@@ -211,14 +214,15 @@ function ContactBlock({
             </ul>
           ) : null}
           {!discovery && lookup?.state === 'no_contact' ? <p className={styles.companyMuted}>Aucun décideur avec un e-mail professionnel vérifié n’a été trouvé.</p> : null}
-          {!discovery && lookup ? (
+          {!discovery ? (
             <div className={styles.companyActionRow}>
-              {showInitialButton ? <button className={styles.companyPrimaryButton} type="button" disabled={lookup.state !== 'available' || busy} onClick={() => void runLookup()}>Trouver le décideur</button> : null}
-              {lookup.state === 'researching' ? <button className={styles.companyPrimaryButton} type="button" disabled>Recherche en cours…</button> : null}
+              {showInitialButton ? <button className={styles.companyPrimaryButton} type="button" disabled={!lookup || lookup.state !== 'available' || busy} onClick={() => void runLookup()}>Trouver le décideur</button> : null}
+              {lookup?.state === 'researching' ? <button className={styles.companyPrimaryButton} type="button" disabled>Recherche en cours…</button> : null}
               {showRefreshButton ? <button className={styles.companyPrimaryButton} type="button" disabled={busy || lookup.remaining === 0} onClick={() => void runLookup()}>{lookup.can_refresh ? 'Actualiser' : 'Réessayer'}</button> : null}
               {remainingLabel ? <span className={styles.companySource}>e-mail nominatif vérifié · {remainingLabel}</span> : null}
             </div>
           ) : null}
+          {!discovery && !lookup ? <p className={styles.companyMuted}>Recherche temporairement indisponible.</p> : null}
           {!discovery && error ? <p className={styles.actionError} role="alert">{error}</p> : null}
           {!discovery && lookup?.remaining === 0 && lookup.next_reset_at ? <p className={styles.companyMuted}>Quota mensuel épuisé · reprise le {date(lookup.next_reset_at)}</p> : null}
           {sourceParts.length ? <p className={styles.companySource}>{sourceParts.join(' · ')}</p> : null}
