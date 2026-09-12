@@ -101,10 +101,15 @@ export function SignalDrawer({
         .split(/\s+/)
         .slice(0, 4)
         .join(' ')
-      return lead.length > 5 && foldedWhy.startsWith(lead)
+      return lead.length > 5 && foldedWhy.includes(lead)
     })
+  const technicalWhy = [
+    'territoire metropolitain',
+    'france metropolitaine',
+  ].some((value) => foldedWhy.includes(value))
+    || /\b(?:boamp|decp)\b/u.test(foldedWhy)
   const fallbackWhy = 'Ce marché correspond à votre profil cible dans cette zone et ce secteur.'
-  let why = generatedWhy && !titleRepeated ? generatedWhy : fallbackWhy
+  let why = generatedWhy && !titleRepeated && !technicalWhy ? generatedWhy : fallbackWhy
   const department = normalCasePlace(item.contract.location?.subdivision_label)
   if (!item.contract.location?.locality && department) {
     const escapedDepartment = department.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
