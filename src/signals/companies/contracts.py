@@ -267,6 +267,9 @@ class DirectoryCompanyView(CompanyContract):
         max_length=100,
         exclude_if=lambda value: value is None,
     )
+    directors_observed_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     director_display_name: ShortText | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
@@ -274,12 +277,21 @@ class DirectoryCompanyView(CompanyContract):
         default=None, exclude_if=lambda value: value is None
     )
     phone: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    phone_source: ShortText | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    phone_observed_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     published_email: Annotated[EmailStr, Field(max_length=320)] | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
     published_email_source_url: Annotated[
         str, StringConstraints(max_length=2_048)
     ] | None = Field(default=None, exclude_if=lambda value: value is None)
+    published_email_observed_at: dt.datetime | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     contact_observed_at: dt.datetime | None = Field(
         default=None, exclude_if=lambda value: value is None
     )

@@ -63,6 +63,24 @@ function websiteLabel(value: string): string {
   return new URL(value).hostname.replace(/^www\./, '')
 }
 
+function sourceLabel(value: string | null | undefined): string | null {
+  if (!value) return null
+  if (value === 'official_register' || value === 'registre') return 'registre national des entreprises'
+  if (value === 'public_notice') return 'avis public'
+  if (value === 'site') return 'site de l’entreprise'
+  if (value === 'model') return 'analyse automatisée'
+  if (value === 'serper') return 'moteur de recherche'
+  if (value === 'apollo') return 'Apollo'
+  return value
+}
+
+function factSource(source: string | null | undefined, observedAt: string | null | undefined, formattedDate: (value: string | null | undefined) => string | null) {
+  const label = sourceLabel(source)
+  const observed = formattedDate(observedAt)
+  if (!label) return null
+  return `Source : ${label}${observed ? ` · ${observed}` : ''}`
+}
+
 function formatSiren(value: string): string {
   return /^\d{9}$/.test(value)
     ? `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6)}`
@@ -136,7 +154,14 @@ function ContactBlock({
         setLookup((current) => current ? { ...current, state: 'quota_exhausted', remaining: 0 } : null)
         setError('Le quota mensuel vient d’être épuisé.')
       } else if (caught instanceof ApiError && (caught.code === 'contact_lookup_identity_unavailable' || caught.code === 'contact_lookup_suppressed')) {
-        setLookup((current) => current ? { ...current, state: 'identity_unavailable' } : null)
+        setLookup((current) => current ? {
+          state: 'identity_unavailable',
+          remaining: current.remaining,
+          monthly_quota: current.monthly_quota,
+          next_reset_at: current.next_reset_at,
+          source: current.source,
+          removal_path: current.removal_path,
+        } : null)
         setError('L’identité annuaire de cette entreprise ne permet pas encore la recherche.')
       } else {
         setLookup((current) => current ? { ...current, state: 'failed' } : null)
@@ -155,22 +180,15 @@ function ContactBlock({
   const contactFacts = Boolean(
     director || directory?.phone || directory?.published_email || website || fallbackAddress,
   )
-  const sourceDate = date(directory?.contact_observed_at ?? directory?.website_observed_at)
-  const registerDate = date(directory?.register_observed_at)
-  const websiteName = website ? websiteLabel(website) : null
-  const sourceParts = [
-    directory ? `Registre national des entreprises${registerDate ? `, consulté le ${registerDate}` : ''}` : null,
-    websiteName
-      ? directoryWebsite
-        ? `site ${websiteName}${sourceDate ? `, vérifié le ${sourceDate}` : ''}`
-        : `site ${websiteName}, publié dans l’avis public`
-      : null,
-    fallbackAddress
-      ? fallbackSource === 'official_register'
-        ? 'adresse : registre officiel'
-        : 'adresse : avis public'
-      : null,
-  ].filter((value): value is string => Boolean(value))
+  const directorSource = factSource('registre', directory?.directors_observed_at, date)
+  const phoneSource = factSource(directory?.phone_source, directory?.phone_observed_at, date)
+  const emailSource = factSource('site', directory?.published_email_observed_at, date)
+  const websiteSource = factSource(
+    directoryWebsite ? directory?.website_source ?? directory?.source : fallbackSource,
+    directoryWebsite ? directory?.website_observed_at : undefined,
+    date,
+  )
+  const addressSource = factSource(fallbackSource, undefined, date)
   const discovery = planCode === 'discovery'
   const planQuota = planCode === 'essential' ? 20 : planCode === 'pro' ? 100 : 0
   const remainingLabel = lookup
@@ -181,23 +199,47 @@ function ContactBlock({
   const showInitialButton = !discovery && (!lookup || ['available', 'quota_exhausted', 'identity_unavailable'].includes(lookup.state))
   const showRefreshButton = lookup && (lookup.state === 'failed' || Boolean(lookup.can_refresh))
 
+  if (discovery) {
+    return (
+      <section className={styles.companyV2Section}>
+        <h3>Contact</h3>
+        <div className={`${styles.companyContactCard} ${styles.companyContactLocked}`}>
+          <div className={styles.companyContactBlur} aria-hidden="true">
+            <div className={styles.companyContactLead}>
+              <strong>Camille Martin</strong>
+              <span className={styles.companyPillNeutral}>Direction</span>
+            </div>
+            <dl className={styles.companyKeyValues}>
+              <dt>Téléphone</dt><dd>01 84 80 20 10</dd>
+              <dt>Site</dt><dd>entreprise.fr ↗</dd>
+            </dl>
+          </div>
+          <div className={styles.companyContactOffer}>
+            <strong>Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois</strong>
+            <Link className={styles.companyPrimaryButton} to="/tarifs">Voir l'offre Essentiel</Link>
+          </div>
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section className={styles.companyV2Section}>
       <h3>Contact</h3>
-      <div className={`${styles.companyContactCard} ${discovery ? styles.companyContactLocked : ''}`}>
-        <div className={discovery ? styles.companyContactBlur : undefined}>
+      <div className={styles.companyContactCard}>
+        <div>
           {director ? (
             <div className={styles.companyContactLead}>
-              <strong>{director}</strong>
+              <span><strong>{director}</strong>{directorSource ? <small className={styles.companySource}>{directorSource}</small> : null}</span>
               {directorTitle ? <span className={styles.companyPillNeutral}>{directorTitle}</span> : null}
             </div>
           ) : null}
           {contactFacts ? (
             <dl className={styles.companyKeyValues}>
-              {directory?.phone ? <><dt>Téléphone</dt><dd><a href={`tel:${directory.phone.replace(/[^+\d]/g, '')}`}>{directory.phone}</a></dd></> : null}
-              {directory?.published_email ? <><dt>E-mail</dt><dd><a href={`mailto:${directory.published_email}`}>{directory.published_email}</a> <span className={styles.companyPill}>publié sur le site</span></dd></> : null}
-              {website ? <><dt>Site</dt><dd><a href={website} target="_blank" rel="noreferrer">{websiteLabel(website)} ↗</a></dd></> : null}
-              {fallbackAddress ? <><dt>Adresse</dt><dd>{fallbackAddress}</dd></> : null}
+              {directory?.phone ? <><dt>Téléphone</dt><dd><a href={`tel:${directory.phone.replace(/[^+\d]/g, '')}`}>{directory.phone}</a>{phoneSource ? <small className={styles.companySource}>{phoneSource}</small> : null}</dd></> : null}
+              {directory?.published_email ? <><dt>E-mail</dt><dd><a href={`mailto:${directory.published_email}`}>{directory.published_email}</a> <span className={styles.companyPill}>publié sur le site</span>{emailSource ? <small className={styles.companySource}>{emailSource}</small> : null}</dd></> : null}
+              {website ? <><dt>Site</dt><dd><a href={website} target="_blank" rel="noreferrer">{websiteLabel(website)} ↗</a>{websiteSource ? <small className={styles.companySource}>{websiteSource}</small> : null}</dd></> : null}
+              {fallbackAddress ? <><dt>Adresse</dt><dd>{fallbackAddress}{addressSource ? <small className={styles.companySource}>{addressSource}</small> : null}</dd></> : null}
             </dl>
           ) : null}
 
@@ -225,15 +267,8 @@ function ContactBlock({
           {!discovery && !lookup ? <p className={styles.companyMuted}>Recherche temporairement indisponible.</p> : null}
           {!discovery && error ? <p className={styles.actionError} role="alert">{error}</p> : null}
           {!discovery && lookup?.remaining === 0 && lookup.next_reset_at ? <p className={styles.companyMuted}>Quota mensuel épuisé · reprise le {date(lookup.next_reset_at)}</p> : null}
-          {sourceParts.length ? <p className={styles.companySource}>{sourceParts.join(' · ')}</p> : null}
           {!discovery && lookup?.researched_at ? <p className={styles.companySource}>Source du décideur : Apollo · recherche du {date(lookup.researched_at)} · <Link to={lookup.removal_path}>Retrait</Link></p> : null}
         </div>
-        {discovery ? (
-          <div className={styles.companyContactOffer}>
-            <strong>Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois</strong>
-            <Link className={styles.companyPrimaryButton} to="/tarifs">Voir l'offre Essentiel</Link>
-          </div>
-        ) : null}
       </div>
     </section>
   )

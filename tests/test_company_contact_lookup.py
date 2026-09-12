@@ -323,6 +323,38 @@ def test_paid_lookup_persists_three_contacts_and_an_append_only_apollo_attempt(
     assert attempt["observed_credit_units"] is None
 
 
+def test_paid_lookup_accepts_a_directory_only_company_key(tmp_path) -> None:
+    engine, account_id, identity, _company, _contacts, service = prepared(tmp_path)
+    directory_identity = CompanyLookupIdentity(
+        company_key="cmp_directory_331364729",
+        siren=identity.siren,
+        name=identity.name,
+        city=identity.city,
+        website_url=identity.website_url,
+    )
+
+    result = service.research(
+        account_id=account_id,
+        plan_code="essential",
+        identity=directory_identity,
+        now=NOW,
+    )
+
+    assert result["state"] == "ready"
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(saas_company).where(
+                saas_company.c.company_key == directory_identity.company_key
+            )
+        ) == 0
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(company_contact_lookup_attempt).where(
+                company_contact_lookup_attempt.c.company_key
+                == directory_identity.company_key
+            )
+        ) == 1
+
+
 def test_fresh_lookup_is_reused_and_refreshes_only_after_ninety_days(tmp_path) -> None:
     _engine, account_id, identity, company, contacts, service = prepared(tmp_path)
     first = service.research(

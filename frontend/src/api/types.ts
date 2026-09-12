@@ -645,11 +645,15 @@ export interface DirectoryCompany {
   website_source?: string
   website_observed_at?: string
   directors?: DirectoryDirector[]
+  directors_observed_at?: string
   director_display_name?: string
   director_display_title?: string
   phone?: string
+  phone_source?: string
+  phone_observed_at?: string
   published_email?: string
   published_email_source_url?: string
+  published_email_observed_at?: string
   contact_observed_at?: string
   register_observed_at?: string
   resolution_note?: 'rapprochement par nom'

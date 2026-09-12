@@ -59,7 +59,6 @@ company_contact_lookup = sa.Table(
     sa.Column(
         "company_key",
         sa.String(64),
-        sa.ForeignKey("saas_company.company_key", ondelete="CASCADE"),
         nullable=False,
     ),
     sa.Column(
@@ -108,7 +107,6 @@ company_contact_lookup_attempt = sa.Table(
     sa.Column(
         "company_key",
         sa.String(64),
-        sa.ForeignKey("saas_company.company_key", ondelete="CASCADE"),
         nullable=False,
     ),
     sa.Column(

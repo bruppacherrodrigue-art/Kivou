@@ -96,6 +96,7 @@ def test_directory_company_prefers_siren_and_never_exposes_professional_email(tm
         "website_source": "registre",
         "website_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "directors": [{"name": "Alice Martin", "title": "Gérante"}],
+        "directors_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "source": "registre",
         "removal_path": "/contact",
     }
@@ -187,11 +188,41 @@ def test_directory_company_formats_the_published_director_for_the_client(tmp_pat
 
     assert result is not None
     assert result["directors"] == [{"name": "Mosbah Benzaoui", "title": "Président"}]
+    assert result["directors_observed_at"] == NOW.replace(tzinfo=None).isoformat()
     assert result["director_display_name"] == "Mosbah Benzaoui"
     assert result["director_display_title"] == "Président"
-    assert result["published_email"] == "alice@example.test"
-    assert result["published_email_source_url"] == "https://example.test/contact"
+    assert "published_email" not in result
+    assert "published_email_source_url" not in result
     assert result["phone"] == "+33 4 74 00 00 00"
+    assert result["phone_source"] == "model"
+    assert result["phone_observed_at"] == NOW.replace(tzinfo=None).isoformat()
+
+
+def test_directory_company_exposes_only_a_generic_mailbox_published_on_the_site(
+    tmp_path,
+) -> None:
+    db = engine(tmp_path)
+    value = row("481153435", "ALYA BATIMENT")
+    value.update(
+        professional_email="contact@example.test",
+        email_source="site",
+        email_evidence_url="https://example.test/contact",
+        email_observed_at=NOW,
+    )
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), value)
+        result = directory_company(
+            connection,
+            siren="481153435",
+            legal_name=None,
+            department=None,
+            include_public_contact=True,
+        )
+
+    assert result is not None
+    assert result["published_email"] == "contact@example.test"
+    assert result["published_email_source_url"] == "https://example.test/contact"
+    assert result["published_email_observed_at"] == NOW.replace(tzinfo=None).isoformat()
 
 
 def test_local_circuit_filters_the_profile_families_and_orders_proximity_then_size(

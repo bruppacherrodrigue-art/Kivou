@@ -94,14 +94,18 @@ function approvedProfile(overrides: Partial<CompanyProfile> = {}): CompanyProfil
       city: 'Belleville-en-Beaujolais',
       employees: 5,
       website_url: 'https://alya-batiment.example/',
-      website_source: 'site',
+      website_source: 'model',
       website_observed_at: '2026-09-11T09:00:00Z',
       directors: [{ name: 'Mosbah Benzaoui', title: 'Président' }],
+      directors_observed_at: '2026-09-10T09:00:00Z',
       director_display_name: 'Mosbah Benzaoui',
       director_display_title: 'Président',
       phone: '+33 4 74 00 00 00',
+      phone_source: 'model',
+      phone_observed_at: '2026-09-11T09:00:00Z',
       published_email: 'contact@alya-batiment.example',
       published_email_source_url: 'https://alya-batiment.example/contact',
+      published_email_observed_at: '2026-09-11T09:00:00Z',
       contact_observed_at: '2026-09-11T09:00:00Z',
       register_observed_at: '2026-09-10T09:00:00Z',
       source: 'registre',
@@ -149,6 +153,9 @@ describe('CompaniesPage', () => {
     expect(drawer).toHaveTextContent('Mosbah Benzaoui')
     expect(drawer).toHaveTextContent('Président')
     expect(drawer).toHaveTextContent('publié sur le site')
+    expect(drawer).toHaveTextContent('Source : registre national des entreprises')
+    expect(drawer).toHaveTextContent('Source : site de l’entreprise')
+    expect(drawer).toHaveTextContent('Source : analyse automatisée')
     expect(screen.getByRole('button', { name: 'Trouver le décideur' })).toBeEnabled()
     expect(drawer).toHaveTextContent('20 recherches restantes ce mois')
     const headings = Array.from(drawer.querySelectorAll('h3')).map((heading) => heading.textContent)
@@ -164,8 +171,20 @@ describe('CompaniesPage', () => {
   })
 
   it('floute le Contact en Découverte et présente Essentiel à 49 €', async () => {
+    const directory = approvedProfile().directory!
+    const publicDirectory = { ...directory }
+    delete publicDirectory.director_display_name
+    delete publicDirectory.director_display_title
+    delete publicDirectory.phone
+    delete publicDirectory.phone_source
+    delete publicDirectory.phone_observed_at
+    delete publicDirectory.published_email
+    delete publicDirectory.published_email_source_url
+    delete publicDirectory.published_email_observed_at
+    delete publicDirectory.contact_observed_at
     mockApi(routes(approvedProfile({
       plan_code: 'discovery',
+      directory: publicDirectory,
       contact_lookup: {
         state: 'locked',
         remaining: 0,
@@ -181,8 +200,9 @@ describe('CompaniesPage', () => {
 
     const contact = (await screen.findByRole('heading', { name: 'Contact' })).closest('section')
     expect(contact?.querySelector('[class*="companyContactBlur"]')).not.toBeNull()
-    expect(contact).toHaveTextContent('Mosbah Benzaoui')
-    expect(contact).toHaveTextContent('+33 4 74 00 00 00')
+    expect(contact).not.toHaveTextContent('Mosbah Benzaoui')
+    expect(contact).toHaveTextContent('Camille Martin')
+    expect(contact).not.toHaveTextContent('contact@alya-batiment.example')
     expect(contact).toHaveTextContent(
       "Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois",
     )
@@ -191,6 +211,44 @@ describe('CompaniesPage', () => {
       '/tarifs',
     )
     expect(screen.queryByRole('button', { name: 'Trouver le décideur' })).not.toBeInTheDocument()
+  })
+
+  it('retire immédiatement les données Apollo après une révocation', async () => {
+    const ready = approvedProfile({
+      contact_lookup: {
+        state: 'ready',
+        remaining: 19,
+        monthly_quota: 20,
+        source: 'apollo',
+        removal_path: '/contact',
+        can_refresh: true,
+        contacts: [{
+          name: 'Alice Martin',
+          title: 'Directrice commerciale',
+          email: 'alice@holder.example',
+          email_status: 'verified',
+        }],
+      },
+    })
+    mockApi({
+      ...routes(ready),
+      [`POST /companies/${COMPANY_PROFILE.company_key}/contact-lookup`]: {
+        status: 409,
+        body: { detail: { code: 'contact_lookup_suppressed' } },
+      },
+    })
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+    const user = userEvent.setup()
+
+    expect(await screen.findByText('alice@holder.example')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Actualiser' }))
+
+    expect(await screen.findByText(/ne permet pas encore la recherche/)).toBeVisible()
+    expect(screen.queryByText('Alice Martin')).not.toBeInTheDocument()
+    expect(screen.queryByText('alice@holder.example')).not.toBeInTheDocument()
   })
 
   it('présente le premier marché seul sans cadence ni groupement', async () => {

@@ -1,17 +1,23 @@
 from __future__ import annotations
 
+import datetime as dt
+
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from feed_helpers import make_account
 
+from signals.companies.schema import company_contact_lookup_attempt
 from signals.persistence.database import (
     alembic_config,
     create_database_engine,
     current_revision,
 )
+from signals.persistence.schema import supplier_directory
 
 PREVIOUS = "0052_assisted_observation"
-HEAD = "0056_company_contact_merge"
+HEAD = "0057_directory_contact_keys"
+NOW = dt.datetime(2026, 9, 11, 9, tzinfo=dt.UTC)
 
 
 def test_company_contact_lookup_is_account_scoped_and_audits_provider_attempts(tmp_path) -> None:
@@ -72,7 +78,14 @@ def test_company_contact_lookup_is_account_scoped_and_audits_provider_attempts(t
     }
     assert foreign_keys == {
         "account": {"ondelete": "CASCADE"},
-        "saas_company": {"ondelete": "CASCADE"},
+        "supplier_directory": {"ondelete": "CASCADE"},
+    }
+    attempt_foreign_keys = {
+        key["referred_table"]: key["options"]
+        for key in inspector.get_foreign_keys("company_contact_lookup_attempt")
+    }
+    assert attempt_foreign_keys == {
+        "account": {"ondelete": "CASCADE"},
         "supplier_directory": {"ondelete": "CASCADE"},
     }
     unique = {
@@ -103,6 +116,70 @@ def test_company_contact_lookup_migration_roundtrips(tmp_path) -> None:
     assert current_revision(engine) == HEAD
 
 
+def test_downgrade_preserves_directory_only_attempt_history(tmp_path) -> None:
+    engine = create_database_engine(
+        f"sqlite+pysqlite:///{tmp_path / 'contact-lookup-directory-downgrade.db'}"
+    )
+    config = alembic_config(engine)
+    command.upgrade(config, HEAD)
+    with engine.begin() as connection:
+        account_id = make_account(connection, "directory-downgrade@example.test", "Client")
+        connection.execute(
+            sa.insert(supplier_directory).values(
+                siren="331364729",
+                legal_name="Entreprise annuaire",
+                legal_name_observed_at=NOW,
+                family_keys=[],
+                families_observed_at=NOW,
+                directors=[],
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.insert(company_contact_lookup_attempt).values(
+                attempt_id="attempt-directory-only",
+                account_id=account_id,
+                company_key="cmp_directory_331364729",
+                directory_siren="331364729",
+                provider_organization_id="apollo-org-directory",
+                status="no_contact",
+                requested_at=NOW,
+                completed_at=NOW,
+                lease_expires_at=NOW,
+                organization_enrichment_requests=1,
+                people_search_requests=1,
+                people_match_requests=0,
+                planned_credit_units=4,
+                attempted_credit_units=1,
+                observed_credit_units=None,
+                error_code=None,
+            )
+        )
+
+    command.downgrade(config, "0056_company_contact_merge")
+
+    assert current_revision(engine) == "0056_company_contact_merge"
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
+        ) == 1
+        assert {
+            key["referred_table"]
+            for key in sa.inspect(connection).get_foreign_keys(
+                "company_contact_lookup_attempt"
+            )
+        } == {"account", "supplier_directory"}
+
+    command.upgrade(config, HEAD)
+
+    assert current_revision(engine) == HEAD
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
+        ) == 1
+
+
 def test_company_contact_lookup_postgresql_sql_is_scoped_and_secret_free(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
     config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
@@ -116,6 +193,13 @@ def test_company_contact_lookup_postgresql_sql_is_scoped_and_secret_free(capsys)
     assert "CREATE TABLE company_contact_lookup_attempt" in sql
     assert "UNIQUE (account_id, company_key)" in sql
     assert sql.count("ON DELETE CASCADE") == 6
+    assert sql.count("DROP CONSTRAINT IF EXISTS company_contact_lookup_company_key_fkey") == 1
+    assert (
+        sql.count(
+            "DROP CONSTRAINT IF EXISTS company_contact_lookup_attempt_company_key_fkey"
+        )
+        == 1
+    )
     assert "CREATE INDEX ix_company_contact_attempt_account_requested" in sql
     assert "CREATE TRIGGER trg_company_contact_lookup_directory_change" in sql
     assert "raw_provider_response" not in sql

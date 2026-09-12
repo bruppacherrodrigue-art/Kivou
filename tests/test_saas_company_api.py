@@ -221,9 +221,19 @@ def test_company_contact_lookup_fails_closed_without_a_provider(app, engine) -> 
 
 
 def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
-    app, engine
+    engine,
 ) -> None:
-    client = _signup(app, email="company-contact-discovery@example.com")
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            company_profile_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="company-contact-discovery@example.com")
     icp_id = _icp(client)
     account_id = client.get("/me").json()["account_id"]
     with engine.begin() as connection:
@@ -244,17 +254,56 @@ def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
             connection, now=NOW, worker_ref="company-contact-discovery", limit=10
         )
     company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+                official_source="official_register",
+                official_observed_at=NOW,
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "331364729")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="model",
+                director_observed_at=NOW,
+                professional_email="contact@egli.example",
+                email_source="site",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=NOW,
+                phone="+33 4 76 00 00 00",
+                phone_source="model",
+                phone_observed_at=NOW,
+                enrichment_observed_at=NOW,
+            )
+        )
 
     response = client.get(f"/companies/{company_key}")
 
     assert response.status_code == 200
-    assert response.json()["contact_lookup"] == {
+    body = response.json()
+    assert body["contact_lookup"] == {
         "state": "locked",
         "remaining": 0,
         "monthly_quota": 0,
         "source": "apollo",
         "removal_path": "/contact",
     }
+    assert body["directory"]["directors"] == [
+        {"name": "Anna Egli", "title": "Présidente"}
+    ]
+    assert "director_display_name" not in body["directory"]
+    assert "phone" not in body["directory"]
+    assert "published_email" not in body["directory"]
 
 
 def test_paid_company_contact_lookup_reports_monthly_quota_exhaustion(engine) -> None:
@@ -367,6 +416,7 @@ def test_company_profile_adds_matching_directory_facts_without_contact_data(app,
         "website_source": "registre",
         "website_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "directors": [{"name": "Anna Egli", "title": "Présidente"}],
+        "directors_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "source": "registre",
         "removal_path": "/contact",
     }
@@ -409,6 +459,7 @@ def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) ->
                 director_source="model",
                 director_observed_at=NOW,
                 professional_email="contact@egli.example",
+                email_source="site",
                 email_evidence_url="https://egli.example/contact",
                 email_observed_at=NOW,
                 phone="+33 4 76 00 00 00",
@@ -429,7 +480,60 @@ def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) ->
         "https://egli.example/contact"
     )
     assert profile["directory"]["phone"] == "+33 4 76 00 00 00"
+    assert profile["directory"]["phone_source"] == "model"
+    assert profile["directory"]["phone_observed_at"] == NOW.replace(tzinfo=None).isoformat()
+    assert profile["directory"]["published_email_observed_at"] == NOW.replace(
+        tzinfo=None
+    ).isoformat()
     assert "professional_email" not in profile["directory"]
+
+
+def test_discovery_directory_profile_never_serializes_contact_details(engine) -> None:
+    configured = create_app(
+        engine,
+        ApiConfig(
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+            session_ttl=dt.timedelta(days=365),
+            company_profile_v2_enabled=True,
+        ),
+        now_override=lambda: NOW,
+    )
+    client = _signup(configured, email="directory-contact-discovery@example.com")
+    with engine.begin() as connection:
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="Egli Gartenbau AG Sursee",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "331364729")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="model",
+                director_observed_at=NOW,
+                professional_email="contact@egli.example",
+                email_source="site",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=NOW,
+                phone="+33 4 76 00 00 00",
+                phone_source="model",
+                phone_observed_at=NOW,
+                enrichment_observed_at=NOW,
+            )
+        )
+
+    response = client.get("/companies/directory/331364729")
+
+    assert response.status_code == 200
+    directory = response.json()["directory"]
+    assert directory["directors"] == [{"name": "Anna Egli", "title": "Présidente"}]
+    assert directory["website_url"] == "https://egli.example/"
+    assert "director_display_name" not in directory
+    assert "phone" not in directory
+    assert "published_email" not in directory
+    assert "published_email_source_url" not in directory
 
 
 def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, engine) -> None:

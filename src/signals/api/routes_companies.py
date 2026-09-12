@@ -362,7 +362,10 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             siren=_siren_for_profile(profile),
             legal_name=profile.official_identity.name,
             department=department_for_place(most_recent.signal.award.place_of_performance),
-            include_public_contact=request.app.state.config.company_profile_v2_enabled,
+            include_public_contact=(
+                request.app.state.config.company_profile_v2_enabled
+                and access.plan_code != "discovery"
+            ),
         )
         account_id = session.account_id
     update = {
@@ -420,7 +423,10 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
             siren=siren,
             legal_name=None,
             department=None,
-            include_public_contact=request.app.state.config.company_profile_v2_enabled,
+            include_public_contact=(
+                request.app.state.config.company_profile_v2_enabled
+                and access.plan_code != "discovery"
+            ),
         )
         if directory is None:
             raise api_error(404, "company_not_found", "entreprise introuvable")

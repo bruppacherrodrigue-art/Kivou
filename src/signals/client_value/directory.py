@@ -29,6 +29,18 @@ _TRADE_VERTICALS = {
     "equipment_hire": "equipment_hire",
 }
 
+_GENERIC_MAILBOXES = frozenset(
+    {
+        "accueil",
+        "bonjour",
+        "commercial",
+        "contact",
+        "info",
+        "secretariat",
+        "service-client",
+    }
+)
+
 
 def _normalized_name(value: str | None) -> str:
     return " ".join(normalize_text(value or "").split())
@@ -61,6 +73,19 @@ def _safe_website(value: str | None) -> str | None:
         return safe_https_url(value)
     except ValueError:
         return None
+
+
+def _published_generic_email(row: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Return only a clearly generic mailbox observed on its own public site."""
+
+    email = row["professional_email"]
+    evidence_url = _safe_website(row["email_evidence_url"])
+    if not isinstance(email, str) or not evidence_url or row["email_source"] != "site":
+        return None
+    local, separator, _domain = email.casefold().partition("@")
+    if not separator or local not in _GENERIC_MAILBOXES:
+        return None
+    return email, evidence_url
 
 
 def _director_tokens(value: str | None) -> set[str]:
@@ -149,6 +174,10 @@ def _company_view(
         )
         if directors:
             result["directors"] = directors
+            if row["directors_observed_at"]:
+                result["directors_observed_at"] = row[
+                    "directors_observed_at"
+                ].isoformat()
         if include_public_contact:
             display_name = row["director_display_name"]
             if display_name:
@@ -158,10 +187,18 @@ def _company_view(
                     result["director_display_title"] = title
             if row["phone"]:
                 result["phone"] = row["phone"]
-            email_evidence_url = _safe_website(row["email_evidence_url"])
-            if row["professional_email"] and email_evidence_url:
-                result["published_email"] = row["professional_email"]
-                result["published_email_source_url"] = email_evidence_url
+                if row["phone_source"]:
+                    result["phone_source"] = row["phone_source"]
+                if row["phone_observed_at"]:
+                    result["phone_observed_at"] = row["phone_observed_at"].isoformat()
+            published_email = _published_generic_email(row)
+            if published_email is not None:
+                result["published_email"] = published_email[0]
+                result["published_email_source_url"] = published_email[1]
+                if row["email_observed_at"]:
+                    result["published_email_observed_at"] = row[
+                        "email_observed_at"
+                    ].isoformat()
             if row["enrichment_observed_at"]:
                 result["contact_observed_at"] = row["enrichment_observed_at"].isoformat()
     if include_public_contact and row["legal_name_observed_at"]:
