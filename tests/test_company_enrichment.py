@@ -14,11 +14,22 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
+from signals.company_research.evidence import RawRenderedPage
 from signals.company_research.providers import OpenRouterCompanyEnrichmentProvider
 from signals.persistence.database import alembic_config, create_database_engine
 from signals.supplier_directory.store import SupplierDirectoryStore
 
 NOW = dt.datetime(2026, 9, 12, 8, tzinfo=dt.UTC)
+
+
+class _FakeRenderer:
+    def __init__(self, pages: dict[str, RawRenderedPage]) -> None:
+        self.pages = pages
+        self.seen: list[str] = []
+
+    def render(self, url: str) -> RawRenderedPage | None:
+        self.seen.append(url)
+        return self.pages.get(url)
 
 
 def _identity(**updates: object) -> CompanyEnrichmentInput:
@@ -104,6 +115,31 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
     collector = CompanyWebCollector(
         serper_api_key="serper-test",
         client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+        renderer=_FakeRenderer(
+            {
+                "https://www.verif.com/societe/ALYA-BATIMENT-481153435/": RawRenderedPage(
+                    url="https://www.verif.com/societe/ALYA-BATIMENT-481153435/",
+                    status_code=200,
+                    title="Fiche ALYA",
+                    main_text="Site internet alyabat.fr",
+                    body_text="Site internet alyabat.fr",
+                ),
+                "https://alyabat.fr/": RawRenderedPage(
+                    url="https://alyabat.fr/",
+                    status_code=200,
+                    title="ALYA Bâtiment",
+                    main_text="Maçonnerie et gros œuvre.",
+                    body_text="Maçonnerie et gros œuvre.",
+                ),
+                "https://alyabat.fr/contact": RawRenderedPage(
+                    url="https://alyabat.fr/contact",
+                    status_code=200,
+                    title="Contact",
+                    main_text="alya.batiment@hotmail.fr",
+                    body_text="alya.batiment@hotmail.fr",
+                ),
+            }
+        ),
     )
 
     evidence = collector.collect(_identity())
@@ -111,14 +147,13 @@ def test_collector_runs_one_exact_serper_query_and_collects_bounded_pages() -> N
     assert evidence.query == "ALYA BATIMENT GUEREINS"
     assert len(evidence.results) == 2
     assert evidence.results[0].is_directory is True
-    assert evidence.results[0].page is not None
+    assert evidence.results[0].directory_clues is not None
     assert evidence.results[1].is_directory is False
     assert {page.url for page in evidence.candidate_pages} == {
         "https://alyabat.fr/",
         "https://alyabat.fr/contact",
-        "https://alyabat.fr/mentions-legales",
     }
-    assert all(len(page.text) <= 3000 for page in evidence.candidate_pages)
+    assert all(len(page.text) <= 800 for page in evidence.candidate_pages)
     assert sum(1 for method, url in seen if method == "POST" and "serper" in url) == 1
 
 
@@ -165,13 +200,34 @@ def test_collector_uses_a_trade_directory_listing_as_a_clue_not_a_destination() 
         city="VALENCE",
         department="26",
     )
+    renderer = _FakeRenderer(
+        {
+            "https://www.groupement-mh.org/fiche_entreprise/girard-valence/": (
+                RawRenderedPage(
+                    url="https://www.groupement-mh.org/fiche_entreprise/girard-valence/",
+                    status_code=200,
+                    title="GIRARD (VALENCE)",
+                    main_text="Site : http://www.girard.vinci-construction.com",
+                    body_text="Site : http://www.girard.vinci-construction.com",
+                )
+            ),
+            "https://girard.vinci-construction.com/": RawRenderedPage(
+                url="https://girard.vinci-construction.com/",
+                status_code=200,
+                title="GIRARD - VINCI Construction",
+                main_text="Restauration du patrimoine",
+                body_text="Restauration du patrimoine",
+            ),
+        }
+    )
     evidence = CompanyWebCollector(
         serper_api_key="serper-test",
         client=httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True),
+        renderer=renderer,
     ).collect(identity)
 
     assert evidence.results[0].is_directory is True
-    assert ("www.groupement-mh.org", "/fiche_entreprise/girard-valence/") in seen
+    assert "https://www.groupement-mh.org/fiche_entreprise/girard-valence/" in renderer.seen
     assert any(
         page.url == "https://girard.vinci-construction.com/"
         for page in evidence.candidate_pages
