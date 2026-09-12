@@ -394,7 +394,7 @@ export function SignalDrawer({
               <li key={company.siren}>
                 <Link to={company.href}>{company.name}</Link>
                 <span>
-                  {[company.trade, normalCasePlace(company.city), company.employees === undefined
+                  {[company.trade, company.city, company.employees === undefined
                     ? null
                     : interpolate(copy.employees, { count: company.employees })]
                     .filter(Boolean)

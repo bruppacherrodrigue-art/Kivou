@@ -141,6 +141,19 @@ function deferred<T>() {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('CompaniesPage', () => {
+  it('conserve la ville historique quand le flag commun est désactivé', async () => {
+    mockApi({
+      ...routes(),
+      'GET /companies': {
+        body: page({ items: [{ ...item, city: 'MÜNCHEN' }], signals_companies_v2_enabled: false }),
+      },
+    })
+    renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
+
+    expect(await screen.findByText('MÜNCHEN')).toBeVisible()
+    expect(screen.queryByText('München')).not.toBeInTheDocument()
+  })
+
   it('reproduit la structure validée de la fiche entreprise derrière le flag', async () => {
     mockApi(routes(approvedProfile()))
     renderApp(<AppRoutes />, {

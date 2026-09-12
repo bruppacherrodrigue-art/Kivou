@@ -57,9 +57,9 @@ export function drawerPlaceLabel(place: Place | null): string {
 
 export function compactAmount(value: string | null | undefined, currency: string | null | undefined, locale: Locale): string {
   const parsed = Number.parseFloat(value ?? '')
-  if (!Number.isFinite(parsed)) return MISSING
+  if (!Number.isFinite(parsed) || !currency) return MISSING
   const formatterLocale = locale === 'fr' ? 'fr-FR' : 'en-GB'
-  const unit = currency === 'EUR' || !currency ? '€' : currency
+  const unit = currency === 'EUR' ? '€' : currency
   if (Math.abs(parsed) >= 1_000_000) {
     return `${new Intl.NumberFormat(formatterLocale, { maximumFractionDigits: 2 }).format(parsed / 1_000_000)} M${unit}`
   }

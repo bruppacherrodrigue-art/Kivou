@@ -173,7 +173,7 @@ function LockedRow({
       </td>
       <td className={styles.lockedNote}>{note}</td>
       <td className={styles.cellNumeric}>{lockedAmount}</td>
-      {compact ? null : <td>{visiblePlaceName(item.teaser.department) ?? MISSING}</td>}
+      {compact ? null : <td>{redesigned ? visiblePlaceName(item.teaser.department) ?? MISSING : item.teaser.department ?? MISSING}</td>}
       {redesigned ? null : <td>{MISSING}</td>}
     </tr>
   )

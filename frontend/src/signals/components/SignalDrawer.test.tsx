@@ -174,6 +174,25 @@ describe('SignalDrawer', () => {
     expect(screen.queryByRole('heading', { name: 'Le circuit local' })).not.toBeInTheDocument()
   })
 
+  it('conserve le lieu historique quand le flag est désactivé', () => {
+    renderDrawer({
+      signal: item({
+        local_circuit: [{
+          siren: '331364729',
+          name: 'Bétons du Midi',
+          trade: 'Béton prêt à l’emploi',
+          city: 'GRENOBLE',
+          employees: 24,
+          href: '/app/companies/directory/331364729',
+          source: 'registre',
+        }],
+      }),
+    })
+
+    expect(screen.getByText(/GRENOBLE/)).toBeVisible()
+  })
+
+
   it('masque le bloc des besoins quand timing et quantité sont indéterminés', () => {
     renderDrawer({ signal: withNeeds([need({ timing: null, timing_label: null, timing_status: null, quantity_status: null })]) })
     expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()

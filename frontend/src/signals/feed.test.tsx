@@ -135,6 +135,29 @@ describe('écran Signaux — tableau dense', () => {
     expect(within(grid).queryByText('Match')).not.toBeInTheDocument()
   })
 
+  it('omet les faits incomplets du teaser refondu et préserve le rendu historique flag éteint', async () => {
+    const locked = {
+      ...LOCKED_ITEM,
+      teaser: {
+        ...LOCKED_ITEM.teaser,
+        amount: { value: '950000', currency: null },
+        department: 'TERRITOIRE MÉTROPOLITAIN',
+      },
+    }
+    mockApi(feedWith([locked], { signals_companies_v2_enabled: true }))
+    const redesigned = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    let grid = await table()
+    expect(grid).not.toHaveTextContent('950 k€')
+    expect(grid).not.toHaveTextContent('Territoire métropolitain')
+    redesigned.unmount()
+
+    mockApi(feedWith([locked], { signals_companies_v2_enabled: false }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    grid = await table()
+    expect(grid).toHaveTextContent('TERRITOIRE MÉTROPOLITAIN')
+  })
+
+
   it('invite un compte au profil provisoire à le confirmer', async () => {
     mockApi(feedWith([item('sig_a')], { provisional_profile: true }))
     renderApp(<AppRoutes />, {

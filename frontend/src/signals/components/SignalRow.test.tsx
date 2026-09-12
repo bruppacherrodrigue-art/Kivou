@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import type { Place, UnlockedFeedItem } from '../../api/types'
 import { AUTHENTICATED, UNLOCKED_ITEM, renderApp } from '../../test/harness'
 import {
+  compactAmount,
   SignalRow,
   placeLabel,
   shortSignalObject,
@@ -112,6 +113,10 @@ describe('présentation du tableau refondu', () => {
   it('met les villes en casse normale et masque Territoire métropolitain', () => {
     expect(tablePlaceLabel(place({ locality: 'DRAGUIGNAN', subdivision_label: 'VAR' }))).toBe('Draguignan')
     expect(tablePlaceLabel(place({ subdivision_label: 'TERRITOIRE MÉTROPOLITAIN' }))).toBe('')
+  })
+
+  it('omet un montant dont la devise est absente', () => {
+    expect(compactAmount('950000', null, 'fr')).toBe('')
   })
 })
 
