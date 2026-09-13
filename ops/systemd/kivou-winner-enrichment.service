@@ -10,6 +10,7 @@ User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/staging.env
+Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/kivou/playwright
 ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 75 /srv/kivou/run/winner-enrichment-systemd.lock /srv/kivou/app/.venv/bin/python -m signals.company_research.winner_worker
 TimeoutStartSec=55min
 StandardOutput=journal

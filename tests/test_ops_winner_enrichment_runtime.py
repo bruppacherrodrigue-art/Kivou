@@ -20,6 +20,7 @@ def test_winner_enrichment_service_is_budgeted_serialized_and_hardened(
     body = (directory / "kivou-winner-enrichment.service").read_text(encoding="utf-8")
 
     assert f"EnvironmentFile={environment}" in body
+    assert "Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/kivou/playwright" in body
     assert (
         "ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 75 "
         "/srv/kivou/run/winner-enrichment-systemd.lock "
