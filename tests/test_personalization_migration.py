@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_personalization_artifact
 
 PREVIOUS = "0012_decision_engine"
 HEAD = "0013_personalization"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_path) -> None:
@@ -32,7 +32,14 @@ def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_pat
 def test_personalization_schema_contains_no_separate_contact_or_model_pii_columns() -> None:
     columns = {column.name for column in acquisition_personalization_artifact.columns}
 
-    assert {"first_name", "last_name", "display_name", "business_email", "phone", "linkedin"}.isdisjoint(columns)
+    assert {
+        "first_name",
+        "last_name",
+        "display_name",
+        "business_email",
+        "phone",
+        "linkedin",
+    }.isdisjoint(columns)
     assert {"provider", "model", "raw_provider_response"}.isdisjoint(columns)
     assert {"policy_evaluation_id", "language", "subject", "greeting", "body", "cta"} <= columns
 
@@ -44,7 +51,8 @@ def test_personalization_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
     command.upgrade(config, HEAD)
     inspector = sa.inspect(engine)
     assert {
-        column["name"] for column in inspector.get_columns(acquisition_personalization_artifact.name)
+        column["name"]
+        for column in inspector.get_columns(acquisition_personalization_artifact.name)
     } == {column.name for column in acquisition_personalization_artifact.columns}
     assert current_revision(engine) == HEAD
 
@@ -58,9 +66,7 @@ def test_personalization_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
 
 def test_personalization_postgresql_offline_sql_is_one_table(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
     sql = capsys.readouterr().out
 

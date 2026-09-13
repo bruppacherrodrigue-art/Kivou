@@ -17,6 +17,7 @@ from signals.persistence.schema import supplier_directory
 
 PREVIOUS = "0052_assisted_observation"
 HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 NOW = dt.datetime(2026, 9, 11, 9, tzinfo=dt.UTC)
 
 
@@ -48,8 +49,7 @@ def test_company_contact_lookup_is_account_scoped_and_audits_provider_attempts(t
         "updated_at",
     }
     attempt_columns = {
-        column["name"]
-        for column in inspector.get_columns("company_contact_lookup_attempt")
+        column["name"] for column in inspector.get_columns("company_contact_lookup_attempt")
     }
     assert attempt_columns == {
         "attempt_id",
@@ -99,7 +99,7 @@ def test_company_contact_lookup_is_account_scoped_and_audits_provider_attempts(t
             sa.text("SELECT name FROM sqlite_master WHERE type = 'trigger'")
         )
     }
-    assert ScriptDirectory.from_config(config).get_heads() == [HEAD]
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
     assert current_revision(engine) == HEAD
 
 
@@ -161,23 +161,27 @@ def test_downgrade_preserves_directory_only_attempt_history(tmp_path) -> None:
 
     assert current_revision(engine) == "0056_company_contact_merge"
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
-        ) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
+            )
+            == 1
+        )
         assert {
             key["referred_table"]
-            for key in sa.inspect(connection).get_foreign_keys(
-                "company_contact_lookup_attempt"
-            )
+            for key in sa.inspect(connection).get_foreign_keys("company_contact_lookup_attempt")
         } == {"account", "supplier_directory"}
 
     command.upgrade(config, HEAD)
 
     assert current_revision(engine) == HEAD
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
-        ) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(company_contact_lookup_attempt)
+            )
+            == 1
+        )
 
 
 def test_company_contact_lookup_postgresql_sql_is_scoped_and_secret_free(capsys) -> None:
@@ -195,10 +199,7 @@ def test_company_contact_lookup_postgresql_sql_is_scoped_and_secret_free(capsys)
     assert sql.count("ON DELETE CASCADE") == 6
     assert sql.count("DROP CONSTRAINT IF EXISTS company_contact_lookup_company_key_fkey") == 1
     assert (
-        sql.count(
-            "DROP CONSTRAINT IF EXISTS company_contact_lookup_attempt_company_key_fkey"
-        )
-        == 1
+        sql.count("DROP CONSTRAINT IF EXISTS company_contact_lookup_attempt_company_key_fkey") == 1
     )
     assert "CREATE INDEX ix_company_contact_attempt_account_requested" in sql
     assert "CREATE TRIGGER trg_company_contact_lookup_directory_change" in sql

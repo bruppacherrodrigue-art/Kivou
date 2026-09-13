@@ -113,13 +113,12 @@ describe('notifications exactes connectées', () => {
 
   it('garde le formulaire éditable quand la cadence échoue et relance seulement la facturation', async () => {
     const user = userEvent.setup()
-    let billingAttempts = 0
+    let billingAvailable = false
     mockApi({
       ...shell,
       'GET /notification-preferences': { body: preference },
       'GET /billing/status': () => {
-        billingAttempts += 1
-        return billingAttempts <= 1
+        return !billingAvailable
           ? { status: 503, body: { detail: { code: 'billing_unavailable' } } }
           : { body: PRO_STATUS }
       },
@@ -130,11 +129,13 @@ describe('notifications exactes connectées', () => {
     expect(within(form).getByRole('switch', { name: /activer les alertes/i })).toBeEnabled()
     const cadenceAlert = within(form).getByRole('alert')
     expect(cadenceAlert).toHaveTextContent('La fréquence n’a pas pu être chargée')
+    const previousBillingReads = callsTo('/billing/status', 'GET').length
+    billingAvailable = true
     await user.click(within(cadenceAlert).getByRole('button', { name: /réessayer la fréquence/i }))
 
     await waitFor(() => expect(within(form).getByLabelText('Fréquence')).toHaveValue('daily'))
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(1)
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(previousBillingReads + 1)
   })
 
   it('fige le brouillon pendant la sauvegarde et verrouille les doubles soumissions', async () => {

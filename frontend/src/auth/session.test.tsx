@@ -76,6 +76,16 @@ function LocaleRaceProbe() {
   )
 }
 
+function RefreshRaceProbe() {
+  const { state, refresh, signOut, adopt } = useSession()
+  return <>
+    <output data-testid="refresh-race-state">{state.status === 'authenticated' ? state.me.account_id : state.status}</output>
+    <button onClick={() => void refresh()}>Relire la session</button>
+    <button onClick={() => void signOut()}>Déconnexion</button>
+    <button onClick={() => adopt({ ...ME, account_id: 'acc_next' })}>Autre compte</button>
+  </>
+}
+
 /** Une panne réseau : `fetch` rejette, ce qu'aucun code de statut ne décrit. */
 function stubNetworkFailure() {
   vi.stubGlobal(
@@ -85,6 +95,18 @@ function stubNetworkFailure() {
 }
 
 describe('reanalyse de session', () => {
+  it.each([['Déconnexion', 'unauthenticated'], ['Autre compte', 'acc_next']])('ignores a previous /me response after %s', async (action, expected) => {
+    let release!: (response: RouteHandler) => void
+    const response = new Promise<RouteHandler>((resolve) => { release = resolve })
+    mockApi({ 'GET /me': () => response, 'POST /auth/logout': { status: 204 } })
+    renderApp(<RefreshRaceProbe />, { session: AUTHENTICATED })
+    await userEvent.click(screen.getByRole('button', { name: 'Relire la session' }))
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(1))
+    await userEvent.click(screen.getByRole('button', { name: action }))
+    await waitFor(() => expect(screen.getByTestId('refresh-race-state')).toHaveTextContent(expected))
+    await act(async () => { release({ body: ME }); await response })
+    expect(screen.getByTestId('refresh-race-state')).toHaveTextContent(expected)
+  })
   it('adopts the authoritative PATCH /me response when locale changes', async () => {
     const user = userEvent.setup()
     mockApi({

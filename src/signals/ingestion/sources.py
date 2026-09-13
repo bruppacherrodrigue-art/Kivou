@@ -64,6 +64,8 @@ class SourceWindow:
 class AcquiredPublication:
     event: Any
     awards: tuple[Any, ...]
+    source_record: dict[str, Any] | None = dataclasses.field(default=None, repr=False)
+    related_source_records: tuple[dict[str, Any], ...] = dataclasses.field(default=(), repr=False)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -226,7 +228,7 @@ class BoampSource:
                     raise BoampMalformedPayload(
                         "BOAMP eForms award notice contains no processable award"
                     )
-                publications.append(AcquiredPublication(event, awards))
+                publications.append(AcquiredPublication(event, awards, source_record=record))
         except Exception as error:
             raise AcquisitionFailure(
                 error,
@@ -532,9 +534,7 @@ class TedSource:
         try:
             for page in range(1, self.max_pages + 1):
                 limit = (
-                    self.page_size
-                    if wanted is None
-                    else min(self.page_size, wanted - len(refs))
+                    self.page_size if wanted is None else min(self.page_size, wanted - len(refs))
                 )
                 rows, total = self.client.search(query, limit=limit, page=page)
                 refs.extend(rows)

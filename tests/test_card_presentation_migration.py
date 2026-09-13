@@ -25,7 +25,7 @@ PREVIOUS = "0027_signal_notes"
 #: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0029,
 #: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0028_card_presentation"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 TABLE_NAME = "card_presentation_artifact"
 ACTIVE_INDEX = "uq_card_presentation_active_publication"
 TENANT_READ_INDEX = "ix_card_presentation_tenant_read"
@@ -207,9 +207,7 @@ def test_declared_and_migrated_table_have_the_exact_closed_shape(tmp_path) -> No
 
     assert set(migrated) == EXPECTED_COLUMNS
     assert {column.name for column in _table().columns} == EXPECTED_COLUMNS
-    assert inspector.get_pk_constraint(TABLE_NAME)["constrained_columns"] == [
-        "artifact_id"
-    ]
+    assert inspector.get_pk_constraint(TABLE_NAME)["constrained_columns"] == ["artifact_id"]
     assert {
         "payload",
         "payload_variant",
@@ -229,9 +227,7 @@ def test_declared_and_migrated_table_have_the_exact_closed_shape(tmp_path) -> No
         constraint.name
         for constraint in _table().constraints
         if isinstance(constraint, sa.CheckConstraint)
-    } == {
-        item["name"] for item in inspector.get_check_constraints(TABLE_NAME)
-    }
+    } == {item["name"] for item in inspector.get_check_constraints(TABLE_NAME)}
 
 
 def test_foreign_keys_versions_checks_and_read_indexes_are_durable(tmp_path) -> None:
@@ -285,12 +281,14 @@ def test_foreign_keys_versions_checks_and_read_indexes_are_durable(tmp_path) -> 
         "language",
     ]
     assert indexes[ACTIVE_INDEX]["unique"] == 1
-    assert "published_at is not null" in str(
-        indexes[ACTIVE_INDEX]["dialect_options"]["sqlite_where"]
-    ).casefold()
-    assert "superseded_at is null" in str(
-        indexes[ACTIVE_INDEX]["dialect_options"]["sqlite_where"]
-    ).casefold()
+    assert (
+        "published_at is not null"
+        in str(indexes[ACTIVE_INDEX]["dialect_options"]["sqlite_where"]).casefold()
+    )
+    assert (
+        "superseded_at is null"
+        in str(indexes[ACTIVE_INDEX]["dialect_options"]["sqlite_where"]).casefold()
+    )
 
 
 @pytest.mark.parametrize(
@@ -414,9 +412,7 @@ def test_published_fallback_persists_qa_reasons_as_a_json_list(
                 _table().c.qa_reasons,
                 _table().c.qa_policy_version,
                 _table().c.generator_version,
-            ).where(
-                _table().c.artifact_id == "a" * 64
-            )
+            ).where(_table().c.artifact_id == "a" * 64)
         ).one()
     assert row.qa_reasons == ["deterministic_factual_fallback"]
     assert row.qa_policy_version == "factual-qa-v1"
@@ -563,9 +559,7 @@ def test_targeted_downgrade_and_reupgrade_leave_0027_intact(tmp_path) -> None:
 
 def test_postgresql_offline_sql_is_additive_partial_and_provider_neutral(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
 
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
 

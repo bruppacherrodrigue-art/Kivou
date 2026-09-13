@@ -139,6 +139,18 @@ def test_all_four_sources_use_the_existing_normalization_paths():
     assert ted.limits == [250]
 
 
+def test_boamp_retains_original_acquired_record_for_versioned_notice_facts():
+    result = BoampSource(BoampStub()).acquire(WINDOW, retrieved_at=NOW, max_records=1)
+    publication = result.publications[0]
+    assert getattr(publication, "source_record", None) == LINKED_BOAMP
+    assert "donnees" not in repr(publication)
+
+
+def test_other_sources_do_not_require_a_boamp_source_record():
+    result = DecpSource(DecpStub()).acquire(WINDOW, retrieved_at=NOW)
+    assert getattr(result.publications[0], "source_record", None) is None
+
+
 def test_ted_window_is_incomplete_when_the_api_total_is_not_fully_paged():
     class TruncatedTedStub(TedStub):
         def search(self, query, *, limit=25, page=1):
@@ -332,9 +344,7 @@ def test_checkpoint_windows_apply_source_specific_overlap():
 
 def test_an_explicit_since_is_never_rewritten_by_checkpoint_policy():
     explicit = dt.date(2026, 8, 17)
-    window = checkpoint_window(
-        "decp", checkpoint_end=None, until=NOW, explicit_since=explicit
-    )
+    window = checkpoint_window("decp", checkpoint_end=None, until=NOW, explicit_since=explicit)
     assert window == SourceWindow(explicit, NOW.date())
 
 

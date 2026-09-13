@@ -1,4 +1,5 @@
-/* Vers quel signal revenir après un paiement confirmé.
+/* Vers quel signal, dossier entreprise ou recherche annuaire revenir après
+ * confirmation de l'accès. Identifiants et filtres publics uniquement.
  *
  * Ce que ce module N'EST PAS
  * ──────────────────────────
@@ -7,8 +8,8 @@
  * pour le plan, `GET /signals/{key}` pour le signal. Si le détail répond
  * `locked` malgré une intention mémorisée, c'est `locked` qui s'affiche.
  *
- * Il ne mémorise qu'une chose : la clé du signal verrouillé qui a déclenché le
- * parcours d'achat, pour pouvoir y ramener le client. Rien du signal lui-même
+ * Il mémorise une destination typée, le compte et une expiration d'une heure.
+ * Les anciennes clés seules restent lisibles par migration. Rien du dossier
  * — ni entreprise gagnante, ni montant, ni besoin, ni preuve, ni source — ne
  * doit transiter par ce stockage : ce sont précisément les données que le
  * paywall protège, et les écrire dans le navigateur d'un compte qui n'y a pas
@@ -18,8 +19,9 @@
  * d'achat n'a aucune raison de survivre à la session qui l'a formée.
  */
 
-/** Assez pour toute clé que l'API produit, assez peu pour qu'aucune valeur
- *  aberrante ne s'installe dans le stockage. */
+import { onSignOutStarted } from '../api/client'
+
+/** Assez pour les clés API, sans permettre un contenu libre démesuré. */
 export const MAXIMUM_SIGNAL_KEY_LENGTH = 128
 
 const STORAGE_KEY = 'kivou.checkout-intent'
@@ -58,7 +60,15 @@ export function saveCheckoutIntent(signalKey: string): void {
  *  le stockage est modifiable par l'utilisateur. */
 export function readCheckoutIntent(): string | null {
   try {
-    return validateSignalKey(sessionStorage.getItem(STORAGE_KEY))
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    // Compatibility for old callers; production return navigation additionally
+    // verifies account + expiry through readCheckoutReturn.
+    if (raw?.startsWith('{')) {
+      const saved = JSON.parse(raw)
+      const target = validateCheckoutReturn(saved.target)
+      return saved.version === 2 && saved.expiresAt > Date.now() && target?.kind === 'signal' ? target.signalKey : null
+    }
+    return validateSignalKey(raw)
   } catch {
     return null
   }
@@ -71,3 +81,82 @@ export function clearCheckoutIntent(): void {
     // Rien à faire : l'intention n'ouvre aucun droit, la perdre est sans effet.
   }
 }
+
+export type CheckoutReturnIntent =
+  | { kind: 'signal'; signalKey: string; artifactId?: string }
+  | { kind: 'company'; companyKey: string }
+  | { kind: 'directory'; search: string }
+
+/** One tab, one account, one hour. Identifiers/filters only, never dossier data. */
+export const CHECKOUT_RETURN_TTL_MS = 60 * 60 * 1000
+
+function pathKey(value: unknown): string | null {
+  const key = validateSignalKey(value)
+  return key === '.' || key === '..' ? null : key
+}
+
+export function validateCheckoutReturn(value: unknown): CheckoutReturnIntent | null {
+  if (!value || typeof value !== 'object') return null
+  const input = value as Record<string, unknown>
+  if (input.kind === 'signal') {
+    const signalKey = pathKey(input.signalKey)
+    const artifactId = input.artifactId === undefined ? undefined : pathKey(input.artifactId)
+    return signalKey && artifactId !== null ? { kind: 'signal', signalKey, ...(artifactId ? { artifactId } : {}) } : null
+  }
+  if (input.kind === 'company') {
+    const companyKey = pathKey(input.companyKey)
+    return companyKey ? { kind: 'company', companyKey } : null
+  }
+  if (input.kind === 'directory' && typeof input.search === 'string') {
+    if (input.search.length > 1024 || (input.search && !input.search.startsWith('?')) || CONTROL_CHARACTERS.test(input.search)) return null
+    const params = new URLSearchParams(input.search)
+    const clean = new URLSearchParams()
+    const q = params.get('q')
+    if (q && q.length <= 120 && !CONTROL_CHARACTERS.test(q)) clean.set('q', q)
+    const department = params.get('department')
+    if (department && /^[A-Z0-9]{2,3}$/.test(department)) clean.set('department', department)
+    const family = params.get('family')
+    if (family && /^[a-z0-9_]{1,120}$/.test(family)) clean.set('family', family)
+    const sort = params.get('sort')
+    if (sort === 'name' || sort === 'city') clean.set('sort', sort)
+    return { kind: 'directory', search: clean.size ? `?${clean}` : '' }
+  }
+  return null
+}
+
+export function saveCheckoutReturn(accountId: string, value: CheckoutReturnIntent): void {
+  const target = validateCheckoutReturn(value)
+  if (!target || !validateSignalKey(accountId)) return
+  const createdAt = Date.now()
+  try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ version: 2, accountId, createdAt, expiresAt: createdAt + CHECKOUT_RETURN_TTL_MS, target })) } catch { /* Optional navigation continuity only. */ }
+}
+
+export function readCheckoutReturn(accountId: string): CheckoutReturnIntent | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    if (!raw.startsWith('{')) {
+      const signalKey = pathKey(raw)
+      if (!signalKey) return null
+      const target: CheckoutReturnIntent = { kind: 'signal', signalKey }
+      // The previous version had no account metadata; bind the one-time
+      // migration now. The destination GET still decides access independently.
+      saveCheckoutReturn(accountId, target)
+      return target
+    }
+    const saved = JSON.parse(raw)
+    if (saved.version !== 2 || saved.accountId !== accountId || !Number.isSafeInteger(saved.createdAt) || !Number.isSafeInteger(saved.expiresAt)
+      || saved.createdAt > Date.now() || saved.expiresAt <= Date.now() || saved.expiresAt - saved.createdAt !== CHECKOUT_RETURN_TTL_MS) return null
+    return validateCheckoutReturn(saved.target)
+  } catch { return null }
+}
+
+export function checkoutReturnPath(intent: CheckoutReturnIntent): string {
+  if (intent.kind === 'company') return `/app/companies/${encodeURIComponent(intent.companyKey)}`
+  if (intent.kind === 'directory') return `/app/companies/directory${intent.search}`
+  const query = intent.artifactId ? `?${new URLSearchParams({ presentation_artifact_id: intent.artifactId })}` : ''
+  return `/app/signals/${encodeURIComponent(intent.signalKey)}${query}`
+}
+
+// Synchronous intent cleanup, even while POST /auth/logout remains pending.
+onSignOutStarted(clearCheckoutIntent)

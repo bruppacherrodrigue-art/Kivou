@@ -73,6 +73,9 @@ jobs:
           --health-retries 12
     env:
       KIVOU_TEST_POSTGRES_DSN: postgresql+psycopg://kivou_test:kivou_test_password@127.0.0.1:5432/kivou_test
+      # V11 populated migration/alias tests create per-test schemas in this
+      # disposable service, never in the deployed application's database.
+      KIVOU_TEST_POSTGRES_URL: postgresql+psycopg://kivou_test:kivou_test_password@127.0.0.1:5432/kivou_test
     steps:
       - uses: actions/checkout@v7
       - name: Installer uv

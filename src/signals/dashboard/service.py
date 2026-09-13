@@ -39,9 +39,15 @@ from signals.card_intelligence.store import published_for_signals
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import list_companies
 from signals.companies.service import company_keys_for_signals
+from signals.engagement.company import contacts_by_company
 from signals.engagement.feedback import feedback_by_signal
-from signals.engagement.schema import company_contact, signal_feedback
-from signals.engagement.status import status_resolver
+from signals.engagement.prospecting_schema import (
+    account_company_alias_override,
+    account_company_membership,
+    company_subject_alias,
+)
+from signals.engagement.schema import signal_feedback, signal_workflow
+from signals.engagement.status import status_resolver, workflow_by_signal
 from signals.feed import policy
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
@@ -104,28 +110,57 @@ def _render_items(
     )
     signal_keys = tuple(item.signal.signal_key for item in items)
     enrichments = winner_enrichments_for_signals(connection, signal_keys=signal_keys)
+    workflows = workflow_by_signal(connection, account_id=account_id)
     return {
-        item.signal.signal_key: render_unlocked_card(
-            item,
-            lang=lang,
-            presentation=presentations.get(item.signal.signal_key),
-            company_key=company_key_of(item),
-            enrichment=enrichments.get(item.signal.signal_key),
-            status=resolve_status(item.signal.signal_key),
-            generated_for_you_enabled=generated_for_you_enabled,
-            commercial_start_delay_months_by_cpv_prefix=(
-                commercial_start_delay_months_by_cpv_prefix
+        item.signal.signal_key: {
+            **render_unlocked_card(
+                item,
+                lang=lang,
+                presentation=presentations.get(item.signal.signal_key),
+                company_key=company_key_of(item),
+                enrichment=enrichments.get(item.signal.signal_key),
+                status=resolve_status(item.signal.signal_key),
+                generated_for_you_enabled=generated_for_you_enabled,
+                commercial_start_delay_months_by_cpv_prefix=(
+                    commercial_start_delay_months_by_cpv_prefix
+                ),
             ),
-        )
+            "status_revision": workflows[item.signal.signal_key].revision
+            if item.signal.signal_key in workflows
+            else 0,
+        }
         for item in items
     }
 
 
 def _week_activity_counts(
-    connection: sa.Connection, *, account_id: str, now: dt.datetime
+    connection: sa.Connection, *, account_id: str, now: dt.datetime, signal_keys=None
 ) -> dict[str, int]:
     """`saved`, `contacted`, `replied` — trois lectures directes sur `[now - 7j, now]`."""
     floor = now - dt.timedelta(days=7)
+    workflow_saved = (
+        sa.select(sa.func.count())
+        .select_from(signal_workflow)
+        .where(
+            signal_workflow.c.account_id == account_id,
+            signal_workflow.c.status == "saved",
+            signal_workflow.c.updated_at >= floor,
+            signal_workflow.c.updated_at <= now,
+        )
+    )
+    if signal_keys is not None:
+        workflow_saved = workflow_saved.where(signal_workflow.c.signal_key.in_(signal_keys))
+    legacy_scope = [
+        ~sa.exists(
+            sa.select(1).where(
+                signal_workflow.c.account_id == signal_feedback.c.account_id,
+                signal_workflow.c.signal_key == signal_feedback.c.signal_key,
+            )
+        ),
+        signal_feedback.c.contacted_at.is_(None),
+    ]
+    if signal_keys is not None:
+        legacy_scope.append(signal_feedback.c.signal_key.in_(signal_keys))
     saved = connection.execute(
         sa.select(sa.func.count())
         .select_from(signal_feedback)
@@ -134,8 +169,9 @@ def _week_activity_counts(
             signal_feedback.c.relevance == "relevant",
             signal_feedback.c.updated_at >= floor,
             signal_feedback.c.updated_at <= now,
+            *legacy_scope,
         )
-    ).scalar_one()
+    ).scalar_one() + connection.scalar(workflow_saved)
     contacted = connection.execute(
         sa.select(sa.func.count())
         .select_from(signal_feedback)
@@ -144,18 +180,51 @@ def _week_activity_counts(
             signal_feedback.c.contacted_at.is_not(None),
             signal_feedback.c.contacted_at >= floor,
             signal_feedback.c.contacted_at <= now,
+            *([signal_feedback.c.signal_key.in_(signal_keys)] if signal_keys is not None else []),
         )
     ).scalar_one()
-    replied = connection.execute(
-        sa.select(sa.func.count())
-        .select_from(company_contact)
-        .where(
-            company_contact.c.account_id == account_id,
-            company_contact.c.status == "replied",
-            company_contact.c.updated_at >= floor,
-            company_contact.c.updated_at <= now,
+    contacts = contacts_by_company(connection, account_id=account_id)
+    overrides = dict(
+        connection.execute(
+            sa.select(
+                account_company_alias_override.c.alias_company_key,
+                account_company_alias_override.c.private_subject_key,
+            ).where(
+                account_company_alias_override.c.account_id == account_id,
+                sa.exists(
+                    sa.select(1).where(
+                        company_subject_alias.c.alias_company_key
+                        == account_company_alias_override.c.alias_company_key,
+                        company_subject_alias.c.resolution_status == "exact",
+                    )
+                ),
+            )
         )
-    ).scalar_one()
+        .tuples()
+        .all()
+    )
+    current_contacts = {
+        key: contact
+        for key, contact in contacts.items()
+        if not (key in overrides and overrides[key] != key and overrides[key] in contacts)
+    }
+    company_keys = None
+    if signal_keys is not None:
+        company_keys = set(company_keys_for_signals(connection, signal_keys=signal_keys).values())
+        company_keys.update(
+            connection.execute(
+                sa.select(account_company_membership.c.company_key).where(
+                    account_company_membership.c.account_id == account_id,
+                )
+            ).scalars()
+        )
+        company_keys.update(overrides[key] for key in tuple(company_keys) if key in overrides)
+    replied = sum(
+        contact.status == "replied"
+        and floor <= contact.updated_at <= now
+        and (company_keys is None or key in company_keys)
+        for key, contact in current_contacts.items()
+    )
     return {"saved": saved, "contacted": contacted, "replied": replied}
 
 
@@ -171,6 +240,7 @@ def _to_follow_up(
     resolve_status: Callable[[str], str],
     generated_for_you_enabled: bool,
     commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None,
+    consultation_scope=None,
 ) -> tuple[list[dict[str, Any]], bool, bool]:
     """Entreprises `contacted` depuis au moins 7 jours, la plus ancienne relance d'abord.
 
@@ -202,6 +272,7 @@ def _to_follow_up(
         limit=feed_query.HISTORY_SCAN_CAP,
         cursor=None,
         now=now,
+        consultation_scope=consultation_scope,
     )
     ordered = sorted(page.rows, key=lambda row: row.contacted_at)
     follow_up_truncated = len(ordered) > _FOLLOW_UP_LIMIT or page.scan_truncated
@@ -236,9 +307,7 @@ def _to_follow_up(
         lang=lang,
         resolve_status=resolve_status,
         generated_for_you_enabled=generated_for_you_enabled,
-        commercial_start_delay_months_by_cpv_prefix=(
-            commercial_start_delay_months_by_cpv_prefix
-        ),
+        commercial_start_delay_months_by_cpv_prefix=(commercial_start_delay_months_by_cpv_prefix),
     )
 
     results: list[dict[str, Any]] = []
@@ -269,6 +338,7 @@ def build_dashboard(
     previous_seen: dt.datetime | None,
     generated_for_you_enabled: bool = True,
     commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] | None = None,
+    consultation_scope=None,
 ) -> dict[str, Any]:
     """L'agrégat entier de `GET /dashboard`, à `as_of`.
 
@@ -284,7 +354,10 @@ def build_dashboard(
     n'est compté que quand `previous_seen is None` (compte jamais vu — tout y
     compte, faute d'une date de visite à comparer).
     """
-    resolve_status = status_resolver(feedback_by_signal(connection, account_id=account_id))
+    resolve_status = status_resolver(
+        feedback_by_signal(connection, account_id=account_id),
+        workflow_by_signal(connection, account_id=account_id),
+    )
 
     # Fix round 1 (C1/I1) — UNE portée, pour `new_since_last_visit`,
     # `strong_matches` ET `top3` : possédé + autorisé par le plan de territoire
@@ -306,6 +379,7 @@ def build_dashboard(
         status_of=resolve_status,
         statuses=frozenset({"new"}),
         admit=access.is_unlocked,
+        consultation_scope=consultation_scope,
     )
 
     if previous_seen is None:
@@ -350,6 +424,7 @@ def build_dashboard(
             and landing_item.model_fit != "none"
             and bool((landing_item.signal.award.title or "").strip())
             and access.is_unlocked(landing_item)
+            and (consultation_scope is None or consultation_scope.matches(landing_item.signal))
         ):
             top3_candidates.append(landing_item)
     top3_items = sorted(top3_candidates, key=_top3_sort_key, reverse=True)[:3]
@@ -364,9 +439,7 @@ def build_dashboard(
         lang=lang,
         resolve_status=resolve_status,
         generated_for_you_enabled=generated_for_you_enabled,
-        commercial_start_delay_months_by_cpv_prefix=(
-            commercial_start_delay_months_by_cpv_prefix
-        ),
+        commercial_start_delay_months_by_cpv_prefix=(commercial_start_delay_months_by_cpv_prefix),
     )
     top3 = [top3_cards[item.signal.signal_key] for item in top3_items]
 
@@ -380,9 +453,8 @@ def build_dashboard(
         lang=lang,
         resolve_status=resolve_status,
         generated_for_you_enabled=generated_for_you_enabled,
-        commercial_start_delay_months_by_cpv_prefix=(
-            commercial_start_delay_months_by_cpv_prefix
-        ),
+        commercial_start_delay_months_by_cpv_prefix=(commercial_start_delay_months_by_cpv_prefix),
+        consultation_scope=consultation_scope,
     )
 
     # Fix round 1 (I2) — `week.new` réutilise `feed_page`, PAS un décompte SQL
@@ -403,10 +475,36 @@ def build_dashboard(
         status_of=resolve_status,
         admit=access.is_unlocked,
         published_since=as_of - dt.timedelta(days=7),
+        consultation_scope=consultation_scope,
     )
+    activity_keys = None
+    activity_truncated = False
+    if consultation_scope is not None and any(
+        (
+            consultation_scope.target_icp_id,
+            consultation_scope.offer_category,
+            consultation_scope.subdivision_code,
+            consultation_scope.min_amount is not None,
+            consultation_scope.amount_currency,
+        )
+    ):
+        activity = feed_query.feed_page(
+            connection,
+            account_id=account_id,
+            as_of=as_of,
+            freshness="all",
+            allowed_target_icp_ids=allowed_target_icp_ids,
+            limit=1,
+            admit=access.is_unlocked,
+            consultation_scope=consultation_scope,
+        )
+        activity_keys = tuple(item.signal.signal_key for item in activity.matched)
+        activity_truncated = activity.scan_truncated
     week = {
         "new": sum(week_page.status_counts.values()),
-        **_week_activity_counts(connection, account_id=account_id, now=now),
+        **_week_activity_counts(
+            connection, account_id=account_id, now=now, signal_keys=activity_keys
+        ),
     }
 
     return {
@@ -422,7 +520,10 @@ def build_dashboard(
         "to_follow_up_truncated": to_follow_up_truncated,
         "week": week,
         "scan_truncated": (
-            scope.scan_truncated or week_page.counts_truncated or follow_up_scan_truncated
+            scope.scan_truncated
+            or week_page.counts_truncated
+            or follow_up_scan_truncated
+            or activity_truncated
         ),
     }
 

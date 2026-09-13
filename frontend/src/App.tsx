@@ -105,6 +105,7 @@ export function AppRoutes() {
               <Route path="signals" element={<SignalsFeed />} />
               <Route path="signals/:signalKey" element={<SignalsFeed />} />
               <Route path="companies" element={<CompaniesPage />} />
+              <Route path="companies/directory" element={<CompaniesPage />} />
               <Route path="companies/:companyKey" element={<CompaniesPage />} />
               <Route path="companies/directory/:directorySiren" element={<DirectoryCompanyPage />} />
               <Route path="icps" element={<Icps />} />

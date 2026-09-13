@@ -9,16 +9,18 @@ visite d'aujourd'hui.
 from __future__ import annotations
 
 import re
+from decimal import Decimal
 from typing import Any
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 
 from signals.accounts import service as accounts
 from signals.api.dependencies import current_session, request_now
 from signals.billing import catalogue, discovery
 from signals.billing import service as billing
 from signals.billing.access import feed_access
+from signals.client_value.targeting import resolve_scope
 from signals.dashboard.service import build_dashboard
 from signals.domain.cpv_labels import cpv_label
 from signals.domain.subdivisions import subdivision_label
@@ -52,7 +54,14 @@ def _sector_label(value: str) -> str:
 
 
 @router.get("/dashboard")
-def get_dashboard(request: Request) -> dict[str, Any]:
+def get_dashboard(
+    request: Request,
+    target_icp_id: str | None = None,
+    offer_category: str | None = None,
+    subdivision_code: str | None = None,
+    amount_currency: str | None = None,
+    min_amount: Decimal | None = Query(default=None, ge=0),  # noqa: B008
+) -> dict[str, Any]:
     now = request_now(request)
     as_of = now.date()
     with request.app.state.engine.begin() as connection:
@@ -74,6 +83,18 @@ def get_dashboard(request: Request) -> dict[str, Any]:
             )
         )
         previous_seen = accounts.read_last_seen_at(connection, account_id=session.account_id)
+        consultation = resolve_scope(
+            connection,
+            account_id=session.account_id,
+            entitlements=access.entitlements,
+            allowed_target_icp_ids=allowed,
+            target_icp_id=target_icp_id,
+            offer_category=offer_category,
+            subdivision_code=subdivision_code,
+            min_amount=min_amount,
+            amount_currency=amount_currency,
+            query_parameters=request.query_params,
+        )
         result = build_dashboard(
             connection,
             account_id=session.account_id,
@@ -87,9 +108,17 @@ def get_dashboard(request: Request) -> dict[str, Any]:
             commercial_start_delay_months_by_cpv_prefix=(
                 request.app.state.config.commercial_start_delay_months_by_cpv_prefix
             ),
+            consultation_scope=consultation,
         )
+        result["scope"] = consultation.payload()
         profiles = accounts.list_target_icps(connection, account_id=session.account_id)
-        active_profile = next((profile for profile in profiles if profile.status == "active"), None)
+        active_profile = next(
+            (profile for profile in profiles if profile.target_icp_id == target_icp_id), None
+        )
+        if active_profile is None:
+            active_profile = next(
+                (profile for profile in profiles if profile.status == "active"), None
+            )
         if active_profile is None and profiles:
             active_profile = max(
                 profiles,
@@ -99,18 +128,24 @@ def get_dashboard(request: Request) -> dict[str, Any]:
         grants = discovery.grants(connection, account_id=session.account_id)
         entitlements = catalogue.entitlements_for(billing_state.plan_code)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        paid_opened = connection.scalar(
-            sa.select(sa.func.count(sa.distinct(product_event.c.signal_key))).where(
-                product_event.c.account_id == session.account_id,
-                product_event.c.event_type == "signal_detail_viewed",
-                product_event.c.occurred_at >= month_start,
+        paid_opened = (
+            connection.scalar(
+                sa.select(sa.func.count(sa.distinct(product_event.c.signal_key))).where(
+                    product_event.c.account_id == session.account_id,
+                    product_event.c.event_type == "signal_detail_viewed",
+                    product_event.c.occurred_at >= month_start,
+                )
             )
-        ) or 0
+            or 0
+        )
         result["profile"] = (
             {
                 "name": active_profile.label,
                 "sector_label": _sector_label(
-                    cpv_label(active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"), lang=lang)
+                    cpv_label(
+                        active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"),
+                        lang=lang,
+                    )
                     if active_profile.customer_input.sector_cpv_prefixes
                     else active_profile.customer_input.offer_summary or active_profile.label
                 ),

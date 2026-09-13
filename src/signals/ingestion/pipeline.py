@@ -9,11 +9,14 @@ import sqlalchemy as sa
 
 from signals.accounts.icp_input import TargetIcpInput, to_target_icp
 from signals.accounts.schema import target_icp
+from signals.client_value.notice_facts import store_notice_facts
+from signals.connectors.boamp.facts import extract_boamp_notice_facts
 from signals.documents.early_capture import resolve_award_documents
 from signals.ingestion.sources import AcquiredPublication
 from signals.matching import MatchingEngine
 from signals.needs import NeedGraphEngine
 from signals.persistence import OpportunityConflict, materialize_signal, persist_award_facts
+from signals.persistence.identity import award_key
 from signals.recency import assess_recency
 from signals.understanding import ContractUnderstandingEngine
 
@@ -187,6 +190,21 @@ class IngestionPipeline:
     ) -> PipelineResult:
         persisted = linked = conflicts = materialized = 0
         persisted_awards: list[tuple[Any, LinkResolution]] = []
+        notice_extraction = None
+        if (
+            publication.source_record is not None
+            and publication.event.provenance.source_system == "boamp"
+        ):
+            try:
+                notice_extraction = extract_boamp_notice_facts(
+                    publication.source_record,
+                    event=publication.event,
+                    awards=publication.awards,
+                    collected_at=publication.event.provenance.retrieved_at or persisted_at,
+                    related_records=publication.related_source_records,
+                )
+            except Exception as error:
+                raise PipelineFailure(error, partial=PipelineResult()) from error
         for award in publication.awards:
             try:
                 with self.engine.begin() as connection:
@@ -209,9 +227,7 @@ class IngestionPipeline:
                             error,
                             extra={
                                 "source_system": publication.event.provenance.source_system,
-                                "source_notice_id": (
-                                    publication.event.provenance.source_notice_id
-                                ),
+                                "source_notice_id": (publication.event.provenance.source_notice_id),
                                 "source_award_id": award.source_award_id,
                             },
                         )
@@ -223,8 +239,18 @@ class IngestionPipeline:
                             persisted_at=persisted_at,
                         )
                     else:
-                        linked += bool(
-                            resolution.linked_to and resolution.strength == "strong"
+                        linked += bool(resolution.linked_to and resolution.strength == "strong")
+                    if notice_extraction is not None:
+                        store_notice_facts(
+                            connection,
+                            dataclasses.replace(
+                                notice_extraction,
+                                awards=tuple(
+                                    facts
+                                    for facts in notice_extraction.awards
+                                    if facts.award_key == award_key(award)
+                                ),
+                            ),
                         )
                     persisted += 1
             except Exception as error:

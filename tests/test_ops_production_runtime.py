@@ -685,6 +685,11 @@ def test_production_backup_runs_local_then_offsite_with_separated_secrets() -> N
 
 def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
     staging = nginx_active_directives(read(NGINX / "kivou-staging.conf"))
+    # The staging-only V11 rollback guard cannot affect production. It is an
+    # operational include, not an exception to the public route inventory.
+    staging_guard = "include /etc/nginx/kivou-prospecting-writes.conf;"
+    assert staging.count(staging_guard) == 1
+    assert staging_guard not in nginx_active_directives(read(PRODUCTION_NGINX))
     expected = tuple(
         directive.replace("STAGING_HOST", "PRODUCTION_HOST")
         .replace(
@@ -696,6 +701,7 @@ def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
             "/etc/nginx/kivou-production-sensitive-link-security-headers.conf",
         )
         for directive in staging
+        if directive != staging_guard
     )
 
     assert nginx_active_directives(read(PRODUCTION_NGINX)) == expected

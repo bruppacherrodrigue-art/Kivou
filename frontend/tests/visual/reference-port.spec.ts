@@ -21,6 +21,13 @@ const VIEWPORTS = [
   { name: 'mobile', width: 390, height: 844 },
 ] as const
 
+// These pre-V11 three-tab captures remain archived on disk. Their active
+// replacement is prospecting-v11.spec.ts; public/auth/target/account baselines
+// still use their existing references and unchanged pixel-difference tolerance.
+const RETIRED_THREE_TAB_GOLDENS = new Set([
+  'dashboard-overview', 'dashboard-overview-discovery', 'dashboard-signals', 'dashboard-companies',
+])
+
 const EXPECTED_GOLDENS = [
   ...LOCAL_REFERENCE_ROUTES.flatMap((route) => (
     [`${route.golden}-desktop.png`, `${route.golden}-mobile.png`]
@@ -34,7 +41,7 @@ test.beforeAll(() => {
   expect(actual).toEqual(EXPECTED_GOLDENS)
 })
 
-test('today goldens cover discovery and three-month Essential accounts', () => {
+test('archived today references cover discovery and three-month Essential accounts', () => {
   const todayScenarios = LOCAL_REFERENCE_ROUTES
     .filter((route) => route.local === '/app/dashboard')
     .map((route) => route.scenario)
@@ -157,208 +164,15 @@ async function resetDocumentScroll(page: Page) {
   })).toBe(0)
 }
 
-/** Le copy interdit de la spec, plus le vocabulaire de l'ancienne page
- *  (addendum Rodrigue). Le tiroir peut être porté hors de `[data-page]` par
- *  le Portal Radix (feuille mobile) : les deux racines sont concaténées. */
-async function assertNoForbiddenSignalsCopy(page: Page) {
-  const combinedText = await page.evaluate(() => {
-    const parts: string[] = []
-    const pageRoot = document.querySelector('[data-page="signals"]')
-    if (pageRoot) parts.push(pageRoot.textContent ?? '')
-    const drawer = document.querySelector('aside')
-    if (drawer) parts.push(drawer.textContent ?? '')
-    return parts.join(' ')
-  })
-  const normalized = combinedText
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replaceAll('profil cible', '')
-  for (const forbidden of [
-    'occasion',
-    'ciblage',
-    'cible',
-    'plausible',
-    'icp',
-    'documente',
-    'deblocage',
-  ]) {
-    expect(normalized).not.toContain(forbidden)
-  }
-}
-
 async function waitForScenario(
   page: Page,
   scenario: VisualScenario,
   golden: (typeof LOCAL_REFERENCE_ROUTES)[number]['golden'],
 ) {
-  // Le golden `dashboard-signals` desktop ouvre un lien profond dont le tiroir
-  // sticky peut retarder la mise en accessibilité du reste de l'arbre le
-  // temps du premier rendu. Un sélecteur de balise, non tributaire de cet
-  // arbre, reste correct dans tous les cas ici (desktop comme mobile, feuille
-  // fermée ou tiroir ouvert).
-  if (golden === 'dashboard-signals') {
-    await page.locator('h1', { hasText: HEADINGS[golden] }).waitFor()
-  } else {
-    await page.getByRole('heading', { level: 1, name: HEADINGS[golden], exact: true }).waitFor()
-  }
+  await page.getByRole('heading', { level: 1, name: HEADINGS[golden], exact: true }).waitFor()
   await page.waitForLoadState('networkidle')
-
   if (golden === 'public-pricing') {
     await expect(page.locator('.pricing-grid .price-card')).toHaveCount(3)
-  }
-  if (golden.startsWith('dashboard-overview')) {
-    await expect(page.locator('[data-page="today"] article')).toHaveCount(3)
-    await expect(page.getByRole('region', { name: 'À relancer' })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Cette semaine' })).toBeVisible()
-    const mobile = (page.viewportSize()?.width ?? 0) < 900
-    if (mobile) {
-      await expect(page.getByRole('button', { name: 'Ouvrir la navigation' })).toBeVisible()
-    } else {
-      await expect(page.locator('.kivou-sidebar [data-sidebar="sidebar"]')).toBeVisible()
-      await expect(page.locator('.sidebar-plan-summary')).toContainText(
-        scenario === 'connected-discovery' ? 'Plan Découverte' : 'signaux ouverts ce mois',
-      )
-      await expect(page.getByRole('link', { name: 'Signaux', exact: true })).toBeVisible()
-    }
-  }
-  if (golden === 'dashboard-signals') {
-    // Nouvelle page : un tableau dense + une ligne de filtres + un tiroir
-    // droit sticky. Le golden desktop ouvre ce tiroir sur le signal de
-    // publication récente (`tm-ausbau-campus-ost`). La fiche de décision
-    // exerce le repli client, le calendrier et le circuit local. Le golden
-    // mobile garde la feuille fermée pour montrer les cartes, sans tableau.
-    const mobile = (page.viewportSize()?.width ?? 0) < 900
-
-    const toolbar = page.locator('[role="toolbar"]')
-    await expect(toolbar).toBeVisible()
-    await expect(toolbar.locator('[data-segment="new"]')).toContainText('Nouveaux')
-    await expect(toolbar.locator('[data-segment="saved"]')).toContainText('Sauvés')
-    await expect(toolbar.locator('[data-segment="contacted"]')).toContainText('Contactés')
-    await expect(toolbar.locator('[data-segment="ignored"]')).toHaveText('Ignorés')
-    await expect(toolbar.locator('[data-segment="all"]')).toHaveText('Tous')
-
-    if (!mobile) {
-      // À 1440 px, les filtres tiennent sur UNE ligne : la hauteur de la
-      // barre d'outils ne doit pas dépasser 1,5 fois celle du groupe de
-      // segments (sans quoi la recherche serait retombée sur une deuxième
-      // ligne).
-      const toolbarBox = await toolbar.boundingBox()
-      const segmentsBox = await toolbar.locator('[role="group"]').boundingBox()
-      expect(toolbarBox).not.toBeNull()
-      expect(segmentsBox).not.toBeNull()
-      expect(toolbarBox!.height).toBeLessThanOrEqual(segmentsBox!.height * 1.5)
-    }
-
-    const table = page.locator('table')
-    if (mobile) {
-      await expect(table).toHaveCount(0)
-    } else {
-      expect(await table.locator('thead th').allTextContents()).toEqual(
-        ['Date', 'Titulaire', 'Objet', 'Montant', 'Lieu'],
-      )
-    }
-    const rows = mobile
-      ? page.locator('article[data-signal-key]')
-      : table.locator('tbody tr')
-    await expect(rows).toHaveCount(3)
-    await expect(rows.filter({ hasText: 'H. Hüther GmbH' })).toHaveCount(1)
-    await expect(rows.filter({ hasText: 'TM Ausbau GmbH' })).toHaveCount(1)
-    if (mobile) {
-      for (const card of await rows.all()) {
-        await expect(card.locator(':scope > *')).toHaveCount(3)
-      }
-    }
-
-    // Le troisième signal de ce golden est verrouillé (offre Discovery) :
-    // sa ligne existe mais ne révèle que le teaser générique du serveur.
-    const lockedRow = rows.filter({ hasText: 'Un marché public vient d’être attribué.' })
-    await expect(lockedRow).toHaveCount(1)
-    await expect(lockedRow).toContainText(
-      mobile
-        ? 'Réservé aux offres Essentiel et Pro'
-        : 'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
-    )
-
-    // Le secteur est hors de cette offre : le filtre est désactivé et expliqué.
-    await expect(page.locator('#signals-sector-restricted')).toHaveText(
-      'Ce filtre n’est pas inclus dans votre accès actuel.',
-    )
-
-    if (!mobile) {
-      const drawer = page.locator('aside[aria-labelledby]')
-      await expect(drawer).toBeVisible()
-      await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
-        'Portes intérieures bois du Campus Ost',
-      )
-      // Cette fixture ne publie pas d’acheteur : la ligne méta l’omet au lieu
-      // d’afficher un libellé vide ou « — ».
-      await expect(drawer.getByText(/acheteur\s*:/i)).toHaveCount(0)
-      await expect(drawer.getByText('Ce que le titulaire va devoir faire', { exact: true })).toHaveCount(0)
-      await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toBeVisible()
-      await expect(drawer).toContainText('Ce marché correspond à votre profil cible dans cette zone et ce secteur.')
-      await expect(drawer.getByText('Calendrier', { exact: true })).toBeVisible()
-      await expect(drawer).toContainText('probable en octobre 2026')
-      await expect(drawer.getByText('Le circuit local', { exact: true })).toBeVisible()
-      await expect(drawer).toContainText('ALYA BATIMENT')
-      await expect(drawer).toContainText('Grenoble')
-      await expect(drawer).not.toContainText('GRENOBLE')
-      await expect(drawer).toContainText("Le contact du titulaire est inclus dans l'offre Essentiel — 49 €/mois")
-      await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()
-    } else {
-      // La feuille reste fermee : seules les cartes occupent l'ecran.
-      await expect(page.locator('[role="dialog"]')).toHaveCount(0)
-    }
-
-    await assertNoForbiddenSignalsCopy(page)
-
-    // Aucune des deux largeurs ne doit pousser la page hors du viewport :
-    // les cartes mobiles ne doivent pas etre coupees.
-    expect(await page.evaluate(() => (
-      document.documentElement.scrollWidth - document.documentElement.clientWidth
-    ))).toBeLessThanOrEqual(1)
-  }
-  if (golden === 'dashboard-companies') {
-    const rows = page.locator('main table').first().locator('tbody > tr')
-    const detailPanel = page.getByRole('complementary')
-    const selectedItem = VISUAL_UNLOCKED_ITEMS.find(
-      (item) => item.signal_id === 'h-huether-munich',
-    )!
-    await expect(rows).toHaveCount(6)
-    await expect(rows.filter({ hasText: selectedItem.company.name })).toHaveAttribute(
-      'aria-current',
-      'true',
-    )
-    await expect(detailPanel).toBeVisible()
-    await expect(detailPanel.getByRole('heading', { level: 2 })).toHaveText(selectedItem.company.name!)
-    const sectionHeadings = detailPanel.getByRole('heading', { level: 3 })
-    await expect(sectionHeadings).toHaveText([
-      'Contact',
-      'Identité',
-      'Marchés publics',
-      'Vous et cette entreprise',
-    ])
-    await expect(detailPanel.getByRole('button', { name: 'Trouver le décideur' })).toBeVisible()
-    await expect(detailPanel.getByRole('textbox', { name: 'Note sur l’entreprise' })).toBeVisible()
-    await expect(detailPanel.getByRole('heading', { name: 'Ses marchés' })).toHaveCount(0)
-    const companyTable = page.locator('main table').first()
-    if ((page.viewportSize()?.width ?? 0) < 900) {
-      await expect(companyTable).toBeHidden()
-    } else {
-      await expect(companyTable.locator('thead th')).toHaveCount(4)
-      const tableBox = await companyTable.boundingBox()
-      const panelBox = await detailPanel.boundingBox()
-      expect(tableBox).not.toBeNull()
-      expect(panelBox).not.toBeNull()
-      expect(panelBox!.x).toBeGreaterThanOrEqual(tableBox!.x + tableBox!.width)
-      // À 1440 px, la barre latérale laisse moins de 1280 px au contenu :
-      // la règle responsive partage donc la liste et le panneau à 50/50.
-      expect(panelBox!.width).toBeLessThanOrEqual(600)
-      expect(Math.abs(panelBox!.width - tableBox!.width)).toBeLessThanOrEqual(2)
-    }
-    expect(await page.evaluate(() => (
-      document.documentElement.scrollWidth - document.documentElement.clientWidth
-    ))).toBeLessThanOrEqual(1)
   }
   if (golden === 'dashboard-targeting') {
     await expect(page.locator('.target-definition-card[role="status"]')).toHaveCount(0)
@@ -369,7 +183,6 @@ async function waitForScenario(
     await expect(page.locator('.settings-main [data-ui="screen-segments"]')).toHaveCount(1)
     await expect(page.locator('.settings-plan-card [data-ui="summary-row"]')).toHaveCount(1)
   }
-
   if (scenario === 'public-pricing') {
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
   }
@@ -384,20 +197,13 @@ async function preparePage(
   await waitForScenario(page, scenario, golden)
 }
 
-for (const route of LOCAL_REFERENCE_ROUTES) {
+for (const route of LOCAL_REFERENCE_ROUTES.filter((route) => !RETIRED_THREE_TAB_GOLDENS.has(route.golden))) {
   for (const viewport of VIEWPORTS) {
     test(route.golden + ' ' + viewport.name, async ({ page }) => {
       const failures = observeBrowserFailures(page, route.scenario)
       const calls = await installReferenceApi(page, route.scenario)
       await page.setViewportSize(viewport)
-      // Le golden `dashboard-signals` mobile garde la feuille FERMÉE (route
-      // sans clé de signal) : ouverte, elle masquerait les cartes en
-      // plein écran, qui est précisément ce que ce gabarit doit montrer. Le
-      // golden desktop, lui, conserve le lien profond et son tiroir ouvert.
-      const local = route.golden === 'dashboard-signals' && viewport.name === 'mobile'
-        ? '/app/signals'
-        : route.local
-      await page.goto(local)
+      await page.goto(route.local)
       await preparePage(page, route.scenario, route.golden)
       if (route.golden.startsWith('dashboard-')) {
         await normalizeConnectedText(page)
@@ -420,45 +226,6 @@ for (const route of LOCAL_REFERENCE_ROUTES) {
   }
 }
 
-test('dashboard-signals drawer navigation', async ({ page }) => {
-  const failures = observeBrowserFailures(page, 'connected-pro')
-  const calls = await installReferenceApi(page, 'connected-pro')
-
-  await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/app/signals')
-  await installDeterministicFonts(page)
-  await page.getByRole('heading', { level: 1, name: 'Signaux' }).waitFor()
-  await page.waitForLoadState('networkidle')
-
-  const rows = page.locator('table tbody tr')
-  await expect(rows).toHaveCount(3)
-
-  // Un clic sur une ligne ouvre le tiroir droit sur ce signal : l'URL porte
-  // sa clé, et le `h2` du tiroir affiche son titre.
-  await rows.first().locator('td').first().click()
-  await expect(page).toHaveURL(/\/app\/signals\/h-huether-munich$/)
-  const drawer = page.locator('aside[aria-labelledby]')
-  await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
-    'Menuiseries intérieures et mobilier à Munich',
-  )
-
-  // Échap referme le tiroir de bureau et revient à la liste seule.
-  await page.keyboard.press('Escape')
-  await expect(page).toHaveURL(/\/app\/signals$/)
-  await expect(page.locator('aside').getByText('Sélectionnez un signal')).toBeVisible()
-
-  // Un lien profond ouvre directement le tiroir sur le signal demandé.
-  await page.goto('/app/signals/tm-ausbau-campus-ost')
-  await page.getByRole('heading', { level: 1, name: 'Signaux' }).waitFor()
-  await page.waitForLoadState('networkidle')
-  await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
-    'Portes intérieures bois du Campus Ost',
-  )
-
-  expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
-  expect(failures).toEqual([])
-})
-
 test('public menu open mobile', async ({ page }) => {
   const failures = observeBrowserFailures(page, 'public-pricing')
   const calls = await installReferenceApi(page, 'public-pricing')
@@ -473,33 +240,6 @@ test('public menu open mobile', async ({ page }) => {
     maxDiffPixelRatio: 0.001,
   })
   expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
-  expect(failures).toEqual([])
-})
-
-test('dashboard sidebar open mobile', async ({ page }) => {
-  const failures = observeBrowserFailures(page, 'connected-pro')
-  const calls = await installReferenceApi(page, 'connected-pro')
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/app/dashboard')
-  await preparePage(page, 'connected-pro', 'dashboard-overview')
-  await page.getByRole('button', { name: 'Ouvrir la navigation' }).click()
-  await expect(page.getByRole('dialog', { name: 'Navigation' })).toBeVisible()
-  await normalizeConnectedText(page)
-  const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
-  expect(actual).toMatchSnapshot('dashboard-sidebar-open-mobile.png', {
-    maxDiffPixelRatio: 0.001,
-  })
-  expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
-  expect(failures).toEqual([])
-})
-
-test('dashboard Aujourd’hui tient sans défilement à 1280 × 800', async ({ page }) => {
-  const failures = observeBrowserFailures(page, 'connected-pro')
-  await installReferenceApi(page, 'connected-pro')
-  await page.setViewportSize({ width: 1280, height: 800 })
-  await page.goto('/app/dashboard')
-  await preparePage(page, 'connected-pro', 'dashboard-overview')
-  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(800)
   expect(failures).toEqual([])
 })
 

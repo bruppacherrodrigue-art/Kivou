@@ -112,7 +112,7 @@ describe('parcours d’entrée de la référence connectée', () => {
     await user.click(screen.getByRole('button', { name: /se connecter/i }))
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Vos premiers signaux' }),
+      await screen.findByRole('heading', { level: 1, name: 'Aujourd’hui' }),
     ).toBeVisible()
   })
 

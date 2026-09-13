@@ -9,7 +9,7 @@ from signals.persistence.schema import METADATA, acquisition_event, acquisition_
 
 PREVIOUS_REVISION = "0006_award_text_capacity"
 ACQUISITION_REVISION = "0007_acquisition_event_store"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def test_upgrade_from_0006_adds_only_acquisition_memory_tables(tmp_path) -> None:
@@ -100,9 +100,7 @@ def test_postgresql_offline_migration_creates_only_the_two_acquisition_tables(
     capsys,
 ) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
 
     command.upgrade(config, f"{PREVIOUS_REVISION}:{ACQUISITION_REVISION}", sql=True)
 

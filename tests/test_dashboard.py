@@ -180,9 +180,7 @@ def test_zone_labels_deduplicate_legacy_country_composites() -> None:
     assert _sector_label("Matériaux · FR") == "Matériaux"
 
 
-def test_dashboard_falls_back_to_most_recent_profile_when_none_is_active(
-    client, engine, clock
-):
+def test_dashboard_falls_back_to_most_recent_profile_when_none_is_active(client, engine, clock):
     client.post(
         "/target-icps",
         json={"label": "Ancien", "customer_input": COMPLETE_ICP_INPUT},
@@ -283,7 +281,8 @@ def test_model_fit_none_downgrades_a_strong_signal_and_counts_the_disagreement(c
     assert keys[0] not in {item["signal_id"] for item in dashboard["top3"]}
 
     signal = next(
-        item for item in client.get("/signals?freshness=all").json()["items"]
+        item
+        for item in client.get("/signals?freshness=all").json()["items"]
         if item["signal_id"] == keys[0]
     )
     assert signal["analysis"]["fit"]["band"] == "weak"
@@ -301,9 +300,7 @@ def test_to_follow_up_lists_companies_contacted_a_week_or_more_ago(client, icp, 
     with engine.begin() as connection:
         key_a = materialize_simap(connection, "29997-02", target_icp_id=icp).signal_key
         key_b = materialize_simap(connection, "33112-02", target_icp_id=icp).signal_key
-        run_winner_enrichment_batch(
-            connection, now=NOW, worker_ref="dashboard-follow-up", limit=10
-        )
+        run_winner_enrichment_batch(connection, now=NOW, worker_ref="dashboard-follow-up", limit=10)
 
     company_a = _company_key_for(client, key_a)
     company_b = _company_key_for(client, key_b)
@@ -344,9 +341,8 @@ def test_week_counts_relevant_contacted_and_replied_within_the_window(client, en
     relevant = client.put(f"/signals/{key_a}/feedback", json={"relevance": "relevant"})
     assert relevant.status_code == 200
 
-    # §6 — contacter un signal sans avis préalable enregistre AUSSI `relevant`
-    # (`engagement/feedback.py::mark_contacted`) : ce signal compte donc à la
-    # fois dans `saved` et dans `contacted`.
+    # The legacy contact keeps its historical relevance, but the reversible
+    # workflow is contacted: it is no longer also counted as currently saved.
     contacted = client.post(f"/signals/{key_b}/contacted")
     assert contacted.status_code == 200
 
@@ -359,7 +355,7 @@ def test_week_counts_relevant_contacted_and_replied_within_the_window(client, en
     # Les trois avis historiques sont publiés dans la fenêtre hebdomadaire.
     assert payload["week"] == {
         "new": len(new_keys) + 3,
-        "saved": 2,
+        "saved": 1,
         "contacted": 1,
         "replied": 1,
     }
@@ -390,9 +386,7 @@ def test_fresh_account_without_any_signal_sees_an_empty_dashboard(app):
     assert payload["scan_truncated"] is False
 
 
-def test_new_since_last_visit_includes_a_signal_published_the_same_day_as_the_visit(
-    client, engine
-):
+def test_new_since_last_visit_includes_a_signal_published_the_same_day_as_the_visit(client, engine):
     """Fix round 1 (I4) — la borne est INCLUSIVE : `published_on >= previous_seen.date()`.
 
     Une visite le jour J et une parution le MÊME jour J ne doivent pas se
@@ -604,8 +598,24 @@ def test_to_follow_up_keeps_the_ten_oldest_and_announces_the_rest(tmp_path):
     payload = _dashboard(client)
 
     assert payload["to_follow_up_truncated"] is True
+    from signals.engagement.prospecting_schema import account_company_alias_override
+
+    with engine.connect() as connection:
+        resolved_keys = dict(
+            connection.execute(
+                sa.select(
+                    account_company_alias_override.c.alias_company_key,
+                    account_company_alias_override.c.private_subject_key,
+                ).where(
+                    account_company_alias_override.c.account_id
+                    == client.get("/me").json()["account_id"]
+                )
+            )
+            .tuples()
+            .all()
+        )
     assert [item["company_key"] for item in payload["to_follow_up"]] == (
-        company_keys[:_FOLLOW_UP_LIMIT]
+        [resolved_keys.get(key, key) for key in company_keys[:_FOLLOW_UP_LIMIT]]
     )
     for item in payload["to_follow_up"]:
         assert item["days_since_contact"] == 8

@@ -12,7 +12,7 @@ from signals.persistence.schema import acquisition_response_evaluation
 CAMPAIGN_FACTORY = "0016_campaign_factory"
 PREVIOUS = "0017_target_icp_revision"
 HEAD = "0018_response_intelligence"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:
@@ -23,9 +23,7 @@ def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> No
 
     command.upgrade(config, HEAD)
 
-    assert set(sa.inspect(engine).get_table_names()) - before == {
-        "acquisition_response_evaluation"
-    }
+    assert set(sa.inspect(engine).get_table_names()) - before == {"acquisition_response_evaluation"}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
@@ -110,18 +108,20 @@ def test_response_database_schema_has_constraints_and_core_parity(tmp_path) -> N
     command.upgrade(alembic_config(engine), HEAD)
     inspector = sa.inspect(engine)
 
-    assert {item["name"] for item in inspector.get_unique_constraints(
-        acquisition_response_evaluation.name
-    )} >= {
+    assert {
+        item["name"]
+        for item in inspector.get_unique_constraints(acquisition_response_evaluation.name)
+    } >= {
         "uq_response_event_classifier",
         "uq_response_ref_classifier",
     }
-    assert {column["name"] for column in inspector.get_columns(
-        acquisition_response_evaluation.name
-    )} == {column.name for column in acquisition_response_evaluation.columns}
-    checks = {item["name"] for item in inspector.get_check_constraints(
-        acquisition_response_evaluation.name
-    )}
+    assert {
+        column["name"] for column in inspector.get_columns(acquisition_response_evaluation.name)
+    } == {column.name for column in acquisition_response_evaluation.columns}
+    checks = {
+        item["name"]
+        for item in inspector.get_check_constraints(acquisition_response_evaluation.name)
+    }
     assert {
         "ck_response_processing_state",
         "ck_response_classification",

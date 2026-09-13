@@ -34,6 +34,7 @@ from signals.engagement.status import UNIFIED_STATUSES
 from signals.feed import policy
 from signals.feed.history import (
     HistoryDateKind,
+    InvalidHistoryCursor,
     cursor_for_signal,
     decode_history_cursor,
     effective_history_date,
@@ -376,8 +377,7 @@ def _ownership_scoped(account_id: str) -> sa.Select:
         .where(
             for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
             for_you_sentence.c.target_icp_id == target_icp.c.target_icp_id,
-            for_you_sentence.c.signal_fingerprint
-            == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
             for_you_sentence.c.policy_version == POLICY_VERSION,
         )
         .order_by(for_you_sentence.c.created_at.desc())
@@ -390,8 +390,7 @@ def _ownership_scoped(account_id: str) -> sa.Select:
         .where(
             for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
             for_you_sentence.c.target_icp_id == target_icp.c.target_icp_id,
-            for_you_sentence.c.signal_fingerprint
-            == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
             for_you_sentence.c.policy_version == POLICY_VERSION,
         )
         .order_by(for_you_sentence.c.created_at.desc())
@@ -403,9 +402,8 @@ def _ownership_scoped(account_id: str) -> sa.Select:
         SIGNAL_SELECT.add_columns(
             persisted_for_you.label("for_you_sentence"),
             persisted_model_fit.label("model_fit"),
-        ).join(
-            target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id
         )
+        .join(target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id)
         .where(
             target_icp.c.account_id == account_id,
             target_icp.c.status == FEEDING_ICP_STATUS,
@@ -502,6 +500,13 @@ def _reassess(row: sa.Row, owned: dict[str, OwnedTargetIcp], account_id: str, as
     )
 
 
+def amount_sort_key(signal: StoredSignal):
+    """Never compare or sum values denominated in different currencies."""
+    if signal.award.amount is None or signal.award.currency is None:
+        return (1, "", Decimal(0), signal.signal_key)
+    return (0, signal.award.currency, -signal.award.amount, signal.signal_key)
+
+
 def feed_page(
     connection: sa.Connection,
     *,
@@ -559,6 +564,8 @@ def feed_page(
     #: que le feed (propriété, identité affichable, droit du plan). `None` =
     #: aucune borne. Un signal sans `published_on` n'y répond jamais.
     published_since: dt.date | None = None,
+    consultation_scope=None,
+    sort: str = "recent",
 ) -> FeedPage:
     """Une page du feed de CE compte, à CETTE date.
 
@@ -674,9 +681,12 @@ def feed_page(
             # consommerait quand même la place d'un candidat qui, lui, passe.
             place = item.signal.award.place_of_performance or {}
             if (
-                subdivision_code is not None
-                and location_subdivision(place) != subdivision_code
-            ) or (needle is not None and not _matches_text_query(item.signal, display, needle)):
+                (consultation_scope is not None and not consultation_scope.matches(item.signal))
+                or (
+                    subdivision_code is not None and location_subdivision(place) != subdivision_code
+                )
+                or (needle is not None and not _matches_text_query(item.signal, display, needle))
+            ):
                 excluded_by_filters += 1
                 continue
             if len(displayable) == scan_cap:
@@ -731,7 +741,11 @@ def feed_page(
                 excluded_by_status += 1
         selected = admitted_by_status
 
-    selected.sort(key=lambda item: item.sort_key)
+    selected.sort(
+        key=(lambda item: amount_sort_key(item.signal))
+        if sort == "amount"
+        else lambda item: item.sort_key
+    )
     page = selected[offset : offset + limit]
     return FeedPage(
         items=tuple(page),
@@ -762,6 +776,23 @@ def _history_date_expression() -> sa.ColumnElement[dt.date]:
 
 
 def _history_after(cursor) -> sa.ColumnElement[bool]:
+    if cursor.sort == "amount":
+        unknown = sa.or_(contract_award.c.amount.is_(None), contract_award.c.currency.is_(None))
+        if cursor.amount is None or cursor.currency is None:
+            return sa.and_(unknown, materialized_signal.c.signal_key > cursor.signal_key)
+        return sa.or_(
+            unknown,
+            contract_award.c.currency > cursor.currency,
+            sa.and_(
+                contract_award.c.currency == cursor.currency,
+                contract_award.c.amount < cursor.amount,
+            ),
+            sa.and_(
+                contract_award.c.currency == cursor.currency,
+                contract_award.c.amount == cursor.amount,
+                materialized_signal.c.signal_key > cursor.signal_key,
+            ),
+        )
     effective = _history_date_expression()
     if cursor.date is None:
         return sa.and_(
@@ -811,6 +842,9 @@ def history_page(
     status_of: Callable[[str], str] | None = None,
     #: `None` = pas de filtre de statut ; sinon les statuts admis dans la page.
     statuses: frozenset[str] | None = None,
+    consultation_scope=None,
+    sort: str = "recent",
+    context_tag: str | None = None,
 ) -> HistoryFeedPage:
     """Walk the complete owned history by factual date and a stable key.
 
@@ -832,6 +866,11 @@ def history_page(
         raise ValueError("history scan cap must be positive")
     limit = max(1, min(limit, policy.MAXIMUM_PAGE_SIZE))
     decoded = None if cursor is None else decode_history_cursor(cursor)
+    if decoded is not None and (
+        (decoded.context_tag is not None and decoded.context_tag != context_tag)
+        or decoded.sort != sort
+    ):
+        raise InvalidHistoryCursor("cursor belongs to another consultation")
     owned = owned_target_icps(connection, account_id=account_id)
     if target_icp_id is not None and target_icp_id not in owned:
         raise ForeignTargetIcp(target_icp_id)
@@ -847,12 +886,18 @@ def history_page(
         .order_by(None)
         .order_by(null_rank, effective.desc(), materialized_signal.c.signal_key)
     )
+    if sort == "amount":
+        unknown = sa.or_(contract_award.c.amount.is_(None), contract_award.c.currency.is_(None))
+        base = base.order_by(None).order_by(
+            sa.case((unknown, 1), else_=0),
+            sa.case((unknown, ""), else_=contract_award.c.currency),
+            sa.case((unknown, None), else_=contract_award.c.amount).desc(),
+            materialized_signal.c.signal_key,
+        )
     if target_icp_id is not None:
         base = base.where(materialized_signal.c.target_icp_id == target_icp_id)
     if allowed_target_icp_ids is not None:
-        base = base.where(
-            materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids))
-        )
+        base = base.where(materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)))
     if country is not None:
         base = base.where(source_event.c.source_country == country)
     if winner is not None:
@@ -910,7 +955,7 @@ def history_page(
         signals = [signal_from_row(row) for row in rows]
         identities = resolve_display_identity(connection, signals)
         for row, signal in zip(rows, signals, strict=True):
-            current_position = cursor_for_signal(signal)
+            current_position = cursor_for_signal(signal, context_tag=context_tag, sort=sort)
             position = current_position
             scanned += 1
             display = identities.get(signal.signal_key)
@@ -931,11 +976,8 @@ def history_page(
                 model_fit=row.model_fit,
             )
             place = signal.award.place_of_performance or {}
-            if (
-                (
-                    subdivision_code is not None
-                    and location_subdivision(place) != subdivision_code
-                )
+            if (consultation_scope is not None and not consultation_scope.matches(signal)) or (
+                (subdivision_code is not None and location_subdivision(place) != subdivision_code)
                 or (status is not None and item.status != status)
                 or (
                     primary_event is not None

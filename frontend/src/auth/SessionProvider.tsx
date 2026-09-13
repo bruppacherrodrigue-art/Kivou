@@ -78,6 +78,7 @@ export function SessionProvider({
    * chargement que rien ne viendrait plus terminer.
    */
   const refresh = useCallback(async () => {
+    const epoch = sessionEpoch.current
     let me: Me
     try {
       me = await auth.me()
@@ -93,7 +94,9 @@ export function SessionProvider({
       if (!rejected && !(error instanceof ApiError)) throw error
       return
     }
-    if (mounted.current) setState({ status: 'authenticated', me })
+    // A read started before logout, revocation or adopting another account is
+    // no longer authoritative for the current session, even if it returns 200.
+    if (mounted.current && sessionEpoch.current === epoch) setState({ status: 'authenticated', me })
   }, [])
 
   const adopt = useCallback((me: Me) => {

@@ -1,178 +1,71 @@
-import { useState } from 'react'
-import { Link, Navigate, useOutletContext } from 'react-router-dom'
-import { companies, feedback, signals as signalApi } from '../api/endpoints'
-import type { CompanyProfile, UnlockedFeedItem } from '../api/types'
+import { ArrowRight, CalendarClock, MessageSquare, Sparkles } from 'lucide-react'
+import { Link, Navigate, useLocation, useNavigate, useOutletContext } from 'react-router-dom'
+import { companies } from '../api/endpoints'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
 import type { DashboardOutletContext } from '../layouts/AppShell'
-import { MatchDots } from '../signals/components/MatchDots'
-import { SignalDrawer } from '../signals/components/SignalDrawer'
-import { MISSING, placeLabel, signalObject } from '../signals/components/SignalRow'
-import { monthLabel } from '../signals/valueFormat'
-import styles from './Dashboard.module.css'
-import { ScreenHeader, SummaryRow } from '../components/ScreenChrome'
-import { sharedZoneLabels } from '../presentation/dashboard/zoneLabels'
+import { useProspecting, useProspectingResource } from '../prospecting/ProspectingProvider'
+import { SignalListRow } from '../prospecting/components/SignalListRow'
+import { SignalDetail } from '../prospecting/components/SignalDetail'
+import { TargetBar } from '../prospecting/components/TargetBar'
+import { initials } from '../prospecting/adapters'
+import styles from '../prospecting/Prospecting.module.css'
 
 export function Dashboard() {
   const me = useCurrentUser()
-  if (me.onboarding_status !== 'ready_for_signals') return <Navigate to="/app/confirm-profile" replace />
+  if (me.onboarding_status !== 'ready_for_signals' && !me.provisional_profile) return <Navigate to="/app/confirm-profile" replace />
   return <TodayDashboard />
 }
 
 function TodayDashboard() {
-  const { locale, amount, shortDate } = useI18n()
+  const p = useProspecting()
+  const { locale, number, date } = useI18n()
+  const fr = locale === 'fr'
   const resource = useOutletContext<DashboardOutletContext>()
-  const [selected, setSelected] = useState<UnlockedFeedItem | null>(null)
-  const [drawerLoading, setDrawerLoading] = useState(false)
-  const [drawerError, setDrawerError] = useState<unknown | null>(null)
-  const [holderProfile, setHolderProfile] = useState<CompanyProfile | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
-  const [actionError, setActionError] = useState(false)
-
-  const ignore = async (item: UnlockedFeedItem) => {
-    setBusy(item.signal_id)
-    setActionError(false)
-    try {
-      await feedback.write(item.signal_id, { relevance: 'not_relevant' })
-      setSelected((current) => current?.signal_id === item.signal_id ? null : current)
-      await resource.retry()
-    } catch {
-      setActionError(true)
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const drawerAction = async (status: 'saved' | 'ignored' | 'contacted') => {
-    if (!selected) return
-    setBusy(selected.signal_id)
-    try {
-      if (status === 'contacted') await feedback.markContacted(selected.signal_id)
-      else await feedback.write(selected.signal_id, {
-        relevance: status === 'saved' ? 'relevant' : 'not_relevant',
-        ...(status === 'ignored' ? { reason: 'other' as const } : {}),
-      })
-      setSelected({ ...selected, status })
-      await resource.retry()
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  const openSignal = async (item: UnlockedFeedItem) => {
-    setSelected(item)
-    setHolderProfile(null)
-    setDrawerLoading(true)
-    setDrawerError(null)
-    try {
-      const detail = await signalApi.detail(item.signal_id)
-      if (!detail.locked) {
-        setSelected(detail)
-        if (detail.company_key) {
-          setHolderProfile(await companies.get(detail.company_key).catch(() => null))
-        }
-      }
-    } catch (error) {
-      setDrawerError(error)
-    } finally {
-      setDrawerLoading(false)
-    }
-  }
-
-  if (resource.loading && !resource.data) return <main className={styles.page}><p role="status">Chargement…</p></main>
-  if (resource.error || !resource.data) return <main className={styles.page}><p role="alert">Le résumé n’a pas pu être chargé.</p><button type="button" onClick={() => void resource.retry()}>Réessayer</button></main>
-
+  const location = useLocation()
+  const navigate = useNavigate()
+  const selected = new URLSearchParams(location.search).get('signal')
+  const replies = useProspectingResource('today-replies', (signal) => companies.list({ ...p.query, contact_status: ['replied'], sort: 'recent', limit: 3 }, { signal }))
   const data = resource.data
-  const title = data.last_seen_at
-    ? data.new_since_last_visit === 0
-      ? `Rien de nouveau depuis ${weekday(data.last_seen_at, locale)} · ${data.week.new} signaux cette semaine`
-      : `${data.new_since_last_visit} nouveaux marchés depuis ${weekday(data.last_seen_at, locale)}`
-    : 'Vos premiers signaux'
-  const zoneLabels = sharedZoneLabels(data.profile)
-  const matchContext = [data.profile?.sector_label, zoneLabels.join(', ')].filter(Boolean).join(' · ')
-
-  return (
-    <main className={styles.page} data-page="today">
-      <ScreenHeader title={title} description={data.strong_matches > 0
-        ? `${data.strong_matches} correspondent fortement à votre profil${matchContext ? ` ${matchContext}` : ''}` : undefined} />
-
-      {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}
-      {data.top3.length ? (
-        <section className={styles.cards} aria-label="Signaux prioritaires">
-          {data.top3.map((item) => (
-            <article className={styles.card} key={item.signal_id}>
-              <div className={styles.cardHead}>{item.company.name ? <strong>{item.company.name}</strong> : null}<MatchDots item={item} /></div>
-              {signalObject(item) ? <p className={styles.object} title={signalObject(item) ?? undefined}>{signalObject(item)}</p> : null}
-              {(() => {
-                const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
-                const place = placeLabel(item.contract.location, locale)
-                const eventDate = shortDate(item.factual_display.date.value)
-                const context = [place === MISSING ? null : place, eventDate].filter(Boolean).join(' · ')
-                return money || context ? <div className={styles.meta}>{money ? <strong>{money}</strong> : null}{context ? <span>{context}</span> : null}</div> : null
-              })()}
-              {item.commercial_calendar && monthLabel(item.commercial_calendar.start_month, locale) ? (
-                <p className={styles.calendar}>
-                  Démarrage probable {monthLabel(item.commercial_calendar.start_month, locale)}
-                </p>
-              ) : null}
-              {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0] ? <p className={styles.reason}><b>Pourquoi :</b> {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0]}</p> : null}
-              <div className={styles.actions}>
-                <button type="button" className={styles.primary} onClick={() => void openSignal(item)}>Ouvrir</button>
-                <button type="button" disabled={busy === item.signal_id} onClick={() => void ignore(item)}>Ignorer</button>
-              </div>
-            </article>
-          ))}
-        </section>
-      ) : (
-        <section className={styles.empty} aria-label="Signaux prioritaires">
-          <p>Aucun nouveau signal prioritaire pour le moment.</p>
-          <Link to="/app/signals">Voir tous les signaux</Link>
-        </section>
-      )}
-
-      <div className={styles.lower}>
-        <section className={styles.list} aria-label="À relancer">
-          <h2>À relancer</h2>
-          {data.to_follow_up.length ? data.to_follow_up.map((item) => (
-            <div className={styles.followUp} key={item.company_key}>
-              <span><b>{item.name}</b>{signalObject(item.last_signal) ? <small>{signalObject(item.last_signal)}</small> : null}</span>
-              <span>contactée il y a {item.days_since_contact} j</span>
-              <Link to={`/app/companies/${item.company_key}`}>Ouvrir</Link>
-            </div>
-          )) : <p className={styles.muted}>Aucune entreprise à relancer.</p>}
-        </section>
-        <section className={styles.list} aria-label="Cette semaine">
-          <h2>Cette semaine</h2>
-          <SummaryRow label="Nouveaux marchés" value={data.week.new} />
-          <SummaryRow label="Sauvés" value={data.week.saved} />
-          <SummaryRow label="Entreprises contactées" value={data.week.contacted} />
-          <SummaryRow label="Ont répondu" value={data.week.replied} />
+  const link = (path: string, additions: Record<string, string> = {}) => {
+    const params = new URLSearchParams(location.search)
+    params.delete('signal'); params.delete('presentation_artifact_id'); params.delete('cursor')
+    if (path.startsWith('/app/companies')) {
+      for (const key of ['view', 'department', 'family', 'q', 'sort', 'contact_status', 'status']) params.delete(key)
+    }
+    for (const [key, value] of Object.entries(additions)) params.set(key, value)
+    return `${path}${params.size ? `?${params}` : ''}`
+  }
+  const openSignal = (key: string, artifact?: string) => navigate(link(location.pathname, { signal: key, ...(artifact ? { presentation_artifact_id: artifact } : {}) }))
+  return <main className={styles.workspace} data-page="today">
+    <header className={styles.heading}><div><p className={styles.eyebrow}>{data ? date(data.as_of) : (fr ? 'Votre journée commerciale' : 'Your sales day')}</p><h1>{fr ? 'Aujourd’hui' : 'Today'}</h1><p>{data?.new_since_last_visit ? `${number(data.new_since_last_visit)} ${fr ? 'nouveaux marchés depuis votre dernière visite.' : 'new contracts since your last visit.'}` : (fr ? 'Vos meilleures opportunités et les échanges à poursuivre.' : 'Your best opportunities and the conversations to continue.')}</p></div></header>
+    <TargetBar />
+    {resource.loading && <section className={styles.panel}><div className={styles.loading} role="status">{fr ? 'Préparation de votre journée…' : 'Preparing your day…'}<div className={styles.skeleton} /><div className={styles.skeleton} /></div></section>}
+    {resource.error != null && <section className={styles.error} role="alert"><h2>{fr ? 'Votre journée n’a pas pu être chargée' : 'Your day could not load'}</h2><button className={styles.button} onClick={() => void resource.retry()}>{fr ? 'Réessayer' : 'Retry'}</button></section>}
+    {data && <>
+      <div className={styles.sectionHeading}><h2>{fr ? 'Vos priorités commerciales' : 'Your sales priorities'}</h2><Link className={styles.textButton} to={link('/app/signals')}>{fr ? 'Tous les signaux' : 'All signals'} <ArrowRight aria-hidden="true" /></Link></div>
+      <section className={styles.panel} aria-label={fr ? 'Signaux prioritaires' : 'Priority signals'}>
+        {data.top3.length > 0 ? data.top3.map((item) => <SignalListRow key={item.signal_id} item={item} onOpen={() => openSignal(item.signal_id, item.presentation?.artifact_id)} />)
+          : <div className={styles.empty}><Sparkles aria-hidden="true" /><h3>{fr ? 'Vous êtes à jour' : 'You’re up to date'}</h3><p>{fr ? 'C’est le moment de reprendre vos échanges ou d’explorer de nouvelles entreprises.' : 'Now is a good time to follow up or explore new companies.'}</p><Link className={styles.soft} to={link('/app/signals', { status: 'saved' })}>{fr ? 'Reprendre mes signaux sauvegardés' : 'Return to saved signals'}</Link></div>}
+      </section>
+      <div className={styles.sectionHeading} style={{ marginTop: 32 }}><h2>{fr ? 'Faites avancer vos échanges' : 'Move your conversations forward'}</h2><Link className={styles.textButton} to={link('/app/companies')}>{fr ? 'Ma prospection' : 'My prospects'} <ArrowRight aria-hidden="true" /></Link></div>
+      <div className={styles.followupGrid}>
+        <section className={styles.followup} aria-label={fr ? 'Entreprises à relancer' : 'Companies to follow up'}><CalendarClock aria-hidden="true" /><div>
+          <span className={styles.kicker}>{fr ? 'À relancer' : 'Follow up'}</span>
+          {data.to_follow_up.length > 0 ? <><h3>{fr ? 'Gardez le lien avec vos prospects' : 'Stay in touch with your prospects'}</h3>{data.to_follow_up.slice(0, 3).map((company) => <div className={styles.reply} key={company.company_key}><div><Link className={styles.companyName} to={link(`/app/companies/${encodeURIComponent(company.company_key)}`)}>{company.name} <ArrowRight aria-hidden="true" /></Link><span className={styles.caption}>{fr ? 'Dernier contact il y a' : 'Last contacted'} {number(company.days_since_contact)} {fr ? 'jours' : 'days ago'}</span></div></div>)}</>
+            : <><h3>{fr ? 'Vos prochaines relances se préparent ici' : 'Your next follow-ups start here'}</h3><p>{fr ? 'Marquez une entreprise comme contactée pour la retrouver au bon moment.' : 'Mark a company as contacted to find it here at the right time.'}</p><Link className={styles.textButton} to={link('/app/companies', { contact_status: 'to_contact' })}>{fr ? 'Voir les entreprises à contacter' : 'View companies to contact'} <ArrowRight aria-hidden="true" /></Link></>}
+          {data.to_follow_up_truncated && <Link className={styles.textButton} to={link('/app/companies', { contact_status: 'contacted' })}>{fr ? 'Voir toutes mes relances' : 'View all follow-ups'}</Link>}
+        </div></section>
+        <section className={`${styles.panel} ${styles.replies}`} aria-label={fr ? 'Réponses reçues' : 'Replies received'}><h3><MessageSquare aria-hidden="true" /> {fr ? 'Ils vous ont répondu' : 'They replied'}</h3>
+          {replies.loading && <p className={styles.muted} role="status">{fr ? 'Chargement…' : 'Loading…'}</p>}
+          {replies.error != null && <p className={styles.error} role="alert">{fr ? 'Les réponses ne sont pas chargées.' : 'Replies could not load.'}<button className={styles.textButton} onClick={replies.reload}>{fr ? 'Réessayer' : 'Retry'}</button></p>}
+          {replies.data?.items.map((company) => <div className={styles.reply} key={company.company_key}><span className={styles.avatar} aria-hidden="true">{initials(company.name)}</span><div><Link className={styles.companyName} to={link(`/app/companies/${encodeURIComponent(company.company_key)}`)}>{company.name}</Link><span className={styles.caption}>{company.city}</span></div><ArrowRight aria-hidden="true" /></div>)}
+          {replies.data?.items.length === 0 && <p className={styles.muted}>{fr ? 'Les entreprises marquées « A répondu » apparaîtront ici pour poursuivre la conversation.' : 'Companies marked “Replied” will appear here so you can continue the conversation.'}</p>}
         </section>
       </div>
-
-      {selected ? (
-        <div className={styles.drawerLayer}>
-          <button className={styles.backdrop} type="button" aria-label="Fermer" onClick={() => { setSelected(null); setHolderProfile(null) }} />
-          <SignalDrawer
-            item={selected}
-            loading={drawerLoading}
-            error={drawerError}
-            busy={busy === selected.signal_id}
-            holderProfile={holderProfile}
-            planCode={holderProfile?.plan_code ?? null}
-            onClose={() => { setSelected(null); setHolderProfile(null) }}
-            onRetry={() => void openSignal(selected)}
-            onContacted={() => void drawerAction('contacted')}
-            onSave={() => void drawerAction('saved')}
-            onIgnore={() => void drawerAction('ignored')}
-          />
-        </div>
-      ) : null}
-    </main>
-  )
-}
-
-function weekday(value: string, locale: string): string {
-  return new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long', timeZone: 'UTC' })
-    .format(new Date(value))
+      <section className={styles.week} aria-label={fr ? 'Bilan de la semaine' : 'This week’s summary'}><strong>{fr ? 'Cette semaine' : 'This week'}</strong><span>{number(data.week.new)} {fr ? 'nouveaux signaux' : 'new signals'}</span><span>{number(data.week.saved)} {fr ? 'sauvegardés' : 'saved'}</span><span>{number(data.week.contacted)} {fr ? 'contactés' : 'contacted'}</span><span>{number(data.week.replied)} {fr ? 'réponses' : 'replies'}</span></section>
+      {data.scan_truncated && <p className={styles.caption}>{fr ? 'Les résultats présentés couvrent une partie des marchés disponibles. Affinez votre consultation pour aller plus loin.' : 'These results cover part of the available contracts. Refine your view to explore further.'}</p>}
+    </>}
+    {selected && <SignalDetail key={selected} signalKey={selected} onClose={() => navigate(link(location.pathname), { replace: true })} />}
+  </main>
 }

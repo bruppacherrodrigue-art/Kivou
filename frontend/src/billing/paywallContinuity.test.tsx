@@ -14,6 +14,7 @@ import {
   mockApi,
   renderApp,
 } from '../test/harness'
+import { readCheckoutIntent } from './checkoutIntent'
 
 /* P0-03 §6, §16 — l'intention commerciale traverse le paywall, et RIEN d'autre.
  *
@@ -40,6 +41,8 @@ const BILLING_ROUTES = {
   'GET /billing/plans': { body: CATALOGUE },
   'GET /billing/status': { body: DISCOVERY_STATUS },
   'GET /target-icps': { body: [ICP] },
+  'GET /target-icps/options': { body: { zones: [], sectors: [] } },
+  'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
 }
 
 /** Ce qu'un état de navigation ne doit JAMAIS contenir. */
@@ -59,6 +62,12 @@ async function openLockedBilling(user: ReturnType<typeof userEvent.setup>) {
   await user.click(
     await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
   )
+  await openDetailBilling(user)
+}
+
+async function openDetailBilling(user = userEvent.setup()) {
+  await user.click(await screen.findByRole('button', { name: 'Voir mes possibilités d’accès' }))
+  await user.click(await screen.findByRole('button', { name: 'Choisir Pro' }))
   await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
 }
 
@@ -83,7 +92,7 @@ describe('depuis le feed verrouillé', () => {
     await selectPro()
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
-    expect(state).toEqual({ lockedSignalKey: 'sig_locked_1' })
+    expect(state).toEqual({ checkoutIntent: { kind: 'signal', signalKey: 'sig_locked_1' }, checkoutAccountId: 'acc_1' })
   })
 
   it('ne laisse fuir aucune donnée protégée dans l’état de navigation', async () => {
@@ -121,11 +130,12 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
+    await openDetailBilling()
     await selectPro()
     expect(document.body.textContent).not.toContain(LOCKED_DETAIL.access.reason)
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
-    expect(state).toEqual({ lockedSignalKey: 'sig_locked_1' })
+    expect(state).toEqual({ checkoutIntent: { kind: 'signal', signalKey: 'sig_locked_1' }, checkoutAccountId: 'acc_1' })
   })
 
   it('ne laisse fuir aucune donnée protégée depuis le détail', async () => {
@@ -141,6 +151,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
+    await openDetailBilling()
     await selectPro()
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
@@ -160,7 +171,7 @@ describe('avant tout paiement réel', () => {
     await selectPro()
 
     // Arriver sur la facturation n'est pas acheter : rien n'est mémorisé.
-    expect(sessionStorage.length).toBe(0)
+    expect(readCheckoutIntent()).toBeNull()
   })
 
   it('ne mémorise rien quand l’ouverture du paiement échoue', async () => {
@@ -180,7 +191,7 @@ describe('avant tout paiement réel', () => {
     await screen.findByRole('alert')
 
     // Une intention orpheline survivrait à un parcours qui n'a jamais eu lieu.
-    expect(sessionStorage.length).toBe(0)
+    expect(readCheckoutIntent()).toBeNull()
   })
 
   it('mémorise la clé une fois le paiement réellement ouvert', async () => {
@@ -206,9 +217,8 @@ describe('avant tout paiement réel', () => {
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_1')
     expect(JSON.stringify(sessionStorage)).toContain('sig_locked_1')
     // Et toujours rien du signal lui-même.
-    for (const secret of PROTECTED) {
-      expect(JSON.stringify(sessionStorage)).not.toContain(secret)
-    }
+    const stored = sessionStorage.getItem('kivou.checkout-intent') ?? ''
+    for (const secret of PROTECTED) expect(stored).not.toContain(secret)
   })
 
   it('n’écrit aucune intention quand on arrive à la facturation sans signal', async () => {
@@ -229,6 +239,6 @@ describe('avant tout paiement réel', () => {
 
     await user.click(await selectPro(user))
     expect(assign).toHaveBeenCalled()
-    expect(sessionStorage.length).toBe(0)
+    expect(readCheckoutIntent()).toBeNull()
   })
 })

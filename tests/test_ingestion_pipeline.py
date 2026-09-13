@@ -38,6 +38,82 @@ from signals.persistence.schema import (
 from signals.understanding import ContractUnderstandingEngine
 
 
+def test_boamp_source_archive_and_typed_facts_commit_with_the_canonical_awards(tmp_path):
+    from signals.client_value.notice_facts import load_award_notice_facts
+    from signals.ingestion.sources import BoampSource, SourceWindow
+    from signals.persistence.identity import award_key
+    from signals.persistence.notice_schema import notice_award_facts, notice_source_snapshot
+
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'notice-facts.db'}")
+    migrate_to_latest(engine)
+    notice_source_snapshot.create(engine, checkfirst=True)
+    notice_award_facts.create(engine, checkfirst=True)
+
+    class Source:
+        def fetch_awards_since(self, *args, **kwargs):
+            yield LINKED_BOAMP
+
+    publication = (
+        BoampSource(Source())
+        .acquire(SourceWindow(MATERIALIZED_ON, MATERIALIZED_ON), retrieved_at=RETRIEVED_AT)
+        .publications[0]
+    )
+    pipeline = IngestionPipeline(engine)
+    for _ in range(2):
+        pipeline.process(publication, as_of=MATERIALIZED_ON, persisted_at=MATERIALIZED_AT)
+    with engine.connect() as connection:
+        assert (
+            connection.execute(
+                sa.select(sa.func.count()).select_from(notice_source_snapshot)
+            ).scalar_one()
+            == 1
+        )
+        assert connection.execute(
+            sa.select(sa.func.count()).select_from(notice_award_facts)
+        ).scalar_one() == len(publication.awards)
+        assert load_award_notice_facts(connection, award_key(publication.awards[0])) is not None
+
+
+def test_notice_fact_storage_failure_rolls_back_its_canonical_award(tmp_path, monkeypatch):
+    import signals.ingestion.pipeline as pipeline_module
+    from signals.ingestion.sources import BoampSource, SourceWindow
+    from signals.persistence.notice_schema import notice_award_facts, notice_source_snapshot
+
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'notice-rollback.db'}")
+    migrate_to_latest(engine)
+    notice_source_snapshot.create(engine, checkfirst=True)
+    notice_award_facts.create(engine, checkfirst=True)
+
+    class Source:
+        def fetch_awards_since(self, *args, **kwargs):
+            yield LINKED_BOAMP
+
+    publication = (
+        BoampSource(Source())
+        .acquire(SourceWindow(MATERIALIZED_ON, MATERIALIZED_ON), retrieved_at=RETRIEVED_AT)
+        .publications[0]
+    )
+    assert hasattr(pipeline_module, "store_notice_facts"), "pipeline notice storage is not wired"
+
+    def fail(*args, **kwargs):
+        raise ValueError("notice storage failed")
+
+    monkeypatch.setattr(pipeline_module, "store_notice_facts", fail)
+    with pytest.raises(pipeline_module.PipelineFailure, match="notice storage failed"):
+        IngestionPipeline(engine).process(
+            publication, as_of=MATERIALIZED_ON, persisted_at=MATERIALIZED_AT
+        )
+    with engine.connect() as connection:
+        assert (
+            connection.execute(sa.select(sa.func.count()).select_from(contract_award)).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(sa.select(sa.func.count()).select_from(source_event)).scalar_one()
+            == 0
+        )
+
+
 def test_pipeline_persists_facts_and_materializes_only_for_active_matching_icps(tmp_path):
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'pipeline.db'}")
     migrate_to_latest(engine)
@@ -70,9 +146,9 @@ def test_pipeline_persists_facts_and_materializes_only_for_active_matching_icps(
     )
 
     with engine.connect() as connection:
-        signal_targets = connection.execute(
-            sa.select(materialized_signal.c.target_icp_id)
-        ).scalars().all()
+        signal_targets = (
+            connection.execute(sa.select(materialized_signal.c.target_icp_id)).scalars().all()
+        )
         statuses = dict(
             connection.execute(sa.select(target_icp.c.target_icp_id, target_icp.c.status)).all()
         )
@@ -95,7 +171,9 @@ def test_facts_remain_durable_when_no_customer_match_exists(tmp_path):
     )
 
     with engine.connect() as connection:
-        event_count = connection.execute(sa.select(sa.func.count()).select_from(source_event)).scalar()
+        event_count = connection.execute(
+            sa.select(sa.func.count()).select_from(source_event)
+        ).scalar()
         award_count = connection.execute(
             sa.select(sa.func.count()).select_from(contract_award)
         ).scalar()
@@ -148,9 +226,7 @@ def test_strong_early_document_join_classifies_only_when_award_arrives(tmp_path)
     class RecordingUnderstanding:
         def understand(self, award, event, *, document_requirements=()):
             recorded.extend(document_requirements)
-            return delegate.understand(
-                award, event, document_requirements=document_requirements
-            )
+            return delegate.understand(award, event, document_requirements=document_requirements)
 
     pipeline = IngestionPipeline(engine)
     pipeline.understanding = RecordingUnderstanding()
@@ -195,13 +271,17 @@ def test_fact_persistence_is_not_rolled_back_by_customer_matching_failure(tmp_pa
         )
 
     with engine.connect() as connection:
-        assert connection.execute(sa.select(sa.func.count()).select_from(source_event)).scalar_one() == 1
         assert (
-            connection.execute(sa.select(sa.func.count()).select_from(contract_award)).scalar_one()
-            == len(awards)
+            connection.execute(sa.select(sa.func.count()).select_from(source_event)).scalar_one()
+            == 1
         )
+        assert connection.execute(
+            sa.select(sa.func.count()).select_from(contract_award)
+        ).scalar_one() == len(awards)
         assert (
-            connection.execute(sa.select(sa.func.count()).select_from(materialized_signal)).scalar_one()
+            connection.execute(
+                sa.select(sa.func.count()).select_from(materialized_signal)
+            ).scalar_one()
             == 0
         )
 
@@ -250,11 +330,15 @@ def test_late_decp_representation_joins_the_existing_boamp_opportunity(tmp_path)
         persisted_at=MATERIALIZED_AT + dt.timedelta(hours=1),
     )
     with engine.connect() as connection:
-        opportunities = connection.execute(
-            sa.select(opportunity_representation.c.opportunity_key).order_by(
-                opportunity_representation.c.award_key
+        opportunities = (
+            connection.execute(
+                sa.select(opportunity_representation.c.opportunity_key).order_by(
+                    opportunity_representation.c.award_key
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         signals = connection.execute(
             sa.select(
                 materialized_signal.c.signal_key,
@@ -276,9 +360,7 @@ def test_late_decp_representation_joins_the_existing_boamp_opportunity(tmp_path)
     assert page.items[0].display.name != LINKED_DECP["titulaire_id_1"]
 
 
-def test_two_existing_opportunities_are_not_silently_merged_by_a_late_link(
-    tmp_path, caplog
-):
+def test_two_existing_opportunities_are_not_silently_merged_by_a_late_link(tmp_path, caplog):
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'conflict.db'}")
     migrate_to_latest(engine)
     event, awards = parse_award_notice(LINKED_BOAMP, retrieved_at=RETRIEVED_AT)
@@ -315,14 +397,18 @@ def test_two_existing_opportunities_are_not_silently_merged_by_a_late_link(
     )
 
     with engine.connect() as connection:
-        opportunities = connection.execute(
-            sa.select(opportunity_representation.c.opportunity_key)
-        ).scalars().all()
+        opportunities = (
+            connection.execute(sa.select(opportunity_representation.c.opportunity_key))
+            .scalars()
+            .all()
+        )
     assert outcome.opportunity_conflicts == 1
     assert outcome.representations_linked == 0
     assert len(set(opportunities)) == 3
     conflict = next(
-        record for record in caplog.records if record.getMessage().startswith("opportunity conflict")
+        record
+        for record in caplog.records
+        if record.getMessage().startswith("opportunity conflict")
     )
     assert "réconciliation requise" in conflict.getMessage()
     assert conflict.source_system == "decp"

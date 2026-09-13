@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, CreditCard, Info } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { billing } from '../../api/endpoints'
+import { onSignOutStarted } from '../../api/client'
 import { describeError } from '../../api/errorCopy'
-import type { CataloguePlan, Currency, PlanCatalogue, PurchasablePlan } from '../../api/types'
+import type { BillingStatus, CataloguePlan, Currency, PlanCatalogue, PurchasablePlan } from '../../api/types'
+import { useCurrentUser } from '../../auth/SessionProvider'
+import { clearCheckoutIntent, saveCheckoutReturn, validateCheckoutReturn } from '../../billing/checkoutIntent'
 import { secureBillingDestination } from '../../billing/destination'
 import { planFromSearch } from '../../billing/planRoute'
 import { withRenderableSpaces } from '../../i18n'
@@ -53,9 +56,15 @@ function territoryLabel(plan: CataloguePlan): string {
 }
 
 export function CheckoutHandoff() {
+  const me = useCurrentUser()
+  return <AccountCheckoutHandoff key={me.account_id} accountId={me.account_id} />
+}
+
+function AccountCheckoutHandoff({ accountId }: { accountId: string }) {
   const location = useLocation()
   const planCode = planFromSearch(location.search)
   const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null)
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null)
   const [loadError, setLoadError] = useState<unknown>(null)
   const [checkoutError, setCheckoutError] = useState<unknown>(null)
   const [destinationError, setDestinationError] = useState(false)
@@ -69,7 +78,9 @@ export function CheckoutHandoff() {
 
   useEffect(() => {
     mountedRef.current = true
+    const unsubscribe = onSignOutStarted(() => { mountedRef.current = false; submitGenerationRef.current += 1 })
     return () => {
+      unsubscribe()
       mountedRef.current = false
       submitGenerationRef.current += 1
     }
@@ -87,10 +98,11 @@ export function CheckoutHandoff() {
   useEffect(() => {
     let active = true
     setCatalogue(null)
+    setBillingStatus(null)
     setLoadError(null)
-    billing.plans().then(
-      (next) => {
-        if (active) setCatalogue(next)
+    Promise.all([billing.plans(), billing.status()]).then(
+      ([next, status]) => {
+        if (active) { setCatalogue(next); setBillingStatus(status) }
       },
       (error) => {
         if (active) setLoadError(error)
@@ -117,7 +129,7 @@ export function CheckoutHandoff() {
         : (availableCurrencies[0] ?? null)
 
   async function submit() {
-    if (busyRef.current || !plan || !selectedCurrency || !plan.purchasable) return
+    if (!mountedRef.current || busyRef.current || !plan || !selectedCurrency || !plan.purchasable || billingStatus?.billing_action !== 'choose_plan') return
     if (!plan.monthly_price[selectedCurrency]) return
 
     busyRef.current = true
@@ -137,6 +149,10 @@ export function CheckoutHandoff() {
         setDestinationError(true)
         return
       }
+      const state = location.state as { checkoutIntent?: unknown; checkoutAccountId?: unknown } | null
+      const intent = state?.checkoutAccountId === accountId ? validateCheckoutReturn(state.checkoutIntent) : null
+      clearCheckoutIntent()
+      if (intent) saveCheckoutReturn(accountId, intent)
       window.location.assign(destination)
     } catch (error) {
       if (submitIsCurrent(generation)) setCheckoutError(error)
@@ -198,6 +214,12 @@ export function CheckoutHandoff() {
         <div className="checkout-actions"><ReferenceLink className="text-link" href="/tarifs"><ArrowLeft aria-hidden="true" /> Changer d’offre</ReferenceLink></div>
       </AuthShell>
     )
+  }
+
+  if (billingStatus?.billing_action !== 'choose_plan') {
+    return <AuthShell eyebrow="Facturation" title="Vérifier votre abonnement" description="Votre compte nécessite une action de facturation différente. Aucun nouveau paiement n’a été ouvert." wide>
+      <ReferenceLink className="text-link" href="/app/billing">Gérer ma facturation</ReferenceLink>
+    </AuthShell>
   }
 
   const price = priceFor(plan, selectedCurrency)

@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { CircleCheckBig, CircleX } from 'lucide-react'
 import { billing } from '../api/endpoints'
+import { onSignOutStarted } from '../api/client'
 import type { BillingStatus } from '../api/types'
-import { clearCheckoutIntent, readCheckoutIntent } from '../billing/checkoutIntent'
+import { checkoutReturnPath, clearCheckoutIntent, readCheckoutReturn } from '../billing/checkoutIntent'
+import { useCurrentUser, useSession } from '../auth/SessionProvider'
 import { useI18n, interpolate } from '../i18n'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 import { CheckoutHandoff } from '../presentation/dashboard/CheckoutHandoff'
@@ -19,9 +21,15 @@ export function Checkout() {
 /** Une URL de retour n'accorde aucun droit. Seul `/billing/status`, mis à jour
  * par le webhook Stripe, peut confirmer que le plan du compte a changé. */
 export function CheckoutSuccess() {
-  const { t } = useI18n()
+  const me = useCurrentUser()
+  return <AccountCheckoutSuccess key={me.account_id} accountId={me.account_id} />
+}
+
+function AccountCheckoutSuccess({ accountId }: { accountId: string }) {
+  const { t, locale } = useI18n()
+  const { refresh: refreshSession } = useSession()
   const [status, setStatus] = useState<BillingStatus | null>(null)
-  const [intent] = useState(() => readCheckoutIntent())
+  const [intent] = useState(() => readCheckoutReturn(accountId))
   const [timedOut, setTimedOut] = useState(false)
   const [verificationRun, setVerificationRun] = useState(0)
   const mountedRef = useRef(false)
@@ -37,6 +45,14 @@ export function CheckoutSuccess() {
     refreshBusyRef.current = true
     const generation = ++generationRef.current
     const deadline = Date.now() + POLL_TIMEOUT_MS
+    const controller = new AbortController()
+    const unsubscribe = onSignOutStarted(() => {
+      mountedRef.current = false
+      generationRef.current += 1
+      controller.abort()
+      if (waitTimerRef.current !== null) clearTimeout(waitTimerRef.current)
+      if (requestTimerRef.current !== null) clearTimeout(requestTimerRef.current)
+    })
 
     const current = () =>
       mountedRef.current && generationRef.current === generation
@@ -56,10 +72,10 @@ export function CheckoutSuccess() {
       }
 
       let requestTimeout: ReturnType<typeof setTimeout> | null = null
-      const attempt = billing.status().then(
-        (next) => ({ kind: 'status' as const, next }),
-        () => ({ kind: 'error' as const }),
-      )
+      const attempt = billing.status({ signal: controller.signal }).then(async (next) => {
+        if (next.plan_code !== 'discovery' && current()) await refreshSession()
+        return { kind: 'status' as const, next }
+      }).catch(() => ({ kind: 'error' as const }))
       const timeout = new Promise<{ kind: 'timeout' }>((resolve) => {
         requestTimeout = setTimeout(() => resolve({ kind: 'timeout' }), remaining)
         requestTimerRef.current = requestTimeout
@@ -103,7 +119,9 @@ export function CheckoutSuccess() {
     waitTimerRef.current = initialTimer
 
     return () => {
+      unsubscribe()
       mountedRef.current = false
+      controller.abort()
       generationRef.current += 1
       refreshBusyRef.current = false
       if (waitTimerRef.current !== null) {
@@ -115,7 +133,7 @@ export function CheckoutSuccess() {
         requestTimerRef.current = null
       }
     }
-  }, [verificationRun])
+  }, [verificationRun, refreshSession])
 
   useEffect(() => {
     if (confirmed) clearCheckoutIntent()
@@ -142,7 +160,7 @@ export function CheckoutSuccess() {
 
   const primary = confirmed
     ? intent
-      ? { label: t.checkout.returnToSignal, href: `/app/signals/${encodeURIComponent(intent)}` }
+      ? { label: intent.kind === 'company' ? (locale === 'fr' ? 'Revenir à cette entreprise' : 'Return to this company') : intent.kind === 'directory' ? (locale === 'fr' ? 'Revenir à l’annuaire' : 'Return to directory') : t.checkout.returnToSignal, href: checkoutReturnPath(intent) }
       : { label: t.checkout.goToSignals, href: '/app/signals' }
     : undefined
   const secondary = confirmed && intent

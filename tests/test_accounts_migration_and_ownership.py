@@ -21,6 +21,7 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
 from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.schema import CreateTable
 
@@ -119,21 +120,23 @@ def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
     } <= tables
     # SPEC-016A — operational ingestion state remains an additive migration.
     assert {"ingestion_checkpoint", "ingestion_run"} <= tables
-    assert current_revision(engine) == "0057_directory_contact_keys"
+    assert current_revision(engine) == "0060_boamp_notice_facts"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):
     """Le seul test qui protège les données d'un déploiement déjà en service."""
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
 
-    # Construire la ligne avec le code courant, puis revenir au schéma SPEC-010,
-    # évite qu'un helper courant tente d'écrire des colonnes qui n'existaient
-    # pas encore. Le point de départ de l'upgrade reste bien une base 0001
-    # peuplée, pas une base neuve.
-    migrate_to_latest(engine)
-    with engine.begin() as connection:
+    # Le matérialiseur courant prépare les données dans une base distincte.
+    # La base réellement testée commence à 0001, peuplée de ses colonnes
+    # historiques, sans faire dépendre la préparation d'un downgrade ultérieur.
+    seed_engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'seed.db'}")
+    command.upgrade(alembic_config(seed_engine), "0058_client_location")
+    with seed_engine.begin() as connection:
         result = materialize(connection, target_icp_id="icp-construction-inputs-ch-eu-v0")
-    command.downgrade(alembic_config(engine), "0001_initial")
+    command.upgrade(alembic_config(engine), "0001_initial")
+    copy_synthetic_rows_to_historical_schema(seed_engine, engine)
+    seed_engine.dispose()
     assert current_revision(engine) == "0001_initial"
     with engine.connect() as connection:
         before = connection.execute(

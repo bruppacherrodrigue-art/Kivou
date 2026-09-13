@@ -30,7 +30,7 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:
@@ -88,9 +88,7 @@ def test_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
 @pytest.mark.slow
 def test_postgresql_offline_migration_contains_only_policy_tables(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
     sql = capsys.readouterr().out
     assert "CREATE TABLE acquisition_policy_snapshot" in sql

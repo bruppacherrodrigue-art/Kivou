@@ -1,0 +1,10 @@
+[Unit]
+Description=Kivou staging — rétention quotidienne des archives BOAMP
+
+[Timer]
+OnCalendar=*-*-* 03:40:00 UTC
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -7,6 +7,7 @@ import { AUTHENTICATED, ICP, PRO_STATUS, UNLOCKED_ITEM, callsTo, mockApi, render
 
 const signal = (index: number): UnlockedFeedItem => ({
   ...UNLOCKED_ITEM,
+  status_revision: 0,
   signal_id: `sig_${index}`,
   company_key: `cmp_company_${index}_abcdef`,
   company: { ...UNLOCKED_ITEM.company, name: `Titulaire ${index}` },
@@ -51,22 +52,25 @@ function routes(payload = dashboard()) {
     'GET /target-icps': { body: [ICP] },
     'GET /billing/status': { body: PRO_STATUS },
     'GET /dashboard': { body: payload },
-    'PUT /signals/sig_1/feedback': { body: { signal_id: 'sig_1', interaction: null } },
+    'GET /companies': { body: { items: [], counts: {}, page: { has_more: false } } },
+    'GET /target-icps/options': { body: { zones: [], sectors: [] } },
+    'GET /signals/sig_1/note': { body: { note: null, revision: 0, updated_at: null } },
+    'PUT /signals/sig_1/status': { body: { signal_id: 'sig_1', status: 'ignored', revision: 1, updated_at: '2026-09-13T10:00:00Z', interaction: null } },
   }
 }
 
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Aujourd’hui', () => {
-  it('affiche le bandeau, trois cartes et leur phrase rédigée partagée', async () => {
+  it('affiche le ciblage et trois priorités, sans répéter les anciennes phrases statiques', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
-    expect(await screen.findByRole('heading', { name: '12 nouveaux marchés depuis mardi' })).toBeVisible()
-    expect(screen.getByText(/3 correspondent fortement à votre profil/)).toHaveTextContent('Routes et génie civil')
+    expect(await screen.findByText('12 nouveaux marchés depuis votre dernière visite.')).toBeVisible()
+    expect(screen.getAllByRole('button', { name: 'Ajuster' })).toHaveLength(1)
     expect(screen.getAllByRole('article')).toHaveLength(3)
     for (const index of [1, 2, 3]) {
       expect(screen.getByText(`Titulaire ${index}`)).toBeVisible()
-      expect(screen.getByText(`Phrase rédigée ${index}.`)).toBeVisible()
+      expect(screen.queryByText(`Phrase rédigée ${index}.`)).not.toBeInTheDocument()
       expect(screen.queryByText(`Libellé de règle ${index}`)).not.toBeInTheDocument()
     }
   })
@@ -85,13 +89,14 @@ describe('Aujourd’hui', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     const user = userEvent.setup()
     const card = (await screen.findByText('Titulaire 1')).closest('article')!
-    await user.click(within(card).getByRole('button', { name: 'Ouvrir' }))
-    expect(screen.getByRole('complementary', { name: 'Marché prioritaire 1' })).toBeVisible()
-    expect(await screen.findByText(/3 marchés gagnés sur 12 mois/)).toBeVisible()
+    await user.click(within(card).getByRole('button', { name: 'Ouvrir : Marché prioritaire 1' }))
+    const drawer = screen.getByRole('dialog', { name: 'Détail du signal' })
+    expect(await within(drawer).findByRole('heading', { name: 'Marché prioritaire 1' })).toBeVisible()
+    expect(within(drawer).getByRole('textbox', { name: 'Vos notes sur ce signal' })).toBeVisible()
     expect(callsTo('/signals/sig_1', 'GET')).toHaveLength(1)
   })
 
-  it('affiche le calendrier commercial dans la carte Aujourd’hui', async () => {
+  it('ne réintroduit pas de démarrage estimé dans les priorités', async () => {
     const timed = {
       ...signal(1),
       commercial_calendar: { start_month: '2026-10', duration_months: 8, source: 'public_notice' as const },
@@ -99,7 +104,8 @@ describe('Aujourd’hui', () => {
     mockApi(routes(dashboard([timed])))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    expect(await screen.findByText('Démarrage probable octobre 2026')).toBeVisible()
+    await screen.findByRole('heading', { name: 'Vos priorités commerciales' })
+    expect(screen.queryByText(/Démarrage probable/)).not.toBeInTheDocument()
   })
 
   it('ignore une priorité et charge la suivante', async () => {
@@ -108,38 +114,37 @@ describe('Aujourd’hui', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     const user = userEvent.setup()
     const card = (await screen.findByText('Titulaire 1')).closest('article')!
-    await user.click(within(card).getByRole('button', { name: 'Ignorer' }))
+    await user.click(within(card).getByRole('button', { name: 'Ignorer le signal' }))
     await screen.findByText('Titulaire 4')
     expect(screen.queryByText('Titulaire 1')).not.toBeInTheDocument()
-    expect(callsTo('/signals/sig_1/feedback', 'PUT')[0].body).toEqual({ relevance: 'not_relevant' })
+    expect(callsTo('/signals/sig_1/status', 'PUT')[0].body).toEqual({ status: 'ignored', expected_revision: 0 })
   })
 
   it('affiche les relances et les compteurs de la semaine', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
-    const followUp = await screen.findByRole('region', { name: 'À relancer' })
+    const followUp = await screen.findByRole('region', { name: 'Entreprises à relancer' })
     expect(within(followUp).getByText('Amiaud SARL')).toBeVisible()
-    expect(within(followUp).getByText('CVC plomberie')).toBeVisible()
-    expect(within(followUp).getByText('contactée il y a 9 j')).toBeVisible()
-    expect(within(followUp).getByRole('link', { name: 'Ouvrir' })).toHaveAttribute('href', '/app/companies/cmp_follow_up_abcdef')
-    const week = screen.getByRole('region', { name: 'Cette semaine' })
-    for (const value of ['12', '5', '3', '1']) expect(within(week).getByText(value)).toBeVisible()
+    expect(within(followUp).getByText('Dernier contact il y a 9 jours')).toBeVisible()
+    expect(within(followUp).getByRole('link', { name: 'Amiaud SARL' })).toHaveAttribute('href', expect.stringContaining('/app/companies/cmp_follow_up_abcdef'))
+    const week = screen.getByRole('region', { name: 'Bilan de la semaine' })
+    for (const value of ['12 nouveaux signaux', '5 sauvegardés', '3 contactés', '1 réponses']) expect(within(week).getByText(value)).toBeVisible()
   })
 
   it('affiche les états vides et le titre de première visite', async () => {
     mockApi(routes(dashboard([], true)))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
-    expect(await screen.findByRole('heading', { name: 'Vos premiers signaux' })).toBeVisible()
-    expect(screen.getByText('Aucun nouveau signal prioritaire pour le moment.')).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Voir tous les signaux' })).toHaveAttribute('href', '/app/signals')
-    expect(screen.getByText('Aucune entreprise à relancer.')).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'Vous êtes à jour' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Tous les signaux' })).toHaveAttribute('href', expect.stringContaining('/app/signals'))
+    expect(screen.getByRole('link', { name: 'Reprendre mes signaux sauvegardés' })).toHaveAttribute('href', expect.stringContaining('status=saved'))
+    expect(screen.getByText('Vos prochaines relances se préparent ici')).toBeVisible()
   })
 
   it('fait de /app la page Aujourd’hui', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
     await waitFor(() => expect(callsTo('/dashboard', 'GET')).toHaveLength(1))
-    expect(screen.getByRole('heading', { name: '12 nouveaux marchés depuis mardi' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Aujourd’hui' })).toBeVisible()
   })
 
   it('annonce une semaine active sans prétendre avoir du nouveau et déduplique les zones', async () => {
@@ -150,9 +155,10 @@ describe('Aujourd’hui', () => {
     mockApi(routes(payload))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
 
-    expect(await screen.findByRole('heading', { name: 'Rien de nouveau depuis mardi · 7 signaux cette semaine' })).toBeVisible()
-    const subtitle = screen.getAllByText(/Routes et génie civil/).find((node) => node.tagName === 'P')!
-    expect(subtitle).toHaveTextContent('France, Vaud')
-    expect(subtitle).not.toHaveTextContent('FR,')
+    expect(await screen.findByText('7 nouveaux signaux')).toBeVisible()
+    expect(screen.queryByText(/nouveaux marchés depuis/)).not.toBeInTheDocument()
+    const summary = document.querySelector('.sidebar-plan-summary')!
+    expect(summary).toHaveTextContent('France, Vaud')
+    expect(summary).not.toHaveTextContent('FR,')
   })
 })

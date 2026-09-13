@@ -115,32 +115,14 @@ def test_generated_for_you_is_disabled_until_backfill_activation(
     assert ApiConfig.from_environment().generated_for_you_enabled is True
 
 
-def test_company_profile_v2_is_disabled_until_explicit_activation(
+def test_legacy_presentation_flags_cannot_reactivate_old_tabs(
     base_environment, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    assert ApiConfig().company_profile_v2_enabled is False
-
-    monkeypatch.delenv("KIVOU_COMPANY_PROFILE_V2_ENABLED", raising=False)
-
-    assert ApiConfig.from_environment().company_profile_v2_enabled is False
-
     monkeypatch.setenv("KIVOU_COMPANY_PROFILE_V2_ENABLED", "true")
-
-    assert ApiConfig.from_environment().company_profile_v2_enabled is True
-
-
-def test_signals_companies_v2_is_disabled_until_explicit_activation(
-    base_environment, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    assert ApiConfig().signals_companies_v2_enabled is False
-
-    monkeypatch.delenv("KIVOU_SIGNALS_COMPANIES_V2_ENABLED", raising=False)
-
-    assert ApiConfig.from_environment().signals_companies_v2_enabled is False
-
     monkeypatch.setenv("KIVOU_SIGNALS_COMPANIES_V2_ENABLED", "true")
-
-    assert ApiConfig.from_environment().signals_companies_v2_enabled is True
+    config = ApiConfig.from_environment()
+    assert not hasattr(config, "company_profile_v2_enabled")
+    assert not hasattr(config, "signals_companies_v2_enabled")
 
 
 def test_commercial_calendar_cpv_delays_are_explicit_configuration(
@@ -423,9 +405,10 @@ def test_production_instantly_webhook_persists_and_replays_without_network(
         headers={"x-kivou-instantly-secret": "wrong"},
     )
     with app.state.engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count()).select_from(acquisition_provider_event)
-        ) == 0
+        assert (
+            connection.scalar(sa.select(sa.func.count()).select_from(acquisition_provider_event))
+            == 0
+        )
 
     first = client.post(
         "/webhooks/instantly",
@@ -450,9 +433,10 @@ def test_production_instantly_webhook_persists_and_replays_without_network(
     assert replay.json()["replayed"] is True
     assert unknown_workspace.status_code == 422
     with app.state.engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count()).select_from(acquisition_provider_event)
-        ) == 1
+        assert (
+            connection.scalar(sa.select(sa.func.count()).select_from(acquisition_provider_event))
+            == 1
+        )
 
 
 # ─── passerelle Stripe ────────────────────────────────────────────────────────
@@ -501,9 +485,7 @@ def test_build_application_wires_signed_spec027_safety_ingress_and_persists_fina
         acquisition_response_evaluation,
     )
 
-    engine, _, _ = _queued(
-        tmp_path, recipient_override=_ControlledRecipientOverride()
-    )
+    engine, _, _ = _queued(tmp_path, recipient_override=_ControlledRecipientOverride())
     values = {
         "KIVOU_INSTANTLY_WEBHOOK_SECRET": "synthetic-route-secret",
         "KIVOU_INSTANTLY_WORKSPACE_REF": "workspace:test",
@@ -520,9 +502,7 @@ def test_build_application_wires_signed_spec027_safety_ingress_and_persists_fina
         monkeypatch.setenv(name, value)
     module = importlib.import_module(MODULE)
     monkeypatch.setattr(module, "create_database_engine", lambda **_kwargs: engine)
-    monkeypatch.setattr(
-        "signals.api.routes_webhooks.request_now", lambda _request: RECEIVED
-    )
+    monkeypatch.setattr("signals.api.routes_webhooks.request_now", lambda _request: RECEIVED)
     client = TestClient(module.build_application())
     payload = {
         **_official_events()["auto_reply_received"],
@@ -535,9 +515,10 @@ def test_build_application_wires_signed_spec027_safety_ingress_and_persists_fina
         headers={"x-kivou-instantly-secret": "invalid-secret"},
     )
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count()).select_from(acquisition_provider_event)
-        ) == 0
+        assert (
+            connection.scalar(sa.select(sa.func.count()).select_from(acquisition_provider_event))
+            == 0
+        )
     accepted = client.post(
         "/webhooks/instantly",
         json=payload,
@@ -550,9 +531,7 @@ def test_build_application_wires_signed_spec027_safety_ingress_and_persists_fina
         event_count = connection.scalar(
             sa.select(sa.func.count()).select_from(acquisition_provider_event)
         )
-        evaluation = connection.execute(
-            sa.select(acquisition_response_evaluation)
-        ).mappings().one()
+        evaluation = connection.execute(sa.select(acquisition_response_evaluation)).mappings().one()
     assert event_count == 1
     assert evaluation["processing_state"] == "FINALIZED"
     assert evaluation["classification"] == "AUTO_REPLY"
@@ -641,7 +620,9 @@ def test_the_reset_message_never_carries_a_tracker():
     )
     assert "jeton-abc" in message.text_body
     assert "<img" not in message.text_body
-    assert "désinscri" not in message.text_body.lower(), "un e-mail de sécurité ne se désinscrit pas"
+    assert "désinscri" not in message.text_body.lower(), (
+        "un e-mail de sécurité ne se désinscrit pas"
+    )
 
 
 @pytest.mark.parametrize(
@@ -679,8 +660,7 @@ def test_reset_templates_preserve_the_same_certainty_in_french_and_english(
     assert message.text_body.startswith(greeting)
     assert validity in message.text_body
     assert (
-        "https://staging.kivou.test/reset-password?token=synthetic-reset-value"
-        in message.text_body
+        "https://staging.kivou.test/reset-password?token=synthetic-reset-value" in message.text_body
     )
 
 

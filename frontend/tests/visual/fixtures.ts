@@ -1047,7 +1047,6 @@ function toCompanyProfile(record: AwardSignal): CompanyProfile {
       occurred_at: '2026-08-30T09:00:00+00:00',
       signal_id: null,
     }] : [],
-    company_profile_v2_enabled: true,
     plan_code: 'pro',
     directory: selectedCompany ? {
       siren: '481153435',
@@ -1272,7 +1271,6 @@ function feedPage(
       : scenario === 'connected-essential-veteran'
         ? 'essential'
         : 'pro',
-    signals_companies_v2_enabled: true,
     view: history ? 'history' : 'recent',
     history_access: scenario === 'connected-discovery'
       ? { scope: 'grants_only', history_days: 0 }
@@ -1397,7 +1395,6 @@ function responseForConnected(
           : scenario === 'connected-essential-veteran'
             ? 'essential'
             : 'pro',
-        signals_companies_v2_enabled: true,
       } satisfies CompanyListPage,
     }
   }

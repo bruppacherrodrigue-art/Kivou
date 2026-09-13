@@ -340,7 +340,7 @@ describe('déconnexion', () => {
     })
     const view = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
 
-    await screen.findByText(ICP.label)
+    await screen.findByRole('heading', { level: 1, name: 'Compte' })
     const user = userEvent.setup()
     const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
       (link) => link.getAttribute('href') === '/app/settings/security',

@@ -575,7 +575,12 @@ sudo install -o root -g root -m 644 \
   "$KIVOU_RELEASE_DIR/ops/nginx/kivou-sensitive-link-security-headers.conf" \
   "$KIVOU_RELEASE_DIR/ops/nginx/kivou-sensitive-links-open.conf" \
   "$KIVOU_RELEASE_DIR/ops/nginx/kivou-sensitive-links-closed.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-prospecting-open.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-prospecting-maintenance.conf" \
   "$KIVOU_NGINX_CANDIDATE/"
+sudo install -o root -g root -m 600 \
+  "$KIVOU_NGINX_CANDIDATE/kivou-prospecting-open.conf" \
+  "$KIVOU_NGINX_CANDIDATE/kivou-prospecting-writes.conf"
 sudo install -o root -g root -m 600 \
   "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-open.conf" \
   "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf"
@@ -596,6 +601,7 @@ sed \
   -e "s#/etc/nginx/kivou-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-security-headers.conf#g" \
   -e "s#/etc/nginx/kivou-sensitive-link-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-link-security-headers.conf#g" \
   -e "s#/etc/nginx/kivou-sensitive-links-gate.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf#g" \
+  -e "s#/etc/nginx/kivou-prospecting-writes.conf#$KIVOU_NGINX_CANDIDATE/kivou-prospecting-writes.conf#g" \
   "$KIVOU_RELEASE_DIR/ops/nginx/kivou-staging.conf" |
   sudo tee "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf" >/dev/null
 sudo chmod 644 "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf"
@@ -783,6 +789,13 @@ sudo install -o root -g root -m 600 \
 sudo install -o root -g root -m 644 \
   "$KIVOU_NGINX_CANDIDATE/kivou-limits.conf" \
   /etc/nginx/conf.d/kivou-limits.conf.new
+# Initial installation only. Never reopen a closed rollback guard implicitly.
+if ! sudo test -e /etc/nginx/kivou-prospecting-writes.conf; then
+  sudo install -o root -g root -m 600 \
+    "$KIVOU_NGINX_CANDIDATE/kivou-prospecting-open.conf" \
+    /etc/nginx/kivou-prospecting-writes.conf.new
+  sudo mv -f /etc/nginx/kivou-prospecting-writes.conf.new /etc/nginx/kivou-prospecting-writes.conf
+fi
 sed \
   -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
   -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
@@ -884,6 +897,7 @@ sed \
   -e "s#/etc/nginx/kivou-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-security-headers.conf#g" \
   -e "s#/etc/nginx/kivou-sensitive-link-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-link-security-headers.conf#g" \
   -e "s#/etc/nginx/kivou-sensitive-links-gate.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf#g" \
+  -e "s#/etc/nginx/kivou-prospecting-writes.conf#$KIVOU_NGINX_CANDIDATE/kivou-prospecting-writes.conf#g" \
   "$KIVOU_RELEASE_DIR/ops/nginx/kivou-staging.conf" |
   sudo tee "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf" >/dev/null
 sudo nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"

@@ -8,6 +8,7 @@ import {
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
+  LOCKED_DETAIL,
   ME,
   PRO_STATUS,
   callsTo,
@@ -37,6 +38,8 @@ afterEach(() => {
 const BILLING = {
   'GET /billing/plans': { body: CATALOGUE },
   'GET /target-icps': { body: [ICP] },
+  'GET /target-icps/options': { body: { zones: [], sectors: [] } },
+  'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
 }
 
 /* Le statut vient du `mockApi` de chaque test : le passer ici en plus ferait
@@ -54,6 +57,19 @@ async function openLockedBilling() {
   await user.click(
     await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
   )
+  return openDetailBilling()
+}
+
+async function openDetailBilling() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: /Voir mes possibilités d’accès|View access options/ }))
+  const manage = screen.queryByRole('link', { name: /Gérer ma facturation|Manage billing/ })
+  if (manage) await user.click(manage)
+  else {
+    // Await server action: the dialog either offers an explicit plan or management.
+    const action = await screen.findByText(/^(Gérer ma facturation|Manage billing|Choisir Pro|Choose Pro)$/)
+    await user.click(action)
+  }
   return screen.findByRole('heading', { level: 1, name: /Abonnement|Subscription/ })
 }
 
@@ -144,7 +160,7 @@ describe('signal verrouillé sur un compte payant', () => {
     expect(page).not.toContain('réservés aux offres payantes')
     expect(page).not.toContain('réservées aux offres payantes')
     expect(await screen.findByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
-    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
+    expect(callsTo('/signals/sig_locked_1', 'GET').length).toBeGreaterThan(0)
   })
 
   it('le teaser propose une action universelle, jamais « Voir les offres »', async () => {
@@ -168,12 +184,12 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1')
 
-    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+    await openDetailBilling()
     await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('Comparez les offres')
     expect(page).not.toContain('offres payantes')
-    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
+    expect(callsTo('/signals/sig_locked_1', 'GET').length).toBeGreaterThan(0)
   })
 
   it('le détail conserve la vérité sur droits et fenêtre d’historique', async () => {
@@ -184,7 +200,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1')
 
-    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+    await openDetailBilling()
     await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
     expect(page).toMatch(/Historique 365 jours/)
@@ -198,7 +214,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1')
 
-    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+    await openDetailBilling()
     expect(screen.queryByRole('link', { name: 'Voir les offres' })).not.toBeInTheDocument()
     expect(
       await screen.findByRole('button', { name: 'Gérer ma facturation' }),
@@ -227,7 +243,7 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals/sig_locked_1', 'en')
 
-    await screen.findByRole('heading', { level: 1, name: 'Subscription' })
+    await openDetailBilling()
     await screen.findByText('365 days of history')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('reserved for paid plans')

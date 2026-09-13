@@ -123,12 +123,8 @@ def _seed_unlocked(engine, client: TestClient) -> str:
     icp_id = _icp(client)
     _pay(engine, client)
     with engine.begin() as connection:
-        signal_key = materialize_simap(
-            connection, SIMAP_RICH, target_icp_id=icp_id
-        ).signal_key
-        run_winner_enrichment_batch(
-            connection, now=NOW, worker_ref="company-api-test", limit=10
-        )
+        signal_key = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id).signal_key
+        run_winner_enrichment_batch(connection, now=NOW, worker_ref="company-api-test", limit=10)
         return signal_key
 
 
@@ -229,7 +225,6 @@ def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
             cookie_secure=False,
             allowed_origin=ORIGIN,
             session_ttl=dt.timedelta(days=365),
-            company_profile_v2_enabled=True,
         ),
         now_override=lambda: NOW,
     )
@@ -237,9 +232,7 @@ def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
     icp_id = _icp(client)
     account_id = client.get("/me").json()["account_id"]
     with engine.begin() as connection:
-        signal = materialize_simap(
-            connection, SIMAP_RICH, target_icp_id=icp_id
-        )
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
         signal_key = signal.signal_key
         connection.execute(
             sa.insert(discovery_signal_grant).values(
@@ -298,9 +291,8 @@ def test_discovery_profile_keeps_the_locked_contact_block_without_a_provider(
         "source": "apollo",
         "removal_path": "/contact",
     }
-    assert body["directory"]["directors"] == [
-        {"name": "Anna Egli", "title": "Présidente"}
-    ]
+    assert "directors" not in body["directory"]
+    assert body["directory"]["fields_locked"] is True
     assert "director_display_name" not in body["directory"]
     assert "phone" not in body["directory"]
     assert "published_email" not in body["directory"]
@@ -356,7 +348,8 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     body = response.json()
     assert body["company_key"] == company_key
     assert "city" in body
-    assert body["city"] is None  # ce signal officiel ne publie aucune commune
+    # The holder/client location is authoritative, ahead of the worksite location.
+    assert body["city"] == "Root D4"
     assert body["official_identity"]["name"] == "Egli Gartenbau AG Sursee"
     assert body["official_identity"]["source"] == "public_notice"
     assert body["related_signals"][0]["signal_id"] == signal_key
@@ -411,7 +404,10 @@ def test_company_profile_adds_matching_directory_facts_without_contact_data(app,
         "department": "38",
         "department_label": "Isère",
         "city": "Grenoble",
-        "employees": 24,
+        "workforce": {"minimum": None, "maximum": 24, "precision": "estimate"},
+        "available_fields": ["workforce", "directors", "website"],
+        "fields_locked": False,
+        "register_observed_at": NOW.replace(tzinfo=None).isoformat(),
         "website_url": "https://egli.example/",
         "website_source": "registre",
         "website_observed_at": NOW.replace(tzinfo=None).isoformat(),
@@ -430,7 +426,6 @@ def test_joint_redesign_flag_exposes_the_shared_directory_city_and_contract(engi
             cookie_secure=False,
             allowed_origin=ORIGIN,
             session_ttl=dt.timedelta(days=365),
-            signals_companies_v2_enabled=True,
         ),
         now_override=lambda: NOW,
     )
@@ -458,12 +453,12 @@ def test_joint_redesign_flag_exposes_the_shared_directory_city_and_contract(engi
     profile = client.get(f"/companies/{company_key}")
 
     assert feed.status_code == 200
-    assert feed.json()["signals_companies_v2_enabled"] is True
+    assert "signals_companies_v2_enabled" not in feed.json()
     assert companies.status_code == 200
-    assert companies.json()["signals_companies_v2_enabled"] is True
+    assert "signals_companies_v2_enabled" not in companies.json()
     assert companies.json()["items"][0]["city"] == "DRAGUIGNAN"
     assert profile.status_code == 200
-    assert profile.json()["company_profile_v2_enabled"] is True
+    assert "company_profile_v2_enabled" not in profile.json()
     assert profile.json()["directory"]["city"] == "DRAGUIGNAN"
 
 
@@ -474,7 +469,6 @@ def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) ->
             cookie_secure=False,
             allowed_origin=ORIGIN,
             session_ttl=dt.timedelta(days=365),
-            company_profile_v2_enabled=True,
         ),
         now_override=lambda: NOW,
     )
@@ -515,20 +509,18 @@ def test_company_profile_flag_exposes_only_the_sourced_public_contact(engine) ->
 
     profile = client.get(f"/companies/{company_key}").json()
 
-    assert profile["company_profile_v2_enabled"] is True
+    assert "company_profile_v2_enabled" not in profile
     assert profile["plan_code"] == "pro"
     assert profile["directory"]["director_display_name"] == "Anna Egli"
     assert profile["directory"]["director_display_title"] == "Présidente"
     assert profile["directory"]["published_email"] == "contact@egli.example"
-    assert profile["directory"]["published_email_source_url"] == (
-        "https://egli.example/contact"
-    )
+    assert profile["directory"]["published_email_source_url"] == ("https://egli.example/contact")
     assert profile["directory"]["phone"] == "+33 4 76 00 00 00"
     assert profile["directory"]["phone_source"] == "model"
     assert profile["directory"]["phone_observed_at"] == NOW.replace(tzinfo=None).isoformat()
-    assert profile["directory"]["published_email_observed_at"] == NOW.replace(
-        tzinfo=None
-    ).isoformat()
+    assert (
+        profile["directory"]["published_email_observed_at"] == NOW.replace(tzinfo=None).isoformat()
+    )
     assert "professional_email" not in profile["directory"]
 
 
@@ -539,7 +531,6 @@ def test_discovery_directory_profile_never_serializes_contact_details(engine) ->
             cookie_secure=False,
             allowed_origin=ORIGIN,
             session_ttl=dt.timedelta(days=365),
-            company_profile_v2_enabled=True,
         ),
         now_override=lambda: NOW,
     )
@@ -572,8 +563,9 @@ def test_discovery_directory_profile_never_serializes_contact_details(engine) ->
 
     assert response.status_code == 200
     directory = response.json()["directory"]
-    assert directory["directors"] == [{"name": "Anna Egli", "title": "Présidente"}]
-    assert directory["website_url"] == "https://egli.example/"
+    assert "directors" not in directory
+    assert "website_url" not in directory
+    assert directory["fields_locked"] is True
     assert "director_display_name" not in directory
     assert "phone" not in directory
     assert "published_email" not in directory
@@ -596,6 +588,11 @@ def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, eng
                 place_country="FR",
                 place_of_performance={
                     "country": "FR",
+                    "subdivision_code": "FR-75",
+                    "locality": "Paris",
+                },
+                client_location={
+                    "country": "FR",
                     "subdivision_code": "FR-38",
                     "locality": "Grenoble",
                 },
@@ -609,6 +606,7 @@ def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, eng
 
     detail = client.get(f"/signals/{signal_key}").json()
 
+    # Client location (Grenoble), not the different worksite (Paris), drives this.
     assert detail["local_circuit"] == [
         {
             "siren": "331364729",
@@ -647,9 +645,7 @@ def test_authenticated_directory_profile_has_a_closed_not_found_shape(app, engin
     assert missing.json()["detail"]["code"] == "company_not_found"
 
 
-def test_directory_profile_prefers_siren_identity_when_register_name_differs(
-    app, engine
-) -> None:
+def test_directory_profile_prefers_siren_identity_when_register_name_differs(app, engine) -> None:
     client = _signup(app, email="directory-siren-route@example.com")
     icp_id = _icp(client)
     with engine.begin() as connection:
@@ -681,13 +677,11 @@ def test_directory_profile_prefers_siren_identity_when_register_name_differs(
 
 def test_company_profiles_publish_the_closed_directory_contract(app) -> None:
     schemas = app.openapi()["components"]["schemas"]
-    directory_response = app.openapi()["paths"]["/companies/directory/{siren}"]["get"][
-        "responses"
-    ]["200"]["content"]["application/json"]["schema"]
+    directory_response = app.openapi()["paths"]["/companies/directory/{siren}"]["get"]["responses"][
+        "200"
+    ]["content"]["application/json"]["schema"]
 
-    assert directory_response == {
-        "$ref": "#/components/schemas/DirectoryCompanyProfileView"
-    }
+    assert directory_response == {"$ref": "#/components/schemas/DirectoryCompanyProfileView"}
     company_directory = schemas["CompanyProfile"]["properties"]["directory"]["anyOf"]
     assert {item.get("$ref") for item in company_directory} >= {
         "#/components/schemas/DirectoryCompanyView"
@@ -713,15 +707,18 @@ def test_company_profile_exposes_dated_contact_note_and_signal_history(app, engi
     client = _signup(app, email="company-history@example.com")
     signal_key = _seed_unlocked(engine, client)
     company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
-    assert client.post(
-        f"/companies/{company_key}/contact", json={"status": "contacted"}
-    ).status_code == 200
-    assert client.put(
-        f"/companies/{company_key}/note", json={"body": "Relancer mardi"}
-    ).status_code == 200
-    assert client.put(
-        f"/signals/{signal_key}/feedback", json={"relevance": "relevant"}
-    ).status_code == 200
+    assert (
+        client.post(f"/companies/{company_key}/contact", json={"status": "contacted"}).status_code
+        == 200
+    )
+    assert (
+        client.put(f"/companies/{company_key}/note", json={"body": "Relancer mardi"}).status_code
+        == 200
+    )
+    assert (
+        client.put(f"/signals/{signal_key}/feedback", json={"relevance": "relevant"}).status_code
+        == 200
+    )
 
     history = client.get(f"/companies/{company_key}").json()["history"]
 
@@ -793,6 +790,8 @@ def test_missing_and_malformed_company_keys_share_the_same_not_found_shape(app, 
     malformed = client.get("/companies/not-a-company-key")
 
     assert missing.status_code == malformed.status_code == 404
-    assert missing.json() == malformed.json() == {
-        "detail": {"code": "company_not_found", "message": "entreprise introuvable"}
-    }
+    assert (
+        missing.json()
+        == malformed.json()
+        == {"detail": {"code": "company_not_found", "message": "entreprise introuvable"}}
+    )

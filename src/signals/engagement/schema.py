@@ -46,6 +46,7 @@ NEGATIVE_REASON_CODES: tuple[str, ...] = (
 )
 
 MAXIMUM_NOTE_LENGTH = 500
+MAXIMUM_SIGNAL_NOTE_LENGTH = 2000
 
 #: §10 — vocabulaire fermé. Un nom d'événement libre côté client transformerait
 #: la table en dépotoir, et l'analyse en archéologie.
@@ -55,6 +56,7 @@ PRODUCT_EVENT_TYPES: tuple[str, ...] = (
     "signal_feedback_relevant",
     "signal_feedback_not_relevant",
     "signal_contacted",
+    "signal_status_updated",
     "company_contact_updated",
     "company_note_updated",
     "alert_queued",
@@ -143,8 +145,35 @@ signal_note = sa.Table(
         primary_key=True,
     ),
     sa.Column("signal_key", sa.String(64), primary_key=True),
-    sa.Column("note", sa.String(MAXIMUM_NOTE_LENGTH), nullable=False),
+    sa.Column("note", sa.String(MAXIMUM_SIGNAL_NOTE_LENGTH), nullable=False),
+    sa.Column("revision", sa.Integer, nullable=False, server_default="1"),
     *_timestamps(),
+    sa.CheckConstraint("revision >= 1", name="ck_signal_note_revision"),
+)
+
+
+signal_workflow = sa.Table(
+    "signal_workflow",
+    METADATA,
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    # Workflow survives rematerialization, as notes and feedback already do.
+    sa.Column("signal_key", sa.String(64), primary_key=True),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("revision", sa.Integer, nullable=False, server_default="1"),
+    *_timestamps(),
+    sa.CheckConstraint(
+        "status IN ('new', 'saved', 'contacted', 'ignored')",
+        name="ck_signal_workflow_status",
+    ),
+    sa.CheckConstraint("revision >= 1", name="ck_signal_workflow_revision"),
+)
+sa.Index(
+    "ix_signal_workflow_account_status", signal_workflow.c.account_id, signal_workflow.c.status
 )
 
 
@@ -169,7 +198,9 @@ company_contact = sa.Table(
     sa.Column("status", sa.String(16), nullable=False, index=True),
     sa.Column("contacted_at", sa.DateTime(timezone=True)),
     *_timestamps(),
-    sa.CheckConstraint("status IN ('to_contact', 'contacted', 'replied')", name="ck_company_contact_status"),
+    sa.CheckConstraint(
+        "status IN ('to_contact', 'contacted', 'replied')", name="ck_company_contact_status"
+    ),
 )
 
 company_note = sa.Table(
@@ -183,7 +214,9 @@ company_note = sa.Table(
     ),
     sa.Column("company_key", sa.String(64), primary_key=True),
     sa.Column("body", sa.String(MAXIMUM_COMPANY_NOTE_LENGTH), nullable=False),
+    sa.Column("revision", sa.Integer, nullable=False, server_default="1"),
     *_timestamps(),
+    sa.CheckConstraint("revision >= 1", name="ck_company_note_revision"),
 )
 
 
@@ -245,8 +278,7 @@ signal_alert_delivery = sa.Table(
     sa.Column("signal_key", sa.String(64), primary_key=True),
     sa.Column("status", sa.String(32), nullable=False, index=True),
     sa.CheckConstraint(
-        "status IN ('queued', 'sending', 'sent', 'failed', "
-        "'unknown_delivery_state', 'suppressed')",
+        "status IN ('queued', 'sending', 'sent', 'failed', 'unknown_delivery_state', 'suppressed')",
         name="ck_alert_delivery_status",
     ),
     sa.Column("cadence", sa.String(16), nullable=False),
@@ -296,6 +328,7 @@ signal_alert_job_lease = sa.Table(
 ENGAGEMENT_TABLES: tuple[sa.Table, ...] = (
     signal_feedback,
     signal_note,
+    signal_workflow,
     product_event,
     account_notification_preference,
     signal_alert_delivery,

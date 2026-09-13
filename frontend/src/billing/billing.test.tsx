@@ -9,6 +9,7 @@ import {
   CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
+  ME,
   PRO_STATUS,
   UNAUTHENTICATED,
   callsTo,
@@ -270,7 +271,7 @@ describe('retour de paiement', () => {
   })
 
   it('confirme l’accès seulement quand l’état serveur a basculé', async () => {
-    mockApi({ ...BASE, 'GET /billing/status': { body: PRO_STATUS } })
+    mockApi({ ...BASE, 'GET /billing/status': { body: PRO_STATUS }, 'GET /me': { body: ME } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/success' })
 
     expect(

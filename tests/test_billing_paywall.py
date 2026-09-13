@@ -297,6 +297,7 @@ def test_a_locked_teaser_never_names_the_company(alice, engine):
         "locked",
         "unlock_required",
         "status",
+        "status_revision",
         "is_consortium",
         "event",
         "context",
@@ -305,6 +306,7 @@ def test_a_locked_teaser_never_names_the_company(alice, engine):
     }
     assert "presentation" not in item
     assert item["locked"] is True
+    assert item["status_revision"] == 0
     visible = json.dumps(
         {key: value for key, value in item.items() if key not in {"signal_id", "target_icp_id"}},
         ensure_ascii=False,
@@ -394,7 +396,23 @@ def test_the_detail_of_a_locked_signal_never_returns_the_full_card(alice, engine
         "access",
         "read_at",
         "language",
+        "scope",
     }
+    assert set(detail["scope"]) == {
+        "target_icp_id",
+        "matching_revision",
+        "offer_category",
+        "subdivision_code",
+        "min_amount",
+        "amount_currency",
+        "offer_categories",
+        "context_tag",
+    }
+    # Consultation metadata comes from this account's own profile; it must
+    # never introduce the locked holder, buyer, notice facts or source links.
+    assert detail["scope"]["target_icp_id"] is None
+    assert detail["scope"]["min_amount"] is None
+    assert detail["scope"]["amount_currency"] is None
     assert set(detail["access"]) == {"granted", "reason", "upgrade_to"}
     assert detail["locked"] is True
     assert detail["access"]["granted"] is False
@@ -573,18 +591,14 @@ def test_history_cursor_and_date_range_fail_closed(alice, engine):
     # PR2b tâche 3 — `date_from` est désormais aussi disponible en vue
     # Récentes (`feed_page` l'applique lui-même) ; seul `recency_status` reste
     # un concept propre à l'historique.
-    recent_period = alice.get(
-        "/signals", params={"view": "recent", "date_from": "2026-08-01"}
-    )
+    recent_period = alice.get("/signals", params={"view": "recent", "date_from": "2026-08-01"})
     assert recent_period.status_code == 200
 
     recent_recency_status = alice.get(
         "/signals", params={"view": "recent", "recency_status": "recent_award"}
     )
     assert recent_recency_status.status_code == 422
-    assert (
-        recent_recency_status.json()["detail"]["code"] == "history_filters_require_history_view"
-    )
+    assert recent_recency_status.json()["detail"]["code"] == "history_filters_require_history_view"
 
 
 def test_a_history_window_never_authorises_recent_wording_on_an_old_signal(alice, engine):

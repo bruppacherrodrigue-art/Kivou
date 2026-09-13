@@ -8,13 +8,15 @@ import {
   Settings,
   Target,
 } from 'lucide-react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { dashboard } from '../api/endpoints'
 import type { DashboardResponse } from '../api/types'
 import { useCurrentUser, useSession } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
 import { KivouBrand } from '../presentation/dashboard/KivouBrand'
-import { useResource } from '../presentation/dashboard/resources'
+import { ProspectingProvider, useProspecting, useProspectingResource } from '../prospecting/ProspectingProvider'
+import { writeConsultationSearch } from '../prospecting/routeState'
+import prospectingStyles from '../prospecting/Prospecting.module.css'
 import {
   Sidebar,
   SidebarContent,
@@ -60,14 +62,15 @@ export function AppShell() {
     return <Outlet />
   }
 
-  return <ReadyAppShell key={me.account_id} me={me} />
+  return <ProspectingProvider><ReadyAppShell key={me.account_id} me={me} /></ProspectingProvider>
 }
 
 function ReadyAppShell({ me }: { me: ReturnType<typeof useCurrentUser> }) {
   const { t, locale } = useI18n()
   const location = useLocation()
-  const loadDashboard = useCallback(() => dashboard.get(), [])
-  const summary = useResource(loadDashboard)
+  const prospecting = useProspecting()
+  const result = useProspectingResource('dashboard', (signal) => dashboard.get(prospecting.query, { signal }))
+  const summary: DashboardOutletContext = { data: result.data, loading: result.loading, error: result.error, retry: async () => result.reload() }
   const current = connectedLocation(location.pathname, locale)
   const profileLabel = summary.data?.profile?.name ?? t.reference.missingValue
   const sectorLabel = summary.data?.profile?.sector_label ?? t.reference.missingValue
@@ -135,7 +138,13 @@ function ConnectedShell({
   retryPlan: () => void
 }) {
   const { t, locale } = useI18n()
-  const { pathname } = useLocation()
+  const { selection } = useProspecting()
+  const { pathname, search } = useLocation()
+  const [companyView, setCompanyView] = useState('')
+  const consultationSearch = selection ? writeConsultationSearch('', selection) : ''
+  const companySearch = new URLSearchParams(consultationSearch)
+  for (const [key, value] of new URLSearchParams(companyView)) companySearch.set(key, value)
+  const viewPaths = { overview: '/app/dashboard', signals: '/app/signals', companies: '/app/companies', target: '/app/icps', alerts: '/app/notifications', settings: '/app/settings' }
   const { openMobile, setOpenMobile } = useSidebar()
   const mobileTrigger = useRef<HTMLButtonElement>(null)
   const mobileWasOpen = useRef(openMobile)
@@ -150,6 +159,20 @@ function ConnectedShell({
     alerts: locale === 'fr' ? 'Alertes' : 'Alerts',
     settings: locale === 'fr' ? 'Réglages' : 'Settings',
   } satisfies Record<ActiveView, string>
+
+  useEffect(() => {
+    if (!pathname.startsWith('/app/companies')) return
+    const params = new URLSearchParams(search)
+    const remembered = new URLSearchParams()
+    if (pathname.startsWith('/app/companies/directory') || params.get('view') === 'directory') {
+      remembered.set('view', 'directory')
+      for (const key of ['department', 'family', 'q', 'sort']) {
+        const value = params.get(key)
+        if (value) remembered.set(key, value)
+      }
+    }
+    setCompanyView(remembered.toString())
+  }, [pathname, search])
 
   useEffect(() => {
     setOpenMobile(false)
@@ -190,7 +213,7 @@ function ConnectedShell({
             </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="sidebar-menu">
-                {navigation.map(({ id, icon: Icon, href }) => {
+                {navigation.map(({ id, icon: Icon }) => {
                   const active = id === activeView
 
                   return (
@@ -200,15 +223,14 @@ function ConnectedShell({
                         isActive={active}
                         className="sidebar-item"
                       >
-                        <ReferenceLink
-                          dashboard
-                          href={href}
+                        <Link
+                          to={`${viewPaths[id]}${id === 'companies' ? (companySearch.size ? `?${companySearch}` : '') : ['overview', 'signals'].includes(id) ? consultationSearch : ''}`}
                           aria-current={active ? 'page' : undefined}
                           onClick={closeMobileNavigation}
                         >
                           <Icon aria-hidden="true" />
                           <span>{labels[id]}</span>
-                        </ReferenceLink>
+                        </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )
@@ -221,19 +243,17 @@ function ConnectedShell({
         <SidebarFooter className="sidebar-footer">
           <AccountBlock me={me} />
           <div className="sidebar-plan-summary">
-            <strong>{signalQuota === null && openedSignals !== null ? `${openedSignals} signaux ouverts ce mois` : `Plan ${planLabel} · ${openedSignals ?? 0}/${signalQuota ?? '∞'} signaux ce mois`}</strong>
+            <strong>{dashboardResource.loading ? t.reference.loading : planError || !dashboardResource.data?.plan ? (locale === 'fr' ? 'Résumé temporairement indisponible' : 'Summary temporarily unavailable') : signalQuota === null && openedSignals !== null ? `${openedSignals} ${locale === 'fr' ? 'signaux ouverts ce mois' : 'signals opened this month'}` : `Plan ${planLabel} · ${openedSignals ?? '—'}/${signalQuota ?? '—'} ${locale === 'fr' ? 'signaux ce mois' : 'signals this month'}`}</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset className={`dashboard-workspace${activeView === 'companies' || activeView === 'signals'
-        ? ' dashboard-workspace-contained'
-        : ''}`}>
-        <header className="topbar">
+      <SidebarInset as={['overview', 'signals', 'companies'].includes(activeView) ? 'div' : 'main'} className="dashboard-workspace">
+        <header className={`topbar${['overview', 'signals', 'companies'].includes(activeView) ? ' prospecting-topbar' : ''}`}>
           <SidebarTrigger ref={mobileTrigger} className="sidebar-trigger" aria-label={t.reference.openNavigation} />
           {title ? <h1 className="shell-page-title">{title}</h1> : null}
-          {profileError || planError ? (
+          {!['overview', 'signals', 'companies'].includes(activeView) && (profileError || planError ? (
             <button type="button" className="shell-resource-retry" onClick={profileError ? retryProfile : retryPlan}>
               {profileError ? t.reference.messages.profileLoadError : t.reference.messages.billingLoadError}
             </button>
@@ -243,9 +263,10 @@ function ConnectedShell({
               <strong>{sectorLabel === t.reference.missingValue ? '' : sectorLabel}</strong>
               <span data-profile-zones>{zoneLabel === t.reference.missingValue ? '' : zoneLabel}</span>
             </span>
-          </>}
+          </>)}
         </header>
 
+        {me.provisional_profile && <aside className={prospectingStyles.guide} aria-label={locale === 'fr' ? 'Profil provisoire' : 'Provisional profile'}><p>{locale === 'fr' ? 'Personnalisez vos opportunités avec votre profil commercial.' : 'Personalise your opportunities with your sales profile.'}</p><Link className={prospectingStyles.textButton} to="/app/confirm-profile">{locale === 'fr' ? 'Confirmer mon profil' : 'Confirm my profile'}</Link></aside>}
         <Outlet context={dashboardResource} />
       </SidebarInset>
     </>

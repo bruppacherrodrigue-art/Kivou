@@ -52,8 +52,6 @@ ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
 ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
 GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
-COMPANY_PROFILE_V2_ENABLED_ENV = "KIVOU_COMPANY_PROFILE_V2_ENABLED"
-SIGNALS_COMPANIES_V2_ENABLED_ENV = "KIVOU_SIGNALS_COMPANIES_V2_ENABLED"
 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
 APOLLO_API_KEY_ENV = "KIVOU_APOLLO_API_KEY"
 
@@ -204,13 +202,6 @@ class ApiConfig:
     # PR6b — coupe seulement la phrase rédigée dans l'app client. Le repli
     # déterministe reste toujours disponible et les e-mails ne changent pas.
     generated_for_you_enabled: bool = False
-    # PR6b correction #226 — la fiche validée reste désactivée tant que la
-    # capture staging n'a pas reçu l'accord produit.
-    company_profile_v2_enabled: bool = False
-    # Refonte conjointe des écrans Signaux et Entreprises. Le flag est séparé
-    # de la fiche entreprise déjà publiée afin de permettre sa validation sur
-    # staging sans modifier l'expérience courante en production.
-    signals_companies_v2_enabled: bool = False
     commercial_start_delay_months_by_cpv_prefix: Mapping[str, int] = dataclasses.field(
         default_factory=dict
     )
@@ -386,10 +377,6 @@ class ApiConfig:
             # borné des comptes actifs. Le défaut fermé empêche un déploiement
             # d'afficher un mélange involontaire de phrases générées et de replis.
             generated_for_you_enabled=_flag(GENERATED_FOR_YOU_ENABLED_ENV, default=False),
-            company_profile_v2_enabled=_flag(COMPANY_PROFILE_V2_ENABLED_ENV, default=False),
-            signals_companies_v2_enabled=_flag(
-                SIGNALS_COMPANIES_V2_ENABLED_ENV, default=False
-            ),
             commercial_start_delay_months_by_cpv_prefix=_cpv_start_delays(
                 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV
             ),

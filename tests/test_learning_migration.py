@@ -36,7 +36,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
 LATEST = "0042_account_deletion"
-CURRENT_HEAD = "0057_directory_contact_keys"
+CURRENT_HEAD = "0060_boamp_notice_facts"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
 
@@ -48,11 +48,10 @@ def test_learning_migration_is_one_linear_head_with_exactly_two_tables(tmp_path)
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
-    assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
-        scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
-        == FRENCH_OFFICIAL_COMPANY
+        scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     )
+    assert scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision == FRENCH_OFFICIAL_COMPANY
     assert scripts.get_revision(FRENCH_OFFICIAL_COMPANY).down_revision == WINNER_ENRICHMENT
     assert scripts.get_revision(WINNER_ENRICHMENT).down_revision == PRODUCTION_OBSERVATION
     assert scripts.get_revision(PRODUCTION_OBSERVATION).down_revision == CARD_PRESENTATION
