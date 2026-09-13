@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
 from decimal import Decimal
 
 import sqlalchemy as sa
 from feed_helpers import BOAMP_AGING, make_account, make_icp, materialize_boamp, materialize_simap
 
 from signals.accounts.schema import target_icp
+from signals.companies.enrichment import MAX_ENRICHMENT_ATTEMPTS
 from signals.companies.schema import winner_enrichment_job
 from signals.company_research.enrichment import (
     CompanyEnrichmentDecision,
@@ -15,7 +17,9 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
+from signals.company_research.instance_lock import exclusive_instance_lock
 from signals.company_research.winner_worker import (
+    main,
     run_winner_company_enrichment_batch,
     select_winner_enrichment_candidates,
 )
@@ -138,6 +142,43 @@ def test_selector_returns_only_one_job_per_holder_in_a_batch(tmp_path) -> None:
     assert len(selected) == 1
     assert selected[0].signal_key in {first.signal_key, second.signal_key}
     assert selected[0].holder_key
+
+
+def test_selector_retries_only_failed_jobs_below_the_attempt_limit(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    with engine.begin() as connection:
+        retryable, _ = _seed(connection, "28066-04", "retryable")
+        exhausted, _ = _seed(connection, "33885-03", "exhausted")
+        connection.execute(
+            sa.update(winner_enrichment_job)
+            .where(winner_enrichment_job.c.signal_key == retryable.signal_key)
+            .values(
+                status="failed",
+                attempt_count=MAX_ENRICHMENT_ATTEMPTS - 1,
+                error_code="test_failure",
+                claimed_by="test-worker",
+                started_at=NOW - dt.timedelta(minutes=1),
+                finished_at=NOW,
+            )
+        )
+        connection.execute(
+            sa.update(winner_enrichment_job)
+            .where(winner_enrichment_job.c.signal_key == exhausted.signal_key)
+            .values(
+                status="failed",
+                attempt_count=MAX_ENRICHMENT_ATTEMPTS,
+                error_code="test_failure",
+                claimed_by="test-worker",
+                started_at=NOW - dt.timedelta(minutes=1),
+                finished_at=NOW,
+            )
+        )
+
+        selected = select_winner_enrichment_candidates(
+            connection, now=NOW, activated_at=ACTIVATED_AT, limit=20
+        )
+
+    assert tuple(item.signal_key for item in selected) == (retryable.signal_key,)
 
 
 def test_worker_enriches_a_new_winner_and_duplicate_signal_uses_cache(tmp_path) -> None:
@@ -288,6 +329,54 @@ def test_worker_records_an_unresolved_directory_identity_as_a_failed_job(tmp_pat
     assert batch.failed == 1
     assert row.status == "failed"
     assert row.error_code == "winner_directory_identity_unresolved"
+
+
+def test_worker_contains_an_identity_provider_failure_to_one_job(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    with engine.begin() as connection:
+        signal = _seed_french_job(connection, "identity-error")
+
+    class Service:
+        def enrich(self, *_args, **_kwargs):
+            raise AssertionError("the model must not run after an identity failure")
+
+    def broken_identity_source(_siren: str):
+        raise RuntimeError("registry unavailable")
+
+    batch = run_winner_company_enrichment_batch(
+        engine,
+        now=NOW,
+        activated_at=ACTIVATED_AT,
+        worker_ref="winner-identity-error-test",
+        identity_source=broken_identity_source,
+        enrichment_service=Service(),
+        limit=10,
+    )
+
+    with engine.connect() as connection:
+        row = connection.execute(
+            sa.select(winner_enrichment_job).where(
+                winner_enrichment_job.c.signal_key == signal.signal_key
+            )
+        ).one()
+    assert batch.failed == 1
+    assert row.status == "failed"
+    assert row.error_code == "winner_directory_identity_failed"
+
+
+def test_cli_refuses_a_second_instance_before_provider_validation(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    lock_path = tmp_path / "winner.lock"
+    monkeypatch.setenv("KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT", NOW.isoformat())
+    monkeypatch.setenv("KIVOU_WINNER_ENRICHMENT_LOCK_FILE", str(lock_path))
+    monkeypatch.delenv("KIVOU_SERPER_API_KEY", raising=False)
+
+    with exclusive_instance_lock(lock_path):
+        result = main([])
+
+    assert result == os.EX_TEMPFAIL
+    assert "INSTANCE_ALREADY_RUNNING" in capsys.readouterr().err
 
 
 def test_budget_stop_returns_the_job_to_pending_without_spending_an_attempt(tmp_path) -> None:

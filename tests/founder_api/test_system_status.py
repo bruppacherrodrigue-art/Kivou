@@ -15,12 +15,16 @@ from signals.founder_api.acquisition_status import FounderAcquisitionActivity
 from signals.founder_api.app import create_founder_app
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.read_models import FounderReadService
-from signals.founder_api.system_status import FounderSystemHostReader
+from signals.founder_api.system_status import DEFAULT_TIMER_UNITS, FounderSystemHostReader
 from signals.persistence.schema import METADATA, supplier_directory
 
 NOW = dt.datetime(2026, 9, 12, 8, tzinfo=dt.UTC)
 SHA = "a" * 40
 DiskUsage = namedtuple("DiskUsage", "total used free")
+
+
+def test_winner_enrichment_timer_is_visible_in_system_console() -> None:
+    assert "kivou-winner-enrichment.timer" in DEFAULT_TIMER_UNITS
 
 
 def _engine() -> sa.Engine:

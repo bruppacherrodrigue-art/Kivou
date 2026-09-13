@@ -404,8 +404,6 @@ class AnnuaireRawDirectorClient:
                     "q": siren,
                     "page": 1,
                     "per_page": 1,
-                    "minimal": "true",
-                    "include": "dirigeants",
                 },
                 headers={"accept": "application/json", "user-agent": "Kivou/1.0"},
             )

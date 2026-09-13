@@ -263,7 +263,17 @@ def run_winner_company_enrichment_batch(
             continue
         with engine.connect() as connection:
             siren = _siren_for_job(connection, candidate.signal_key)
-        identity = None if siren is None else identity_source(siren)
+        try:
+            identity = None if siren is None else identity_source(siren)
+        except Exception:  # noqa: BLE001 - isolate registry failures to one job
+            _mark_failed(
+                engine,
+                signal_key=candidate.signal_key,
+                now=now,
+                error_code="winner_directory_identity_failed",
+            )
+            failed += 1
+            continue
         if identity is None:
             _mark_failed(
                 engine,
@@ -273,18 +283,18 @@ def run_winner_company_enrichment_batch(
             )
             failed += 1
             continue
-        directory.upsert_identity(
-            siren=identity.siren,
-            legal_name=identity.legal_name,
-            naf_code=identity.naf_code,
-            family_key=default_supplier_family_for_naf(identity.naf_code) or "",
-            department=identity.department,
-            city=identity.city,
-            employees=identity.employees,
-            observed_at=now,
-            naf_label=identity.naf_label,
-        )
         try:
+            directory.upsert_identity(
+                siren=identity.siren,
+                legal_name=identity.legal_name,
+                naf_code=identity.naf_code,
+                family_key=default_supplier_family_for_naf(identity.naf_code) or "",
+                department=identity.department,
+                city=identity.city,
+                employees=identity.employees,
+                observed_at=now,
+                naf_label=identity.naf_label,
+            )
             result = enrichment_service.enrich(
                 identity.siren,
                 directors_raw=identity.directors_raw,
@@ -325,67 +335,54 @@ def _aware_environment_instant(name: str) -> dt.datetime:
     return parsed
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m signals.company_research.winner_worker")
-    parser.add_argument("--limit", type=int, default=25)
-    arguments = parser.parse_args(argv)
+def _run_locked(arguments: argparse.Namespace) -> int:
     try:
         activated_at = _aware_environment_instant("KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT")
     except ValueError as error:
         print(f"status=CONFIGURATION_ERROR detail={error}", file=sys.stderr)
         return 2
-    if not 1 <= arguments.limit <= MAX_WINNER_MODEL_BATCH:
-        print("status=INVALID_ARGUMENTS", file=sys.stderr)
-        return 2
     serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
     if not serper_key:
         print("status=PROVIDER_CONFIGURATION_MISSING", file=sys.stderr)
         return 2
-    lock_path = os.environ.get(
-        "KIVOU_WINNER_ENRICHMENT_LOCK_FILE", "/srv/kivou/run/winner-enrichment.lock"
-    )
     try:
-        with exclusive_instance_lock(lock_path):
-            engine = create_database_engine()
-            client = httpx.Client(
-                timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True
+        engine = create_database_engine()
+        client = httpx.Client(
+            timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True
+        )
+        collector = CompanyWebCollector(
+            serper_api_key=serper_key, client=client
+        )
+        identity_client = AnnuaireRawDirectorClient(client=client)
+        batch_id = f"winner-enrichment-{uuid.uuid4()}"
+        try:
+            providers = company_enrichment_providers_from_environment(
+                engine=engine,
+                batch_id=batch_id,
+                client=client,
             )
-            collector = CompanyWebCollector(
-                serper_api_key=serper_key, client=client
+            result = run_winner_company_enrichment_batch(
+                engine,
+                now=dt.datetime.now(dt.UTC),
+                activated_at=activated_at,
+                worker_ref=batch_id[:64],
+                identity_source=identity_client.profile,
+                enrichment_service=CompanyEnrichmentService(
+                    directory=SupplierDirectoryStore(engine),
+                    collector=collector,
+                    provider=providers.judge,
+                    arbiter=providers.arbiter,
+                    mx_verifier=EmailMxVerifier().verify,
+                ),
+                limit=arguments.limit,
+                official_company_provider=FrenchOfficialCompanyClient(),
             )
-            identity_client = AnnuaireRawDirectorClient(client=client)
-            batch_id = f"winner-enrichment-{uuid.uuid4()}"
-            try:
-                providers = company_enrichment_providers_from_environment(
-                    engine=engine,
-                    batch_id=batch_id,
-                    client=client,
-                )
-                result = run_winner_company_enrichment_batch(
-                    engine,
-                    now=dt.datetime.now(dt.UTC),
-                    activated_at=activated_at,
-                    worker_ref=batch_id[:64],
-                    identity_source=identity_client.profile,
-                    enrichment_service=CompanyEnrichmentService(
-                        directory=SupplierDirectoryStore(engine),
-                        collector=collector,
-                        provider=providers.judge,
-                        arbiter=providers.arbiter,
-                        mx_verifier=EmailMxVerifier().verify,
-                    ),
-                    limit=arguments.limit,
-                    official_company_provider=FrenchOfficialCompanyClient(),
-                )
-            finally:
-                renderer_close = getattr(collector._renderer, "close", None)
-                if callable(renderer_close):
-                    renderer_close()
-                client.close()
-                engine.dispose()
-    except InstanceAlreadyRunning:
-        print("status=INSTANCE_ALREADY_RUNNING", file=sys.stderr)
-        return 75
+        finally:
+            renderer_close = getattr(collector._renderer, "close", None)
+            if callable(renderer_close):
+                renderer_close()
+            client.close()
+            engine.dispose()
     except ValueError:
         print("status=PROVIDER_CONFIGURATION_MISSING", file=sys.stderr)
         return 2
@@ -406,6 +403,24 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     return 0 if result.failed == 0 else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="python -m signals.company_research.winner_worker")
+    parser.add_argument("--limit", type=int, default=25)
+    arguments = parser.parse_args(argv)
+    if not 1 <= arguments.limit <= MAX_WINNER_MODEL_BATCH:
+        print("status=INVALID_ARGUMENTS", file=sys.stderr)
+        return 2
+    lock_path = os.environ.get(
+        "KIVOU_WINNER_ENRICHMENT_LOCK_FILE", "/srv/kivou/run/winner-enrichment.lock"
+    )
+    try:
+        with exclusive_instance_lock(lock_path):
+            return _run_locked(arguments)
+    except InstanceAlreadyRunning:
+        print("status=INSTANCE_ALREADY_RUNNING", file=sys.stderr)
+        return os.EX_TEMPFAIL
 
 
 if __name__ == "__main__":  # pragma: no cover

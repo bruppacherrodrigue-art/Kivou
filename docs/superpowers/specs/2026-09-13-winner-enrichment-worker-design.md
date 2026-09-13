@@ -1,6 +1,6 @@
 # Enrichissement économique des titulaires — arbitrage et worker dédié
 
-Date : 13 septembre 2026  
+Date : 13 septembre 2026
 Statut : approuvé par la décision opérateur du 13 septembre 2026
 
 ## Objectif

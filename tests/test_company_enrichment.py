@@ -29,6 +29,8 @@ NOW = dt.datetime(2026, 9, 12, 8, tzinfo=dt.UTC)
 def test_annuaire_client_returns_exact_bounded_enrichment_identity() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["q"] == "479673980"
+        assert "minimal" not in request.url.params
+        assert "include" not in request.url.params
         return httpx.Response(
             200,
             json={

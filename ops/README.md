@@ -1549,10 +1549,14 @@ Les appels utilisent les routes `enrichment_judge` et `enrichment_arbiter`, le
 journal persistant et les plafonds journaliers Europe/Zurich. Un plafond atteint
 remet le job en attente sans consommer son budget de trois essais.
 
-Avant activation dans un environnement :
+Avant activation, écrire une ligne unique
+`KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT=<instant-UTC-ISO-8601>` dans le fichier
+protégé `/etc/kivou/staging.env` ou `/etc/kivou/production.env` par remplacement
+atomique, en conservant son propriétaire et son mode `0600`. Une simple variable
+de shell n'est pas suffisante : systemd relit le fichier d'environnement à chaque
+lot. Vérifier ensuite l'unité puis activer le timer :
 
 ```bash
-KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT=$(date --utc --iso-8601=seconds)
 sudo systemd-analyze verify \
   /etc/systemd/system/kivou-winner-enrichment.service \
   /etc/systemd/system/kivou-winner-enrichment.timer

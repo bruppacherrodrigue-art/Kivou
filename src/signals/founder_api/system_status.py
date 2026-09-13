@@ -36,6 +36,7 @@ DEFAULT_TIMER_UNITS = (
     "kivou-disk-alert.timer",
     "kivou-disk-maintenance.timer",
     "kivou-acquisition-production.timer",
+    "kivou-winner-enrichment.timer",
 )
 _TIMER_PROPERTIES = (
     "Id",
