@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
 from signals.founder_api.access import FounderIdentityDependency
+from signals.founder_api.acquisition_actions import FounderAcquisitionLauncher
 from signals.founder_api.commercial_tunnel import FounderTunnelPeriod
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
@@ -33,6 +34,7 @@ def create_founder_app(
     now_override: Callable[[], dt.datetime] | None = None,
     read_service: FounderReadService | None = None,
     prospection_actions: ProspectionActions | None = None,
+    acquisition_launcher: FounderAcquisitionLauncher | None = None,
 ) -> FastAPI:
     """Build the isolated Founder API with an optional least-privilege action service."""
 
@@ -47,8 +49,14 @@ def create_founder_app(
     app.state.now_override = now_override
     app.state.read_service = read_service
     app.state.prospection_actions = prospection_actions
+    app.state.acquisition_launcher = acquisition_launcher
     if prospection_actions is not None:
-        app.include_router(build_prospection_actions_router(prospection_actions))
+        app.include_router(
+            build_prospection_actions_router(
+                prospection_actions,
+                acquisition_launcher=acquisition_launcher,
+            )
+        )
 
         @app.exception_handler(RequestValidationError)
         async def _action_validation_error(
