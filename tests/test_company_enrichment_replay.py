@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from signals.company_research.enrichment import CompanyEnrichmentRunResult
-from signals.company_research.replay import _execute_cohort
+from signals.company_research.instance_lock import InstanceAlreadyRunning, exclusive_instance_lock
+from signals.company_research.replay import _execute_cohort, main
 from signals.model_runtime.budget import DailyModelBudgetExhausted
 
 
@@ -48,3 +51,28 @@ def test_replay_stops_cleanly_when_daily_model_budget_is_exhausted() -> None:
     assert result.errors == ()
     assert result.budget_usage == "enrichment_judge"
     assert service.calls == ["100000001", "100000002"]
+
+
+def test_instance_lock_refuses_a_second_holder(tmp_path) -> None:
+    path = tmp_path / "replay.lock"
+
+    with (
+        exclusive_instance_lock(path),
+        pytest.raises(InstanceAlreadyRunning),
+        exclusive_instance_lock(path),
+    ):
+        raise AssertionError("the second holder must never enter")
+
+
+def test_replay_refuses_a_second_launch_before_provider_configuration(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    path = tmp_path / "replay.lock"
+    monkeypatch.setenv("KIVOU_ENRICHMENT_REPLAY_LOCK_FILE", str(path))
+    monkeypatch.delenv("KIVOU_SERPER_API_KEY", raising=False)
+
+    with exclusive_instance_lock(path):
+        result = main([])
+
+    assert result == 75
+    assert "INSTANCE_ALREADY_RUNNING" in capsys.readouterr().err

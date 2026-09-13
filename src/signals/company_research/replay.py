@@ -21,6 +21,10 @@ from signals.company_research.enrichment import (
     CompanyEnrichmentService,
     CompanyWebCollector,
 )
+from signals.company_research.instance_lock import (
+    InstanceAlreadyRunning,
+    exclusive_instance_lock,
+)
 from signals.company_research.providers import company_enrichment_providers_from_environment
 from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.model_runtime.budget import DailyModelBudgetExhausted
@@ -167,11 +171,7 @@ def _metrics(engine, sirens: tuple[str, ...]) -> dict[str, int]:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    arguments = _parser().parse_args(argv)
-    if not 1 <= arguments.workers <= 8 or arguments.limit < 0 or arguments.min_employees < 0:
-        print("status=INVALID_ARGUMENTS", file=sys.stderr)
-        return 2
+def _run(arguments: argparse.Namespace) -> int:
     serper_key = os.environ.get("KIVOU_SERPER_API_KEY", "").strip()
     if not serper_key:
         print("status=PROVIDER_CONFIGURATION_MISSING", file=sys.stderr)
@@ -236,6 +236,23 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     return 0 if execution.status in {"completed", "stopped_budget"} else 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = _parser().parse_args(argv)
+    if not 1 <= arguments.workers <= 8 or arguments.limit < 0 or arguments.min_employees < 0:
+        print("status=INVALID_ARGUMENTS", file=sys.stderr)
+        return 2
+    lock_path = os.environ.get(
+        "KIVOU_ENRICHMENT_REPLAY_LOCK_FILE",
+        "/srv/kivou/run/company-enrichment-replay.lock",
+    )
+    try:
+        with exclusive_instance_lock(lock_path):
+            return _run(arguments)
+    except InstanceAlreadyRunning:
+        print("status=INSTANCE_ALREADY_RUNNING", file=sys.stderr)
+        return 75
 
 
 if __name__ == "__main__":  # pragma: no cover
