@@ -36,7 +36,7 @@ function AccountUpgrade({ onClose, intent, accountId }: { onClose: () => void; i
             if (!prices.length) return null
             const name = t.billing.plans[plan.plan_code]
             return <section className={styles.panel} key={plan.plan_code}>
-              <div className={styles.holder}><h3>{name}</h3><p>{prices.map((price) => money(price.amount_minor_units / 100, price.currency.toUpperCase())).join(' · ')} {fr ? '/ mois' : '/ month'}</p>
+              <div className={styles.holder}><h3>{name}</h3><p>{prices.map((price) => money(price.amount_minor_units, price.currency.toUpperCase())).join(' · ')} {fr ? '/ mois' : '/ month'}</p>
                 <p className={styles.muted}>{plan.entitlements.max_active_icps} {fr ? 'profil(s) actif(s)' : 'active profile(s)'} · {plan.entitlements.history_days === null ? (fr ? 'Tout l’historique disponible' : 'All available history') : `${plan.entitlements.history_days} ${fr ? 'jours d’historique' : 'days of history'}`}</p>
                 <button className={styles.primary} disabled={!target} onClick={() => navigate(`/app/billing?plan=${plan.plan_code}`, { state })}>{fr ? `Choisir ${name}` : `Choose ${name}`}</button>
               </div>
