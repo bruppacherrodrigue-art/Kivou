@@ -8,8 +8,10 @@ from decimal import Decimal
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.pool import StaticPool
+from test_prospection_actions_service import seed as seed_prospect_target
 
 from signals.founder_api.acquisition_status import (
+    ACQUISITION_SERVICE_UNIT,
     ACQUISITION_TIMER_UNIT,
     FounderAcquisitionActivity,
     FounderAcquisitionStatusReadService,
@@ -19,6 +21,8 @@ from signals.persistence.schema import (
     METADATA,
     acquisition_runtime_cycle,
     acquisition_runtime_observation,
+    prospect_target,
+    supplier_directory,
 )
 
 NOW = dt.datetime(2026, 9, 11, 8, tzinfo=dt.UTC)
@@ -34,7 +38,12 @@ def engine() -> sa.Engine:
     )
     METADATA.create_all(
         value,
-        tables=[acquisition_runtime_cycle, acquisition_runtime_observation],
+        tables=[
+            acquisition_runtime_cycle,
+            acquisition_runtime_observation,
+            supplier_directory,
+            prospect_target,
+        ],
     )
     return value
 
@@ -236,6 +245,43 @@ def test_systemd_reader_uses_active_and_inactive_enter_timestamps() -> None:
     assert stopped.activity_since == dt.datetime(2026, 9, 10, 7, 48, 16, tzinfo=dt.UTC)
 
 
+def test_systemd_reader_distinguishes_idle_service_from_waiting_timer() -> None:
+    activity = SystemdAcquisitionActivityReader(
+        run=_systemctl_result(
+            "Id=kivou-acquisition-production.service\n"
+            "LoadState=loaded\n"
+            "ActiveState=inactive\n"
+            "InactiveEnterTimestamp=Fri 2026-09-11 07:48:16 UTC\n\n"
+            "Id=kivou-acquisition-production.timer\n"
+            "LoadState=loaded\n"
+            "ActiveState=active\n"
+            "NextElapseUSecRealtime=Sat 2026-09-12 04:00:00 UTC\n"
+        )
+    )(NOW)
+
+    assert activity.activity == "STOPPED"
+    assert activity.activity_since == dt.datetime(2026, 9, 11, 7, 48, 16, tzinfo=dt.UTC)
+    assert activity.next_run_at == dt.datetime(2026, 9, 12, 4, tzinfo=dt.UTC)
+
+
+def test_status_counts_the_current_zurich_queue_and_exposes_the_cap(
+    engine: sa.Engine,
+) -> None:
+    seed_prospect_target(engine)
+
+    status = FounderAcquisitionStatusReadService(
+        engine,
+        timer_reader=lambda _: FounderAcquisitionActivity(
+            activity="STOPPED",
+            next_run_at=NOW + dt.timedelta(hours=22),
+        ),
+    ).read(now=NOW)
+
+    assert status.prepared_today_count == 1
+    assert status.daily_pending_cap == 25
+    assert status.next_run_at == NOW + dt.timedelta(hours=22)
+
+
 def test_systemd_reader_parses_the_numeric_timestamp_without_weekday_locale() -> None:
     activity = SystemdAcquisitionActivityReader(
         run=_systemctl_result(
@@ -268,12 +314,21 @@ def test_systemd_reader_bounds_the_command_properties_environment_and_timeout() 
     kwargs = call["kwargs"]
     assert isinstance(args, tuple)
     assert isinstance(args[0], tuple)
-    assert args[0][:4] == ("systemctl", "show", ACQUISITION_TIMER_UNIT, "--no-pager")
-    assert set(args[0][4:]) == {
+    assert args[0][:5] == (
+        "systemctl",
+        "show",
+        ACQUISITION_SERVICE_UNIT,
+        ACQUISITION_TIMER_UNIT,
+        "--no-pager",
+    )
+    assert set(args[0][5:]) == {
+        "--property=Id",
         "--property=LoadState",
         "--property=ActiveState",
         "--property=ActiveEnterTimestamp",
         "--property=InactiveEnterTimestamp",
+        "--property=ExecMainStartTimestamp",
+        "--property=NextElapseUSecRealtime",
     }
     assert "--property=LastTriggerUSec" not in args[0]
     assert isinstance(kwargs, dict)
@@ -283,7 +338,7 @@ def test_systemd_reader_bounds_the_command_properties_environment_and_timeout() 
     assert kwargs["env"]["TZ"] == "UTC"  # type: ignore[index]
 
 
-@pytest.mark.parametrize("active_state", ("failed", "activating", "deactivating"))
+@pytest.mark.parametrize("active_state", ("failed", "deactivating"))
 def test_systemd_reader_fails_closed_for_failed_or_transitional_states(
     active_state: str,
 ) -> None:
