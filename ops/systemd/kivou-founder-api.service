@@ -36,7 +36,9 @@ RestrictSUIDSGID=true
 RestrictNamespaces=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# Intentionally no MemoryDenyWriteExecute: the bounded Founder action starts
+# the Playwright-backed supplier discovery child, whose Node/V8 runtime needs
+# executable JIT pages. The dedicated acquisition unit has the same exception.
 
 [Install]
 WantedBy=multi-user.target

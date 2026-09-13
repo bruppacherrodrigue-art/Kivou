@@ -199,6 +199,9 @@ def test_production_assisted_timer_runs_hourly_from_six_and_shares_the_founder_l
     assert "RuntimeDirectory=kivou" in founder
     assert "RuntimeDirectoryMode=0700" in founder
     assert "RuntimeDirectoryPreserve=yes" in founder
+    # The Founder action launches the same Playwright-backed discovery child as
+    # the timer unit. V8 needs to make its JIT pages executable.
+    assert "MemoryDenyWriteExecute=true" not in founder
 
 
 def test_the_production_example_declares_production_and_no_fallback_recipient() -> None:
