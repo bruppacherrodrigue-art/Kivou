@@ -43,6 +43,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeActionResult,
     RuntimeCapabilityEvidence,
     RuntimeDependencyState,
+    RuntimeExecutionConfigurationError,
     RuntimeExecutionMode,
     RuntimeHermesIdentityEvidence,
     RuntimeQaScope,
@@ -147,14 +148,6 @@ def _qa_bound_opportunity_key(
         return None
     key = control.qa_signal_ref.removeprefix(prefix)
     return key or None
-
-
-class RuntimeExecutionConfigurationError(RuntimeError):
-    """A bounded configuration error which never carries configuration values."""
-
-    def __init__(self, code: str) -> None:
-        super().__init__(f"acquisition runtime execution configuration error: {code}")
-        self.code = code
 
 
 @dataclass(frozen=True)

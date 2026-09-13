@@ -404,6 +404,7 @@ function QueueSection({
   const preparationBaselineRef = useRef<string | null>(null)
   const preparationStartedAtRef = useRef<number | null>(null)
   const preparationSawRunningRef = useRef(false)
+  const preparationGeneratedAtRef = useRef<string | null>(null)
 
   const acquisition = data.acquisition_status
   const preparationRunning = preparationState !== 'idle' || acquisition.activity === 'RUNNING'
@@ -414,7 +415,9 @@ function QueueSection({
     if (acquisition.activity === 'RUNNING') preparationSawRunningRef.current = true
     const cycleCompleted = acquisition.last_cycle_at !== preparationBaselineRef.current
     const returnedToStopped = preparationSawRunningRef.current && acquisition.activity === 'STOPPED'
-    if (cycleCompleted || returnedToStopped || preparationAtCap) {
+    const refreshedAfterLaunch = data.generated_at !== preparationGeneratedAtRef.current
+    const fastCycleCompleted = refreshedAfterLaunch && acquisition.activity === 'STOPPED'
+    if (cycleCompleted || returnedToStopped || fastCycleCompleted || preparationAtCap) {
       setPreparationState('idle')
       return undefined
     }
@@ -431,6 +434,7 @@ function QueueSection({
   }, [
     acquisition.activity,
     acquisition.last_cycle_at,
+    data.generated_at,
     onRefresh,
     preparationAtCap,
     preparationState,
@@ -443,6 +447,7 @@ function QueueSection({
     preparationBaselineRef.current = acquisition.last_cycle_at
     preparationStartedAtRef.current = Date.now()
     preparationSawRunningRef.current = false
+    preparationGeneratedAtRef.current = data.generated_at
     try {
       await prepareFounderProspection()
       setPreparationState('polling')

@@ -12,6 +12,7 @@ from signals.acquisition_runtime.cli import main
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeDependencyState,
+    RuntimeExecutionConfigurationError,
     RuntimeRunResult,
     RuntimeRunStatus,
     RuntimeStageDependency,
@@ -234,6 +235,16 @@ def test_configuration_failure_is_explicit_and_expurgated(error, capsys) -> None
     assert streams.out == ""
     assert streams.err == "status=CONFIGURATION_INVALID\n"
     assert "secret-marker" not in streams.err
+
+
+def test_no_eligible_opportunity_is_a_clean_suppressed_cycle(capsys) -> None:
+    def execute(_allow):
+        raise RuntimeExecutionConfigurationError("NO_ELIGIBLE_OPPORTUNITY")
+
+    assert main(["run-once"], execute=execute) == 0
+    streams = capsys.readouterr()
+    assert streams.out == "status=SUPPRESSED reason=NO_ELIGIBLE_OPPORTUNITY\n"
+    assert streams.err == ""
 
 
 def test_unexpected_runtime_failure_is_expurgated(capsys) -> None:
