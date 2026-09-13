@@ -3,6 +3,7 @@
 import datetime as dt
 import json
 import runpy
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -121,6 +122,198 @@ def test_baseline_includes_indirectly_account_owned_sessions(checks, engine):
         )
         nested.create(connection)
     assert "rehearsal_private_child" in checks.capture_baseline(engine)
+
+
+def _private_stream(engine, *, rows=10017):
+    """Large synthetic private descendant, without public or account filtering."""
+    metadata = sa.MetaData()
+    owners = sa.Table("account", metadata, sa.Column("account_id", sa.String, primary_key=True))
+    profiles = sa.Table(
+        "target_icp",
+        metadata,
+        sa.Column("target_icp_id", sa.String, primary_key=True),
+        sa.Column("account_id", sa.ForeignKey(owners.c.account_id), nullable=False),
+    )
+    table = sa.Table(
+        "for_you_sentence",
+        metadata,
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("target_icp_id", sa.ForeignKey(profiles.c.target_icp_id), nullable=False),
+        sa.Column("input_snapshot", sa.JSON, nullable=False),
+        sa.Column("amount", sa.Numeric(18, 4), nullable=False),
+        sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.execute(owners.insert().values(account_id="original-owner"))
+        connection.execute(
+            profiles.insert().values(target_icp_id="private-profile", account_id="original-owner")
+        )
+        for start in range(0, rows, 128):
+            connection.execute(
+                table.insert(),
+                [
+                    {
+                        "id": index,
+                        "target_icp_id": "private-profile",
+                        "input_snapshot": {
+                            "offer": "PRIVATE_STREAM_VALUE",
+                            "zones": ["FR"],
+                            "n": index,
+                        },
+                        "amount": Decimal("123.4500"),
+                        "observed_at": NOW,
+                    }
+                    for index in range(start, min(rows, start + 128))
+                ],
+            )
+    return table
+
+
+def test_baseline_streams_more_than_ten_thousand_private_rows(checks, engine, tmp_path):
+    _private_stream(engine)
+    streamed = []
+
+    def observe(_connection, _cursor, statement, _parameters, context, _many):
+        if statement.startswith("SELECT for_you_sentence."):
+            streamed.append(bool(context.execution_options.get("stream_results")))
+
+    sa.event.listen(engine, "before_cursor_execute", observe)
+    with checks.capture_baseline(engine) as baseline:
+        assert baseline["for_you_sentence"]["row_count"] == 10017
+        assert "rows" not in baseline["for_you_sentence"]
+        assert baseline.path.stat().st_mode & 0o077 == 0
+        assert baseline.path.parent.stat().st_mode & 0o077 == 0
+        assert b"PRIVATE_STREAM_VALUE" not in baseline.path.read_bytes()
+        checks.compare_baseline(engine, baseline)
+        path = baseline.path
+    assert streamed and all(streamed)
+    assert not path.exists() and not path.parent.exists()
+
+
+@pytest.mark.parametrize("operation", ["modify", "delete"])
+def test_baseline_detects_last_batch_change_and_cleans_up(checks, engine, tmp_path, operation):
+    table = _private_stream(engine)
+    code = "legacy_private_value_changed" if operation == "modify" else "legacy_private_row_missing"
+    with (
+        pytest.raises(checks.RehearsalFailure, match=code) as failure,
+        checks.capture_baseline(engine, temp_dir=tmp_path) as baseline,
+    ):
+        path = baseline.path
+        last_batch = None
+        for last_batch in baseline.batches("for_you_sentence"):
+            pass
+        assert last_batch
+        final_key = last_batch[-1][0][0]
+        with engine.begin() as connection:
+            command = (
+                table.update().values(input_snapshot={"offer": "PRIVATE_CHANGED"})
+                if operation == "modify"
+                else table.delete()
+            )
+            connection.execute(command.where(table.c.id == final_key))
+        checks.compare_baseline(engine, baseline)
+    assert "PRIVATE" not in str(failure.value)
+    assert not path.exists() and not path.parent.exists()
+
+
+def test_baseline_allows_new_rows_without_ignoring_old_rows(checks, engine, tmp_path):
+    table = _private_stream(engine, rows=3)
+    with checks.capture_baseline(engine, temp_dir=tmp_path) as baseline:
+        with engine.begin() as connection:
+            connection.execute(
+                table.insert().values(
+                    id=9000,
+                    target_icp_id="private-profile",
+                    input_snapshot={"new": True},
+                    amount=Decimal("1.0000"),
+                    observed_at=NOW,
+                )
+            )
+        checks.compare_baseline(engine, baseline)
+        assert baseline["for_you_sentence"]["row_count"] == 3
+
+
+def test_baseline_canonical_values_preserve_decimal_json_and_instant_semantics(checks):
+    assert hasattr(checks, "canonical_bytes"), "canonical streaming fingerprints are missing"
+    first = {
+        "json": {"a": 1, "b": [True, None]},
+        "money": Decimal("123.4500"),
+        "at": NOW,
+        "date": NOW.date(),
+    }
+    equivalent = {
+        "date": NOW.date(),
+        "at": NOW.astimezone(dt.timezone(dt.timedelta(hours=2))),
+        "money": Decimal("123.45"),
+        "json": {"b": [True, None], "a": 1},
+    }
+    assert checks.canonical_bytes(first) == checks.canonical_bytes(equivalent)
+    assert checks.canonical_bytes(first) != checks.canonical_bytes(
+        {**first, "money": Decimal("123.4501")}
+    )
+    assert checks.canonical_bytes({"bool": True}) != checks.canonical_bytes({"bool": 1})
+
+
+@pytest.mark.parametrize(
+    "bound,code",
+    [
+        ({"max_disk_bytes": 8192}, "baseline_bytes_limit"),
+        ({"max_row_bytes": 16}, "baseline_row_bytes_limit"),
+    ],
+)
+def test_baseline_limits_fail_closed_and_remove_private_storage(
+    checks, engine, tmp_path, bound, code
+):
+    _private_stream(engine, rows=300)
+    with pytest.raises(checks.RehearsalFailure, match=code):
+        checks.capture_baseline(engine, temp_dir=tmp_path, **bound)
+    assert not list(tmp_path.glob("kivou-v11-baseline-*"))
+
+
+def test_owned_baseline_is_removed_when_migration_fails(checks, engine, tmp_path, monkeypatch):
+    _private_stream(engine, rows=3)
+    original_capture = checks.capture_baseline
+    paths = []
+
+    def capture(database):
+        baseline = original_capture(database, temp_dir=tmp_path)
+        paths.append(baseline.path)
+        return baseline
+
+    def fail_migration(_database):
+        raise checks.RehearsalFailure("synthetic_migration_failure")
+
+    monkeypatch.setitem(checks.migrate_and_check.__globals__, "capture_baseline", capture)
+    monkeypatch.setitem(checks.migrate_and_check.__globals__, "migrate_to_latest", fail_migration)
+    with pytest.raises(checks.RehearsalFailure, match="synthetic_migration_failure"):
+        checks.migrate_and_check(engine, now=NOW)
+    assert paths and all(not path.exists() and not path.parent.exists() for path in paths)
+
+
+@pytest.mark.parametrize("operation", ["remove", "change"])
+def test_streamed_baseline_still_checks_exact_historical_exports(
+    checks, engine, monkeypatch, operation
+):
+    populated_0058(engine)
+    with checks.capture_baseline(engine) as baseline:
+        migrate_to_latest(engine)
+        original_export = checks.export_account
+
+        def broken_export(connection, **arguments):
+            payload = original_export(connection, **arguments)
+            rows = payload["data"]["company_note"]
+            if rows:
+                if operation == "remove":
+                    rows.clear()
+                else:
+                    rows[0]["body"] = "PRIVATE_EXPORT_CHANGED"
+            return payload
+
+        monkeypatch.setitem(checks._export_checked.__globals__, "export_account", broken_export)
+        with pytest.raises(checks.RehearsalFailure, match="legacy_export_missing") as failure:
+            checks.verify_legacy_exports(engine, baseline)
+        assert "PRIVATE" not in str(failure.value)
 
 
 def test_contract_checks_reject_a_broken_2001_character_writer(checks, engine, monkeypatch):

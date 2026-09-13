@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import datetime as dt
 import fcntl
+import hmac
 import json
 import os
 import re
+import secrets
+import sqlite3
 import stat
 import subprocess
+import tempfile
 import uuid
 from collections import Counter
+from decimal import Decimal
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -36,6 +41,9 @@ NOTICE_IDS = ("26-87113", "26-84423", "26-85899", "26-88050")
 HEAD = "0060_boamp_notice_facts"
 MAX_ROWS = 10000
 MAX_BASELINE_BYTES = 256 * 1024 * 1024
+MAX_BASELINE_ROW_BYTES = 4 * 1024 * 1024
+BASELINE_BATCH_ROWS = 128
+BASELINE_STREAM_ROWS = 16
 MAX_AUDIT_PAGES = 1000
 
 
@@ -91,41 +99,218 @@ def verify_database(engine, expected_name):
         )
 
 
-def capture_baseline(engine, *, limit=MAX_ROWS):
-    require(type(limit) is int and 1 <= limit <= MAX_ROWS, "baseline_limit_invalid")
-    baseline, size = {}, 0
-    with engine.connect() as connection:
-        inspector = sa.inspect(connection)
-        metadata = sa.MetaData()
-        names = inspector.get_table_names()
-        private = {
-            name
-            for name in names
-            if "account_id" in {column["name"] for column in inspector.get_columns(name)}
-        }
-        references = {
-            name: {key["referred_table"] for key in inspector.get_foreign_keys(name)}
-            for name in names
-        }
-        # Sessions, password resets and other descendants may own account data
-        # through a foreign key without duplicating account_id themselves.
-        while descendants := {name for name in names if references[name] & private} - private:
-            private.update(descendants)
-        for name in sorted(private):
-            table = sa.Table(name, metadata, autoload_with=connection)
-            keys = tuple(column.name for column in table.primary_key)
-            require(bool(keys), "private_table_without_primary_key")
-            rows = connection.execute(sa.select(table).limit(limit + 1)).mappings().all()
-            require(len(rows) <= limit, "baseline_limit")
-            values = {}
-            for row in rows:
-                value = dict(row)
-                size += len(json.dumps(value, default=str).encode())
-                require(size <= MAX_BASELINE_BYTES, "baseline_bytes_limit")
-                values[tuple(row[key] for key in keys)] = value
-            baseline[name] = {"keys": keys, "columns": tuple(table.c.keys()), "rows": values}
-    require("account" in baseline, "restored_accounts_missing")
-    return baseline
+def _typed(value, *, key=False):
+    if value is None:
+        return ["null", None]
+    if isinstance(value, bool):
+        return ["bool", value]
+    if isinstance(value, (int, float, Decimal)):
+        number = Decimal(str(value))
+        require(number.is_finite(), "baseline_nonfinite_number")
+        text = format(number, "f")
+        text = text.rstrip("0").rstrip(".") if "." in text else text
+        text = "0" if number == 0 else text
+        kind = type(value).__name__ if key else "number"
+        return [kind, text]
+    if isinstance(value, dt.datetime):
+        if value.tzinfo is not None and value.utcoffset() is not None:
+            value = value.astimezone(dt.UTC)
+        return ["datetime", value.isoformat(timespec="microseconds")]
+    if isinstance(value, dt.date):
+        return ["date", value.isoformat()]
+    if isinstance(value, str):
+        return ["str", value]
+    if isinstance(value, (bytes, memoryview)):
+        return ["bytes", bytes(value).hex()]
+    if isinstance(value, uuid.UUID):
+        return ["uuid", str(value)]
+    if isinstance(value, (list, tuple)):
+        return ["array", [_typed(item, key=key) for item in value]]
+    if isinstance(value, dict):
+        require(all(isinstance(item, str) for item in value), "baseline_json_key_invalid")
+        return ["object", [[item, _typed(value[item], key=key)] for item in sorted(value)]]
+    raise RehearsalFailure("baseline_value_type_unsupported")
+
+
+def canonical_bytes(value):
+    return json.dumps(_typed(value), ensure_ascii=False, separators=(",", ":")).encode()
+
+
+def _decode_key(encoded):
+    decoders = {
+        "str": str,
+        "int": int,
+        "float": float,
+        "Decimal": Decimal,
+        "bool": bool,
+        "datetime": dt.datetime.fromisoformat,
+        "date": dt.date.fromisoformat,
+        "bytes": bytes.fromhex,
+        "uuid": uuid.UUID,
+    }
+    return tuple(decoders[kind](value) for kind, value in json.loads(encoded))
+
+
+class PrivateBaseline(dict):
+    """Metadata in memory; private primary keys and keyed row digests on disk.
+
+    No old row payload is retained. The SQLite file is disposable, not a backup;
+    disabled journals prevent unbounded sidecars. Its page cap bounds disk use.
+    """
+
+    def __init__(
+        self,
+        *,
+        temp_dir=None,
+        max_disk_bytes=MAX_BASELINE_BYTES,
+        max_row_bytes=MAX_BASELINE_ROW_BYTES,
+    ):
+        super().__init__()
+        self._temporary = None
+        self._store = None
+        require(
+            type(max_disk_bytes) is int and 8192 <= max_disk_bytes <= MAX_BASELINE_BYTES,
+            "baseline_disk_limit_invalid",
+        )
+        require(
+            type(max_row_bytes) is int and 1 <= max_row_bytes <= MAX_BASELINE_ROW_BYTES,
+            "baseline_row_limit_invalid",
+        )
+        self.max_row_bytes = max_row_bytes
+        self._secret = secrets.token_bytes(32)
+        try:
+            self._temporary = tempfile.TemporaryDirectory(
+                prefix="kivou-v11-baseline-", dir=temp_dir
+            )
+            self.path = Path(self._temporary.name) / "fingerprints.sqlite"
+            descriptor = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            os.close(descriptor)
+            self._store = sqlite3.connect(self.path, isolation_level=None)
+            self._store.execute("PRAGMA page_size=4096")
+            self._store.execute("PRAGMA journal_mode=OFF")
+            self._store.execute("PRAGMA synchronous=OFF")
+            self._store.execute("PRAGMA cache_size=-2048")
+            self._store.execute(f"PRAGMA max_page_count={max_disk_bytes // 4096}")
+            self._store.execute(
+                "CREATE TABLE fingerprint (table_name TEXT NOT NULL, key_text TEXT NOT NULL, "
+                "owner TEXT, digest BLOB NOT NULL, PRIMARY KEY (table_name, key_text)) WITHOUT ROWID"
+            )
+        except BaseException:
+            self.close()
+            raise
+
+    def close(self):
+        if self._store is not None:
+            self._store.close()
+            self._store = None
+        if self._temporary is not None:
+            self._temporary.cleanup()
+            self._temporary = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_arguments):
+        self.close()
+
+    def __del__(self):
+        self.close()
+
+    def digest(self, value):
+        encoded = canonical_bytes(value)
+        require(len(encoded) <= self.max_row_bytes, "baseline_row_bytes_limit")
+        return hmac.digest(self._secret, encoded, "sha256")
+
+    def add(self, name, keys, row):
+        require(all(row[key] is not None for key in keys), "baseline_null_primary_key")
+        encoded_key = json.dumps(
+            [_typed(row[key], key=True) for key in keys], separators=(",", ":")
+        )
+        require(len(encoded_key.encode()) <= 16384, "baseline_key_bytes_limit")
+        digest = self.digest(dict(row))
+        try:
+            self._store.execute(
+                "INSERT INTO fingerprint VALUES (?, ?, ?, ?)",
+                (name, encoded_key, row.get("account_id"), digest),
+            )
+        except sqlite3.OperationalError as error:
+            raise RehearsalFailure("baseline_bytes_limit") from error
+
+    def batches(self, name, *, owner=None):
+        require(self._store is not None, "baseline_closed")
+        sql = "SELECT key_text, digest FROM fingerprint WHERE table_name = ?"
+        parameters = (name,)
+        if owner is not None:
+            sql += " AND owner = ?"
+            parameters += (owner,)
+        cursor = self._store.execute(sql + " ORDER BY key_text", parameters)
+        try:
+            while rows := cursor.fetchmany(BASELINE_BATCH_ROWS):
+                yield [(_decode_key(key), digest) for key, digest in rows]
+        finally:
+            cursor.close()
+
+
+def capture_baseline(
+    engine,
+    *,
+    limit=None,
+    temp_dir=None,
+    max_disk_bytes=MAX_BASELINE_BYTES,
+    max_row_bytes=MAX_BASELINE_ROW_BYTES,
+):
+    # An explicit small limit is a refusal guard, never a sampling instruction.
+    # The normal path reads every row and is bounded by buffers, row size and disk.
+    require(
+        limit is None or type(limit) is int and 1 <= limit <= MAX_ROWS, "baseline_limit_invalid"
+    )
+    baseline = PrivateBaseline(
+        temp_dir=temp_dir, max_disk_bytes=max_disk_bytes, max_row_bytes=max_row_bytes
+    )
+    try:
+        with engine.connect() as connection:
+            inspector = sa.inspect(connection)
+            metadata = sa.MetaData()
+            names = inspector.get_table_names()
+            private = {
+                name
+                for name in names
+                if "account_id" in {column["name"] for column in inspector.get_columns(name)}
+            }
+            references = {
+                name: {key["referred_table"] for key in inspector.get_foreign_keys(name)}
+                for name in names
+            }
+            while descendants := {name for name in names if references[name] & private} - private:
+                private.update(descendants)
+            for name in sorted(private):
+                table = sa.Table(name, metadata, autoload_with=connection)
+                keys = tuple(column.name for column in table.primary_key)
+                require(bool(keys), "private_table_without_primary_key")
+                count = 0
+                statement = (
+                    sa.select(table)
+                    .order_by(*table.primary_key)
+                    .execution_options(
+                        stream_results=True,
+                        yield_per=BASELINE_STREAM_ROWS,
+                    )
+                )
+                with connection.execute(statement) as result:
+                    for row in result.mappings():
+                        count += 1
+                        require(limit is None or count <= limit, "baseline_limit")
+                        baseline.add(name, keys, row)
+                baseline[name] = {
+                    "keys": keys,
+                    "columns": tuple(table.c.keys()),
+                    "row_count": count,
+                }
+        require("account" in baseline, "restored_accounts_missing")
+        return baseline
+    except BaseException:
+        baseline.close()
+        raise
 
 
 def compare_baseline(engine, baseline):
@@ -133,20 +318,25 @@ def compare_baseline(engine, baseline):
         metadata = sa.MetaData()
         for name, before in baseline.items():
             table = sa.Table(name, metadata, autoload_with=connection)
-            keys = list(before["rows"])
-            for start in range(0, len(keys), 400):
-                selected = keys[start : start + 400]
-                rows = connection.execute(
-                    sa.select(*(table.c[key] for key in before["columns"])).where(
-                        sa.tuple_(*(table.c[key] for key in before["keys"])).in_(selected),
+            for batch in baseline.batches(name):
+                selected = dict(batch)
+                statement = (
+                    sa.select(*(table.c[key] for key in before["columns"]))
+                    .where(
+                        sa.tuple_(*(table.c[key] for key in before["keys"])).in_(list(selected)),
                     )
-                ).mappings()
-                after = {tuple(row[key] for key in before["keys"]): dict(row) for row in rows}
-                require(len(after) == len(selected), "legacy_private_row_missing")
-                require(
-                    all(after[key] == before["rows"][key] for key in selected),
-                    "legacy_private_value_changed",
+                    .execution_options(stream_results=True, yield_per=BASELINE_STREAM_ROWS)
                 )
+                count = 0
+                with connection.execute(statement) as result:
+                    for row in result.mappings():
+                        key = tuple(row[column] for column in before["keys"])
+                        require(
+                            hmac.compare_digest(baseline.digest(dict(row)), selected[key]),
+                            "legacy_private_value_changed",
+                        )
+                        count += 1
+                require(count == len(selected), "legacy_private_row_missing")
 
 
 def _audit(engine, phase, now):
@@ -401,44 +591,58 @@ def verify_legacy_exports(engine, baseline):
         "account_company_membership",
     }
     with engine.connect() as connection:
-        for original in baseline["account"]["rows"].values():
-            owner = original["account_id"]
-            exported = _export_checked(connection, owner)
-            for name in tables & baseline.keys():
-                before = baseline[name]
-                exported_rows = {
-                    tuple(row[k] for k in before["keys"]): row
-                    for row in exported["data"].get(name, ())
-                }
-                for key, row in before["rows"].items():
-                    if row["account_id"] == owner:
-                        require(
-                            key in exported_rows
-                            and all(exported_rows[key].get(k) == v for k, v in row.items()),
-                            "legacy_export_missing",
-                        )
-            count += 1
+        owner_index = baseline["account"]["keys"].index("account_id")
+        for batch in baseline.batches("account"):
+            for key, _digest in batch:
+                owner = key[owner_index]
+                exported = _export_checked(connection, owner)
+                for name in tables & baseline.keys():
+                    before = baseline[name]
+                    exported_rows = {
+                        tuple(row[k] for k in before["keys"]): row
+                        for row in exported["data"].get(name, ())
+                    }
+                    for original_batch in baseline.batches(name, owner=owner):
+                        for row_key, digest in original_batch:
+                            row = exported_rows.get(row_key)
+                            require(
+                                row is not None and all(k in row for k in before["columns"]),
+                                "legacy_export_missing",
+                            )
+                            require(
+                                hmac.compare_digest(
+                                    baseline.digest({k: row[k] for k in before["columns"]}),
+                                    digest,
+                                ),
+                                "legacy_export_missing",
+                            )
+                count += 1
     return count
 
 
 def migrate_and_check(engine, *, now, baseline=None):
-    baseline = capture_baseline(engine) if baseline is None else baseline
-    migrate_to_latest(engine)
-    require(current_revision(engine) == HEAD, "candidate_migration_head_mismatch")
-    compare_baseline(engine, baseline)
-    audit = {phase: _audit(engine, phase, now) for phase in ("registry", "accounts")}
-    compare_baseline(engine, baseline)
-    contracts = exercise_private_contracts(engine, now=now)
-    exports = verify_legacy_exports(engine, baseline)
-    compare_baseline(engine, baseline)
-    return {
-        "legacy_preserved": True,
-        "baseline_tables": len(baseline),
-        "baseline_rows": sum(len(table["rows"]) for table in baseline.values()),
-        "legacy_accounts_exported": exports,
-        "audits": audit,
-        "contracts": contracts,
-    }
+    owns_baseline = baseline is None
+    baseline = capture_baseline(engine) if owns_baseline else baseline
+    try:
+        migrate_to_latest(engine)
+        require(current_revision(engine) == HEAD, "candidate_migration_head_mismatch")
+        compare_baseline(engine, baseline)
+        audit = {phase: _audit(engine, phase, now) for phase in ("registry", "accounts")}
+        compare_baseline(engine, baseline)
+        contracts = exercise_private_contracts(engine, now=now)
+        exports = verify_legacy_exports(engine, baseline)
+        compare_baseline(engine, baseline)
+        return {
+            "legacy_preserved": True,
+            "baseline_tables": len(baseline),
+            "baseline_rows": sum(table["row_count"] for table in baseline.values()),
+            "legacy_accounts_exported": exports,
+            "audits": audit,
+            "contracts": contracts,
+        }
+    finally:
+        if owns_baseline:
+            baseline.close()
 
 
 def select_boamp_events(engine):
@@ -567,6 +771,7 @@ def run_backfill_checks(engine, *, cursor_path, client, now):
 
 def main():
     engine = None
+    original = None
     try:
         name = os.getenv("KIVOU_V11_REHEARSAL_DATABASE_NAME", "")
         sha = os.getenv("KIVOU_V11_CANDIDATE_SHA", "")
@@ -612,6 +817,8 @@ def main():
         )
         return 2
     finally:
+        if original is not None:
+            original.close()
         if engine is not None:
             engine.dispose()
 

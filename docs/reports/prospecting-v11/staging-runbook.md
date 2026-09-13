@@ -22,7 +22,7 @@ Répéter le fragment fermé dans une configuration nginx isolée : PUT note/sta
 
 ## 3. Release atomique
 
-Utiliser exclusivement `ops/bin/kivou-deploy.sh staging <SHA40>` via `systemd-run --wait --collect --pipe` avec EnvironmentFile `/etc/kivou/staging.env`, WorkingDirectory `/srv/kivou/source`. Voir commande exacte dans `ops/README.md` ; ne jamais afficher le fichier d'environnement.
+Utiliser exclusivement `ops/bin/kivou-deploy.sh staging <SHA40>` via une unité `systemd-run` **asynchrone**, avec EnvironmentFile `/etc/kivou/staging.env`, WorkingDirectory `/srv/kivou/source`, Type`oneshot`, `TimeoutStartSec=infinity` et `RemainAfterExit=yes`. Ne pas employer `--pipe` pour cette longue opération : une coupure SSH ne doit ni supprimer le rapport ni masquer le code retour. Conserver le journal systemd, contrôler `LoadState`, `ActiveState`, `SubState`, `Result` et `ExecMainStatus` de l'unité exacte ; ne pas interpréter les valeurs par défaut d'une unité déjà collectée comme une réussite. Connexion SSH avec keepalive. Arrêter l'unité terminée seulement après collecte de sa preuve ; ne jamais afficher le fichier d'environnement.
 
 Le script effectue build, sauvegarde, restauration jetable, migrations sur copie puis base vive, bascule backend/frontend et readiness. Contrôler son code retour et le journal expurgé. Il **ne revient pas automatiquement** à la release précédente en cas d'échec de readiness après bascule.
 
