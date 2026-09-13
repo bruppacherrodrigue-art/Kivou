@@ -20,6 +20,18 @@ MAX_RESPONSE_BYTES = 262_144
 _PER_MILLION = Decimal("1000000")
 
 
+def _structured_reasoning(model: str) -> dict[str, object] | None:
+    if model.startswith("openai/gpt-5"):
+        return {"effort": "minimal", "exclude": True}
+    if model in {
+        "google/gemini-2.5-flash",
+        "moonshotai/kimi-k2.6",
+        "x-ai/grok-4.3",
+    }:
+        return {"enabled": False}
+    return None
+
+
 def estimate_reservation(
     route: ModelRoute,
     *,
@@ -97,28 +109,35 @@ class OpenRouterGateway:
             batch_id=batch_id,
         )
         try:
+            reasoning = _structured_reasoning(route.model)
+            request_payload: dict[str, object] = {
+                "model": route.model,
+                "max_tokens": max_tokens,
+                "messages": list(messages),
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": schema_name,
+                        "strict": True,
+                        "schema": dict(schema),
+                    },
+                },
+                "provider": {"require_parameters": True},
+                "usage": {"include": True},
+            }
+            if route.model.startswith("openai/gpt-5"):
+                request_payload["reasoning"] = reasoning
+            else:
+                request_payload["temperature"] = 0
+                if reasoning is not None:
+                    request_payload["reasoning"] = reasoning
             response = self._client.post(
                 OPENROUTER_URL,
                 headers={
                     "authorization": f"Bearer {self._api_key}",
                     "content-type": "application/json",
                 },
-                json={
-                    "model": route.model,
-                    "temperature": 0,
-                    "max_tokens": max_tokens,
-                    "messages": list(messages),
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": schema_name,
-                            "strict": True,
-                            "schema": dict(schema),
-                        },
-                    },
-                    "provider": {"require_parameters": True},
-                    "usage": {"include": True},
-                },
+                json=request_payload,
             )
             if response.status_code != 200:
                 raise _ProviderFailure(f"PROVIDER_HTTP_{response.status_code}")
@@ -131,6 +150,8 @@ class OpenRouterGateway:
                 input_tokens = int(usage["prompt_tokens"])
                 output_tokens = int(usage["completion_tokens"])
                 actual = Decimal(str(usage["cost"]))
+                if content is None:
+                    content = ""
                 if not isinstance(content, str) or input_tokens < 0 or output_tokens < 0:
                     raise TypeError
                 if not actual.is_finite() or actual < 0:

@@ -28,11 +28,12 @@ from signals.supplier_discovery.families import load_supplier_family_catalog
 
 DEFAULT_MODEL = "mistralai/mistral-small-2603"
 BENCHMARK_MODELS = (
-    "mistralai/mistral-small-2603",
-    "google/gemini-2.5-flash-lite",
-    "deepseek/deepseek-chat",
+    "openai/gpt-5-mini",
+    "google/gemini-2.5-flash",
+    "moonshotai/kimi-k2.6",
+    "x-ai/grok-4.3",
 )
-DIRECTOR_MASKED_BENCHMARK_MODEL = "deepseek/deepseek-chat"
+DIRECTOR_MASKED_BENCHMARK_MODEL = "moonshotai/kimi-k2.6"
 _INSTRUCTION = (
     "Voici une entreprise française et ce que le web dit d'elle. "
     "Dis-moi ce que tu peux confirmer. Ne devine pas : si tu n'es pas sûr, laisse vide."

@@ -130,7 +130,7 @@ class CompanyEnrichmentProviderResult(EnrichmentContract):
     call_id: str | None = Field(default=None, max_length=36)
     decision: CompanyEnrichmentDecision
     model: str = Field(min_length=1, max_length=128)
-    cost_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
+    cost_usd: Decimal = Field(ge=0, max_digits=14, decimal_places=8)
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
 
