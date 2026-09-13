@@ -215,6 +215,8 @@ def test_environment_factory_builds_distinct_judge_and_arbiter_routes(
 
     assert providers.judge.usage == "enrichment_judge"
     assert providers.judge.model == "mistralai/mistral-small-2603"
+    assert providers.judge._max_tokens == 300
     assert providers.arbiter.usage == "enrichment_arbiter"
     assert providers.arbiter.model == "anthropic/claude-sonnet-4.6"
+    assert providers.arbiter._max_tokens == 800
     assert providers.routes.batch_id == "lot-1"
