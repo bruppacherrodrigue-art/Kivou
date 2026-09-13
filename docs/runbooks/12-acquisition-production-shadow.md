@@ -434,8 +434,10 @@ sudo systemctl enable --now kivou-acquisition-production.timer
 sudo systemctl list-timers kivou-acquisition-production.timer --no-pager
 ```
 
-Attendre le premier déclenchement automatique (au plus une heure, plus le
-délai aléatoire de 300 secondes), puis relire le journal comme à l'étape 8.
+Le timer passe à 06:00 Europe/Zurich puis chaque heure jusqu'à 23:00 tant que
+la file n'a pas atteint 25 cibles. `Persistent=true` rattrape le passage de
+06:00 après une indisponibilité de l'hôte. Relire ensuite le journal comme à
+l'étape 8.
 Chaque tir suivant est indépendant : le bail PostgreSQL et `flock` empêchent
 deux cycles concurrents, et un cycle interrompu reprend depuis le premier
 stage durable non terminal, jamais depuis le début.

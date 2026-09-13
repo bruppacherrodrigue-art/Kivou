@@ -178,6 +178,29 @@ def test_the_production_unit_never_reads_a_staging_environment_file() -> None:
         assert hardening in unit
 
 
+def test_production_assisted_timer_runs_hourly_from_six_and_shares_the_founder_lock() -> None:
+    from pathlib import Path
+
+    service = Path("ops/systemd/kivou-acquisition-production.service").read_text(
+        encoding="utf-8"
+    )
+    timer = Path("ops/systemd/kivou-acquisition-production.timer").read_text(
+        encoding="utf-8"
+    )
+    founder = Path("ops/systemd/kivou-founder-api.service").read_text(
+        encoding="utf-8"
+    )
+
+    assert "PRODUCTION/ASSISTED" in service
+    assert "--conflict-exit-code 75 /run/kivou/acquisition.lock" in service
+    assert "OnCalendar=*-*-* 06..23:00:00 Europe/Zurich" in timer
+    assert "Persistent=true" in timer
+    assert "RandomizedDelaySec" not in timer
+    assert "RuntimeDirectory=kivou" in founder
+    assert "RuntimeDirectoryMode=0700" in founder
+    assert "RuntimeDirectoryPreserve=yes" in founder
+
+
 def test_the_production_example_declares_production_and_no_fallback_recipient() -> None:
     from pathlib import Path
 

@@ -1,5 +1,5 @@
 [Unit]
-Description=Kivou — cycle Acquisition PRODUCTION/SHADOW borné
+Description=Kivou — cycle Acquisition PRODUCTION/ASSISTED borné
 Documentation=file:/srv/kivou/app/docs/runbooks/12-acquisition-production-shadow.md
 Wants=network-online.target
 After=network-online.target postgresql.service
@@ -15,7 +15,7 @@ EnvironmentFile=/etc/kivou/acquisition-production.env
 RuntimeDirectory=kivou
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
-ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 /run/kivou/acquisition.lock /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once
+ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 75 /run/kivou/acquisition.lock /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once
 TimeoutStartSec=25min
 TimeoutStopSec=90s
 StandardOutput=journal
