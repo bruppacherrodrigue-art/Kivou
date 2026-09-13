@@ -11,6 +11,16 @@ export interface FounderAcquisitionStatus {
   last_cycle_at: string | null
   last_cycle_status: string | null
   last_cycle_reason_code: string | null
+  prepared_today_count: number
+  daily_pending_cap: number
+  next_run_at: string | null
+}
+
+export interface FounderProspectionPrepareResponse {
+  version: 'founder-prospection-prepare-v1'
+  status: 'accepted'
+  prepared_today_count: number
+  daily_pending_cap: number
 }
 
 export interface FounderSession {

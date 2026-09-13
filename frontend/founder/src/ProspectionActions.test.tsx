@@ -20,6 +20,9 @@ const READ_MODEL: FounderProspection = {
     last_cycle_at: '2026-09-11T09:30:00Z',
     last_cycle_status: 'SUCCEEDED',
     last_cycle_reason_code: null,
+    prepared_today_count: 3,
+    daily_pending_cap: 25,
+    next_run_at: '2026-09-11T11:00:00Z',
   },
   queue: { available: true, last_cycle_at: '2026-09-11T09:30:00Z', items: [] },
   directory: {
@@ -175,6 +178,7 @@ function renderPage() {
       }}
       refreshing={false}
       onFiltersChange={vi.fn()}
+      onRefresh={vi.fn()}
     />,
   )
 }

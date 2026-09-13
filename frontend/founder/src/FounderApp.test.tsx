@@ -34,6 +34,9 @@ const OVERVIEW: FounderOverview = {
     last_cycle_at: '2026-08-29T15:45:00Z',
     last_cycle_status: 'SUPPRESSED',
     last_cycle_reason_code: 'NO_ELIGIBLE_OPPORTUNITY',
+    prepared_today_count: 0,
+    daily_pending_cap: 25,
+    next_run_at: null,
   },
   today: {
     generated_at: '2026-08-29T18:30:00Z',

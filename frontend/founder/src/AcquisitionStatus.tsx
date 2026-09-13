@@ -65,7 +65,7 @@ function activityLabel(status: FounderAcquisitionStatus): string {
   if (status.activity === 'UNKNOWN') return 'État indisponible'
   const label = status.activity === 'RUNNING' ? 'Actif' : 'Arrêté'
   return status.activity_since
-    ? `${label} depuis le ${formatDateTime(status.activity_since)}`
+    ? `${label} depuis le ${formatAcquisitionDateTime(status.activity_since)}`
     : `${label} · date de début indisponible`
 }
 
@@ -73,7 +73,7 @@ function cycleLabel(status: FounderAcquisitionStatus): string {
   if (!status.last_cycle_ref && !status.last_cycle_at) return 'Aucun cycle observé'
   const reference = cycleReferenceLabel(status.last_cycle_ref)
   const observedAt = status.last_cycle_at
-    ? formatDateTime(status.last_cycle_at)
+    ? formatAcquisitionDateTime(status.last_cycle_at)
     : 'date indisponible'
   return `${reference} · ${observedAt}`
 }
@@ -84,7 +84,7 @@ function cycleReferenceLabel(reference: string | null): string {
   return `${reference.slice(0, 8)}…${reference.slice(-6)}`
 }
 
-function cycleResultLabel(status: FounderAcquisitionStatus): string {
+export function cycleResultLabel(status: FounderAcquisitionStatus): string {
   if (!status.last_cycle_status) return 'Aucun résultat observé'
   const result = CYCLE_STATUS_LABELS[status.last_cycle_status] ?? 'Résultat inconnu'
   const reason = status.last_cycle_reason_code
@@ -94,7 +94,7 @@ function cycleResultLabel(status: FounderAcquisitionStatus): string {
   return `${result} · ${reason}`
 }
 
-function formatDateTime(value: string): string {
+export function formatAcquisitionDateTime(value: string): string {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return 'date indisponible'
   return new Intl.DateTimeFormat('fr-CH', {

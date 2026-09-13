@@ -789,6 +789,27 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
 .prospection-table-panel,
 .prospection-queue-panel { margin-top: 10px; padding: 0; overflow: visible; }
+.prospection-preparation-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
+.prospection-preparation-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  color: var(--muted);
+  font-size: 0.83rem;
+}
+.prospection-preparation-facts span:last-child { color: var(--ink); font-weight: 700; }
+@media (max-width: 760px) {
+  .prospection-preparation-bar { align-items: stretch; flex-direction: column; }
+  .prospection-preparation-bar button { width: 100%; }
+}
 .prospection-table-wrap { margin-top: 0; }
 .prospection-table-wrap table { min-width: 1080px; }
 .prospection-table-wrap th,

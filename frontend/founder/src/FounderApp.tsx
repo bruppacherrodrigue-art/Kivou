@@ -218,6 +218,7 @@ export function FounderApp() {
               filters={prospectionFilters}
               refreshing={loading}
               onFiltersChange={setProspectionFilters}
+              onRefresh={() => setRefreshKey((value) => value + 1)}
             />
           ) : null}
           {snapshot?.page === 'system' ? <SystemPage data={snapshot.system} /> : null}
