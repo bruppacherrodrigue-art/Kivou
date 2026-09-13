@@ -27,6 +27,7 @@ from signals.model_runtime.openrouter import OpenRouterGateway
 from signals.supplier_discovery.families import load_supplier_family_catalog
 
 DEFAULT_MODEL = "mistralai/mistral-small-2603"
+ARBITER_MAX_TOKENS = 800
 BENCHMARK_MODELS = (
     "openai/gpt-5-mini",
     "google/gemini-2.5-flash",
@@ -213,6 +214,7 @@ def company_enrichment_providers_from_environment(
             gateway=gateway,
             route=routes.route("enrichment_arbiter"),
             batch_id=batch_id,
+            max_tokens=ARBITER_MAX_TOKENS,
         ),
         routes=routes,
     )
