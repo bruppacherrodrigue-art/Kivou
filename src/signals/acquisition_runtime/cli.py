@@ -15,6 +15,7 @@ import sqlalchemy as sa
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeDependencyState,
+    RuntimeExecutionConfigurationError,
     RuntimeRunResult,
     RuntimeStageDependency,
 )
@@ -201,6 +202,12 @@ def main(
     try:
         try:
             result = run(bool(arguments.allow_qa_provider_mutations))
+        except RuntimeExecutionConfigurationError as error:
+            if error.code == "NO_ELIGIBLE_OPPORTUNITY":
+                print("status=SUPPRESSED reason=NO_ELIGIBLE_OPPORTUNITY")
+                return 0
+            print("status=CONFIGURATION_INVALID", file=sys.stderr)
+            return 2
         except (RuntimeError, ValueError):
             print("status=CONFIGURATION_INVALID", file=sys.stderr)
             return 2

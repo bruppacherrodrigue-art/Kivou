@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import fcntl
 import os
 import subprocess
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Literal
 
 import sqlalchemy as sa
@@ -73,10 +75,16 @@ class SystemdAcquisitionActivityReader:
         "Id",
     )
 
-    def __init__(self, *, run: CommandRunner = subprocess.run) -> None:
+    def __init__(
+        self,
+        *,
+        run: CommandRunner = subprocess.run,
+        lock_path: Path = Path("/run/kivou/acquisition.lock"),
+    ) -> None:
         self._run = run
+        self._lock_path = lock_path
 
-    def __call__(self, _: dt.datetime) -> FounderAcquisitionActivity:
+    def __call__(self, now: dt.datetime) -> FounderAcquisitionActivity:
         try:
             completed = self._run(
                 (
@@ -110,6 +118,12 @@ class SystemdAcquisitionActivityReader:
             if timer.get("LoadState") == "loaded" and timer.get("ActiveState") == "active"
             else None
         )
+        if self._lock_is_held():
+            return FounderAcquisitionActivity(
+                activity="RUNNING",
+                activity_since=now,
+                next_run_at=next_run_at,
+            )
         active_state = service.get("ActiveState")
         if active_state in {"active", "activating"}:
             return FounderAcquisitionActivity(
@@ -127,6 +141,24 @@ class SystemdAcquisitionActivityReader:
                 next_run_at=next_run_at,
             )
         return FounderAcquisitionActivity(activity="UNKNOWN", next_run_at=next_run_at)
+
+    def _lock_is_held(self) -> bool:
+        try:
+            lock_fd = os.open(self._lock_path, os.O_RDWR)
+        except OSError:
+            return False
+        try:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            return False
+        finally:
+            os.close(lock_fd)
+        return False
 
 
 class FounderAcquisitionStatusReadService:

@@ -355,6 +355,54 @@ describe('ProspectionPage', () => {
     expect(within(queue!).getByText('Préparation en cours · 3/25')).toBeInTheDocument()
   })
 
+  it('ends local polling after a refreshed stopped cycle that completed before RUNNING was observed', async () => {
+    const user = userEvent.setup()
+    let launched = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/founder/actions/prospection/list')) {
+        return { ok: true, status: 200, json: async () => actionList([]) }
+      }
+      if (url.endsWith('/api/founder/actions/prospection/prepare')) {
+        launched = true
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({
+            version: 'founder-prospection-prepare-v1',
+            status: 'accepted',
+            prepared_today_count: 3,
+            daily_pending_cap: 25,
+          }),
+        }
+      }
+      if (url.includes('/api/founder/prospection?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            ...PROSPECTION,
+            generated_at: launched ? '2026-09-11T08:00:02Z' : PROSPECTION.generated_at,
+          }),
+        }
+      }
+      if (url.endsWith('/api/founder/session')) {
+        return { ok: true, status: 200, json: async () => SESSION }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    }))
+    window.history.replaceState({}, '', '/prospection')
+    render(<FounderApp />)
+
+    const queue = (await screen.findByRole('heading', { name: 'File du jour' })).closest('section')
+    await user.click(within(queue!).getByRole('button', { name: 'Préparer la file du jour' }))
+
+    await waitFor(() => expect(
+      within(queue!).queryByText('Préparation en cours · 3/25'),
+    ).not.toBeInTheDocument())
+    expect(within(queue!).getByRole('button', { name: 'Préparer la file du jour' })).toBeEnabled()
+  })
+
   it('routes to the production directory and always places the empty review queue first', async () => {
     window.history.replaceState({}, '', '/prospection')
     const fetchMock = installProspectionFetch()

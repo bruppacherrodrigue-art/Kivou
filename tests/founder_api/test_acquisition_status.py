@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import fcntl
+import os
 import subprocess
 from collections.abc import Callable
 from decimal import Decimal
@@ -261,6 +263,33 @@ def test_systemd_reader_distinguishes_idle_service_from_waiting_timer() -> None:
 
     assert activity.activity == "STOPPED"
     assert activity.activity_since == dt.datetime(2026, 9, 11, 7, 48, 16, tzinfo=dt.UTC)
+    assert activity.next_run_at == dt.datetime(2026, 9, 12, 4, tzinfo=dt.UTC)
+
+
+def test_systemd_reader_reports_founder_child_holding_shared_lock_as_running(
+    tmp_path,
+) -> None:
+    lock_path = tmp_path / "acquisition.lock"
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        activity = SystemdAcquisitionActivityReader(
+            run=_systemctl_result(
+                "Id=kivou-acquisition-production.service\n"
+                "LoadState=loaded\n"
+                "ActiveState=inactive\n\n"
+                "Id=kivou-acquisition-production.timer\n"
+                "LoadState=loaded\n"
+                "ActiveState=active\n"
+                "NextElapseUSecRealtime=Sat 2026-09-12 04:00:00 UTC\n"
+            ),
+            lock_path=lock_path,
+        )(NOW)
+    finally:
+        os.close(lock_fd)
+
+    assert activity.activity == "RUNNING"
+    assert activity.activity_since == NOW
     assert activity.next_run_at == dt.datetime(2026, 9, 12, 4, tzinfo=dt.UTC)
 
 
