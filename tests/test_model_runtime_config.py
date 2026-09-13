@@ -22,7 +22,7 @@ def test_default_routes_cover_exactly_the_five_declared_usages() -> None:
         "document_classifier",
     )
     assert tuple(route.usage for route in snapshot.routes) == MODEL_USAGES
-    assert snapshot.route("enrichment_judge").model == "mistralai/mistral-small"
+    assert snapshot.route("enrichment_judge").model == "mistralai/mistral-small-2603"
     assert snapshot.route("enrichment_arbiter").model == "anthropic/claude-sonnet-4.6"
     assert snapshot.route("for_you").model == "anthropic/claude-sonnet-4.6"
     assert snapshot.route("hermes").model == "anthropic/claude-sonnet-4.6"

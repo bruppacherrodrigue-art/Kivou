@@ -238,7 +238,7 @@ def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost
 ) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         payload = json.loads(request.content)
-        assert payload["model"] == "mistralai/mistral-small"
+        assert payload["model"] == "mistralai/mistral-small-2603"
         assert payload["max_tokens"] == 300
         assert payload["response_format"]["json_schema"]["strict"] is True
         assert payload["usage"] == {"include": True}

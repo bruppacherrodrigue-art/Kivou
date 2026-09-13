@@ -26,7 +26,7 @@ MODEL_USAGES: tuple[ModelUsage, ...] = (
 MODEL_TIMEZONE = "Europe/Zurich"
 
 _DEFAULT_MODELS: dict[ModelUsage, str] = {
-    "enrichment_judge": "mistralai/mistral-small",
+    "enrichment_judge": "mistralai/mistral-small-2603",
     "enrichment_arbiter": "anthropic/claude-sonnet-4.6",
     "for_you": "anthropic/claude-sonnet-4.6",
     "hermes": "anthropic/claude-sonnet-4.6",

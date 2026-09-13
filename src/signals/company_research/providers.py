@@ -26,10 +26,10 @@ from signals.model_runtime.config import ModelRoute, ModelRouteSnapshot, routes_
 from signals.model_runtime.openrouter import OpenRouterGateway
 from signals.supplier_discovery.families import load_supplier_family_catalog
 
-DEFAULT_MODEL = "mistralai/mistral-small"
+DEFAULT_MODEL = "mistralai/mistral-small-2603"
 BENCHMARK_MODELS = (
-    "mistralai/mistral-small",
-    "google/gemini-flash-lite",
+    "mistralai/mistral-small-2603",
+    "google/gemini-2.5-flash-lite",
     "deepseek/deepseek-chat",
 )
 DIRECTOR_MASKED_BENCHMARK_MODEL = "deepseek/deepseek-chat"
