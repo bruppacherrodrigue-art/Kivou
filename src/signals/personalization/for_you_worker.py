@@ -20,25 +20,30 @@ from signals.personalization.for_you import (
     parse_generated_fragments,
     validate_sentence,
 )
+from signals.personalization.for_you_queue import (
+    ForYouProspectionScope,
+    audit_and_purge_queue,
+    prioritized_claim_query,
+)
 
 DEFAULT_CONCURRENCY = 4
-DEFAULT_DAILY_LIMIT = 500
+DEFAULT_BATCH_LIMIT = 500
 LEASE_TTL = dt.timedelta(minutes=15)
 RAW_RESPONSE_RETENTION = dt.timedelta(days=30)
 RAW_RESPONSE_MAX_CHARS = 2_000
 CONCURRENCY_ENV = "KIVOU_FOR_YOU_CONCURRENCY"
-DAILY_LIMIT_ENV = "KIVOU_FOR_YOU_DAILY_LIMIT"
+BATCH_LIMIT_ENV = "KIVOU_FOR_YOU_BATCH_LIMIT"
 DATABASE_URL_ENV = "KIVOU_DATABASE_URL"
 
 
 def limits_from_environment() -> tuple[int, int]:
     concurrency = int(os.environ.get(CONCURRENCY_ENV, str(DEFAULT_CONCURRENCY)))
-    daily_limit = int(os.environ.get(DAILY_LIMIT_ENV, str(DEFAULT_DAILY_LIMIT)))
+    batch_limit = int(os.environ.get(BATCH_LIMIT_ENV, str(DEFAULT_BATCH_LIMIT)))
     if concurrency < 1:
         raise ValueError(f"{CONCURRENCY_ENV} must be positive")
-    if daily_limit < 0:
-        raise ValueError(f"{DAILY_LIMIT_ENV} must not be negative")
-    return concurrency, daily_limit
+    if batch_limit < 1:
+        raise ValueError(f"{BATCH_LIMIT_ENV} must be positive")
+    return concurrency, batch_limit
 
 
 @dataclass(frozen=True)
@@ -47,9 +52,9 @@ class ForYouWorkerReport:
     accepted: int
     rejected: int
     fallback: int
-    generated_today: int
-    daily_limit: int
+    batch_limit: int
     pending: int
+    purged: int = 0
     budget_exhausted: bool = False
 
     @property
@@ -77,16 +82,19 @@ class ForYouWorker:
         provider: ForYouProvider,
         *,
         concurrency: int = DEFAULT_CONCURRENCY,
-        daily_limit: int = DEFAULT_DAILY_LIMIT,
+        batch_limit: int = DEFAULT_BATCH_LIMIT,
+        prospection_scope: ForYouProspectionScope | None = None,
     ) -> None:
         if concurrency < 1:
             raise ValueError("concurrency must be positive")
-        if daily_limit < 0:
-            raise ValueError("daily_limit must not be negative")
+        if batch_limit < 1:
+            raise ValueError("batch_limit must be positive")
         self.engine = engine
         self.provider = provider
         self.concurrency = concurrency
-        self.daily_limit = daily_limit
+        self.batch_limit = batch_limit
+        self.prospection_scope = prospection_scope
+        self._last_purged = 0
 
     def _claim(
         self,
@@ -103,39 +111,23 @@ class ForYouWorker:
                 .values(raw_provider_response=None, raw_response_expires_at=None)
             )
             if connection.dialect.name == "postgresql":
-                # Sérialise le comptage et la réclamation entre plusieurs
-                # hôtes : deux workers ne peuvent pas dépasser ensemble le cap.
+                # Sérialise la purge et la réclamation entre plusieurs hôtes.
                 connection.execute(
                     sa.text("LOCK TABLE for_you_sentence IN SHARE ROW EXCLUSIVE MODE")
                 )
-            used = (
-                connection.scalar(
-                    sa.select(sa.func.count())
-                    .select_from(for_you_sentence)
-                    .where(for_you_sentence.c.attempt_day == now.date())
-                )
-                or 0
-            )
-            remaining = max(0, self.daily_limit - used)
+            audit = audit_and_purge_queue(connection, now=now, apply=True)
+            self._last_purged = audit.deleted
+            remaining = self.batch_limit
             if limit is not None:
                 remaining = min(remaining, limit)
             if remaining == 0:
                 return []
-            reclaimable = sa.or_(
-                for_you_sentence.c.state == "pending",
-                sa.and_(
-                    for_you_sentence.c.state == "running",
-                    for_you_sentence.c.lease_expires_at <= now,
-                ),
+            query = prioritized_claim_query(
+                now=now,
+                limit=remaining,
+                scope=self.prospection_scope,
+                for_you_ids=for_you_ids,
             )
-            query = (
-                sa.select(for_you_sentence.c.for_you_id, for_you_sentence.c.input_snapshot)
-                .where(reclaimable)
-                .order_by(for_you_sentence.c.created_at, for_you_sentence.c.for_you_id)
-                .limit(remaining)
-            )
-            if for_you_ids is not None:
-                query = query.where(for_you_sentence.c.for_you_id.in_(for_you_ids))
             if connection.dialect.name == "postgresql":
                 query = query.with_for_update(skip_locked=True)
             rows = [dict(row) for row in connection.execute(query).mappings()]
@@ -170,9 +162,15 @@ class ForYouWorker:
             return _Outcome(row["for_you_id"], None, None, None, None, "none")
         sentence = compose_generated_sentence(output, value)
         if sentence is None:
-            reason = "invalid_shape" if parse_generated_fragments(output) is None else "invalid_content"
+            reason = (
+                "invalid_shape" if parse_generated_fragments(output) is None else "invalid_content"
+            )
             return _Outcome(
-                row["for_you_id"], None, reason, None, output[:RAW_RESPONSE_MAX_CHARS],
+                row["for_you_id"],
+                None,
+                reason,
+                None,
+                output[:RAW_RESPONSE_MAX_CHARS],
                 fragments.fit if fragments is not None else None,
             )
         validation = validate_sentence(sentence, value)
@@ -185,7 +183,9 @@ class ForYouWorker:
                 output[:RAW_RESPONSE_MAX_CHARS],
                 fragments.fit if fragments is not None else None,
             )
-        return _Outcome(row["for_you_id"], " ".join(sentence.split()), None, None, None, fragments.fit)
+        return _Outcome(
+            row["for_you_id"], " ".join(sentence.split()), None, None, None, fragments.fit
+        )
 
     def run(
         self,
@@ -276,14 +276,6 @@ class ForYouWorker:
                         updated_at=now,
                     )
                 )
-            generated_today = (
-                connection.scalar(
-                    sa.select(sa.func.count())
-                    .select_from(for_you_sentence)
-                    .where(for_you_sentence.c.attempt_day == now.date())
-                )
-                or 0
-            )
             pending = (
                 connection.scalar(
                     sa.select(sa.func.count())
@@ -297,9 +289,9 @@ class ForYouWorker:
             accepted=accepted,
             rejected=rejected,
             fallback=fallback,
-            generated_today=generated_today,
-            daily_limit=self.daily_limit,
+            batch_limit=self.batch_limit,
             pending=pending,
+            purged=self._last_purged,
             budget_exhausted=budget_exhausted,
         )
 
@@ -311,17 +303,28 @@ def main() -> int:
     database_url = os.environ.get(DATABASE_URL_ENV)
     if not database_url:
         raise SystemExit(f"{DATABASE_URL_ENV} is required")
-    concurrency, daily_limit = limits_from_environment()
+    from signals.acquisition_runtime.config import load_runtime_config
+    from signals.acquisition_runtime.selection import region_subdivision_codes
+
+    concurrency, batch_limit = limits_from_environment()
+    scope = None
+    if os.environ.get("KIVOU_ACQUISITION_RUNTIME_CONFIG"):
+        runtime = load_runtime_config()
+        selection = runtime.deployment.selection
+        if selection is not None and selection.vertical and selection.region:
+            scope = ForYouProspectionScope(
+                vertical=selection.vertical,
+                subdivision_codes=region_subdivision_codes(selection.region),
+            )
     engine = create_database_engine(database_url)
-    provider = text_generator_from_environment(
-        engine=engine, batch_id=f"for-you-{uuid.uuid4()}"
-    )
+    provider = text_generator_from_environment(engine=engine, batch_id=f"for-you-{uuid.uuid4()}")
     try:
         report = ForYouWorker(
             engine,
             provider,
             concurrency=concurrency,
-            daily_limit=daily_limit,
+            batch_limit=batch_limit,
+            prospection_scope=scope,
         ).run(now=dt.datetime.now(dt.UTC))
     finally:
         provider.close()

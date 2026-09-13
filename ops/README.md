@@ -1513,18 +1513,21 @@ sudo systemctl disable --now kivou-tender-notices.timer
 ## Phrases « Pour vous »
 
 La matérialisation dépose un repli immédiatement visible ; le fournisseur est
-appelé ensuite par un worker borné. `KIVOU_FOR_YOU_CONCURRENCY` vaut 4 par
-défaut et `KIVOU_FOR_YOU_DAILY_LIMIT` vaut 500. Le rapport JSON expose le
-plafond, le consommé du jour et la file restante.
+appelé ensuite par un worker borné. `KIVOU_FOR_YOU_CONCURRENCY` vaut 4 et
+`KIVOU_FOR_YOU_BATCH_LIMIT` vaut 500 par défaut. Cette dernière valeur borne
+seulement un passage : elle ne constitue jamais un quota quotidien. Le plafond
+quotidien est exclusivement le budget de coût persistant de l'usage `for_you`.
+Le rapport JSON expose la taille de lot, les purges, l'état du budget et la file
+restante.
 
 Installer puis activer `kivou-for-you.service` et `kivou-for-you.timer` comme
 les unités d'alertes. Le timer lance le worker chaque heure ; le verrou local,
-les leases en base et le plafond UTC rendent les reprises idempotentes.
+les leases en base et le budget de coût rendent les reprises idempotentes.
 
 Le seul rejeu autorisé est explicite et borné :
 
 ```bash
-KIVOU_FOR_YOU_CONCURRENCY=4 KIVOU_FOR_YOU_DAILY_LIMIT=50 \
+KIVOU_FOR_YOU_CONCURRENCY=4 KIVOU_FOR_YOU_BATCH_LIMIT=50 \
   /srv/kivou/app/.venv/bin/python \
   -m signals.personalization.for_you_backfill --limit 50 --since 2026-08-01
 ```
