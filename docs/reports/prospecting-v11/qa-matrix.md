@@ -2,18 +2,40 @@
 
 ## Référence et règle de lecture
 
-Cartographie établie le 13 septembre 2026 sur le worktree `feat/prospecting-v11-staging`, base `2599d77840c073086051cbaa95441caf170afeac`. Première candidate commitée et poussée : `476b22f90cec87ccf48319375866bf96984ce787`, CI complète verte. **Ni la base ni cette candidate ne sont présentées comme V11 déjà déployée.** Le delta ultérieur du helper de répétition est validé séparément avant une nouvelle candidate.
+Cartographie établie le 13 septembre 2026 sur le worktree `feat/prospecting-v11-staging`,
+base `2599d77840c073086051cbaa95441caf170afeac`. **État courant à23:33 UTC :
+7f2a2080bbc3dfe280d1a699e0e0e9183c30b203 déployé sur staging**, CI complète verte ;
+recette authentifiée finale et nettoyage QA confirmés. Les références476,
+893 et610 ci-dessous constituent la chronologie des preuves, pas le SHA servi.
 
 Plan relu : `/home/jaybe/projects/kivou-implementation-plan-2026-09-13/index.html`, section Q01–Q32 ; SHA256 vérifié `5a535272a41ccf6a18fb0717ce6a7b0a9b5983472310653795be39f4aaf0c233`.
 
 Les noms ci-dessous sont ceux réellement présents dans les fichiers, y compris les intitulés historiques « drawer » de tests aujourd’hui portés sur V11. Leur présence a été vérifiée automatiquement. Les noms paramétrés conservent leur modèle exact ; les variantes utiles sont précisées.
 
-**Aucun Q n’est coché globalement.** « Preuves connues » distingue exécution locale, inspection statique, navigateur avec API simulée et opérations staging. La colonne textuelle « Reste staging » n’est pas une exécution. Les nombres de suites se recouvrent et ne doivent pas être additionnés. Aucun paiement réel, email commercial ni appel fournisseur consommant un quota n’a été effectué pour cette recette.
+« Preuves connues » distingue exécution locale, inspection statique, navigateur
+avec API simulée, restauration isolée et opérations staging. **Le plan L13 exige
+les scénarios adverses Q01–Q32 sur le build candidat et une base PostgreSQL
+isolée, pas leur reproduction destructive sur la base vive. L14 ajoute une
+recette métier réelle sur les trois abonnements.** Les mentions historiques
+« Reste staging » listent des contrôles complémentaires envisagés ; elles ne
+signifient ni qu'ils ont été exécutés, ni que les32scénarios doivent tous être
+rejoués sur de vrais comptes. La synthèse de clôture distingue leurs preuves.
+Les nombres de suites se recouvrent et ne doivent pas être additionnés. Aucun
+paiement réel, email commercial ni appel fournisseur consommant un quota n'a
+été effectué pour cette recette.
 
 ## Registre des preuves
 
 | Réf. | Exécution ou inspection effectivement connue | Limite / artefact |
 | --- | --- | --- |
+| FINAL | CI exacte7f2 complète :6505backend réussis,11skips,1xfail ;756frontend,32visuels, types/lint/builds. | [Run34786998271](https://github.com/bruppacherrodrigue-art/Kivou/actions/runs/34786998271), terminé22:43:39 UTC. Preuve exécutable, pas CI documentaire. |
+| COPY4 | Restauration610 complète acceptée :260070lignes privées/26tables et34exports conservés ; vraie bascule ancien code protégé puis retour compatible,264429lignes/30tables conservées ; six p95<800ms. | Backend610 et7f2 byte-identiques. [Rapport final](staging-release-7f2a208.md#quatrième-répétition-complète-610--preuve-réutilisée-à-code-backend-identique). Pas une cinquième répétition7f2 ni des p95 HTTPS vifs. |
+| LIVE | Principal réel passé23:20:01 : trois plans,35captures ; notes/CAS/tombstones/statuts/contact/suivi, routes et deux profils Pro/six portées. | Découverte/Pro1440/390/320, Essentiel1440. Premier burst429 conservé, reprise explicitement liée à la preuve initiale ; zéro erreur HTTP inattendue/pageerror dans le navigateur de la reprise. |
+| LIVE-UI | Notes UI passées23:29:43 : autosave/reload trois plans, deux409Pro, accepter serveur/écraser explicitement, hors ligne/réouverture/réessai ; notes finales vides. | Outil corrigé pour valider la clé réellement adressée, sans élargir les chemins du manifeste.9/9tests opérateur après RED ; échec initial conservé. |
+| LIVE-CATALOGUE | Découverte1440/390, prix réels49/99 CHF/EUR, modal/Escape/focus ; passé23:25:10. | GET-only, aucun choix de paiement, checkout, portail ou fournisseur. |
+| LIVE-PAGES |18visites réelles : six routes conservées×trois plans, main/titre/JS/CSS, email désactivé avant/après ; passé23:26:46. | Aucun formulaire soumis, préférence modifiée ou action externe. Founder demeure hors staging et couvert par CI locale/build. |
+| LIVE-BOAMP |434avis/1154lots repris ;825lots avec faits valides,673durées ;69terminaux qualifiés,0pending, bornes inchangées. Quatre références/six lots relus sur base vive. | Instantané22:32:30 UTC. [Couverture détaillée](staging-release-7f2a208.md#reprises-boamp-terminées--couverture-bornée-non-forcée-à-100-). Pas100%de couverture ni de dates inventées. |
+| LIVE-CLOSE | Déploiement7f2 servi, guard terminé23:29:48 après cleanup confirmé ; trois sessions révoquées, quatre profilsdraft, trois suppressions différéespending. API stable,0HTTP5xx sur fenêtre observée. | [Rapport final, preuves et limites](staging-release-7f2a208.md). Pas de purge globale ; abonnements QA payants synthétiques, production inchangée. |
 | F1 | Suite frontend générale finale : **752/752**, 73 fichiers, en 59,79 s. | `/tmp/kivou-v11-frontend-release-gate.log` relu ; `npm test -- --run --maxWorkers=2`, code 0 rapporté par root et résumé du log vérifié. Remplace le précédent run 743 réussis/1 échec du garde CSS avant correction de `::backdrop`. |
 | F3 | Session/logout, checkout et Provider : 72/72, 4 fichiers, puis TypeScript non incrémental et ESLint verts. | Commande C3 ; résultat terminal observé avant gel React. Inclut les deux courses tardives `/me` et le retour checkout froid sans Provider préexistant. |
 | F4 | L10/L11 ciblés : Entreprises/dossier/annuaire/contact 29/29 ; enrichissement/dossier/détail signal/checkout 31/31 lors de la dernière correction de suppression Apollo. | Exécutions terminal observées, pas un nouveau run dans cette tâche documentaire. Inclut CAS contact, refus de lookup, adressage exact et non-résurrection des coordonnées. |
@@ -538,14 +560,45 @@ Reste staging : Vérifier imports/bundle du SHA candidat puis assets effectiveme
 
 ## Écarts et conditions de fermeture
 
-- **Gate local préalable :** F1 et V1 sont verts (752/752 et32/32), B1 est désormais complet sur476 (6438réussis et complémentPG22/22), CI1 verte ; B3/B4 documentent identité/helper. Le delta streaming du helper est validé séparément et doit passer une nouvelle CI candidate. Les preuves locales ne ferment pas les opérations réelles ci-dessous ; L13/L14 restent ouverts.
-- **Avant activation — Q23/Q31, conservation Q13–21 :** exécuter [la répétition sur restauration complète](staging-rehearsal.md), contrôler les données privées originales, audits, CAS/tombstones/workflow/export et les quatre avis publics réels. Puis joindre la preuve du repli qui conserve0060, ferme les anciens writers et vérifie les deux liens ; les tests locaux et nginx isolé ne remplacent pas cette preuve.
-- **Sur la release servie — Q01–12, Q18–24 et Q29 :** parcours métier avec les réponses réelles, navigation/ciblage/pagination, sources et clavier aux trois tailles. Les étapes détaillées sont celles des rubriques correspondantes ; F7 ferme déjà les tests locaux des courses Q07/Q10.
-- **Autorité et données privées — Q13–17, Q25/Q27 :** sur comptes de recette uniquement, vérifier persistance/conflit/réseau/session, JSON Découverte, grants et purge lors d'un changement de droits ou de compte. Une API simulée n'est pas cette preuve.
-- **Actions externes — Q26/Q28 :** contrôler catalogue/retour et états de lookup sans transaction ni quota fournisseur ; une vraie opération externe exige l'autorité distincte indiquée dans ces rubriques.
-- **Surfaces conservées et livraison — Q30/Q32 :** smoke public/auth/profil/compte/notifications/billing ; attacher SHA backend, lien frontend et assets réellement servis, sans flags ni appels prototype. Founder reste production-only, hors déploiement staging ; conserver ses preuves locales séparées.
+**L13/L14 clos sur staging selon le plan approuvé.** Les références FINAL,
+COPY4 et LIVE ci-dessus remplacent les conditions de bascule initiales. Les
+rubriques Q01–Q32 conservent leurs tests et contrôles complémentaires historiques ;
+elles ne constituent pas une affirmation de32scénarios provoqués sur la base vive.
 
-Ces points sont des trous de **preuve de recette**, pas des bugs produit déduits. Une mauvaise identité, une fuite premium/intercompte, une perte/résurrection de texte ou un ancien rendu encore actif bloquerait la bascule, conformément au plan. Aucun nouveau défaut de cette nature n’est établi par cette cartographie seule.
+- **Q01–Q12, Q18–Q24, Q29 :** adverses du build candidat et suites métier vertes ;
+  LIVE ajoute la navigation réelle aux trois tailles, deux profils Pro et les
+  transitions/contacts/suivi. Les courses forcées, le profil provisoire, les
+  identités ambiguës et les variantes de pagination restent des preuves isolées,
+  pas des mutations artificielles supplémentaires de staging.
+- **Q13–Q17, Q25/Q27 :** LIVE et LIVE-UI prouvent2000/2001, CAS, tombstones,
+  autosave/rechargement, conflit inter-onglets et reprise hors ligne. La projection
+  Découverte réelle est inspectée sans données premium. Les changements de compte,
+  révocations pendant GET et downgrade pendant chargement sont couverts par les
+  suites isolées ; ils ne sont pas annoncés reproduits sur un abonnement réel.
+- **Q23/Q31 :** COPY4 et LIVE-BOAMP ferment la restauration peuplée, le vrai
+  repli protégé, la conservation privée et les quatre avis/six lots. La couverture
+  élargie demeure825/1154lots à l'instantané, avec69terminaux documentés ; aucune
+  reprise au-delà de trois essais ni concordance forcée.
+- **Q26/Q28 :** LIVE-CATALOGUE confirme les prix et le modal. Retour checkout,
+  droits différés et états de lookup sont testés isolément. Aucune transaction
+  Stripe, consommation fournisseur ou action d'email commercial n'a eu lieu.
+- **Q30/Q32 :** neuf routes publiques/auth en lecture seule et LIVE-PAGES pour
+  les surfaces authentifiées ;21goldens conservés, builds client/Founder verts,
+  retraite des anciens propriétaires vérifiée et HTML/JS/CSS réellement servis
+  liés au SHA7f2. Aucun appel localhost/prototype ni ancien bundle référencé.
+
+**Limite visuelle vive :**22/35captures du principal sont chargées ;11sont
+intermédiaires et deux partielles, donc non validées comme écrans finaux.
+Les sept captures UI notes et deux captures catalogue sont chargées et relues.
+Le cas payant riche en coordonnées a sa preuve visuelle isolée, pas de nouvelle
+capture vive : GJG n'en disposait pas dans la sélection, et le complément6/6
+local n'a pas été lancé après expiration de la fenêtre QA. Cela reste une limite
+de preuve explicite, sans défaut produit démontré ni prolongation des comptes QA.
+
+Les fichiers privés de résultats et leurs empreintes sont reliés au
+[rapport final](staging-release-7f2a208.md). Une mauvaise identité, fuite de droits,
+perte de texte ou coexistence d'ancien rendu resterait bloquante ; aucune n'a été
+constatée dans cette recette. La production et ses données sont hors périmètre.
 
 ## Commandes de reproduction ciblées
 

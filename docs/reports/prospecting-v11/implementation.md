@@ -1,5 +1,13 @@
 # Prospecting V11 — exécution staging
 
+État courant au 13 septembre 2026, 23:33 UTC : **la release exécutable
+`7f2a2080bbc3dfe280d1a699e0e0e9183c30b203` est servie sur staging** depuis
+22:57:40 UTC. Sa CI complète et les quatre parcours de recette réels sont passés ;
+le nettoyage ciblé est confirmé. **L00–L14 terminés pour staging uniquement.**
+Le [rapport final](staging-release-7f2a208.md) distingue code servi, copies,
+tests locaux, observations vives et limites. Les paragraphes chronologiques
+suivants conservent les résultats intermédiaires, pas tous l'état courant.
+
 ## Référence et périmètre
 
 Plan approuvé : `/home/jaybe/projects/kivou-implementation-plan-2026-09-13/index.html`.
@@ -29,8 +37,8 @@ Pendant la recette, `origin/main` a avancé à `b72f06c614b7364ec10adf84b3250902
 - [x] L10 — Entreprises V11 et dossier commun.
 - [x] L11 — Aujourd'hui, shell, ciblage et retour checkout.
 - [x] L12 — retrait des anciens rendus et styles exclusifs.
-- [ ] L13 — suites, recette Q01–Q32, revue et répétition du repli.
-- [ ] L14 — déploiement et vérification staging.
+- [x] L13 — suites du SHA7f2, adverses sur build/PG isolés, revues et véritable répétition du repli sur copie610 à backend identique.
+- [x] L14 — backend/frontend7f2 servis, recette réelle trois plans, observation et nettoyage ciblé confirmés.
 
 Les travaux préparatoires indépendants peuvent avancer en parallèle ; migrations 0059/0060 sous un propriétaire unique. Une case produit exige tests et revue, pas seulement du code écrit.
 
@@ -73,7 +81,7 @@ Compilation frontend, TypeScript, ESLint, isolation CSS et build Founder : verts
 
 **Gate backend global sur la candidate `476b22f90cec87ccf48319375866bf96984ce787` : 6 438 réussis, 11 skips, un xfail, aucun échec inattendu**, code 0 en 2 644,81 s. Log `/tmp/kivou-v11-backend-release-gate-2.log`, PostgreSQL jetable disponible via les deux variables dédiées et tests lents inclus (`-o addopts= -q -n 2 -x`). Les quatre fixtures historiques ont été reconstruites depuis leurs véritables révisions anciennes, sans autoriser le downgrade0059/0060 ; 76/76 tests ciblés étaient verts avant cette passe. Complément `tests/test_persistence_conflicts.py` avec le troisième alias `KIVOU_TEST_DATABASE_URL` : **22/22, aucun skip, code0 en2,22s**, journal `/tmp/kivou-v11-persistence-conflicts-pg-complement.log` ; ses neuf cas PostgreSQL ignorés dans le full sont ainsi exécutés. Les deux autres skips concernent des smoke Stripe opt-in sans clé ; le xfail strict documente une frontière HTTP historique de `companies/france.py`, hors changement V11.
 
-**CI de cette même candidate : succès complet**, [run34777544050](https://github.com/bruppacherrodrigue-art/Kivou/actions/runs/34777544050), quatre shards backend, frontend et décision. [PR251](https://github.com/bruppacherrodrigue-art/Kivou/pull/251) reste une PR de validation vers la base staging dédiée ; aucune fusion vers main/production. Ces preuves ne valident pas encore le delta ultérieur du helper de répétition, ni un déploiement. L13/L14 restent non cochés ; les preuves staging restantes sont regroupées dans [qa-matrix.md](qa-matrix.md#écarts-et-conditions-de-fermeture).
+**Étape historique476 — CI de cette candidate : succès complet**, [run34777544050](https://github.com/bruppacherrodrigue-art/Kivou/actions/runs/34777544050), quatre shards backend, frontend et décision. [PR251](https://github.com/bruppacherrodrigue-art/Kivou/pull/251) reste une PR de validation vers la base staging dédiée ; aucune fusion vers main/production. À cette étape, ces preuves ne validaient ni le delta ultérieur du helper, ni un déploiement ; L13/L14 n'étaient donc pas cochés. Les preuves finales qui les ferment sont regroupées dans [qa-matrix.md](qa-matrix.md#écarts-et-conditions-de-fermeture).
 
 **Première répétition complète refusée, base vive préservée :** la volumétrie réelle comporte 26 tables privées et 260 069 lignes, dont 256 322 dans `for_you_sentence` (descendant de profil par FK). La borne initiale de 10 000 lignes du helper était insuffisante. La connexion d'exécution a également perdu son stdout ; aucun succès n'est déduit du code systemd d'une unité déjà collectée. Journaux d'échec conservés, dump propre supprimé, absence de base portant le préfixe exact de cette candidate vérifiée en lecture seule. Liens actifs toujours2599 et schéma0058. La nouvelle répétition utilisera une baseline exhaustive par empreintes privées, ainsi qu'un rapport durable et une unité asynchrone dont le résultat est conservé.
 
@@ -101,4 +109,19 @@ L'avis RAZEL 26-87113 et la consultation 25-2744 partagent un identifiant métie
 
 ### Déploiement
 
-Pas encore exécuté. Aucun SHA de cette branche annoncé servi, aucune production modifiée. Voir `staging-runbook.md` pour migration, reprise, validation et repli protégeant les écritures privées. Compléter ce rapport avec le SHA réellement servi et les résultats finaux avant clôture.
+Exécuté sur staging uniquement : première activation 610 à22:13:10 UTC, puis
+correction frontend du prix catalogue et activation finale 7f2 à22:57:40 UTC.
+La production n'a pas été modifiée. Les deux liens, le processus API physique,
+la tête0060 et les octets HTML/JS/CSS servis ont été contrôlés. Le
+[rapport final7f2](staging-release-7f2a208.md) consigne la recette trois plans,
+le catalogue réel, les18visites des surfaces conservées et les notes UI avec
+conflits/hors ligne. Trois sessions QA révoquées, quatre profils désactivés et
+trois suppressions différées demandées ; aucune purge globale. Les plans payants
+QA sont synthétiques, sans paiement Stripe ni fournisseur consommé.
+
+CI finale :6505tests backend réussis (11skips,1xfail historique),756frontend,
+32visuels, types/lint/builds verts. Les preuves frontend riches restent distinguées
+des captures vives : aucun dossier payant riche en coordonnées n'a été vérifié
+visuellement en live, le dossier GJG sélectionné n'en disposant pas. La
+[preuve intermédiaire](staging-release-6107856.md) documente la copie complète,
+les six p95 acceptés sous800ms et le véritable aller-retour de code Q31.
