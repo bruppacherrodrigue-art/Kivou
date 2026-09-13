@@ -129,7 +129,9 @@ class ForYouWorker:
                 for_you_ids=for_you_ids,
             )
             if connection.dialect.name == "postgresql":
-                query = query.with_for_update(skip_locked=True)
+                # The priority query uses outer joins; PostgreSQL must lock only
+                # the queue rows, never the nullable joined relations.
+                query = query.with_for_update(skip_locked=True, of=for_you_sentence)
             rows = [dict(row) for row in connection.execute(query).mappings()]
             if rows:
                 connection.execute(
