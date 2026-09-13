@@ -1533,6 +1533,46 @@ Sur staging, le benchmark PR5b exécute cette commande une seule fois avec 50.
 En production, choisir une fenêtre couvrant seulement les comptes actifs et un
 plafond explicite ; ne jamais rejouer sans borne les quelque 39 000 signaux.
 
+## Enrichissement des nouveaux titulaires
+
+`kivou-winner-enrichment.timer` lance toutes les trente minutes un lot borné de
+25 titulaires. Le worker ne sélectionne que les signaux dont la date métier est
+dans les 30 derniers jours, rattachés à la révision courante d'un ICP actif et
+créés après `KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT`. Cette variable ISO 8601
+horodatée est obligatoire : elle constitue le watermark qui sépare le flux
+automatique des jobs historiques conservés pour un backfill explicitement
+approuvé.
+
+Le service et la commande Python prennent deux verrous non bloquants distincts.
+Un second lancement est refusé avec le code 75 avant tout appel fournisseur.
+Les appels utilisent les routes `enrichment_judge` et `enrichment_arbiter`, le
+journal persistant et les plafonds journaliers Europe/Zurich. Un plafond atteint
+remet le job en attente sans consommer son budget de trois essais.
+
+Avant activation, écrire une ligne unique
+`KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT=<instant-UTC-ISO-8601>` dans le fichier
+protégé `/etc/kivou/staging.env` ou `/etc/kivou/production.env` par remplacement
+atomique, en conservant son propriétaire et son mode `0600`. Une simple variable
+de shell n'est pas suffisante : systemd relit le fichier d'environnement à chaque
+lot. Vérifier ensuite l'unité puis activer le timer :
+
+```bash
+sudo systemd-analyze verify \
+  /etc/systemd/system/kivou-winner-enrichment.service \
+  /etc/systemd/system/kivou-winner-enrichment.timer
+sudo systemctl enable --now kivou-winner-enrichment.timer
+```
+
+Arrêt immédiat, sans toucher aux jobs :
+
+```bash
+sudo systemctl disable --now kivou-winner-enrichment.timer
+sudo systemctl stop kivou-winner-enrichment.service
+```
+
+Le backfill récent n'utilise jamais ce watermark implicitement : il est lancé
+séparément sur une liste figée, après projection de coût et go opérateur.
+
 ## Compte de recette client payant
 
 Le compte Essential ancien de trois mois est reconstruit de façon idempotente

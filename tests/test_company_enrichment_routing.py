@@ -124,24 +124,47 @@ def test_high_confidence_valid_judge_does_not_call_arbiter(
     assert arbiter.calls == 0
 
 
+@pytest.mark.parametrize("field", ["website", "email", "family"])
 @pytest.mark.parametrize(
-    "decision",
+    ("confidence", "expected_calls"),
     [
-        _decision(website_confidence=Decimal("0.79")),
-        _decision(email_confidence=Decimal("0.79")),
-        _decision(family_confidence=Decimal("0.79")),
+        (Decimal("0.19"), 0),
+        (Decimal("0.20"), 1),
+        (Decimal("0.79"), 1),
+        (Decimal("0.80"), 0),
     ],
 )
-def test_low_site_email_or_family_confidence_calls_sonnet_once(
-    migrated_sqlite_engine, decision
+def test_only_ambiguous_present_values_call_sonnet_once(
+    migrated_sqlite_engine, field, confidence, expected_calls
 ) -> None:
+    decision = _decision(**{f"{field}_confidence": confidence})
     judge = Provider([decision])
     arbiter = Provider([_decision()])
 
     _service(migrated_sqlite_engine, judge, arbiter).enrich("481153435")
 
     assert judge.calls == 1
-    assert arbiter.calls == 1
+    assert arbiter.calls == expected_calls
+
+
+@pytest.mark.parametrize("field", ["website", "email", "family"])
+@pytest.mark.parametrize("confidence", [Decimal("0.10"), Decimal("0.90")])
+def test_null_values_never_call_sonnet(
+    migrated_sqlite_engine, field, confidence
+) -> None:
+    decision = _decision(
+        **{
+            field: None,
+            f"{field}_confidence": confidence,
+        }
+    )
+    judge = Provider([decision])
+    arbiter = Provider([_decision()])
+
+    _service(migrated_sqlite_engine, judge, arbiter).enrich("481153435")
+
+    assert judge.calls == 1
+    assert arbiter.calls == 0
 
 
 def test_invalid_judge_json_calls_sonnet_once(migrated_sqlite_engine) -> None:

@@ -37,7 +37,11 @@ BENCHMARK_MODELS = (
 DIRECTOR_MASKED_BENCHMARK_MODEL = "moonshotai/kimi-k2.6"
 _INSTRUCTION = (
     "Voici une entreprise française et ce que le web dit d'elle. "
-    "Dis-moi ce que tu peux confirmer. Ne devine pas : si tu n'es pas sûr, laisse vide."
+    "Dis-moi ce que tu peux confirmer. Ne devine pas. Distingue explicitement « je ne "
+    "sais pas » d'une absence établie dans les preuves visibles. Pour une valeur non "
+    "nulle, la confiance qualifie cette valeur. Pour null, elle qualifie l'affirmation "
+    "d'absence : au moins 0,8 signifie qu'aucune valeur confirmable n'existe dans ce "
+    "que tu vois ; sous 0,8, les preuves sont insuffisantes."
 )
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*(\{.*\})\s*```$", re.DOTALL | re.IGNORECASE)
 _CONFIDENCE_FIELDS = ("website_confidence", "email_confidence", "family_confidence")

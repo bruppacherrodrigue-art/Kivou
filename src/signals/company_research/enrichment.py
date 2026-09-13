@@ -39,9 +39,9 @@ from signals.supplier_discovery.families import (
 )
 
 MODEL_MAX_TOKENS = 300
+ARBITRATION_MIN_CONFIDENCE = Decimal("0.2")
 WEBSITE_CONFIDENCE_THRESHOLD = Decimal("0.8")
 EMAIL_CONFIDENCE_THRESHOLD = Decimal("0.8")
-FAMILY_ARBITRATION_CONFIDENCE_THRESHOLD = Decimal("0.8")
 FAMILY_CONFIDENCE_THRESHOLD = Decimal("0.7")
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,19 @@ _DOMAIN_MENTION = re.compile(
     r"([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{2,63})+)",
     re.IGNORECASE,
 )
+_EMPLOYEE_BAND_MAX = {
+    "00": 0,
+    "01": 2,
+    "02": 5,
+    "03": 9,
+    "11": 19,
+    "12": 49,
+    "21": 99,
+    "22": 199,
+    "31": 249,
+    "32": 499,
+    "41": 999,
+}
 
 
 class InvalidCompanyEnrichmentDecision(RuntimeError):
@@ -150,6 +163,21 @@ class CompanyEnrichmentProvider(Protocol):
     def enrich(
         self, identity: CompanyEnrichmentInput, evidence: CompanyWebEvidence
     ) -> CompanyEnrichmentProviderResult: ...
+
+
+def decision_needs_arbiter(decision: CompanyEnrichmentDecision) -> bool:
+    """Escalate only a concrete but ambiguous fact, never a null decision."""
+
+    candidates = (
+        (decision.website, decision.website_confidence),
+        (decision.email, decision.email_confidence),
+        (decision.family, decision.family_confidence),
+    )
+    return any(
+        value is not None
+        and ARBITRATION_MIN_CONFIDENCE <= confidence < WEBSITE_CONFIDENCE_THRESHOLD
+        for value, confidence in candidates
+    )
 
 
 def _mentioned_domains(value: str) -> tuple[str, ...]:
@@ -330,12 +358,45 @@ class CompanyWebCollector:
 
 
 class AnnuaireRawDirectorClient:
-    """Read the registry's bounded director payload without classifying roles."""
+    """Read one exact registry identity and its bounded unclassified directors."""
 
     def __init__(self, *, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(timeout=10.0, follow_redirects=False)
 
-    def find(self, siren: str) -> tuple[dict[str, object], ...]:
+    @staticmethod
+    def _directors(item: Mapping[str, object]) -> tuple[dict[str, object], ...]:
+        leaders = item.get("dirigeants")
+        if not isinstance(leaders, list):
+            return ()
+        output: list[dict[str, object]] = []
+        for leader in leaders[:20]:
+            if not isinstance(leader, dict):
+                continue
+            first_name = str(leader.get("prenoms") or "").strip()
+            last_name = str(leader.get("nom") or "").strip()
+            corporate_name = str(leader.get("denomination") or "").strip()
+            entity_type = str(leader.get("type_dirigeant") or "personne physique")
+            is_corporate = "morale" in entity_type.casefold()
+            name = (
+                corporate_name
+                if is_corporate
+                else " ".join(part for part in (first_name, last_name) if part)
+            )
+            if not name:
+                continue
+            value: dict[str, object] = {
+                "name": name,
+                "title": str(leader.get("qualite") or entity_type or "Dirigeant"),
+                "entity_type": entity_type,
+            }
+            if first_name and not is_corporate:
+                value["first_name"] = first_name
+            output.append(value)
+        return tuple(output)
+
+    def profile(self, siren: str) -> CompanyEnrichmentInput | None:
+        if re.fullmatch(r"\d{9}", siren) is None:
+            raise ValueError("SIREN must contain exactly nine digits")
         try:
             response = self._client.get(
                 f"{ANNUAIRE_BASE_URL}/search",
@@ -343,46 +404,45 @@ class AnnuaireRawDirectorClient:
                     "q": siren,
                     "page": 1,
                     "per_page": 1,
-                    "minimal": "true",
-                    "include": "dirigeants",
                 },
                 headers={"accept": "application/json", "user-agent": "Kivou/1.0"},
             )
             if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
-                return ()
+                return None
             payload = response.json()
             results = payload.get("results") if isinstance(payload, dict) else None
             item = results[0] if isinstance(results, list) and len(results) == 1 else None
-            leaders = item.get("dirigeants") if isinstance(item, dict) else None
-            if not isinstance(leaders, list):
-                return ()
-            output: list[dict[str, object]] = []
-            for leader in leaders[:20]:
-                if not isinstance(leader, dict):
-                    continue
-                first_name = str(leader.get("prenoms") or "").strip()
-                last_name = str(leader.get("nom") or "").strip()
-                corporate_name = str(leader.get("denomination") or "").strip()
-                entity_type = str(leader.get("type_dirigeant") or "personne physique")
-                is_corporate = "morale" in entity_type.casefold()
-                name = (
-                    corporate_name
-                    if is_corporate
-                    else " ".join(part for part in (first_name, last_name) if part)
-                )
-                if not name:
-                    continue
-                value: dict[str, object] = {
-                    "name": name,
-                    "title": str(leader.get("qualite") or entity_type or "Dirigeant"),
-                    "entity_type": entity_type,
-                }
-                if first_name and not is_corporate:
-                    value["first_name"] = first_name
-                output.append(value)
-            return tuple(output)
+            if not isinstance(item, dict) or str(item.get("siren") or "") != siren:
+                return None
+            legal_name = str(
+                item.get("nom_raison_sociale") or item.get("nom_complet") or ""
+            ).strip()
+            if not legal_name or not any(character.isalpha() for character in legal_name):
+                return None
+            establishment = item.get("siege")
+            establishment = establishment if isinstance(establishment, dict) else {}
+            postal = str(establishment.get("code_postal") or "").strip()
+            department = str(establishment.get("departement") or "").strip()
+            return CompanyEnrichmentInput(
+                siren=siren,
+                legal_name=legal_name,
+                city=str(establishment.get("libelle_commune") or "").strip() or None,
+                department=department or postal[:2] or None,
+                naf_code=str(item.get("activite_principale") or "").strip() or None,
+                naf_label=(
+                    str(item.get("libelle_activite_principale") or "").strip() or None
+                ),
+                employees=_EMPLOYEE_BAND_MAX.get(
+                    str(item.get("tranche_effectif_salarie") or "").strip()
+                ),
+                directors_raw=self._directors(item),
+            )
         except (httpx.HTTPError, TypeError, ValueError):
-            return ()
+            return None
+
+    def find(self, siren: str) -> tuple[dict[str, object], ...]:
+        profile = self.profile(siren)
+        return () if profile is None else profile.directors_raw
 
 
 def _page_for_email(email: str, website: str, evidence: CompanyWebEvidence) -> RenderedPage | None:
@@ -513,11 +573,7 @@ class CompanyEnrichmentService:
         if (
             self._arbiter is not None
             and not arbiter_used
-            and (
-                decision.website_confidence < WEBSITE_CONFIDENCE_THRESHOLD
-                or decision.email_confidence < EMAIL_CONFIDENCE_THRESHOLD
-                or decision.family_confidence < FAMILY_ARBITRATION_CONFIDENCE_THRESHOLD
-            )
+            and decision_needs_arbiter(decision)
         ):
             arbitrate = getattr(self._arbiter, "arbitrate", None)
             provided = (
@@ -637,6 +693,7 @@ class CompanyEnrichmentService:
 
 
 __all__ = [
+    "ARBITRATION_MIN_CONFIDENCE",
     "MODEL_MAX_TOKENS",
     "AnnuaireRawDirectorClient",
     "CompanyEnrichmentDecision",
@@ -650,4 +707,5 @@ __all__ = [
     "InvalidCompanyEnrichmentDecision",
     "RenderedPage",
     "SearchEvidence",
+    "decision_needs_arbiter",
 ]
