@@ -25,6 +25,9 @@ const STOPPED_STATUS: FounderAcquisitionStatus = {
   last_cycle_at: '2026-09-11T06:30:00Z',
   last_cycle_status: 'SUPPRESSED',
   last_cycle_reason_code: 'NO_ELIGIBLE_OPPORTUNITY',
+  prepared_today_count: 0,
+  daily_pending_cap: 25,
+  next_run_at: null,
 }
 
 afterEach(() => {
@@ -123,6 +126,9 @@ describe('AcquisitionStatus', () => {
           last_cycle_at: null,
           last_cycle_status: null,
           last_cycle_reason_code: null,
+          prepared_today_count: 0,
+          daily_pending_cap: 25,
+          next_run_at: null,
         }}
       />,
     )

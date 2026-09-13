@@ -91,6 +91,7 @@ EXPECTED_PROXY_SELECTORS = frozenset(
 FOUNDER_FAIL_CLOSED_EXEMPT_PREFIXES = frozenset({"a"})
 
 FOUNDER_ACTION_POST_SELECTORS = (
+    "= /api/founder/actions/prospection/prepare",
     "= /api/founder/actions/prospection/approve",
     "= /api/founder/actions/prospection/correct",
     "= /api/founder/actions/prospection/reject",

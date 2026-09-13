@@ -11,6 +11,7 @@ from signals.campaigns.instantly import HttpInstantlyProvider
 from signals.campaigns.runtime_webhook import load_instantly_webhook_runtime_config
 from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.conversion.token import AttributionTokenKeyring
+from signals.founder_api.acquisition_actions import FounderAcquisitionLauncher
 from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
 from signals.prospection_actions.delivery import AssistedInstantlyDelivery
 from signals.prospection_actions.service import ProspectionActions
@@ -51,4 +52,8 @@ def build_prospection_actions(
     )
 
 
-__all__ = ["build_prospection_actions"]
+def build_founder_acquisition_launcher(engine: Engine) -> FounderAcquisitionLauncher:
+    return FounderAcquisitionLauncher(engine)
+
+
+__all__ = ["build_founder_acquisition_launcher", "build_prospection_actions"]

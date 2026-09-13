@@ -256,6 +256,9 @@ def test_overview_and_prospection_share_the_acquisition_status_read_model() -> N
         "last_cycle_at": None,
         "last_cycle_status": None,
         "last_cycle_reason_code": None,
+        "prepared_today_count": 0,
+        "daily_pending_cap": 25,
+        "next_run_at": None,
     }
 
 

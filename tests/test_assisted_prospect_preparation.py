@@ -220,6 +220,32 @@ def test_assisted_preparation_caps_daily_queue_at_twenty_five(migrated_sqlite_en
     assert second.prepared == 0
 
 
+def test_daily_preparation_cap_resets_at_zurich_midnight(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 50, eligible_department_count=50)
+    clock = [dt.datetime(2026, 9, 13, 21, 30, tzinfo=dt.UTC)]
+    service = ProspectPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        clock=lambda: clock[0],
+    )
+
+    assert service.prepare(signal(), cycle_ref="cycle-before-midnight").prepared == 25
+    clock[0] = dt.datetime(2026, 9, 13, 22, 30, tzinfo=dt.UTC)
+    result = service.prepare(
+        signal(
+            opportunity_key="boamp-next-zurich-day",
+            acquisition_opportunity_id="z" * 64,
+            procedure_key="boamp-next-zurich-day",
+            decision_date=dt.date(2026, 9, 14),
+        ),
+        cycle_ref="cycle-after-midnight",
+    )
+
+    assert result.prepared == 25
+
+
 def test_assisted_preparation_never_uses_two_lots_of_same_notice_same_day(
     migrated_sqlite_engine,
 ) -> None:

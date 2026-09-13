@@ -30,6 +30,9 @@ const PROSPECTION: FounderProspection = {
     last_cycle_at: '2026-09-10T11:46:00Z',
     last_cycle_status: 'SUPPRESSED',
     last_cycle_reason_code: 'NO_ELIGIBLE_OPPORTUNITY',
+    prepared_today_count: 3,
+    daily_pending_cap: 25,
+    next_run_at: '2026-09-11T04:00:00Z',
   },
   queue: {
     available: false,
@@ -299,6 +302,18 @@ function installProspectionFetch(
         json: async () => actionList(actionItems.filter((item) => item.status === status)),
       }
     }
+    if (url.endsWith('/api/founder/actions/prospection/prepare')) {
+      return {
+        ok: true,
+        status: 202,
+        json: async () => ({
+          version: 'founder-prospection-prepare-v1',
+          status: 'accepted',
+          prepared_today_count: 3,
+          daily_pending_cap: 25,
+        }),
+      }
+    }
     if (url.includes('/api/founder/prospection?')) {
       return { ok: true, status: 200, json: async () => prospection }
     }
@@ -317,6 +332,29 @@ afterEach(() => {
 })
 
 describe('ProspectionPage', () => {
+  it('shows the preparation schedule and launches a cycle from the daily queue card', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/prospection')
+    const fetchMock = installProspectionFetch()
+
+    render(<FounderApp />)
+
+    const queue = (await screen.findByRole('heading', { name: 'File du jour' })).closest('section')
+    expect(queue).not.toBeNull()
+    expect(within(queue!).getByText(/Dernier cycle ·/)).toBeInTheDocument()
+    expect(within(queue!).getByText(/Résultat · .*Aucune opportunité éligible/)).toBeInTheDocument()
+    expect(within(queue!).getByText(/Prochain passage/)).toBeInTheDocument()
+    expect(within(queue!).getByText('File · 3/25')).toBeInTheDocument()
+
+    await user.click(within(queue!).getByRole('button', { name: 'Préparer la file du jour' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/founder/actions/prospection/prepare',
+      expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+    ))
+    expect(within(queue!).getByText('Préparation en cours · 3/25')).toBeInTheDocument()
+  })
+
   it('routes to the production directory and always places the empty review queue first', async () => {
     window.history.replaceState({}, '', '/prospection')
     const fetchMock = installProspectionFetch()
