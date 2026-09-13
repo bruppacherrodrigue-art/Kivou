@@ -120,7 +120,7 @@ def unresolved_dynamic_holder_signal_keys(
                 opportunity_representation.c.award_key == contract_award.c.award_key,
             )
             .join(source_event, contract_award.c.event_key == source_event.c.event_key)
-            .join(
+            .outerjoin(
                 for_you_sentence,
                 sa.and_(
                     for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
@@ -155,8 +155,10 @@ def unresolved_dynamic_holder_signal_keys(
             contract_award.c.place_of_performance["subdivision_code"]
             .as_string()
             .in_(_REGION_DEPARTMENTS[region]),
-            for_you_sentence.c.model_fit.isnot(None),
-            for_you_sentence.c.model_fit != "none",
+            sa.or_(
+                for_you_sentence.c.model_fit.is_(None),
+                for_you_sentence.c.model_fit != "none",
+            ),
             sa.not_(official_holder_is_resolved),
             sa.or_(
                 winner_enrichment_job.c.status == "pending",
@@ -300,7 +302,7 @@ def select_production_opportunity_key(
                     source_event,
                     contract_award.c.event_key == source_event.c.event_key,
                 )
-                .join(
+                .outerjoin(
                     for_you_sentence,
                     sa.and_(
                         for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
@@ -328,8 +330,10 @@ def select_production_opportunity_key(
                 contract_award.c.place_of_performance["subdivision_code"]
                 .as_string()
                 .in_(region_codes),
-                for_you_sentence.c.model_fit.isnot(None),
-                for_you_sentence.c.model_fit != "none",
+                sa.or_(
+                    for_you_sentence.c.model_fit.is_(None),
+                    for_you_sentence.c.model_fit != "none",
+                ),
                 opportunity_representation.c.opportunity_key.notin_(already_played),
                 opportunity_representation.c.award_key.notin_(played_procedures),
             )

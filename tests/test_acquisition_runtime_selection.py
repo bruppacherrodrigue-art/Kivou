@@ -117,6 +117,8 @@ def _seed_dynamic_siret_holder(
     resolved_name: str | None,
     decision_date: dt.date | None = None,
     published_on: dt.date | None = None,
+    model_fit: str | None = "strong",
+    with_for_you: bool = True,
 ) -> None:
     identity_fingerprint = "d" * 64
     with engine.begin() as connection:
@@ -195,25 +197,26 @@ def _seed_dynamic_siret_holder(
                 created_at=NOW,
             )
         )
-        connection.execute(
-            sa.insert(for_you_sentence).values(
-                for_you_id="for-you-dynamic",
-                signal_key="signal-dynamic",
-                target_icp_id="icp-dynamic",
-                signal_fingerprint="c" * 64,
-                profile_fingerprint="p" * 64,
-                policy_version="test-v1",
-                sentence="Dans votre zone et votre secteur.",
-                fallback_sentence="Dans votre zone et votre secteur.",
-                provenance="generated",
-                state="completed",
-                input_snapshot={},
-                model_fit="strong",
-                created_at=NOW,
-                updated_at=NOW,
-                completed_at=NOW,
+        if with_for_you:
+            connection.execute(
+                sa.insert(for_you_sentence).values(
+                    for_you_id="for-you-dynamic",
+                    signal_key="signal-dynamic",
+                    target_icp_id="icp-dynamic",
+                    signal_fingerprint="c" * 64,
+                    profile_fingerprint="p" * 64,
+                    policy_version="test-v1",
+                    sentence="Dans votre zone et votre secteur.",
+                    fallback_sentence="Dans votre zone et votre secteur.",
+                    provenance="generated" if model_fit is not None else "fallback",
+                    state="completed" if model_fit is not None else "pending",
+                    input_snapshot={},
+                    model_fit=model_fit,
+                    created_at=NOW,
+                    updated_at=NOW,
+                    completed_at=NOW if model_fit is not None else None,
+                )
             )
-        )
         connection.execute(
             sa.insert(winner_enrichment_job).values(
                 signal_key="signal-dynamic",
@@ -253,6 +256,45 @@ def test_dynamic_selection_uses_attribution_date_not_publication(tmp_path) -> No
         decision_date=NOW.date() - dt.timedelta(days=31),
         published_on=NOW.date(),
     )
+
+    assert select_production_opportunity_key(
+        engine,
+        country="FR",
+        vertical="general_building",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    ) is None
+
+
+def test_dynamic_selection_accepts_unknown_model_fit(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    _seed_dynamic_siret_holder(engine, resolved_name="PAUL BROCHIER", model_fit=None)
+
+    assert select_production_opportunity_key(
+        engine,
+        country="FR",
+        vertical="general_building",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    ) == "opportunity-dynamic"
+
+
+def test_dynamic_selection_accepts_missing_for_you_row_as_unknown_fit(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    _seed_dynamic_siret_holder(engine, resolved_name="PAUL BROCHIER", with_for_you=False)
+
+    assert select_production_opportunity_key(
+        engine,
+        country="FR",
+        vertical="general_building",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    ) == "opportunity-dynamic"
+
+
+def test_dynamic_selection_excludes_explicit_none_model_fit(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    _seed_dynamic_siret_holder(engine, resolved_name="PAUL BROCHIER", model_fit="none")
 
     assert select_production_opportunity_key(
         engine,
