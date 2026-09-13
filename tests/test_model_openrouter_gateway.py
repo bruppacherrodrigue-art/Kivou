@@ -94,10 +94,69 @@ def test_gateway_reserves_before_http_and_journals_real_usage(
     request = client.requests[0]
     assert request["url"] == "https://openrouter.ai/api/v1/chat/completions"
     assert request["headers"]["authorization"] == "Bearer secret"  # type: ignore[index]
+    assert request["json"]["temperature"] == 0  # type: ignore[index]
+    assert "reasoning" not in request["json"]  # type: ignore[operator]
     call = store.calls()[0]
     assert call.status == "succeeded"
     assert call.actual_usd == Decimal("0.00037000")
     assert call.input_tokens == 812
+
+
+def test_structured_call_uses_minimal_reasoning_only_for_mandatory_gpt5(
+    store: ModelBudgetStore,
+) -> None:
+    gpt_client = RecordingClient(_response())
+    kimi_client = RecordingClient(_response())
+
+    OpenRouterGateway(api_key="secret", budgets=store, client=gpt_client).json_call(
+        route=ModelRoute(
+            usage="enrichment_judge",
+            model="openai/gpt-5-mini",
+            daily_budget_usd=Decimal("2"),
+        ),
+        messages=[{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        schema_name="answer",
+        max_tokens=800,
+    )
+    OpenRouterGateway(api_key="secret", budgets=store, client=kimi_client).json_call(
+        route=ModelRoute(
+            usage="enrichment_judge",
+            model="moonshotai/kimi-k2.6",
+            daily_budget_usd=Decimal("2"),
+        ),
+        messages=[{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        schema_name="answer",
+        max_tokens=800,
+    )
+
+    assert gpt_client.requests[0]["json"]["reasoning"] == {  # type: ignore[index]
+        "effort": "minimal",
+        "exclude": True,
+    }
+    assert kimi_client.requests[0]["json"]["reasoning"] == {  # type: ignore[index]
+        "enabled": False,
+    }
+
+
+def test_billed_empty_completion_is_journalled_as_a_successful_transport(
+    store: ModelBudgetStore,
+) -> None:
+    client = RecordingClient(_response(content=None))  # type: ignore[arg-type]
+    gateway = OpenRouterGateway(api_key="secret", budgets=store, client=client)
+
+    result = gateway.json_call(
+        route=_route(),
+        messages=[{"role": "user", "content": "x"}],
+        schema={"type": "object"},
+        schema_name="answer",
+        max_tokens=800,
+    )
+
+    assert result.content == ""
+    assert result.actual_usd == Decimal("0.00037")
+    assert store.calls()[0].status == "succeeded"
 
 
 def test_budget_rejection_makes_no_http_call(store: ModelBudgetStore) -> None:

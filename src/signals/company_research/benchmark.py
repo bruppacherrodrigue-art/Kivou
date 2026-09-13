@@ -155,17 +155,29 @@ def benchmark_report(
 def choose_model(
     observations: tuple[BenchmarkObservation, ...],
     *,
-    threshold: Decimal,
     model_order: tuple[str, ...],
+    minimum_agreement: Decimal = Decimal("0.80"),
+    minimum_essential_agreement: Decimal = Decimal("0.80"),
+    minimum_valid_response_rate: Decimal = Decimal("0.90"),
 ) -> str | None:
     grouped: dict[str, list[BenchmarkObservation]] = defaultdict(list)
     for observation in observations:
         grouped[observation.model].append(observation)
-    for model in model_order:
+    qualified: list[tuple[Decimal, int, str]] = []
+    for priority, model in enumerate(model_order):
         items = tuple(grouped.get(model, ()))
-        if items and benchmark_report(items).agreement >= threshold:
-            return model
-    return None
+        if not items:
+            continue
+        report = benchmark_report(items)
+        valid_rate = Decimal(1) - Decimal(report.invalid_json) / Decimal(report.completed)
+        if (
+            valid_rate >= minimum_valid_response_rate
+            and report.agreement >= minimum_agreement
+            and report.field_agreement["website"] >= minimum_essential_agreement
+            and report.field_agreement["email"] >= minimum_essential_agreement
+        ):
+            qualified.append((report.cost_usd, priority, model))
+    return min(qualified)[2] if qualified else None
 
 
 def mask_directors(

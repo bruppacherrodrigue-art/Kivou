@@ -44,6 +44,7 @@ from signals.persistence.database import create_database_engine
 from signals.persistence.schema import supplier_directory
 
 MAX_BENCHMARK_INPUT_TOKENS = 4_000
+BENCHMARK_MAX_TOKENS = 800
 BENCHMARK_STATE_VERSION = 1
 DEFAULT_STATE_DIRECTORY = Path("/var/lib/kivou/enrichment-benchmark")
 
@@ -226,6 +227,7 @@ def execute_benchmark(*, batch_id: str, state_path: Path | None = None) -> dict[
                 gateway=gateway,
                 route=route,
                 batch_id=batch_id,
+                max_tokens=BENCHMARK_MAX_TOKENS,
             )
             for index, case in enumerate(cases, 1):
                 if (model, case.identity.siren) in completed_keys:
@@ -317,9 +319,7 @@ def execute_benchmark(*, batch_id: str, state_path: Path | None = None) -> dict[
         benchmark_report(tuple(item for item in observations if item.model == model))
         for model in BENCHMARK_MODELS
     ]
-    selected = choose_model(
-        tuple(observations), threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS
-    )
+    selected = choose_model(tuple(observations), model_order=BENCHMARK_MODELS)
     return {
         "status": "completed",
         "batch_id": batch_id,
@@ -351,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
                     "batch_id": batch_id,
                     "companies": len(load_benchmark_cases()),
                     "models": BENCHMARK_MODELS,
-                    "planned_openrouter_calls": 90,
+                    "planned_openrouter_calls": len(BENCHMARK_MODELS) * len(load_benchmark_cases()),
                     "execute_required": True,
                 },
                 separators=(",", ":"),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -16,6 +17,7 @@ from signals.company_research.benchmark import (
     mask_directors_in_evidence,
 )
 from signals.company_research.benchmark_run import (
+    BENCHMARK_MAX_TOKENS,
     _load_state,
     _save_state,
     _unmask_director,
@@ -24,6 +26,7 @@ from signals.company_research.benchmark_run import (
 from signals.company_research.enrichment import (
     CompanyEnrichmentDecision,
     CompanyEnrichmentInput,
+    CompanyEnrichmentProviderResult,
     CompanyWebCollector,
 )
 from signals.company_research.providers import BENCHMARK_MODELS, build_company_enrichment_messages
@@ -35,6 +38,7 @@ def _observation(
     matches: int,
     reserved: str = "0.001",
     actual: str = "0.0005",
+    invalid_json: bool = False,
 ) -> BenchmarkObservation:
     return BenchmarkObservation(
         model=model,
@@ -45,7 +49,7 @@ def _observation(
             "family": matches >= 3,
             "director_display_name": matches >= 4,
         },
-        invalid_json=False,
+        invalid_json=invalid_json,
         latency_ms=100,
         reserved_usd=Decimal(reserved),
         actual_usd=Decimal(actual),
@@ -72,12 +76,26 @@ def _decision_for_test(**updates: object) -> CompanyEnrichmentDecision:
     return CompanyEnrichmentDecision.model_validate(value)
 
 
+def test_provider_result_accepts_openrouter_eight_decimal_costs() -> None:
+    result = CompanyEnrichmentProviderResult(
+        decision=_decision_for_test(),
+        model="openai/gpt-5-mini",
+        cost_usd=Decimal("0.00051234"),
+        input_tokens=2_900,
+        output_tokens=200,
+    )
+
+    assert result.cost_usd == Decimal("0.00051234")
+
+
 def test_benchmark_uses_current_openrouter_model_ids() -> None:
     assert BENCHMARK_MODELS == (
-        "mistralai/mistral-small-2603",
-        "google/gemini-2.5-flash-lite",
-        "deepseek/deepseek-chat",
+        "openai/gpt-5-mini",
+        "google/gemini-2.5-flash",
+        "moonshotai/kimi-k2.6",
+        "x-ai/grok-4.3",
     )
+    assert BENCHMARK_MAX_TOKENS == 800
 
 
 def test_report_scores_each_field_latency_cost_projection_and_reservation_ratio() -> None:
@@ -110,17 +128,45 @@ def test_reservation_ratio_over_three_requires_recalibration() -> None:
     assert report.requires_reservation_adjustment is True
 
 
-def test_first_model_at_95_percent_wins_with_mistral_priority() -> None:
-    observations = (
-        *(_observation(BENCHMARK_MODELS[0], matches=4) for _ in range(29)),
-        _observation(BENCHMARK_MODELS[0], matches=2),
-        *(_observation(BENCHMARK_MODELS[1], matches=4) for _ in range(30)),
-        *(_observation(BENCHMARK_MODELS[2], matches=4) for _ in range(30)),
+def test_pragmatic_gate_selects_cheapest_usable_model() -> None:
+    expensive = tuple(
+        _observation(BENCHMARK_MODELS[3], matches=4, actual="0.003") for _ in range(30)
+    )
+    cheap = tuple(
+        _observation(BENCHMARK_MODELS[0], matches=4, actual="0.001") for _ in range(30)
     )
 
-    assert choose_model(observations, threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS) == (
-        BENCHMARK_MODELS[0]
+    assert choose_model((*expensive, *cheap), model_order=BENCHMARK_MODELS) == BENCHMARK_MODELS[0]
+
+
+def test_pragmatic_gate_rejects_too_many_invalid_responses() -> None:
+    observations = tuple(
+        _observation(
+            BENCHMARK_MODELS[0],
+            matches=4,
+            invalid_json=index < 4,
+        )
+        for index in range(30)
     )
+
+    assert choose_model(observations, model_order=BENCHMARK_MODELS) is None
+
+
+def test_pragmatic_gate_accepts_eighty_percent_on_essential_fields() -> None:
+    observations = tuple(
+        replace(
+            _observation(BENCHMARK_MODELS[0], matches=4),
+            field_matches={
+                "website": index < 27,
+                "email": index < 24,
+                "family": index < 20,
+                "director_display_name": index < 26,
+            },
+        )
+        for index in range(30)
+    )
+
+    assert choose_model(observations, model_order=BENCHMARK_MODELS) == BENCHMARK_MODELS[0]
 
 
 def test_director_names_are_replaced_by_stable_tokens_for_deepseek() -> None:
@@ -219,7 +265,7 @@ def test_benchmark_command_is_dry_by_default(capsys) -> None:
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "dry_run"
-    assert payload["planned_openrouter_calls"] == 90
+    assert payload["planned_openrouter_calls"] == 120
     assert payload["execute_required"] is True
 
 
