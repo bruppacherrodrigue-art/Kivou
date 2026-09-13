@@ -8,6 +8,7 @@ import httpx
 from alembic import command
 
 from signals.company_research.enrichment import (
+    AnnuaireRawDirectorClient,
     CompanyEnrichmentDecision,
     CompanyEnrichmentInput,
     CompanyEnrichmentProviderResult,
@@ -23,6 +24,71 @@ from signals.persistence.database import alembic_config, create_database_engine
 from signals.supplier_directory.store import SupplierDirectoryStore
 
 NOW = dt.datetime(2026, 9, 12, 8, tzinfo=dt.UTC)
+
+
+def test_annuaire_client_returns_exact_bounded_enrichment_identity() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["q"] == "479673980"
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {
+                        "siren": "479673980",
+                        "nom_raison_sociale": "SARL ALCIS TRANSPORTS",
+                        "activite_principale": "49.41A",
+                        "libelle_activite_principale": "Transports routiers de fret",
+                        "tranche_effectif_salarie": "11",
+                        "siege": {
+                            "libelle_commune": "BALMA",
+                            "departement": "31",
+                        },
+                        "dirigeants": [
+                            {
+                                "prenoms": "Alice",
+                                "nom": "Martin",
+                                "qualite": "Gérante",
+                                "type_dirigeant": "personne physique",
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+    client = AnnuaireRawDirectorClient(
+        client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    identity = client.profile("479673980")
+
+    assert identity is not None
+    assert identity.siren == "479673980"
+    assert identity.legal_name == "SARL ALCIS TRANSPORTS"
+    assert identity.city == "BALMA"
+    assert identity.department == "31"
+    assert identity.naf_code == "49.41A"
+    assert identity.employees == 19
+    assert identity.directors_raw[0]["name"] == "Alice Martin"
+
+
+def test_annuaire_client_rejects_a_fuzzy_siren_result() -> None:
+    client = AnnuaireRawDirectorClient(
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    json={
+                        "results": [
+                            {"siren": "999999999", "nom_raison_sociale": "AUTRE"}
+                        ]
+                    },
+                )
+            )
+        )
+    )
+
+    assert client.profile("479673980") is None
 
 
 class _FakeRenderer:
