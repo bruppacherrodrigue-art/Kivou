@@ -251,6 +251,8 @@ def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost
             }
         prompt = json.loads(payload["messages"][0]["content"])
         assert prompt["instruction"].startswith("Voici une entreprise française")
+        assert "je ne sais pas" in prompt["instruction"].casefold()
+        assert "absence" in prompt["instruction"].casefold()
         assert prompt["company"]["siren"] == "481153435"
         assert all(set(item) == {"key", "name"} for item in prompt["allowed_families"])
         assert "naf_codes" not in request.content.decode()

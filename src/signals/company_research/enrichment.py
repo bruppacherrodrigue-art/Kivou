@@ -39,9 +39,9 @@ from signals.supplier_discovery.families import (
 )
 
 MODEL_MAX_TOKENS = 300
+ARBITRATION_MIN_CONFIDENCE = Decimal("0.2")
 WEBSITE_CONFIDENCE_THRESHOLD = Decimal("0.8")
 EMAIL_CONFIDENCE_THRESHOLD = Decimal("0.8")
-FAMILY_ARBITRATION_CONFIDENCE_THRESHOLD = Decimal("0.8")
 FAMILY_CONFIDENCE_THRESHOLD = Decimal("0.7")
 logger = logging.getLogger(__name__)
 
@@ -150,6 +150,21 @@ class CompanyEnrichmentProvider(Protocol):
     def enrich(
         self, identity: CompanyEnrichmentInput, evidence: CompanyWebEvidence
     ) -> CompanyEnrichmentProviderResult: ...
+
+
+def decision_needs_arbiter(decision: CompanyEnrichmentDecision) -> bool:
+    """Escalate only a concrete but ambiguous fact, never a null decision."""
+
+    candidates = (
+        (decision.website, decision.website_confidence),
+        (decision.email, decision.email_confidence),
+        (decision.family, decision.family_confidence),
+    )
+    return any(
+        value is not None
+        and ARBITRATION_MIN_CONFIDENCE <= confidence < WEBSITE_CONFIDENCE_THRESHOLD
+        for value, confidence in candidates
+    )
 
 
 def _mentioned_domains(value: str) -> tuple[str, ...]:
@@ -513,11 +528,7 @@ class CompanyEnrichmentService:
         if (
             self._arbiter is not None
             and not arbiter_used
-            and (
-                decision.website_confidence < WEBSITE_CONFIDENCE_THRESHOLD
-                or decision.email_confidence < EMAIL_CONFIDENCE_THRESHOLD
-                or decision.family_confidence < FAMILY_ARBITRATION_CONFIDENCE_THRESHOLD
-            )
+            and decision_needs_arbiter(decision)
         ):
             arbitrate = getattr(self._arbiter, "arbitrate", None)
             provided = (
@@ -637,6 +648,7 @@ class CompanyEnrichmentService:
 
 
 __all__ = [
+    "ARBITRATION_MIN_CONFIDENCE",
     "MODEL_MAX_TOKENS",
     "AnnuaireRawDirectorClient",
     "CompanyEnrichmentDecision",
@@ -650,4 +662,5 @@ __all__ = [
     "InvalidCompanyEnrichmentDecision",
     "RenderedPage",
     "SearchEvidence",
+    "decision_needs_arbiter",
 ]
