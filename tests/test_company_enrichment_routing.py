@@ -129,9 +129,12 @@ def test_high_confidence_valid_judge_does_not_call_arbiter(
     [
         _decision(website_confidence=Decimal("0.79")),
         _decision(email_confidence=Decimal("0.79")),
+        _decision(family_confidence=Decimal("0.79")),
     ],
 )
-def test_low_site_or_email_confidence_calls_sonnet_once(migrated_sqlite_engine, decision) -> None:
+def test_low_site_email_or_family_confidence_calls_sonnet_once(
+    migrated_sqlite_engine, decision
+) -> None:
     judge = Provider([decision])
     arbiter = Provider([_decision()])
 

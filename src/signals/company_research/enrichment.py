@@ -41,6 +41,7 @@ from signals.supplier_discovery.families import (
 MODEL_MAX_TOKENS = 300
 WEBSITE_CONFIDENCE_THRESHOLD = Decimal("0.8")
 EMAIL_CONFIDENCE_THRESHOLD = Decimal("0.8")
+FAMILY_ARBITRATION_CONFIDENCE_THRESHOLD = Decimal("0.8")
 FAMILY_CONFIDENCE_THRESHOLD = Decimal("0.7")
 logger = logging.getLogger(__name__)
 
@@ -515,6 +516,7 @@ class CompanyEnrichmentService:
             and (
                 decision.website_confidence < WEBSITE_CONFIDENCE_THRESHOLD
                 or decision.email_confidence < EMAIL_CONFIDENCE_THRESHOLD
+                or decision.family_confidence < FAMILY_ARBITRATION_CONFIDENCE_THRESHOLD
             )
         ):
             arbitrate = getattr(self._arbiter, "arbitrate", None)
