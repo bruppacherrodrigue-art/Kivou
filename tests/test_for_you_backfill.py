@@ -57,7 +57,7 @@ def test_backfill_enqueues_and_runs_exact_limit(tmp_path) -> None:
         since=dt.date(2026, 1, 1),
         now=dt.datetime(2026, 9, 4, 9, tzinfo=dt.UTC),
         concurrency=2,
-        daily_limit=20,
+        batch_limit=20,
     )
 
     assert report.attempted == 2

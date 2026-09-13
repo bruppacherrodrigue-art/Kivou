@@ -10,6 +10,7 @@ User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/production.env
+EnvironmentFile=-/etc/kivou/acquisition-production.env
 ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 /srv/kivou/run/for-you.lock /srv/kivou/app/.venv/bin/python -m signals.personalization.for_you_worker
 TimeoutStartSec=20min
 StandardOutput=journal
