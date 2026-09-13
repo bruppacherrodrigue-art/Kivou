@@ -72,8 +72,16 @@ def _decision_for_test(**updates: object) -> CompanyEnrichmentDecision:
     return CompanyEnrichmentDecision.model_validate(value)
 
 
+def test_benchmark_uses_current_openrouter_model_ids() -> None:
+    assert BENCHMARK_MODELS == (
+        "mistralai/mistral-small-2603",
+        "google/gemini-2.5-flash-lite",
+        "deepseek/deepseek-chat",
+    )
+
+
 def test_report_scores_each_field_latency_cost_projection_and_reservation_ratio() -> None:
-    observations = tuple(_observation("mistralai/mistral-small", matches=4) for _ in range(30))
+    observations = tuple(_observation(BENCHMARK_MODELS[0], matches=4) for _ in range(30))
 
     report = benchmark_report(observations)
 
@@ -95,7 +103,7 @@ def test_report_scores_each_field_latency_cost_projection_and_reservation_ratio(
 
 def test_reservation_ratio_over_three_requires_recalibration() -> None:
     report = benchmark_report(
-        (_observation("mistralai/mistral-small", matches=4, reserved="0.003", actual="0.0004"),)
+        (_observation(BENCHMARK_MODELS[0], matches=4, reserved="0.003", actual="0.0004"),)
     )
 
     assert report.reservation_ratio == Decimal("7.5")
@@ -104,14 +112,14 @@ def test_reservation_ratio_over_three_requires_recalibration() -> None:
 
 def test_first_model_at_95_percent_wins_with_mistral_priority() -> None:
     observations = (
-        *(_observation("mistralai/mistral-small", matches=4) for _ in range(29)),
-        _observation("mistralai/mistral-small", matches=2),
-        *(_observation("google/gemini-flash-lite", matches=4) for _ in range(30)),
-        *(_observation("deepseek/deepseek-chat", matches=4) for _ in range(30)),
+        *(_observation(BENCHMARK_MODELS[0], matches=4) for _ in range(29)),
+        _observation(BENCHMARK_MODELS[0], matches=2),
+        *(_observation(BENCHMARK_MODELS[1], matches=4) for _ in range(30)),
+        *(_observation(BENCHMARK_MODELS[2], matches=4) for _ in range(30)),
     )
 
     assert choose_model(observations, threshold=Decimal("0.95"), model_order=BENCHMARK_MODELS) == (
-        "mistralai/mistral-small"
+        BENCHMARK_MODELS[0]
     )
 
 

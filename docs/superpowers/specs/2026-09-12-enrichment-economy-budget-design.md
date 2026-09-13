@@ -155,8 +155,8 @@ versionnée sans données personnelles inutiles.
 
 Les candidats, dans l'ordre de préférence, sont :
 
-1. `mistralai/mistral-small` ;
-2. `google/gemini-flash-lite` ;
+1. `mistralai/mistral-small-2603` ;
+2. `google/gemini-2.5-flash-lite` ;
 3. `deepseek/deepseek-chat`.
 
 Ils reçoivent les mêmes octets d'entrée réduite, la même température, le même

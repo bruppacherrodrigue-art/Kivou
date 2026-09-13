@@ -226,7 +226,7 @@ def test_system_summary_exposes_today_persisted_model_budgets(monkeypatch) -> No
     budget = next(
         item for item in overview.system.model_budgets if item.usage == "enrichment_judge"
     )
-    assert budget.model == "mistralai/mistral-small"
+    assert budget.model == "mistralai/mistral-small-2603"
     assert budget.timezone == "Europe/Zurich"
     assert budget.cap_usd == Decimal("2.50")
     assert budget.actual_usd == Decimal("0.04000000")
