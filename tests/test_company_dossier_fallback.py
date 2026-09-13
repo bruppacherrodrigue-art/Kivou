@@ -80,6 +80,40 @@ def test_canonical_siren_key_opens_owned_holder_without_a_registry_cache(prepare
     assert other.get(f"/companies/{key}").status_code == 404
 
 
+@pytest.mark.parametrize("cached_directory", [False, True])
+def test_canonical_dossier_uses_exact_history_without_global_award_scan(
+    prepared, monkeypatch, cached_directory
+):
+    from test_saas_company_api import _insert_directory_company
+
+    from signals.client_value import history
+
+    engine, _, client = prepared
+    seed(engine, icp_of(client), count=1, offset=9)
+    key = client.get("/companies").json()["items"][0]["company_key"]
+    assert key.startswith("cmp_directory_")
+    if cached_directory:
+        with engine.begin() as connection:
+            _insert_directory_company(
+                connection,
+                siren=key.removeprefix("cmp_directory_"),
+                name="Libellé du registre différent de l'avis",
+            )
+    fallback_calls = []
+    fallback = history._fallback_award_rows
+
+    def record_fallback(*args, **kwargs):
+        fallback_calls.append(True)
+        return fallback(*args, **kwargs)
+
+    monkeypatch.setattr(history, "_fallback_award_rows", record_fallback)
+    response = client.get(f"/companies/{key}")
+    assert response.status_code == 200, response.text
+    assert fallback_calls == []
+    assert response.json()["market_summary"]["resolution"] == "company_key"
+    assert response.json()["market_summary"]["last_12_months"]["awards_count"] == 1
+
+
 def test_quarantined_signal_holder_is_not_regrouped_by_list_or_canonical_fallback(prepared):
     from test_company_entity_aliases import NOW
 

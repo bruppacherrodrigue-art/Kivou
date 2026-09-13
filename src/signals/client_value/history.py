@@ -12,9 +12,11 @@ from typing import Any, Literal
 
 import sqlalchemy as sa
 
+from signals.client_value.company_identity import exact_french_siren
 from signals.companies.contracts import safe_https_url
 from signals.companies.schema import saas_company
 from signals.domain.french_departments import NUTS3_DEPARTMENTS, location_subdivision
+from signals.engagement.prospecting_schema import company_subject_alias
 from signals.feed.text import normalize_text
 from signals.persistence.schema import contract_award, materialized_signal, source_event
 
@@ -60,7 +62,11 @@ def _money_rows(facts: tuple[AwardFact, ...], *, operation: str) -> list[dict[st
 
 def _recurring_buyers(facts: tuple[AwardFact, ...]) -> list[str]:
     counts = Counter(name for fact in facts for name in set(fact.buyer_names) if name.strip())
-    return [name for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0])) if count > 1][:2]
+    return [
+        name
+        for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        if count > 1
+    ][:2]
 
 
 def summarize_awards(
@@ -72,7 +78,9 @@ def summarize_awards(
         return None
     dated = tuple(fact for fact in unique if fact.known_date is not None)
     recent = tuple(
-        fact for fact in dated if _year_before(as_of) <= fact.known_date <= as_of  # type: ignore[operator]
+        fact
+        for fact in dated
+        if _year_before(as_of) <= fact.known_date <= as_of  # type: ignore[operator]
     )
     last_year: dict[str, Any] = {"awards_count": len(recent)}
     recent_money = _money_rows(recent, operation="sum")
@@ -89,9 +97,7 @@ def summarize_awards(
         summary["first_award_at"] = first.isoformat()
         months = (as_of.year - first.year) * 12 + as_of.month - first.month
         quarters = max(1, months // 3 + 1)
-        summary["awards_per_quarter"] = _one_decimal(
-            Decimal(len(unique)) / Decimal(quarters)
-        )
+        summary["awards_per_quarter"] = _one_decimal(Decimal(len(unique)) / Decimal(quarters))
     medians = _money_rows(unique, operation="median")
     if medians:
         summary["median_amounts"] = medians
@@ -182,27 +188,22 @@ def _award_rows(
     )
     if identity_fingerprints is None:
         statement = sa.select(*columns).select_from(
-            contract_award.join(source_event, contract_award.c.event_key == source_event.c.event_key)
+            contract_award.join(
+                source_event, contract_award.c.event_key == source_event.c.event_key
+            )
         )
     else:
         award_keys = (
             sa.select(materialized_signal.c.materialization_award_key)
-            .where(
-                materialized_signal.c.company_identity_fingerprint.in_(
-                    identity_fingerprints
-                )
-            )
+            .where(materialized_signal.c.company_identity_fingerprint.in_(identity_fingerprints))
             .distinct()
             .subquery("directory_award_keys")
         )
-        statement = (
-            sa.select(*columns)
-            .select_from(
-                award_keys.join(
-                    contract_award,
-                    award_keys.c.materialization_award_key == contract_award.c.award_key,
-                ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
-            )
+        statement = sa.select(*columns).select_from(
+            award_keys.join(
+                contract_award,
+                award_keys.c.materialization_award_key == contract_award.c.award_key,
+            ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
         )
     return connection.execute(statement.order_by(contract_award.c.award_key)).mappings()
 
@@ -220,8 +221,7 @@ def _fallback_award_rows(
         row
         for row in _award_rows(connection, identity_fingerprints=None)
         if department_for_place(row["place_of_performance"]) == department
-        and wanted_name
-        in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
+        and wanted_name in {_normalized(name) for name in _winner_names(row["awardee_parties"])}
     )
 
 
@@ -230,9 +230,7 @@ def _award_facts(rows: Iterable[Mapping[str, Any]]) -> tuple[AwardFact, ...]:
         AwardFact(
             award_key=row["award_key"],
             known_date=(
-                row["award_date"]
-                or row["contract_notification_date"]
-                or row["published_on"]
+                row["award_date"] or row["contract_notification_date"] or row["published_on"]
             ),
             amount=(None if row["amount"] is None else Decimal(str(row["amount"]))),
             currency=row["currency"],
@@ -272,6 +270,53 @@ def _markets_from_rows(
     return tuple(market for _date, _key, market in matches[:limit])
 
 
+def _siren_history_fingerprints(connection: sa.Connection, siren: str) -> tuple[str, ...] | None:
+    """Read exact legal-entity holders, including legacy spaced BOAMP identifiers.
+
+    The durable registry wins over raw identifiers: a quarantined or differently
+    bound alias cannot rejoin this group. Unregistered public identities use the
+    same complete-identifier/country validation as the identity domain, never a
+    nine-character prefix. Only public identity columns are scanned, not award
+    payloads or private account work. None means no identity evidence is known;
+    an empty tuple means evidence exists but is rejected, forbidding name fallback.
+    """
+    if exact_french_siren([{"scheme": "SIREN", "value": siren}], country="FR") != siren:
+        return None
+    canonical = f"cmp_directory_{siren}"
+    rows = connection.execute(
+        sa.select(
+            saas_company.c.identity_fingerprint,
+            saas_company.c.official_identifiers,
+            saas_company.c.official_country,
+            company_subject_alias.c.alias_company_key,
+            company_subject_alias.c.canonical_company_key,
+            company_subject_alias.c.resolution_status,
+        ).select_from(
+            saas_company.outerjoin(
+                company_subject_alias,
+                company_subject_alias.c.alias_company_key == saas_company.c.company_key,
+            )
+        )
+    ).mappings()
+    fingerprints = set()
+    evidence_known = False
+    for row in rows:
+        source_siren = exact_french_siren(
+            row["official_identifiers"], country=row["official_country"]
+        )
+        if source_siren != siren and row["canonical_company_key"] != canonical:
+            continue
+        evidence_known = True
+        if source_siren != siren:
+            continue
+        if row["alias_company_key"] is not None and (
+            row["resolution_status"] != "exact" or row["canonical_company_key"] != canonical
+        ):
+            continue
+        fingerprints.add(row["identity_fingerprint"])
+    return tuple(sorted(fingerprints)) if evidence_known else None
+
+
 def history_for_company(
     connection: sa.Connection,
     *,
@@ -281,22 +326,30 @@ def history_for_company(
     as_of: dt.date,
 ) -> dict[str, Any] | None:
     """Lit l'historique par identité projetée, sinon par nom et département."""
-    fingerprint = None
+    fingerprints: tuple[str, ...] | None = None
     resolution: Resolution = "normalized_name_department"
     if company_key is not None:
-        fingerprint = connection.scalar(
-            sa.select(saas_company.c.identity_fingerprint).where(
-                saas_company.c.company_key == company_key
+        if company_key.startswith("cmp_directory_"):
+            fingerprints = _siren_history_fingerprints(
+                connection, company_key.removeprefix("cmp_directory_")
             )
-        )
-        if fingerprint is not None:
+        else:
+            fingerprint = connection.scalar(
+                sa.select(saas_company.c.identity_fingerprint).where(
+                    saas_company.c.company_key == company_key
+                )
+            )
+            fingerprints = (fingerprint,) if fingerprint is not None else None
+        if fingerprints:
             resolution = "company_key"
-    if fingerprint is None and (not _normalized(winner_name) or not department):
+    if fingerprints == ():
+        return None
+    if not fingerprints and (not _normalized(winner_name) or not department):
         return None
 
     rows = (
-        tuple(_award_rows(connection, identity_fingerprints=(fingerprint,)))
-        if fingerprint is not None
+        tuple(_award_rows(connection, identity_fingerprints=fingerprints))
+        if fingerprints
         else _fallback_award_rows(
             connection,
             winner_name=winner_name or "",
@@ -334,33 +387,14 @@ def directory_history_and_markets(
 ) -> tuple[dict[str, Any] | None, tuple[dict[str, Any], ...]]:
     """Read a directory company's summary and list from one award scan."""
 
-    fingerprints = (
-        set(
-            connection.scalars(
-                sa.select(materialized_signal.c.company_identity_fingerprint)
-                .select_from(
-                    materialized_signal.join(
-                        saas_company,
-                        saas_company.c.identity_fingerprint
-                        == materialized_signal.c.company_identity_fingerprint,
-                    )
-                )
-                .where(
-                    sa.func.lower(materialized_signal.c.winner_identifier_scheme)
-                    == "siret",
-                    materialized_signal.c.winner_identifier_value.like(f"{siren}_____"),
-                )
-                .distinct()
-            )
-        )
-        if siren
-        else set()
-    )
+    fingerprints = _siren_history_fingerprints(connection, siren) if siren else None
+    if fingerprints == ():
+        return None, ()
     if fingerprints:
         rows = tuple(
             _award_rows(
                 connection,
-                identity_fingerprints=tuple(sorted(fingerprints)),
+                identity_fingerprints=fingerprints,
             )
         )
         resolution: Resolution = "company_key"

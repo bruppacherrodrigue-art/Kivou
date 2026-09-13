@@ -46,7 +46,7 @@ from signals.engagement.prospecting_schema import (
     account_company_membership,
     company_subject_alias,
 )
-from signals.engagement.schema import signal_feedback, signal_workflow
+from signals.engagement.schema import company_contact, signal_feedback, signal_workflow
 from signals.engagement.status import status_resolver, workflow_by_signal
 from signals.feed import policy
 from signals.feed import query as feed_query
@@ -131,6 +131,44 @@ def _render_items(
         }
         for item in items
     }
+
+
+def _week_activity_may_exist(
+    connection: sa.Connection, *, account_id: str, now: dt.datetime
+) -> bool:
+    """Conservative account-local presence check, before resolving the signal scope.
+
+    A positive result still needs the normal scope/identity-aware counts. Only
+    a negative result proves all three activity counts are zero in every scope.
+    Use a fresh database read, not the status maps read earlier in the request.
+    """
+    floor = now - dt.timedelta(days=7)
+    return connection.scalar(
+        sa.select(
+            sa.or_(
+                sa.exists().where(
+                    signal_feedback.c.account_id == account_id,
+                    sa.or_(
+                        sa.and_(
+                            signal_feedback.c.relevance == "relevant",
+                            signal_feedback.c.updated_at.between(floor, now),
+                        ),
+                        signal_feedback.c.contacted_at.between(floor, now),
+                    ),
+                ),
+                sa.exists().where(
+                    signal_workflow.c.account_id == account_id,
+                    signal_workflow.c.status == "saved",
+                    signal_workflow.c.updated_at.between(floor, now),
+                ),
+                sa.exists().where(
+                    company_contact.c.account_id == account_id,
+                    company_contact.c.status == "replied",
+                    company_contact.c.updated_at.between(floor, now),
+                ),
+            )
+        )
+    )
 
 
 def _week_activity_counts(
@@ -479,6 +517,7 @@ def build_dashboard(
     )
     activity_keys = None
     activity_truncated = False
+    activity_is_empty = False
     if consultation_scope is not None and any(
         (
             consultation_scope.target_icp_id,
@@ -488,22 +527,39 @@ def build_dashboard(
             consultation_scope.amount_currency,
         )
     ):
-        activity = feed_query.feed_page(
-            connection,
-            account_id=account_id,
-            as_of=as_of,
-            freshness="all",
-            allowed_target_icp_ids=allowed_target_icp_ids,
-            limit=1,
-            admit=access.is_unlocked,
-            consultation_scope=consultation_scope,
+        # For paid accounts the follow-up scan reads the same owned/allowed
+        # raw rows, before consultation filters. If it exhausts them below its
+        # cap, this activity scan cannot reach its (at least equal) cap either.
+        # Otherwise follow_up_scan_truncated already makes the final flag true.
+        # Discovery scans only grants in list_companies: that proof does NOT
+        # apply there. Keep its independent activity scan, as with a lower
+        # feed cap. Neither a due follow-up nor historical activity is skipped.
+        activity_is_empty = (
+            access.is_paid
+            and feed_query.HISTORY_SCAN_CAP <= policy.CANDIDATE_SCAN_CAP
+            and not _week_activity_may_exist(connection, account_id=account_id, now=now)
         )
-        activity_keys = tuple(item.signal.signal_key for item in activity.matched)
-        activity_truncated = activity.scan_truncated
+        if not activity_is_empty:
+            activity = feed_query.feed_page(
+                connection,
+                account_id=account_id,
+                as_of=as_of,
+                freshness="all",
+                allowed_target_icp_ids=allowed_target_icp_ids,
+                limit=1,
+                admit=access.is_unlocked,
+                consultation_scope=consultation_scope,
+            )
+            activity_keys = tuple(item.signal.signal_key for item in activity.matched)
+            activity_truncated = activity.scan_truncated
     week = {
         "new": sum(week_page.status_counts.values()),
-        **_week_activity_counts(
-            connection, account_id=account_id, now=now, signal_keys=activity_keys
+        **(
+            {"saved": 0, "contacted": 0, "replied": 0}
+            if activity_is_empty
+            else _week_activity_counts(
+                connection, account_id=account_id, now=now, signal_keys=activity_keys
+            )
         ),
     }
 
