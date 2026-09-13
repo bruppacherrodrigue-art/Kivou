@@ -38,6 +38,15 @@ _INSTRUCTION = (
     "Dis-moi ce que tu peux confirmer. Ne devine pas : si tu n'es pas sûr, laisse vide."
 )
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*(\{.*\})\s*```$", re.DOTALL | re.IGNORECASE)
+_CONFIDENCE_FIELDS = ("website_confidence", "email_confidence", "family_confidence")
+
+
+def _company_enrichment_response_schema() -> dict[str, object]:
+    schema = CompanyEnrichmentDecision.model_json_schema()
+    properties = schema["properties"]
+    for field in _CONFIDENCE_FIELDS:
+        properties[field] = {"type": "number", "minimum": 0, "maximum": 1}
+    return schema
 
 
 def _strict_decision(content: object) -> CompanyEnrichmentDecision:
@@ -70,7 +79,7 @@ def build_company_enrichment_messages(
         "company": identity.model_dump(mode="json"),
         "allowed_families": families,
         "web_evidence": evidence.model_dump(mode="json"),
-        "required_output_schema": CompanyEnrichmentDecision.model_json_schema(),
+        "required_output_schema": _company_enrichment_response_schema(),
         "rules": [
             "Retourne exactement les dix champs du schéma, sans autre champ.",
             "La réponse commence par { et finit par }, sans commentaire ni Markdown.",
@@ -149,7 +158,7 @@ class OpenRouterCompanyEnrichmentProvider:
                 messages=build_company_enrichment_messages(
                     identity, evidence, judge_output=judge_output
                 ),
-                schema=CompanyEnrichmentDecision.model_json_schema(),
+                schema=_company_enrichment_response_schema(),
                 schema_name="company_enrichment",
                 max_tokens=self._max_tokens,
                 siren=identity.siren,

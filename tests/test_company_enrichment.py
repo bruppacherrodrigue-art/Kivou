@@ -242,12 +242,21 @@ def test_openrouter_provider_uses_economic_route_reduced_prompt_and_reports_cost
         assert payload["max_tokens"] == 300
         assert payload["response_format"]["json_schema"]["strict"] is True
         assert payload["usage"] == {"include": True}
+        response_schema = payload["response_format"]["json_schema"]["schema"]
+        for field in ("website_confidence", "email_confidence", "family_confidence"):
+            assert response_schema["properties"][field] == {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number",
+            }
         prompt = json.loads(payload["messages"][0]["content"])
         assert prompt["instruction"].startswith("Voici une entreprise française")
         assert prompt["company"]["siren"] == "481153435"
         assert all(set(item) == {"key", "name"} for item in prompt["allowed_families"])
         assert "naf_codes" not in request.content.decode()
         assert "activity_examples" not in request.content.decode()
+        assert "look-ahead" not in request.content.decode()
+        assert "^(?!" not in request.content.decode()
         assert set(prompt["required_output_schema"]["required"]) == {
             "website",
             "website_confidence",
