@@ -254,12 +254,31 @@ class NoticeFactsStored:
     related_snapshots_created: int = 0
 
 
+def _holder_identifier_identity(scheme: str, value: str) -> tuple[str, str]:
+    """Compare legacy BOAMP CompanyID spacing without merging establishments.
+
+    The parser now labels fourteen-digit CompanyIDs as SIRET. Preserve every
+    digit (including the NIC), unknown scheme, identifier and party grouping;
+    this comparison does not rewrite the canonical award or its source.
+    """
+    if scheme.casefold() in {"siret", "boamp-company-id"}:
+        compact = re.sub(r"\s+", "", value)
+        if re.fullmatch(r"[0-9]{14}", compact):
+            return "SIRET", compact
+    return scheme, value
+
+
 def _holder_identity(parties: tuple[WinningPartyFacts, ...]) -> list:
     return sorted(
         sorted(
             (
                 member.name.value,
-                tuple(sorted((item.scheme, item.value) for item in member.identifiers)),
+                tuple(
+                    sorted(
+                        _holder_identifier_identity(item.scheme, item.value)
+                        for item in member.identifiers
+                    )
+                ),
             )
             for member in party.members
         )
@@ -274,7 +293,7 @@ def _stored_holder_identity(parties: list[dict]) -> list:
                 member["organization"]["legal_name"],
                 tuple(
                     sorted(
-                        (item["scheme"], item["value"])
+                        _holder_identifier_identity(item["scheme"], item["value"])
                         for item in member["organization"].get("identifiers", [])
                     )
                 ),

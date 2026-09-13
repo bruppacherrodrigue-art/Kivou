@@ -1,6 +1,6 @@
 # V11 — procédure de répétition sur une copie complète de staging
 
-> Procédure et helper préparés ; **aucune preuve d'exécution complète sur restauration staging jointe à cette mise à jour**. Ils complètent L14 avant toute activation. Le déployeur existant reste inchangé. Ce document n'est pas un script automatique de création/suppression de bases.
+> Deux répétitions réelles ont été refusées avant activation ; **aucune répétition complète validée à cette mise à jour**. La seconde prouve la conservation exhaustive de260069lignes privées mais bloque sur les faits RAZEL ; voir [implementation.md](implementation.md). Elles complètent L14 avant toute activation. Le déployeur existant reste inchangé. Ce document n'est pas un script automatique de création/suppression de bases.
 
 **Objectif :** vérifier migration, conservation des valeurs privées, révisions, export et reprise BOAMP sur une restauration complète, sans aucune écriture dans la base vive.
 
