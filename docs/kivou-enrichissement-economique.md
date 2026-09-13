@@ -35,10 +35,15 @@ La sortie est un JSON strict de 300 tokens maximum. Elle contient la décision
 sur le site, l'adresse e-mail, la famille, le dirigeant, le téléphone, les
 confiances et, au premier tour seulement, l'éventuelle URL supplémentaire.
 
-Le juge économique est arbitré par Sonnet si son JSON est invalide ou si sa
-confiance sur le site ou l'adresse est inférieure à 0,8. L'arbitre reçoit le
-même paquet réduit et la sortie du juge comme donnée non fiable. Les seuils,
-placeholders, contrôles MX et listes noires restent appliqués après le modèle.
+Le juge économique distingue explicitement deux situations pour chaque champ :
+« je ne sais pas », avec une faible confiance, et « rien de confirmable n'est
+présent dans les preuves visibles », représenté par `null` avec une confiance
+d'absence élevée. Sonnet arbitre uniquement un JSON invalide ou une valeur non
+nulle trouvée pour le site, l'adresse ou la famille avec une confiance comprise
+entre 0,2 inclus et 0,8 exclu. Un `null` avec une confiance d'absence au moins
+égale à 0,8 est accepté sans arbitrage. L'arbitre reçoit le même paquet réduit
+et la sortie du juge comme donnée non fiable. Les seuils, placeholders,
+contrôles MX et listes noires restent appliqués après le modèle.
 
 ## Mesures obligatoires
 
