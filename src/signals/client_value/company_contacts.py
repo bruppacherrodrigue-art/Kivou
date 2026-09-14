@@ -16,6 +16,7 @@ from pydantic import EmailStr, TypeAdapter, ValidationError
 from signals.billing.catalogue import PlanEntitlements
 from signals.client_value.capabilities import usable_phone
 from signals.client_value.company_identity import exact_french_siren
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.history import _siren_history_fingerprints
 from signals.client_value.notice_facts import NoticeAwardFacts
 from signals.companies.contracts import CompanyPublicContact, safe_https_url
@@ -117,7 +118,11 @@ def notice_contacts(
                 )
             except ValidationError:
                 continue
-            result.append(contact.model_dump(mode="json"))
+            rendered = contact.model_dump(mode="json")
+            rendered["organization_name"] = normalize_holder_name(
+                rendered["organization_name"]
+            )
+            result.append(rendered)
     return result
 
 

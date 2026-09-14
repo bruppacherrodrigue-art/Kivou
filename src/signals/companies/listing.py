@@ -33,6 +33,7 @@ import sqlalchemy as sa
 
 from signals.billing.access import FeedAccess
 from signals.client_value.company_identity import exact_french_siren
+from signals.client_value.company_name import normalize_holder_name
 from signals.companies.schema import saas_company
 from signals.companies.service import (
     company_keys_for_signals,
@@ -478,6 +479,7 @@ def list_companies(
         accumulators.setdefault(key, _Accumulator())
 
     identities: dict[str, sa.Row] = {}
+    raw_search_names: dict[str, set[str]] = {}
     if accumulators:
         rows = connection.execute(
             sa.select(
@@ -490,7 +492,10 @@ def list_companies(
                 )
             )
         ).all()
-        identities = {subject(row.company_key): row for row in rows}
+        for row in rows:
+            company_subject = subject(row.company_key)
+            identities[company_subject] = row
+            raw_search_names.setdefault(company_subject, set()).add(row.official_name)
     directory = (
         {
             f"cmp_directory_{row.siren}": row
@@ -513,6 +518,8 @@ def list_companies(
         if accumulators
         else {}
     )
+    for company_key, directory_identity in directory.items():
+        raw_search_names.setdefault(company_key, set()).add(directory_identity.legal_name)
 
     contacts = {}
     stored_contacts = contacts_by_company(connection, account_id=account_id)
@@ -531,9 +538,11 @@ def list_companies(
         rows.append(
             CompanyRow(
                 company_key=company_key,
-                name=identity.official_name
-                if identity is not None
-                else directory_identity.legal_name,
+                name=normalize_holder_name(
+                    identity.official_name
+                    if identity is not None
+                    else directory_identity.legal_name
+                ),
                 city=acc.city
                 or (directory_identity.city if directory_identity is not None else None),
                 country=identity.official_country if identity is not None else "FR",
@@ -551,7 +560,15 @@ def list_companies(
 
     if query:
         needle = normalize_text(query)
-        rows = [row for row in rows if needle in normalize_text(row.name)]
+        rows = [
+            row
+            for row in rows
+            if needle in normalize_text(row.name)
+            or any(
+                needle in normalize_text(raw_name)
+                for raw_name in raw_search_names.get(row.company_key, ())
+            )
+        ]
     if contacted_before is not None:
         rows = [
             row

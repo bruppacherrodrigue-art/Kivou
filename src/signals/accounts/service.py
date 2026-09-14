@@ -820,7 +820,20 @@ class LandingSignal:
     #: `landed_account_in_transaction` de reconnaître un rejeu du même jeton.
     opportunity_key: str | None
     signal_key: str | None
+    token_fingerprint: str | None
     created_at: dt.datetime
+
+
+@dataclasses.dataclass(frozen=True)
+class LandingCohort:
+    """The promised signal and the active inventory prepared beside it."""
+
+    signal_key: str | None
+    expected: int
+    materialized: int
+
+
+LANDING_COHORT_SIZE = 3
 
 
 def resolve_landing_signal_key(
@@ -890,12 +903,14 @@ def record_landing_signal(
                 created_at=now,
             )
         )
-        return LandingSignal(account_id, opportunity_key, signal_key, now)
+        return LandingSignal(account_id, opportunity_key, signal_key, token_fingerprint, now)
     updates: dict[str, object] = {}
     if signal_key is not None and row.signal_key != signal_key:
         updates["signal_key"] = signal_key
     if qa and not row.qa:
         updates["qa"] = True
+    if token_fingerprint is not None and row.token_fingerprint is None:
+        updates["token_fingerprint"] = token_fingerprint
     if updates:
         connection.execute(
             sa.update(account_landing_signal)
@@ -906,10 +921,15 @@ def record_landing_signal(
             account_id,
             row.opportunity_key,
             signal_key or row.signal_key,
+            row.token_fingerprint or token_fingerprint,
             _aware(row.created_at),
         )
     return LandingSignal(
-        account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+        account_id,
+        row.opportunity_key,
+        row.signal_key,
+        row.token_fingerprint,
+        _aware(row.created_at),
     )
 
 
@@ -948,7 +968,11 @@ def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSign
     if row is None:
         return None
     return LandingSignal(
-        row.account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+        row.account_id,
+        row.opportunity_key,
+        row.signal_key,
+        row.token_fingerprint,
+        _aware(row.created_at),
     )
 
 
@@ -979,9 +1003,22 @@ def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozen
             materialized_signal.c.materialized_at.desc(),
             materialized_signal.c.signal_key,
         )
-        .limit(3)
+        .limit(LANDING_COHORT_SIZE)
     ).scalars()
     return frozenset(related)
+
+
+def landing_cohort(connection: sa.Connection, *, account_id: str) -> LandingCohort | None:
+    """Describe the real landing inventory without synthesizing feed rows."""
+
+    landing = landing_signal(connection, account_id=account_id)
+    if landing is None:
+        return None
+    return LandingCohort(
+        signal_key=landing.signal_key,
+        expected=LANDING_COHORT_SIZE,
+        materialized=len(landing_signal_keys(connection, account_id=account_id)),
+    )
 
 
 def account_ids_with_landing_signal(connection: sa.Connection) -> frozenset[str]:

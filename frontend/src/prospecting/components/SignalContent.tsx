@@ -27,7 +27,7 @@ export function SignalContent({ item, holder, notes }: { item: ProspectingSignal
     {why && <section className={styles.detailSection}><h3>{fr ? 'Pourquoi ça vous concerne' : 'Why this matters to you'}</h3><p>{why}</p></section>}
     {(facts?.publication_date || durations.length > 0 || calendar?.renewals != null) && <section className={styles.detailSection}>
       <h3>{fr ? 'Calendrier' : 'Timeline'}</h3>
-      {facts?.publication_date && <p className={styles.muted}>{fr ? 'BOAMP publié le' : 'BOAMP published on'} {date(facts.publication_date)}</p>}
+      {facts?.publication_date && <p className={styles.muted}>{fr ? 'Avis publié le' : 'Notice published on'} {date(facts.publication_date)}</p>}
       {durations.length > 0 && <dl className={styles.facts}>{durations.map((duration, index) => <div key={`${duration.scope}-${duration.period_kind}-${index}`}><dt>{durationTitle(duration)}</dt><dd>{durationLabel(duration, locale)}</dd>
         {duration.notice_kind === 'contract_notice' && <dd className={styles.muted}>{fr ? 'Selon l’avis de consultation' : 'According to the contract notice'} {safeExternal(duration.source_url) ? <a className={styles.textButton} href={safeExternal(duration.source_url)!} target="_blank" rel="noopener noreferrer">{duration.source_notice_id ?? (fr ? 'Consulter l’avis' : 'Read the notice')} <ExternalLink aria-hidden="true" /></a> : duration.source_notice_id}</dd>}</div>)}</dl>}
       {calendar?.renewals != null && <dl className={styles.facts}><div><dt>{fr ? 'Reconductions possibles' : 'Possible renewals'}</dt><dd>{calendar.renewals}</dd></div></dl>}

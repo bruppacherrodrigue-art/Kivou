@@ -10,6 +10,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from signals.client_value.company_name import normalize_holder_name
 from signals.domain.award_dates import attribution_date
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import policy
@@ -127,7 +128,7 @@ def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     the frontend: the browser does not guess whether a signal is complete.
     """
 
-    company = item.display.name if item.display is not None else ""
+    company = normalize_holder_name(item.display.name) if item.display is not None else ""
     raw_object = _clean(item.signal.award.title)
     market_object = _clean(
         client_market_object(raw_object), limit=_MAX_OBJECT_LENGTH

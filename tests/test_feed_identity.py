@@ -185,7 +185,7 @@ def test_feed_and_mail_can_read_the_same_official_holder_cache(client, icp, engi
 
     body = feed(client, freshness="all")
 
-    assert [item["company"]["name"] for item in body["items"]] == ["PAUL BROCHIER"]
+    assert [item["company"]["name"] for item in body["items"]] == ["Paul Brochier"]
     assert body["excluded"]["without_display_name"] == 0
 
 

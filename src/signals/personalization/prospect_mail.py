@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from signals.client_value.company_name import normalize_company_name, normalize_holder_name
+
 
 @dataclass(frozen=True)
 class RenderedProspectMail:
@@ -73,8 +75,7 @@ _FOOTER_SEPARATOR = "\n\n—\n"
 _SURNAME_PARTICLES = frozenset({"al", "el", "de", "du", "des", "le", "la", "van", "von"})
 _FEMALE_FIRST_NAMES = frozenset({"alice", "anne", "claire", "camille", "charlotte", "chloe", "elise", "emilie", "eva", "julie", "laura", "lea", "louise", "marie", "marion", "margot", "martine", "monique", "nina", "pauline", "sophie", "valerie", "virginie"})
 _MALE_FIRST_NAMES = frozenset({"adrien", "alexandre", "alain", "arnaud", "benjamin", "bernard", "bruno", "christophe", "daniel", "david", "dominique", "françois", "franck", "gabriel", "georges", "gregory", "guillaume", "henri", "hugo", "jacques", "jean", "jerome", "joseph", "julien", "laurent", "loic", "louis", "luc", "marc", "marcel", "martin", "mathieu", "michel", "nicolas", "olivier", "patrick", "paul", "philippe", "pierre", "remi", "renaud", "robert", "romain", "sebastien", "thomas", "victor", "yann", "xavier"})
-_LEGAL_FORMS = re.compile(r"\b(?:SASU?|SARL|EURL|SA|SCI|SNC|EI|EIRL|MICRO[- ]?ENTREPRISE|ASSOCIATION)\b", re.IGNORECASE)
-_REGISTRY_MENTION = re.compile(r"\s*\((?:RCS|SIREN|RM|registre)[^)]*\)", re.IGNORECASE)
+_PRESERVED_NAME_ACRONYMS = frozenset({"AG", "BV", "GMBH", "INC", "KG", "LLC", "NV", "PLC"})
 
 
 def _catalog_path() -> Path:
@@ -137,7 +138,10 @@ def _fold(value: str) -> str:
 
 
 def _normal_case(value: str) -> str:
-    return " ".join(part.title() for part in value.split())
+    return " ".join(
+        part.upper() if part.upper() in _PRESERVED_NAME_ACRONYMS else part.title()
+        for part in value.split()
+    )
 
 
 def normalize_director_name(value: object) -> str | None:
@@ -164,28 +168,6 @@ def director_civility(value: object) -> str | None:
     if first in _MALE_FIRST_NAMES:
         return "Monsieur"
     return None
-
-
-def normalize_company_name(value: object) -> str:
-    raw = " ".join(str(value or "").replace("–", "-").split()).strip(" ,;:-")
-    raw = _REGISTRY_MENTION.sub("", raw)
-    abbreviated = re.split(r"\s+EN\s+ABREGE\s+", raw, maxsplit=1, flags=re.IGNORECASE)
-    if len(abbreviated) == 2:
-        sigle = re.sub(r"[^A-Za-z0-9À-ÖØ-öø-ÿ&.-]+", " ", abbreviated[0]).strip()
-        name = _normal_case(" ".join(_LEGAL_FORMS.sub(" ", abbreviated[1]).split()).strip(" ,;:-"))
-        return f"{sigle.upper()} ({name})" if sigle and name else (sigle.upper() or name)
-    return _normal_case(" ".join(_LEGAL_FORMS.sub(" ", raw).split()).strip(" ,;:-"))
-
-
-def normalize_holder_name(value: object) -> str:
-    raw = " ".join(str(value or "").split()).strip(" ,;:-")
-    terminal_sigle = re.search(
-        r"(?:\s[-–—]\s|\s+(?i:EN\s+ABREGE)\s+)([A-Z][A-Z0-9&.-]{1,15})$",
-        raw,
-    )
-    if terminal_sigle:
-        return terminal_sigle.group(1).upper()
-    return normalize_company_name(raw)
 
 
 def _work_description(raw_subject: str, catalog: ProspectMailCatalog) -> str:
@@ -224,6 +206,59 @@ def client_market_object(raw_subject: str | None) -> str:
     if _TECHNICAL_PATTERN.search(cleaned):
         return client_work_description(cleaned)
     return cleaned
+
+
+def prospect_relevance_sentence(
+    *,
+    family_key: str,
+    company_city: object = None,
+    department: object = None,
+    distance_km: object = None,
+) -> str:
+    """Render the commercial sentence shared by the mail and its landing.
+
+    The family catalogue owns both the general fact and the customer's trade
+    wording.  Keeping their composition here prevents a client surface from
+    rebuilding it from internal need categories.
+    """
+
+    catalog = load_prospect_mail_catalog()
+    try:
+        family = catalog.families[family_key]
+    except KeyError as exc:
+        raise ValueError(f"prospect mail family is unknown: {family_key}") from exc
+    city = _normal_case(str(company_city or "").strip()) or None
+    department_name = _normal_case(str(department or "").strip()) or None
+    place = city or department_name
+    if place is None:
+        raise ValueError("prospect relevance place is unavailable")
+    distance_text = f", à {distance_km} km du chantier" if distance_km not in (None, "") else ""
+    return (
+        f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} "
+        f"à {place}{distance_text}."
+    )
+
+
+def is_prospect_relevance_sentence(value: object) -> bool:
+    """Recognize a sentence composed from the current reviewed mail catalogue."""
+
+    sentence = " ".join(str(value or "").split())
+    return sentence.endswith(".") and any(
+        sentence.startswith(
+            f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} à "
+        )
+        for family in load_prospect_mail_catalog().families.values()
+    )
+
+
+def prospect_relevance_sentence_from_mail(value: object) -> str | None:
+    """Read back the exact reviewed family sentence that was sent in a mail."""
+
+    for paragraph in re.split(r"\n\s*\n", str(value or "")):
+        sentence = " ".join(paragraph.split())
+        if is_prospect_relevance_sentence(sentence):
+            return sentence
+    return None
 
 
 def _amount(minor_units: int, currency: str) -> str:
@@ -318,12 +353,11 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
     )
     attribution_url = str(row["attribution_url"])
     unsubscribe_url = str(row["unsubscribe_url"])
-    target_city = _normal_case(str(row.get("company_city") or "").strip()) or None
-    distance = row.get("distance_km")
-    distance_text = f", à {distance} km du chantier" if distance not in (None, "") else ""
-    family_sentence = (
-        f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} "
-        f"à {target_city or department}{distance_text}."
+    family_sentence = prospect_relevance_sentence(
+        family_key=family_key,
+        company_city=row.get("company_city"),
+        department=department,
+        distance_km=row.get("distance_km"),
     )
     signature = "Rodrigue / Kivou · kivou.eu"
     if row.get("rodrigue_phone"):
@@ -451,10 +485,13 @@ __all__ = [
     "client_market_object",
     "client_work_description",
     "director_civility",
+    "is_prospect_relevance_sentence",
     "load_prospect_mail_catalog",
     "normalize_company_name",
     "normalize_director_name",
     "normalize_holder_name",
+    "prospect_relevance_sentence",
+    "prospect_relevance_sentence_from_mail",
     "render_prospect_mail",
     "validate_prospect_mail",
 ]

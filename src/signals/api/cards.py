@@ -14,6 +14,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.card_intelligence.contracts import PublishedCardPresentation
+from signals.client_value.company_name import normalize_holder_name
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.feed import query as feed_query
 from signals.feed import view
@@ -80,7 +81,9 @@ def render_unlocked_card(
     if enrichment is not None:
         card["winner_enrichment"] = enrichment.model_dump(mode="json")
         if enrichment.official_name is not None:
-            card["company"]["name"] = enrichment.official_name
+            normalized_name = normalize_holder_name(enrichment.official_name)
+            card["winner_enrichment"]["official_name"] = normalized_name
+            card["company"]["name"] = normalized_name
     return card
 
 

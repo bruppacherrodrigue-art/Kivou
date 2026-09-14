@@ -27,6 +27,7 @@ from signals.client_value.company_identity import (
     register_alias,
     resolve_subject,
 )
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.contact_lookup import (
     CompanyLookupIdentity,
     ContactLookupIdentityUnavailable,
@@ -715,6 +716,15 @@ def get_company(company_key: str, request: Request) -> CompanyProfile | Director
                 }
             )
         account_id = session.account_id
+    profile = profile.model_copy(
+        update={
+            "official_identity": profile.official_identity.model_copy(
+                update={"name": normalize_holder_name(profile.official_identity.name)}
+            )
+        }
+    )
+    if directory is not None:
+        directory = {**directory, "name": normalize_holder_name(directory["name"])}
     update = {
         **public_contacts,
         "city": place.get("locality"),
@@ -811,6 +821,7 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
             as_of=now.date(),
         )
         account_id = session.account_id
+    directory = {**directory, "name": normalize_holder_name(directory["name"])}
     result: dict[str, Any] = {
         **public_contacts,
         "company_key": company_key,

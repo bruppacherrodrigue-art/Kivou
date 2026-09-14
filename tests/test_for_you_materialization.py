@@ -64,7 +64,9 @@ def test_same_pair_and_fingerprints_enqueue_only_once(tmp_path) -> None:
         assert connection.scalar(sa.select(sa.func.count()).select_from(for_you_sentence)) == 1
 
 
-def test_cold_mail_and_landing_pair_share_the_exact_sentence(tmp_path) -> None:
+def test_legacy_acquisition_sentence_does_not_override_factual_landing_copy(
+    tmp_path,
+) -> None:
     engine, attribution, token, _ = prepared(tmp_path)
     with engine.connect() as connection:
         artifact = (
@@ -77,7 +79,8 @@ def test_cold_mail_and_landing_pair_share_the_exact_sentence(tmp_path) -> None:
 
     with engine.connect() as connection:
         cached = connection.execute(sa.select(for_you_sentence)).mappings().one()
-    assert cached["sentence"] == sentence
+    assert cached["sentence"] == cached["fallback_sentence"]
+    assert cached["sentence"] != sentence
 
 
 def test_policy_v6_creates_a_new_cache_row_without_overwriting_v1(tmp_path) -> None:

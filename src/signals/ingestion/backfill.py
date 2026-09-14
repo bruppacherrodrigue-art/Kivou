@@ -28,6 +28,7 @@ from signals.recency import assess_recency
 from signals.supplier_discovery.families import (
     families_for_signal,
     families_named_in_object,
+    load_supplier_family_catalog,
 )
 from signals.understanding import ContractUnderstandingEngine
 
@@ -387,6 +388,7 @@ def materialize_landing_feed_in_transaction(
     *,
     target_icp_id: str,
     opportunity_key: str,
+    family_key: str | None,
     as_of: dt.date,
     materialized_at: dt.datetime,
 ) -> str | None:
@@ -410,9 +412,15 @@ def materialize_landing_feed_in_transaction(
     bait_department = _department_code(
         location_subdivision(bait_place.model_dump(mode="json") if bait_place else None)
     )
-    prefixes = tuple(profile.included_cpv_prefixes)
-    bait_families = _landing_families(bait)
-    bait_family_keys = {family.key for family in bait_families}
+    selected_family = next(
+        (
+            family
+            for families in load_supplier_family_catalog().values()
+            for family in families
+            if family.key == family_key
+        ),
+        None,
+    )
     effective_date = sa.func.coalesce(
         contract_award.c.award_date,
         contract_award.c.contract_notification_date,
@@ -439,37 +447,34 @@ def materialize_landing_feed_in_transaction(
             ),
         )
     )
-    if bait_families:
-        cpv_prefixes = {
-            prefix for family in bait_families for prefix in family.cpv_prefixes
-        }
-        object_terms = {
-            term for family in bait_families for term in family.object_terms
-        }
+    if selected_family is not None and bait_department is not None:
         statement = statement.where(
             sa.or_(
-                *(contract_award.c.cpv_main.startswith(prefix) for prefix in cpv_prefixes),
+                *(
+                    contract_award.c.cpv_main.startswith(prefix)
+                    for prefix in selected_family.cpv_prefixes
+                ),
                 *(
                     sa.func.lower(
                         sa.func.coalesce(contract_award.c.title, "")
                         + " "
                         + sa.func.coalesce(contract_award.c.description, "")
                     ).contains(term.casefold())
-                    for term in object_terms
+                    for term in selected_family.object_terms
                 ),
             )
         )
-    elif prefixes:
-        statement = statement.where(
-            sa.or_(*(contract_award.c.cpv_main.startswith(prefix) for prefix in prefixes))
+        candidate_keys = tuple(
+            connection.execute(
+                statement.group_by(opportunity_representation.c.opportunity_key)
+                .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
+                .limit(CANDIDATE_SCAN_CAP)
+            ).scalars()
         )
-    candidate_keys = tuple(
-        connection.execute(
-            statement.group_by(opportunity_representation.c.opportunity_key)
-            .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
-            .limit(CANDIDATE_SCAN_CAP)
-        ).scalars()
-    )
+    else:
+        # Without the selected mail family or the bait department, Kivou cannot
+        # honestly claim that another signal belongs to the promised cohort.
+        candidate_keys = ()
     representatives = {
         key: representative
         for key, representative in zip(candidate_keys, _representatives(connection, candidate_keys))
@@ -490,7 +495,7 @@ def materialize_landing_feed_in_transaction(
         department = _department_code(
             location_subdivision(place.model_dump(mode="json") if place else None)
         )
-        if bait_department is not None and department != bait_department:
+        if department != bait_department:
             continue
         if not _has_customer_name(award) and key not in cached_holders:
             continue
@@ -509,9 +514,9 @@ def materialize_landing_feed_in_transaction(
         )
         if candidate is None:
             continue
-        if bait_family_keys and not (
-            bait_family_keys & {family.key for family in _landing_families(candidate)}
-        ):
+        if selected_family is None or selected_family.key not in {
+            family.key for family in _landing_families(candidate)
+        }:
             continue
         prepared_rows.append((key, candidate))
         used_procedures.add(procedure)

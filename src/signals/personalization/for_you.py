@@ -72,8 +72,8 @@ _LEGACY_FALLBACK_MARKERS = frozenset(
     {"peut concerner votre activité", "attribué le"}
 )
 _TECHNICAL_OBJECT = re.compile(
-    r"(?:\bLOT\s*\d*\b|\bCPV\b|\b\d{8}(?:-\d)?\b|\b\d{2}[A-Z]\d{4,}\b)",
-    re.IGNORECASE,
+    r"(?:\bLOT\b|(?i:\blot\s*(?:n(?:o|[°º])?\.?\s*)?\d+\b|\bCPV\b)|"
+    r"\b\d{8}(?:-\d)?\b|\b\d{2}[A-Z]\d{4,}\b)",
 )
 _TRADE_ACRONYMS = frozenset(
     {"CVC", "VRD", "MOA", "MOE", "BTP", "GO", "SO", "ERP", "RE2020", "DPGF"}

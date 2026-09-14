@@ -35,6 +35,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Annotated, Any, Literal, get_args
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
 
 from signals.accounts import service
@@ -58,6 +59,7 @@ from signals.card_intelligence.store import (
     published_for_signals,
 )
 from signals.client_value.company_contacts import suppressed_notice_sirens
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.directory import local_circuit
 from signals.client_value.history import department_for_place, history_for_company
 from signals.client_value.notice_facts import load_award_notice_facts
@@ -78,6 +80,13 @@ from signals.engagement.status import (
 )
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
+from signals.persistence.schema import prospect_target
+from signals.personalization.for_you import client_safe_sentence
+from signals.personalization.prospect_mail import (
+    is_prospect_relevance_sentence,
+    prospect_relevance_sentence,
+    prospect_relevance_sentence_from_mail,
+)
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -109,6 +118,43 @@ def _language(connection, *, user_id: str) -> str:
 
     locale = service.current_user(connection, user_id=user_id).locale
     return locale if locale in LANGUAGES else "fr"
+
+
+def _landing_mail_reason(
+    connection: sa.Connection, landing: service.LandingSignal | None
+) -> str | None:
+    """Resolve the sent prospect promise independently from signal revisions."""
+
+    if landing is None or landing.token_fingerprint is None:
+        return None
+    statement = sa.select(
+        prospect_target.c.family_key,
+        prospect_target.c.company_city,
+        prospect_target.c.signal_department,
+        prospect_target.c.mail_text,
+    ).where(
+        prospect_target.c.attribution_token_fingerprint == landing.token_fingerprint
+    )
+    if landing.opportunity_key is not None:
+        statement = statement.where(
+            prospect_target.c.opportunity_key == landing.opportunity_key
+        )
+    target = connection.execute(statement.limit(1)).mappings().one_or_none()
+    if target is None:
+        return None
+    sent = client_safe_sentence(prospect_relevance_sentence_from_mail(target["mail_text"]))
+    if sent is not None:
+        return sent
+    try:
+        return client_safe_sentence(
+            prospect_relevance_sentence(
+                family_key=target["family_key"],
+                company_city=target["company_city"],
+                department=target["signal_department"],
+            )
+        )
+    except ValueError:
+        return None
 
 
 @router.get("/signals")
@@ -210,6 +256,11 @@ def list_signals(
         session = current_session(request, connection, now)
         provisional_profile = service.is_provisional_profile(
             connection, account_id=session.account_id
+        )
+        landing_cohort = (
+            service.landing_cohort(connection, account_id=session.account_id)
+            if provisional_profile
+            else None
         )
         # A landing keeps its promised signal even when the message is opened
         # after the ordinary 30-day list window. Selection still uses the
@@ -452,6 +503,17 @@ def list_signals(
         "language": lang,
         "plan_code": access.plan_code,
         "provisional_profile": provisional_profile,
+        **(
+            {
+                "landing_cohort": {
+                    "signal_id": landing_cohort.signal_key,
+                    "expected": landing_cohort.expected,
+                    "materialized": landing_cohort.materialized,
+                }
+            }
+            if landing_cohort is not None
+            else {}
+        ),
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
         "policy": {
@@ -571,8 +633,13 @@ def get_signal(
     holder_history = None
     notice_facts = None
     circuit = ()
+    landing_signal_key = None
+    landing_mail_reason = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        landing_signal_key = landing.signal_key if landing is not None else None
+        landing_mail_reason = _landing_mail_reason(connection, landing)
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         service.reconcile_territory_plan_limits(
@@ -742,7 +809,9 @@ def get_signal(
     if enrichment is not None:
         detail["winner_enrichment"] = enrichment.model_dump(mode="json")
         if enrichment.official_name is not None:
-            detail["company"]["name"] = enrichment.official_name
+            normalized_name = normalize_holder_name(enrichment.official_name)
+            detail["winner_enrichment"]["official_name"] = normalized_name
+            detail["company"]["name"] = normalized_name
     if holder_history is not None:
         detail["holder_history"] = holder_history
     if circuit:
@@ -754,16 +823,19 @@ def get_signal(
     # A bookmarked signal from another target stays accessible, without
     # attaching the current profile's commercial rationale to it.
     if consultation.target_icp_id in (None, item.signal.target_icp_id):
-        from signals.api.commercial_context import commercial_context
-
-        context = commercial_context(
-            detail,
-            offers=consultation.offer_categories,
-            selected_offer=consultation.offer_category,
-            lang=lang,
+        mail_reason = (
+            landing_mail_reason
+            if landing_signal_key == signal_key
+            and landing_mail_reason is not None
+            and is_prospect_relevance_sentence(landing_mail_reason)
+            else None
         )
-        if context is not None:
-            detail["commercial_context"] = context
+        location = detail["contract"].get("location") or {}
+        detail["commercial_context"] = {
+            "reason": mail_reason or view.factual_relevance_sentence(item, lang=lang),
+            "offer_category": consultation.offer_category,
+            "zone_label": location.get("locality") or location.get("subdivision_label"),
+        }
     return detail
 
 

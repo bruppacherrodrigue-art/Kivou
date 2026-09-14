@@ -67,6 +67,23 @@ def test_directory_keyword_search_includes_activity_without_changing_identity(ap
         assert response.json()["items"][0]["name"] == "Entreprise Exemple"
 
 
+def test_directory_uses_the_mail_holder_normalizer_in_list_and_profile(app, engine):
+    with engine.begin() as connection:
+        _insert_directory_company(
+            connection,
+            siren="331364729",
+            name="CONSTRUCTION DE MAISONS ET CHARPENTES DU DAUPHINE - CMCD",
+        )
+    client = _signup(app, email="directory-name-parity@example.com")
+
+    listed = client.get("/companies/directory").json()["items"]
+    profile = client.get("/companies/directory/331364729").json()
+
+    assert listed[0]["name"] == "CMCD"
+    assert listed[0]["directory"]["name"] == "CMCD"
+    assert profile["directory"]["name"] == "CMCD"
+
+
 def test_directory_options_are_authenticated_bounded_and_match_existing_catalog(app):
     from starlette.testclient import TestClient
 

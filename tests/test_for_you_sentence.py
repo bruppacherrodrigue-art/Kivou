@@ -32,6 +32,11 @@ def test_fallback_and_legacy_cache_never_expose_engine_vocabulary() -> None:
     assert client_safe_sentence("Votre offre répond aux besoins de ce marché.") == (
         "Votre offre répond aux besoins de ce marché."
     )
+    family_sentence = (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Sillingy."
+    )
+    assert client_safe_sentence(family_sentence) == family_sentence
     assert (
         client_safe_sentence(
             "26A0076 LOT 01 CHARPENTE / ISOLATION à Isère : dans votre zone et votre secteur."

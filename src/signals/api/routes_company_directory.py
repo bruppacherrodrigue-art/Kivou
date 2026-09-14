@@ -13,6 +13,7 @@ from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
 from signals.billing.access import feed_access
 from signals.client_value.capabilities import company_capabilities, project_directory
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.directory import _company_view
 from signals.domain.french_departments import DEPARTMENTS
 from signals.engagement.prospecting_schema import (
@@ -172,12 +173,13 @@ def list_directory(
                 _company_view(row, matched_by_name=False, include_public_contact=True),
                 entitlements=access.entitlements,
             )
+            directory["name"] = normalize_holder_name(directory["name"])
             items.append(
                 {
                     "company_key": key,
                     "canonical_company_key": key,
                     "private_subject_key": exceptions.get(key, key),
-                    "name": row["legal_name"],
+                    "name": normalize_holder_name(row["legal_name"]),
                     "city": row["city"],
                     "country": "FR",
                     "directory": directory,

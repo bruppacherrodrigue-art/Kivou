@@ -6,7 +6,10 @@ from pathlib import Path
 from signals.personalization.prospect_mail import (
     RenderedProspectMail,
     client_work_description,
+    is_prospect_relevance_sentence,
     load_prospect_mail_catalog,
+    prospect_relevance_sentence,
+    prospect_relevance_sentence_from_mail,
     render_prospect_mail,
     validate_prospect_mail,
 )
@@ -57,6 +60,17 @@ def test_client_work_description_removes_the_lot_reference() -> None:
     assert client_work_description(
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE"
     ) == "la charpente, l'isolation et la couverture"
+
+
+def test_shared_relevance_sentence_is_the_exact_mail_family_sentence() -> None:
+    assert prospect_relevance_sentence(
+        family_key="roofing",
+        company_city="SILLINGY",
+        department="Savoie",
+    ) == (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Sillingy."
+    )
 
 
 def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:
@@ -202,6 +216,10 @@ def test_v2_contract_uses_civility_normalized_company_and_required_copy() -> Non
     assert "https://www.boamp.fr/avis/26A0076" not in mail.text
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
+    assert prospect_relevance_sentence_from_mail(mail.text) == (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Saint-Étienne, à 58 km du chantier."
+    )
 
 
 def test_v2_unknown_civility_uses_plain_greeting() -> None:
@@ -244,3 +262,13 @@ def test_corrected_v2_renders_alpes_zinguerie_contract() -> None:
     assert mail.html.count("href=") == 2
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
+
+
+def test_recognizes_only_a_sentence_from_the_reviewed_mail_catalogue() -> None:
+    sentence = prospect_relevance_sentence(
+        family_key="roofing",
+        company_city="SILLINGY",
+    )
+
+    assert is_prospect_relevance_sentence(sentence) is True
+    assert is_prospect_relevance_sentence("Votre offre peut intéresser ce titulaire.") is False

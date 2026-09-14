@@ -39,6 +39,8 @@
 .avatar{width:38px;height:40px;display:inline-grid;place-items:center;border-radius:8px;border:1px solid #dde6d5;background:#eef3e8;color:#567247;font-size:12px;font-weight:600;flex-shrink:0}
 .signalRow{display:flex;align-items:flex-start;gap:16px;padding:20px 24px;border-top:1px solid var(--pv-line)}
 .signalRow:hover{background:#fafcf7}
+.waitingRow{display:flex;align-items:center;gap:12px;padding:20px 24px;border-top:1px solid var(--pv-line);color:var(--pv-muted);background:#fafcf7;font-weight:500}
+.waitingDot{width:38px;height:40px;border:1px dashed #b8c8ae;border-radius:8px;background:#f3f7ef;flex-shrink:0}
 .rowMain{min-width:0;flex:1}
 .rowTop{display:flex;align-items:center;flex-wrap:wrap;gap:8px;color:var(--pv-muted);font-size:12px;margin-bottom:4px}
 .rowTitle{display:block;border:0;background:none;padding:0;text-align:left;color:var(--pv-ink);font:inherit;font-size:15px;line-height:1.6;font-weight:600;cursor:pointer;overflow-wrap:anywhere;text-decoration:none}

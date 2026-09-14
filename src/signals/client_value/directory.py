@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from signals.accounts.schema import target_icp
+from signals.client_value.company_name import normalize_holder_name
 from signals.companies.contracts import safe_https_url
 from signals.domain.french_departments import DEPARTMENTS
 from signals.feed.text import normalize_text
@@ -352,7 +353,7 @@ def local_circuit(
     for row, family in matches[:8]:
         item: dict[str, Any] = {
             "siren": row["siren"],
-            "name": row["legal_name"],
+            "name": normalize_holder_name(row["legal_name"]),
             "trade": family.label_fr,
             "href": f"/app/companies/directory/{row['siren']}",
             "source": "registre",

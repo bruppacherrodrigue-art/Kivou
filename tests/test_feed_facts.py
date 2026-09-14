@@ -272,6 +272,17 @@ def test_the_fit_explains_rather_than_scores(client, rich):
     assert "score" not in str(fit).lower()
 
 
+def test_drawer_without_a_mail_uses_only_the_factual_relevance_fallback(client, rich):
+    reason = detail(client, rich.signal_key)["commercial_context"]["reason"]
+    retired_positioning_copy = "une opportunité de " + "positionner"
+
+    assert reason.endswith(" : dans votre zone et votre secteur.")
+    assert retired_positioning_copy not in reason.casefold()
+    assert "materials_or_components" not in reason
+    assert "equipment_or_rental" not in reason
+    assert "LOT" not in reason
+
+
 def test_feed_and_detail_read_the_same_persisted_for_you_sentence(client, engine, rich):
     sentence = "Votre offre accompagne les besoins vérifiés de ce titulaire."
     with engine.begin() as connection:

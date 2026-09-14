@@ -574,6 +574,11 @@ export interface FeedPage {
   language: string
   plan_code: PlanCode
   provisional_profile?: boolean
+  landing_cohort?: {
+    signal_id: string | null
+    expected: number
+    materialized: number
+  }
   view: 'recent' | 'history'
   history_access: {
     scope: 'grants_only' | 'window' | 'all_available'
