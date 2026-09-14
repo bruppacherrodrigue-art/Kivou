@@ -38,7 +38,7 @@ def test_renders_the_complete_arbonis_mail_from_the_single_catalog() -> None:
     assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
     assert "Rodrigue / Kivou · kivou.eu" in mail.text
     assert "P.S. : Un mot en retour suffit" in mail.text
-    assert "Kivou, Sion (Suisse)" in mail.text
+    assert "Kivou, Sion (Suisse)" not in mail.text
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
     assert mail.contract_failure is None
@@ -185,7 +185,7 @@ def test_v2_contract_uses_civility_normalized_company_and_required_copy() -> Non
     assert "Kivou repère les marchés publics attribués près de chez vous" in mail.text
     assert "Rodrigue / Kivou · kivou.eu" in mail.text
     assert "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire." in mail.text
-    assert "Kivou, Sion (Suisse)" in mail.text
+    assert "Kivou, Sion (Suisse)" not in mail.text
     assert "https://kivou.eu/a/kat1.signal-token" in mail.text
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
