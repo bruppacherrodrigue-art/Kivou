@@ -43,7 +43,7 @@ from signals.api.routes_auth import set_session_cookie
 from signals.conversion import qa_token
 from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.cpv_labels import cpv_label
-from signals.domain.french_departments import location_subdivision
+from signals.domain.french_departments import NUTS3_DEPARTMENTS, location_subdivision
 from signals.engagement import analytics
 from signals.ingestion.backfill import (
     materialize_landing_feed_in_transaction,
@@ -137,6 +137,9 @@ def _profile_seed(
     code = award.cpv_main.code if award.cpv_main else None
     place = award.place_of_performance
     subdivision = location_subdivision(place.model_dump(mode="json") if place else None)
+    nuts_department = NUTS3_DEPARTMENTS.get(subdivision or "")
+    if nuts_department is not None:
+        subdivision = f"FR-{nuts_department}"
     family = next(
         (
             family
