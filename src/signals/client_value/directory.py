@@ -11,11 +11,11 @@ import sqlalchemy as sa
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from signals.accounts.schema import target_icp
+from signals.client_value.company_name import normalize_holder_name
 from signals.companies.contracts import safe_https_url
 from signals.domain.french_departments import DEPARTMENTS
 from signals.feed.text import normalize_text
 from signals.persistence.schema import supplier_directory
-from signals.personalization.prospect_mail import normalize_holder_name
 from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
     SupplierFamily,

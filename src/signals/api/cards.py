@@ -14,11 +14,11 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.card_intelligence.contracts import PublishedCardPresentation
+from signals.client_value.company_name import normalize_holder_name
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.feed import query as feed_query
 from signals.feed import view
 from signals.persistence.schema import materialized_signal
-from signals.personalization.prospect_mail import normalize_holder_name
 
 
 def presentation_bindings_for_items(

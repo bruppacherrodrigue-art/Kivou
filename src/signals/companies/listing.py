@@ -33,6 +33,7 @@ import sqlalchemy as sa
 
 from signals.billing.access import FeedAccess
 from signals.client_value.company_identity import exact_french_siren
+from signals.client_value.company_name import normalize_holder_name
 from signals.companies.schema import saas_company
 from signals.companies.service import (
     company_keys_for_signals,
@@ -58,7 +59,6 @@ from signals.feed.query import (
 from signals.feed.text import normalize_text
 from signals.persistence.repository import StoredSignal, signal_from_row
 from signals.persistence.schema import materialized_signal, supplier_directory
-from signals.personalization.prospect_mail import normalize_holder_name
 
 _SCAN_BATCH = 250
 

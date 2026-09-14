@@ -16,6 +16,7 @@ from pydantic import EmailStr, TypeAdapter, ValidationError
 from signals.billing.catalogue import PlanEntitlements
 from signals.client_value.capabilities import usable_phone
 from signals.client_value.company_identity import exact_french_siren
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.history import _siren_history_fingerprints
 from signals.client_value.notice_facts import NoticeAwardFacts
 from signals.companies.contracts import CompanyPublicContact, safe_https_url
@@ -23,7 +24,6 @@ from signals.companies.schema import saas_company
 from signals.engagement.prospecting_schema import company_subject_alias
 from signals.persistence.notice_schema import notice_award_facts
 from signals.persistence.schema import materialized_signal, supplier_directory
-from signals.personalization.prospect_mail import normalize_holder_name
 
 _EMAIL = TypeAdapter(EmailStr)
 MAX_CONTACT_AWARDS = 250

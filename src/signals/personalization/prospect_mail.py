@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from signals.client_value.company_name import normalize_company_name, normalize_holder_name
+
 
 @dataclass(frozen=True)
 class RenderedProspectMail:
@@ -73,8 +75,6 @@ _FOOTER_SEPARATOR = "\n\n—\n"
 _SURNAME_PARTICLES = frozenset({"al", "el", "de", "du", "des", "le", "la", "van", "von"})
 _FEMALE_FIRST_NAMES = frozenset({"alice", "anne", "claire", "camille", "charlotte", "chloe", "elise", "emilie", "eva", "julie", "laura", "lea", "louise", "marie", "marion", "margot", "martine", "monique", "nina", "pauline", "sophie", "valerie", "virginie"})
 _MALE_FIRST_NAMES = frozenset({"adrien", "alexandre", "alain", "arnaud", "benjamin", "bernard", "bruno", "christophe", "daniel", "david", "dominique", "françois", "franck", "gabriel", "georges", "gregory", "guillaume", "henri", "hugo", "jacques", "jean", "jerome", "joseph", "julien", "laurent", "loic", "louis", "luc", "marc", "marcel", "martin", "mathieu", "michel", "nicolas", "olivier", "patrick", "paul", "philippe", "pierre", "remi", "renaud", "robert", "romain", "sebastien", "thomas", "victor", "yann", "xavier"})
-_LEGAL_FORMS = re.compile(r"\b(?:SASU?|SARL|EURL|SA|SCI|SNC|EI|EIRL|MICRO[- ]?ENTREPRISE|ASSOCIATION)\b", re.IGNORECASE)
-_REGISTRY_MENTION = re.compile(r"\s*\((?:RCS|SIREN|RM|registre)[^)]*\)", re.IGNORECASE)
 _PRESERVED_NAME_ACRONYMS = frozenset({"AG", "BV", "GMBH", "INC", "KG", "LLC", "NV", "PLC"})
 
 
@@ -168,30 +168,6 @@ def director_civility(value: object) -> str | None:
     if first in _MALE_FIRST_NAMES:
         return "Monsieur"
     return None
-
-
-def normalize_company_name(value: object) -> str:
-    raw = " ".join(str(value or "").replace("–", "-").split()).strip(" ,;:-")
-    raw = _REGISTRY_MENTION.sub("", raw)
-    abbreviated = re.split(r"\s+EN\s+ABREGE\s+", raw, maxsplit=1, flags=re.IGNORECASE)
-    if len(abbreviated) == 2:
-        sigle = re.sub(r"[^A-Za-z0-9À-ÖØ-öø-ÿ&.-]+", " ", abbreviated[0]).strip()
-        name = _normal_case(" ".join(_LEGAL_FORMS.sub(" ", abbreviated[1]).split()).strip(" ,;:-"))
-        return f"{sigle.upper()} ({name})" if sigle and name else (sigle.upper() or name)
-    return _normal_case(" ".join(_LEGAL_FORMS.sub(" ", raw).split()).strip(" ,;:-"))
-
-
-def normalize_holder_name(value: object) -> str:
-    raw = " ".join(str(value or "").split()).strip(" ,;:-")
-    if re.fullmatch(r"[A-Z][A-Z0-9&.-]{1,15}", raw):
-        return raw.upper()
-    terminal_sigle = re.search(
-        r"(?:\s[-–—]\s|\s+(?i:EN\s+ABREGE)\s+)([A-Z][A-Z0-9&.-]{1,15})$",
-        raw,
-    )
-    if terminal_sigle:
-        return terminal_sigle.group(1).upper()
-    return normalize_company_name(raw)
 
 
 def _work_description(raw_subject: str, catalog: ProspectMailCatalog) -> str:

@@ -13,6 +13,7 @@ from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
 from signals.billing.access import feed_access
 from signals.client_value.capabilities import company_capabilities, project_directory
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.directory import _company_view
 from signals.domain.french_departments import DEPARTMENTS
 from signals.engagement.prospecting_schema import (
@@ -21,7 +22,6 @@ from signals.engagement.prospecting_schema import (
     company_subject_alias,
 )
 from signals.persistence.schema import supplier_directory
-from signals.personalization.prospect_mail import normalize_holder_name
 from signals.supplier_discovery.families import load_supplier_family_catalog
 
 router = APIRouter()

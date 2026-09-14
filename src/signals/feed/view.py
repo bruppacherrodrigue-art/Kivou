@@ -24,6 +24,7 @@ from typing import Any
 
 from signals.card_intelligence.contracts import PublishedCardPresentation
 from signals.client_value.calendar import commercial_calendar
+from signals.client_value.company_name import normalize_holder_name
 from signals.domain.award_dates import attribution_date
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import copy as feed_copy
@@ -34,7 +35,7 @@ from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.ingestion.client_location import resolve_client_location
 from signals.personalization.for_you import ForYouInput, client_safe_sentence, fallback_sentence
-from signals.personalization.prospect_mail import client_market_object, normalize_holder_name
+from signals.personalization.prospect_mail import client_market_object
 from signals.recency.claim import claim_for_status
 
 #: PR2b §46 — les seuls rôles qui, PORTÉS PAR UN MEMBRE, disent que ce membre

@@ -59,6 +59,7 @@ from signals.card_intelligence.store import (
     published_for_signals,
 )
 from signals.client_value.company_contacts import suppressed_notice_sirens
+from signals.client_value.company_name import normalize_holder_name
 from signals.client_value.directory import local_circuit
 from signals.client_value.history import department_for_place, history_for_company
 from signals.client_value.notice_facts import load_award_notice_facts
@@ -83,7 +84,6 @@ from signals.persistence.schema import prospect_target
 from signals.personalization.for_you import client_safe_sentence
 from signals.personalization.prospect_mail import (
     is_prospect_relevance_sentence,
-    normalize_holder_name,
     prospect_relevance_sentence,
     prospect_relevance_sentence_from_mail,
 )

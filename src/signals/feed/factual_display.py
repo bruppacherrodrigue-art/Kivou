@@ -10,6 +10,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from signals.client_value.company_name import normalize_holder_name
 from signals.domain.award_dates import attribution_date
 from signals.domain.cpv_labels import cpv_label
 from signals.feed import policy
@@ -17,7 +18,7 @@ from signals.feed.french_departments import department_label, location_subdivisi
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.ingestion.client_location import resolve_client_location
-from signals.personalization.prospect_mail import client_market_object, normalize_holder_name
+from signals.personalization.prospect_mail import client_market_object
 
 _MAX_OBJECT_LENGTH = 180
 _MAX_HEADLINE_LENGTH = 220
