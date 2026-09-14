@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -328,6 +329,30 @@ def test_report_io_failure_does_not_expose_private_traceback(tmp_path, monkeypat
     output = capsys.readouterr()
     assert json.loads(output.out)["code"] == "report_persistence_failed"
     assert "credential" not in output.out and output.err == ""
+
+
+def test_cli_restores_the_callers_umask(tmp_path, monkeypatch):
+    module = load()
+    tmp_path.chmod(0o700)
+    monkeypatch.delenv("KIVOU_V11_CANDIDATE_SHA", raising=False)
+    original = os.umask(0o022)
+    try:
+        assert (
+            module.main(
+                [
+                    "--execute",
+                    "--source-environment",
+                    "STAGING",
+                    "--report",
+                    str(tmp_path / "report.json"),
+                ]
+            )
+            == 2
+        )
+        observed = os.umask(0o022)
+        assert observed == 0o022
+    finally:
+        os.umask(original)
 
 
 def test_real_nginx_blocks_writers_but_keeps_gets_then_reopens():

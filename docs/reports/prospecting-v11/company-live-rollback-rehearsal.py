@@ -731,7 +731,7 @@ class Runtime:
         self.report["owned_runtime_removed"] = True
 
 
-def main(argv=None):
+def _main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--source-environment", choices=("STAGING", "PRODUCTION"), required=True)
@@ -749,7 +749,6 @@ def main(argv=None):
         "provider_calls": 0,
     }
     valid_report = False
-    os.umask(0o077)
     for key in tuple(os.environ):
         if key.startswith("PG"):
             del os.environ[key]
@@ -794,6 +793,14 @@ def main(argv=None):
             report.update(status="failed", code="report_persistence_failed")
     print(json.dumps(report, sort_keys=True))
     return 0 if report["status"] == "passed" else 2
+
+
+def main(argv=None):
+    previous_umask = os.umask(0o077)
+    try:
+        return _main(argv)
+    finally:
+        os.umask(previous_umask)
 
 
 if __name__ == "__main__":
