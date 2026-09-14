@@ -6,6 +6,7 @@ from pathlib import Path
 from signals.personalization.prospect_mail import (
     RenderedProspectMail,
     client_work_description,
+    load_prospect_mail_catalog,
     render_prospect_mail,
     validate_prospect_mail,
 )
@@ -33,20 +34,20 @@ def arbonis_row(**changes: object) -> dict[str, object]:
 def test_renders_the_complete_arbonis_mail_from_the_single_catalog() -> None:
     mail = render_prospect_mail(arbonis_row())
 
-    assert mail.subject == "PAUL BROCHIER vient de gagner un chantier charpente en Isère"
+    assert mail.subject == "Paul Brochier vient de gagner un chantier charpente en Isère"
     assert mail.text.startswith("Bonjour Monsieur Lefebvre,")
     assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
     assert "Rodrigue / Kivou · kivou.eu" in mail.text
-    assert "P.S. : Un mot en retour suffit" in mail.text
+    assert "P.S. : Vous travaillez sur ce type de chantier ?" in mail.text
     assert "Kivou, Sion (Suisse)" not in mail.text
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
     assert mail.contract_failure is None
-    assert mail.html.count("href=") == 3
+    assert mail.html.count("href=") == 2
     assert mail.html.count('href="https://kivou.eu/a/kat1.signal-token"') == 1
     assert '>Voir le marché</a>' in mail.html
     assert '>https://kivou.eu/a/kat1.signal-token</a>' not in mail.html
-    assert 'href="https://www.boamp.fr/avis/26A0076"' in mail.html
+    assert "https://www.boamp.fr/avis/26A0076" not in mail.text
     assert mail.html.count('href="https://kivou.eu/unsubscribe/unsubscribe-token"') == 1
     assert '>Ne plus recevoir</a>' in mail.html
     assert '>https://kivou.eu/unsubscribe/unsubscribe-token</a>' not in mail.html
@@ -69,14 +70,14 @@ def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:
         )
     )
 
-    assert mail.subject == "PAUL BROCHIER vient de gagner un chantier couverture à Grenoble"
+    assert mail.subject == "Paul Brochier vient de gagner un chantier couverture à Grenoble"
     assert mail.text.startswith("Bonjour,\n\n")
     assert "— 1,2 M€, attribué le 8 septembre." in mail.text
     assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
     assert "LOT 01" not in mail.subject
     assert "LOT 01" not in mail.text
     assert "26A0076" not in mail.subject
-    assert "26A0076" in mail.text.split("\n\n—\n", maxsplit=1)[0]  # explicit source URL
+    assert "26A0076" not in mail.text
     assert mail.contract_status == "passed"
     assert mail.contract_failure is None
 
@@ -163,8 +164,15 @@ def test_every_supplier_family_has_reviewed_mail_copy() -> None:
         for family in families
     }
     source = Path("ops/config/prospect-mail.yaml").read_text(encoding="utf-8")
+    catalog = load_prospect_mail_catalog()
 
     assert all(f"  {family_key}:" in source for family_key in configured)
+    assert configured == set(catalog.families)
+    assert all(
+        copy.sentence.startswith("Sur ce type de lot, le titulaire sous-traite souvent ")
+        and copy.trade_label
+        for copy in catalog.families.values()
+    )
 
 
 def test_v2_contract_uses_civility_normalized_company_and_required_copy() -> None:
@@ -179,14 +187,19 @@ def test_v2_contract_uses_civility_normalized_company_and_required_copy() -> Non
         )
     )
     assert mail.text.startswith("Bonjour Monsieur Dupont,")
-    assert "DUBOURGEAT (Dubourgeat)" in mail.text
-    assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
-    assert "Pourquoi vous" in mail.text
+    assert "Paul Brochier vient d'être retenu" in mail.text
+    assert (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Saint-Étienne, à 58 km du chantier."
+    ) in mail.text
     assert "Kivou repère les marchés publics attribués près de chez vous" in mail.text
     assert "Rodrigue / Kivou · kivou.eu" in mail.text
-    assert "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire." in mail.text
+    assert (
+        "P.S. : Vous travaillez sur ce type de chantier ? Un mot en retour et je vous "
+        "envoie les prochains marchés de votre secteur."
+    ) in mail.text
     assert "Kivou, Sion (Suisse)" not in mail.text
-    assert "https://kivou.eu/a/kat1.signal-token" in mail.text
+    assert "https://www.boamp.fr/avis/26A0076" not in mail.text
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
 
@@ -195,3 +208,39 @@ def test_v2_unknown_civility_uses_plain_greeting() -> None:
     mail = render_prospect_mail(arbonis_row(director_name="QZ DUPONT"))
     assert mail.text.startswith("Bonjour,")
     assert "Bonjour Xavier" not in mail.text
+
+
+def test_corrected_v2_renders_alpes_zinguerie_contract() -> None:
+    mail = render_prospect_mail(
+        arbonis_row(
+            company_name="ALPES ZINGUERIE",
+            company_city="SILLINGY",
+            director_name="GREGORY PAUVERT",
+            family_key="roofing",
+            signal_holder="CONSTRUCTION DE MAISONS ET CHARPENTES DU DAUPHINE - CMCD",
+            signal_city=None,
+            signal_department="Savoie",
+            signal_source_url="https://data.economie.gouv.fr/source/decp",
+        )
+    )
+
+    body, separator, footer = mail.text.partition("\n\n—\n")
+    assert separator
+    assert body.startswith("Bonjour Monsieur Pauvert,")
+    assert mail.subject.startswith("CMCD vient de gagner")
+    assert "CMCD vient d'être retenu" in body
+    assert (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Sillingy."
+    ) in body
+    assert "https://data.economie.gouv.fr/source/decp" not in mail.text
+    assert "Source : registres publics et avis d'attribution officiel." in footer
+    assert body.index("Kivou repère les marchés publics") < body.index("Bien à vous,")
+    assert "Bien à vous,\nRodrigue / Kivou · kivou.eu" in body
+    assert body.endswith(
+        "P.S. : Vous travaillez sur ce type de chantier ? Un mot en retour et je vous "
+        "envoie les prochains marchés de votre secteur."
+    )
+    assert mail.html.count("href=") == 2
+    assert mail.word_count <= 110
+    assert mail.contract_status == "passed"
