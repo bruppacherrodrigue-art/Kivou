@@ -327,7 +327,7 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
             signature,
         )
     )
-    footer = f"Kivou, Sion (Suisse)\nNe plus recevoir : {unsubscribe_url}"
+    footer = f"Ne plus recevoir : {unsubscribe_url}"
     text = f"{body}{_FOOTER_SEPARATOR}{footer}"
     word_count = len(body.split())
     candidate = RenderedProspectMail(
@@ -339,7 +339,7 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
             family_sentence=family_sentence,
             attribution_url=attribution_url,
             signal_source_url=signal_url,
-            footer_reason="Kivou, Sion (Suisse)",
+            footer_reason="",
             unsubscribe_url=unsubscribe_url,
         ),
         word_count=word_count,

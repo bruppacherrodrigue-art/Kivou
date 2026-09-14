@@ -217,3 +217,37 @@ Le compte utilisateur est connecté sur staging avec son abonnement Essential
 pour la future recette ; aucune note, contact, cible, facture ou recherche n'a
 été modifié par le navigateur. Le frontend de la CI `34828412795` sur `8095ccb`
 est réussi ; la CI du candidat incluant les derniers ajustements reste requise.
+
+## Validation `cae05b3` et activation staging en cours
+
+La CI exacte `34829355015` est intégralement réussie à 10:06 UTC : frontend,
+quatre shards backend et porte décisionnelle. La nouvelle répétition PostgreSQL
+production, de `2d4aa6d` / 0059 vers `cae05b3` / 0064, a réussi : 11 944 lignes
+sur 29 tables et les exports des 11 comptes sont préservés, ainsi que les
+876 entreprises, 1 845 appels modèles et huit lignes de budgets. Sauvegarde
+retenue : 1 667 780 247 octets, SHA-256
+`30fe52001de24b1dc8f72c9d8514234b25515302013fc279ee2e4895009f86cf`.
+Le retour réel à l'ancien runtime puis au candidat a également réussi sur
+cette copie : 10 268 lignes contrôlées, huit contrats privés, écritures bloquées
+pendant l'ancien runtime puis CAS repris. Aucun lien actif ni fournisseur touché.
+
+La composition nginx production complète du candidat passe `nginx -t` avec les
+trois autres sites existants. Le jeton catalogue dédié est préparé dans des
+fichiers privés inactifs ; aucun secret fournisseur n'est transféré à staging.
+Les tests navigateur de continuité stricte ont reçu une revue indépendante
+SPEC et qualité : 13 tests réussis, dont masquage serveur Discovery et fermeture
+du navigateur, sans appel distant dans cette suite locale.
+
+Le déploiement staging `cae05b3` a démarré à 10:07 UTC, après fermeture du garde
+d'écriture et arrêt des seuls timers concernés. Le déployeur existant réalise
+une nouvelle sauvegarde/restauration/migration de copie avant toute bascule.
+La recette réelle, la quarantaine et la synchronisation ne sont pas encore
+annoncées réussies.
+
+À 10:09 UTC, `main` et la production ont avancé indépendamment à `9c5d613` :
+retrait de la localisation du pied de page des e-mails, sans changement de
+schéma ni des onglets V11. Cette modification est intégrée sans altérer son
+runtime ; le test shadow historique est aligné après échec reproduit.
+Vérification ciblée : 11 tests passent. Une nouvelle CI du candidat intégré
+reste nécessaire avant sa promotion production ; les preuves `cae05b3` restent
+attribuées à leur SHA exact.

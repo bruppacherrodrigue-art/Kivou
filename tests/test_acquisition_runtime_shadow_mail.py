@@ -37,7 +37,7 @@ def test_shadow_mail_contains_v2_facts_and_required_links() -> None:
     assert "Source du signal : https://www.boamp.fr/avis/1" in mail.body
     assert "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire." in mail.body
     assert "Rodrigue / Kivou · kivou.eu" in mail.body
-    assert "Kivou, Sion (Suisse)" in mail.body
+    assert "Kivou, Sion (Suisse)" not in mail.body
     assert "Ne plus recevoir : https://kivou.eu/unsubscribe/token-1" in mail.body
     assert "LOT 02" not in mail.body
     assert len(mail.body.split("\n\n—\n", maxsplit=1)[0].split()) <= 110
