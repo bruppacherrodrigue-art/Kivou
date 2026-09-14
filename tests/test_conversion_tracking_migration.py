@@ -6,6 +6,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 from sqlalchemy.exc import IntegrityError
 
 from signals.persistence.database import (
@@ -19,7 +20,6 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0058_model_call_budget"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",
@@ -34,10 +34,7 @@ def test_linear_head_and_exactly_two_spec028_tables(tmp_path) -> None:
     inspector = sa.inspect(engine)
     assert set(inspector.get_table_names()).issuperset(SPEC028_TABLES)
     with engine.connect() as connection:
-        assert (
-            connection.scalar(sa.text("SELECT version_num FROM alembic_version"))
-            == CURRENT_HEAD
-        )
+        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == CURRENT_HEAD
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == "0018_response_intelligence"
@@ -148,6 +145,6 @@ def test_postgresql_offline_sql_contains_one_linear_revision(capsys) -> None:
     command.upgrade(config, f"0018_response_intelligence:{HEAD}", sql=True)
     sql = capsys.readouterr().out
 
-    assert 'CREATE TABLE acquisition_conversion_journey' in sql
-    assert 'CREATE TABLE acquisition_conversion_event' in sql
+    assert "CREATE TABLE acquisition_conversion_journey" in sql
+    assert "CREATE TABLE acquisition_conversion_event" in sql
     assert "0019_conversion_tracking" in sql

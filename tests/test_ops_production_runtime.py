@@ -692,6 +692,24 @@ def test_production_backup_runs_local_then_offsite_with_separated_secrets() -> N
 
 def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
     staging = nginx_active_directives(read(NGINX / "kivou-staging.conf"))
+    # Both environments now ship V11 and must protect its revisioned writers.
+    staging_guard = "include /etc/nginx/kivou-prospecting-writes.conf;"
+    assert staging.count(staging_guard) == 1
+    production = nginx_active_directives(read(PRODUCTION_NGINX))
+    assert production.count(staging_guard) == 1
+    # The sole additional production route is the authenticated, read-only
+    # company catalogue export. Pin its entire block, not a broad /internal bypass.
+    alias = (
+        "location = /api/internal/company-catalogue {",
+        "if ($request_method != GET) { return 405; }",
+        "limit_req zone=kivou_api burst=2 nodelay;",
+        "proxy_pass http://127.0.0.1:KIVOU_API_PORT/internal/company-catalogue;",
+        "include /etc/nginx/kivou-proxy-params.conf;",
+        "}",
+    )
+    start = production.index(alias[0])
+    assert production[start:start + len(alias)] == alias
+    production = production[:start] + production[start + len(alias):]
     expected = tuple(
         directive.replace("STAGING_HOST", "PRODUCTION_HOST")
         .replace(
@@ -705,7 +723,7 @@ def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
         for directive in staging
     )
 
-    assert nginx_active_directives(read(PRODUCTION_NGINX)) == expected
+    assert production == expected
 
 
 @pytest.mark.parametrize(

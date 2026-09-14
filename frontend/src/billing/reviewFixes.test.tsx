@@ -13,11 +13,22 @@ import {
   callsTo,
   feedPage,
   LOCKED_ITEM,
-  mockApi,
+  LOCKED_DETAIL,
+  mockApi as installApi,
+  type Routes,
   renderApp,
 } from '../test/harness'
 import { readCheckoutIntent, saveCheckoutIntent } from './checkoutIntent'
 import type { BillingStatus } from '../api/types'
+
+function mockApi(routes: Routes) {
+  return installApi({ 'GET /target-icps/options': { body: { zones: [], sectors: [] } }, 'GET /signals/sig_locked_1': { body: LOCKED_DETAIL }, 'GET /me': { body: ME }, ...routes })
+}
+
+async function openDetailBilling(user = userEvent.setup()) {
+  await user.click(await screen.findByRole('button', { name: /Voir mes possibilités d’accès|View access options/ }))
+  await user.click(await screen.findByRole('button', { name: /Choisir Pro|Choose Pro/ }))
+}
 
 /* Revue de supervision pré-staging — les cinq corrections.
  *
@@ -176,13 +187,14 @@ describe('promesse du paywall', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
 
+    await openDetailBilling()
     await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
-    await screen.findByText('Historique 30 jours')
+    await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('ensemble de votre flux')
     expect(page).not.toContain('flux complet')
-    expect(page).toMatch(/Historique 30 jours/)
-    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
+    expect(page).toMatch(/Historique 365 jours/)
+    expect(callsTo('/signals/sig_locked_1', 'GET').length).toBeGreaterThan(0)
   })
 
   it('ne promet pas l’ensemble du flux — EN', async () => {
@@ -197,13 +209,14 @@ describe('promesse du paywall', () => {
       locale: 'en',
     })
 
+    await openDetailBilling()
     await screen.findByRole('heading', { level: 1, name: 'Subscription' })
-    await screen.findByText('30 days of history')
+    await screen.findByText('365 days of history')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('whole stream')
     expect(page).not.toContain('full stream')
-    expect(page).toMatch(/30 days of history/)
-    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
+    expect(page).toMatch(/365 days of history/)
+    expect(callsTo('/signals/sig_locked_1', 'GET').length).toBeGreaterThan(0)
   })
 
   it('le teaser du feed ne promet rien de plus', async () => {
@@ -281,6 +294,7 @@ describe('intention d’achat périmée', () => {
     await user.click(
       await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
     )
+    await openDetailBilling(user)
     await user.click(await selectPro(user))
 
     expect(readCheckoutIntent()).toBe('sig_locked_1')

@@ -27,9 +27,7 @@ def _profile(**overrides: object) -> CompanyProfile:
             name="Entreprise SA",
             country="CH",
             address="Rue de la Gare 1, 1000 Lausanne",
-            identifiers=(
-                CompanyOfficialIdentifier(scheme="CHE-UID", value="CHE-123.456.789"),
-            ),
+            identifiers=(CompanyOfficialIdentifier(scheme="CHE-UID", value="CHE-123.456.789"),),
             website_url="https://entreprise.example",
             observed_at=dt.datetime(2026, 8, 23, 12, tzinfo=UTC),
         ),
@@ -77,11 +75,13 @@ def test_contracts_are_frozen_closed_and_client_safe() -> None:
         "contact_ref",
         "supplier_ref",
         "score",
-        "person",
         "email",
         "phone",
     }
     assert not any(term in repr(serialized).lower() for term in forbidden)
+    # Private-work capabilities are explicit, but an empty dossier does not
+    # invent any manual contact or expose provider contact data.
+    assert serialized["manual_contact"]["contact"] is None
     assert serialized["official_identity"]["source"] == "public_notice"
 
 

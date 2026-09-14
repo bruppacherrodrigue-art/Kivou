@@ -352,6 +352,15 @@ def _organization(
         country=(address.country if address else None),
         address=postal or None,
         website=(address.url if address else None),
+        location=(
+            Location(
+                country=address.country,
+                locality=address.city,
+                postal_code=address.postal_code,
+            )
+            if address and any((address.country, address.city, address.postal_code))
+            else None
+        ),
     )
 
 

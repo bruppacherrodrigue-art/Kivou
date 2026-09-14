@@ -1,816 +1,94 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { LockKeyhole } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Search, ArrowLeft, ArrowRight } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { billing, companies, feedback, signals } from '../api/endpoints'
-import type { FeedQuery } from '../api/endpoints'
-import type {
-  BillingStatus,
-  CompanyProfile,
-  FeedItem,
-  FeedPage,
-  LockedFeedItem,
-  UnifiedStatus,
-  UnlockedFeedItem,
-} from '../api/types'
-import { interpolate, plural, useI18n } from '../i18n'
-import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
-import { visiblePlaceName } from '../presentation/locationText'
-import { SignalDrawer } from '../signals/components/SignalDrawer'
-import { compactAmount, MISSING, LockedSignalCardRow, SignalCardRow, SignalRow, signalObject } from '../signals/components/SignalRow'
-import { ScreenHeader, ScreenSegments } from '../components/ScreenChrome'
-import styles from './SignalsFeed.module.css'
+import { signals } from '../api/endpoints'
+import type { FeedPage, UnifiedStatus } from '../api/types'
+import { useI18n } from '../i18n'
+import { useProspecting, useProspectingResource } from '../prospecting/ProspectingProvider'
+import { signalDetailPath } from '../prospecting/routeState'
+import { SignalListRow } from '../prospecting/components/SignalListRow'
+import { SignalDetail } from '../prospecting/components/SignalDetail'
+import { TargetBar } from '../prospecting/components/TargetBar'
+import styles from '../prospecting/Prospecting.module.css'
 
-/* L'écran « Signaux ».
- *
- * Un tableau dense, une ligne de filtres, un tiroir. Trois règles tiennent
- * tout le fichier :
- *
- *   1. L'état des filtres vit dans l'URL, jamais dans un `useState` parallèle.
- *      Une adresse partagée doit rendre le même écran.
- *   2. Le serveur filtre ce qu'il sait filtrer (statut, zone, secteur,
- *      période) ; le navigateur ne filtre QUE ce que l'API n'expose pas
- *      (montant minimum, recherche texte), et il le dit — « sur les signaux
- *      chargés ».
- *   3. Une action est optimiste, mais elle se dédit : en cas d'échec, la ligne
- *      ET les compteurs reviennent à leur valeur d'avant, et l'échec s'annonce.
- */
-
-const PAGE_SIZE = 20
-const COMPACT_QUERY = '(max-width: 899px)'
-const DAY_MS = 86_400_000
-
-const SEGMENTS = ['new', 'saved', 'contacted', 'ignored', 'all'] as const
-type Segment = (typeof SEGMENTS)[number]
-
-/** Les segments qui portent un chiffre. « Ignorés » et « Tous » n'en portent
- *  pas : compter ce qu'on écarte n'aide personne à vendre. */
-const COUNTED_SEGMENTS: UnifiedStatus[] = ['new', 'saved', 'contacted']
-
-const ALL_STATUSES: UnifiedStatus[] = ['new', 'saved', 'contacted', 'ignored']
-
-const PERIODS = ['7', '30', '90', 'all'] as const
-type Period = (typeof PERIODS)[number]
-
-export interface ActivationNavigationState {
-  activationCompleted?: boolean
-}
-
-interface PageFilters {
-  segment: Segment
-  zone: string
-  cpv: string
-  min: string
-  period: Period
-  q: string
-}
-
-interface ResourceState<T> {
-  data: T | null
-  loading: boolean
-  error: unknown | null
-}
-
-function filtersFrom(search: string): PageFilters {
-  const params = new URLSearchParams(search)
-  const segment = SEGMENTS.find((candidate) => candidate === params.get('status')) ?? 'new'
-  const period = PERIODS.find((candidate) => candidate === params.get('period')) ?? '30'
-  return {
-    segment,
-    zone: params.get('zone') ?? '',
-    cpv: params.get('cpv') ?? '',
-    min: params.get('min') ?? '',
-    period,
-    q: params.get('q') ?? '',
-  }
-}
-
-function statusesFor(segment: Segment): UnifiedStatus[] {
-  return segment === 'all' ? ALL_STATUSES : [segment]
-}
-
-/** La borne basse de la période, en date civile. « Tout l'historique » n'en a
- *  pas : l'absence de borne est une réponse, pas une valeur par défaut. */
-function dateFrom(period: Period): string | null {
-  if (period === 'all') return null
-  return new Date(Date.now() - Number(period) * DAY_MS).toISOString().slice(0, 10)
-}
-
-function feedQuery(filters: PageFilters, cursor: string | null): FeedQuery {
-  return {
-    // Zone, secteur et période n'existent que sur l'historique : la page ne
-    // change jamais de vue, sans quoi la moitié des filtres disparaîtrait.
-    view: 'history',
-    limit: PAGE_SIZE,
-    cursor,
-    status: statusesFor(filters.segment),
-    subdivision_code: filters.zone || null,
-    cpv_prefix: filters.cpv || null,
-    date_from: dateFrom(filters.period),
-  }
-}
-
-/** Sans accent ni casse : « eolienne » doit trouver « Éolienne ». */
-function foldCase(text: string): string {
-  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-}
-
-function compactSnapshot(): boolean {
-  if (typeof window.matchMedia === 'function') return window.matchMedia(COMPACT_QUERY).matches
-  return window.innerWidth < 900
-}
-
-function useCompact(): boolean {
-  const [compact, setCompact] = useState(compactSnapshot)
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return
-    const mediaQuery = window.matchMedia(COMPACT_QUERY)
-    const onChange = (event: MediaQueryListEvent) => setCompact(event.matches)
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', onChange)
-      return () => mediaQuery.removeEventListener('change', onChange)
-    }
-    mediaQuery.addListener(onChange)
-    return () => mediaQuery.removeListener(onChange)
-  }, [])
-
-  return compact
-}
-
-/** Un signal que l'offre ne débloque pas. La ligne existe — masquer son
- *  existence serait mentir sur le volume — mais elle ne montre aucune donnée
- *  protégée : seul `item.headline`, le teaser générique et non identifiant
- *  publié par le serveur pour CE signal, porte le nom accessible du bouton. */
-function LockedRow({
-  item,
-  compact,
-  redesigned = false,
-  note,
-  onOpen,
-}: {
-  item: LockedFeedItem
-  compact: boolean
-  redesigned?: boolean
-  note: string
-  onOpen: () => void
-}) {
-  const { amount, locale, shortDate } = useI18n()
-  const lockedAmount = item.teaser.amount
-    ? redesigned
-      ? compactAmount(item.teaser.amount.value, item.teaser.amount.currency, locale)
-      : amount(item.teaser.amount.value, item.teaser.amount.currency)
-    : MISSING
-  return (
-    <tr className={styles.lockedRow} onClick={onOpen}>
-      <td>{shortDate(item.teaser.date) ?? MISSING}</td>
-      <td>
-        <button type="button" className={styles.lockedButton} onClick={(event) => {
-          event.stopPropagation()
-          onOpen()
-        }}>
-          <LockKeyhole aria-hidden="true" /> {item.headline}
-        </button>
-      </td>
-      <td className={styles.lockedNote}>{note}</td>
-      <td className={styles.cellNumeric}>{lockedAmount}</td>
-      {compact ? null : <td>{redesigned ? visiblePlaceName(item.teaser.department) ?? MISSING : item.teaser.department ?? MISSING}</td>}
-      {redesigned ? null : <td>{MISSING}</td>}
-    </tr>
-  )
-}
-
+export interface ActivationNavigationState { activationCompleted?: boolean; returnToCompany?: { companyKey: string; name?: string } }
+const statuses: Array<UnifiedStatus | 'all'> = ['new', 'saved', 'contacted', 'ignored', 'all']
 export function SignalsFeed() {
-  const { t } = useI18n()
-  const copy = t.signalsTable
+  const { locale, number } = useI18n()
+  const fr = locale === 'fr'
+  const p = useProspecting()
   const location = useLocation()
   const navigate = useNavigate()
   const { signalKey } = useParams()
-  const compact = useCompact()
-
-  const filters = useMemo(() => filtersFrom(location.search), [location.search])
-  /* Seuls les filtres SERVEUR déclenchent un rechargement. Le montant minimum
-   * et la recherche ne quittent jamais le navigateur. */
-  const serverSignature = JSON.stringify([
-    filters.segment,
-    filters.zone,
-    filters.cpv,
-    filters.period,
-  ])
-
-  const mounted = useRef(false)
-  const feedGeneration = useRef(0)
-  const detailGeneration = useRef(0)
-  const paginationRequest = useRef(false)
-  const [detailRetryToken, setDetailRetryToken] = useState(0)
-
-  const [activationMoment] = useState(
-    () => (location.state as ActivationNavigationState | null)?.activationCompleted === true,
-  )
-  const postFeedBilling = useRef(activationMoment)
-  const [postActivationBilling, setPostActivationBilling] = useState<BillingStatus | null>(null)
-
-  const [feed, setFeed] = useState<ResourceState<FeedPage>>({
-    data: null,
-    loading: true,
-    error: null,
-  })
-  const [items, setItems] = useState<FeedItem[]>([])
-  const [counts, setCounts] = useState<Record<UnifiedStatus, number> | null>(null)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [paginationError, setPaginationError] = useState<unknown | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [actionError, setActionError] = useState(false)
-  const [detail, setDetail] = useState<{
-    key: string | null
-    data: UnlockedFeedItem | null
-    loading: boolean
-    error: unknown | null
-  }>({ key: null, data: null, loading: false, error: null })
-
+  const params = new URLSearchParams(location.search)
+  const status = statuses.find((value) => value === params.get('status')) ?? 'new'
+  const sort = params.get('sort') === 'amount' ? 'amount' : 'recent'
+  const canSearch = p.billingStatus?.entitlements.filter_level === 'basic' || p.billingStatus?.entitlements.filter_level === 'advanced'
+  const q = canSearch ? params.get('q')?.slice(0, 120) ?? '' : ''
+  const cursor = !canSearch && params.has('q') ? null : params.get('cursor')
+  const [search, setSearch] = useState(q)
+  useEffect(() => setSearch(q), [q])
   useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      feedGeneration.current += 1
-      detailGeneration.current += 1
-      paginationRequest.current = false
-    }
-  }, [])
-
+    const next = new URLSearchParams(location.search)
+    const legacySignal = !signalKey && next.get('signal')
+    const deniedSearch = !p.accessLoading && p.billingStatus && !canSearch && next.has('q')
+    if (!legacySignal && !deniedSearch) return
+    if (deniedSearch) { next.delete('q'); next.delete('cursor'); next.delete('offset') }
+    if (legacySignal) next.delete('signal')
+    navigate(legacySignal ? signalDetailPath(legacySignal, next.toString()) : { pathname: location.pathname, search: next.size ? `?${next}` : '', hash: location.hash }, { replace: true, state: location.state })
+  }, [location, navigate, signalKey, p.accessLoading, p.billingStatus, canSearch])
+  const update = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(location.search)
+    next.delete('cursor')
+    next.delete('offset')
+    for (const [key, value] of Object.entries(patch)) { if (value) next.set(key, value); else next.delete(key) }
+    navigate({ pathname: '/app/signals', search: next.toString() ? `?${next}` : '' })
+  }
   useEffect(() => {
-    if (!activationMoment) return
-    navigate(location.pathname + location.search, { replace: true, state: null })
-    // Le marqueur d'activation ne se consomme qu'une fois.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const loadFeed = useCallback(async () => {
-    const generation = ++feedGeneration.current
-    setFeed((current) => ({ ...current, loading: true, error: null }))
-    setLoadingMore(false)
-    setPaginationError(null)
-    try {
-      const data = await signals.feed(feedQuery(filters, null))
-      if (!mounted.current || generation !== feedGeneration.current) return
-      setFeed({ data, loading: false, error: null })
-      setItems(data.items)
-      // `counts_available: false` ne remet pas les compteurs à zéro : un
-      // chiffre absent n'est pas un chiffre nul.
-      if (data.counts_available !== false) setCounts(data.counts)
-
-      if (postFeedBilling.current) {
-        postFeedBilling.current = false
-        const refreshed = await billing.status().catch(() => null)
-        if (mounted.current && generation === feedGeneration.current && refreshed) {
-          setPostActivationBilling(refreshed)
-        }
-      }
-    } catch (error) {
-      if (!mounted.current || generation !== feedGeneration.current) return
-      setFeed((current) => ({ ...current, loading: false, error }))
-    }
-    // La signature sérialisée des filtres serveur est la frontière de génération.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverSignature])
-
+    if (!canSearch || search === q) return
+    const timer = setTimeout(() => {
+      const next = new URLSearchParams(location.search)
+      next.delete('cursor')
+      next.delete('offset')
+      if (search.trim().length >= 2) next.set('q', search.trim()); else next.delete('q')
+      navigate({ pathname: '/app/signals', search: `?${next}` }, { replace: true })
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search, q, location.search, navigate, canSearch])
+  const resource = useProspectingResource('signal-list', (signal) => signals.feed({ ...p.query, view: 'history', status: status === 'all' ? ['new', 'saved', 'contacted', 'ignored'] : [status], sort, q: q.length >= 2 ? q : null, cursor, limit: 20 }, { signal }), { status, sort, q, cursor })
+  const data = resource.data
+  const countsKey = p.resourceKey('signal-counts', { status, sort, q })
+  const [cachedCounts, setCachedCounts] = useState<{ key: string; counts: FeedPage['counts']; truncated: boolean } | null>(null)
   useEffect(() => {
-    void loadFeed()
-  }, [loadFeed])
-
-  const loadMore = useCallback(async () => {
-    const currentPage = feed.data
-    if (!currentPage?.page.has_more || paginationRequest.current) return
-    const generation = feedGeneration.current
-    paginationRequest.current = true
-    setLoadingMore(true)
-    setPaginationError(null)
-    try {
-      const next = await signals.feed(feedQuery(filters, currentPage.page.next_cursor ?? null))
-      if (!mounted.current || generation !== feedGeneration.current) return
-      setFeed({ data: next, loading: false, error: null })
-      if (next.counts_available !== false) setCounts(next.counts)
-      setItems((current) => {
-        const seen = new Set(current.map((entry) => entry.signal_id))
-        return [...current, ...next.items.filter((entry) => !seen.has(entry.signal_id))]
-      })
-    } catch (error) {
-      if (mounted.current && generation === feedGeneration.current) setPaginationError(error)
-    } finally {
-      paginationRequest.current = false
-      if (mounted.current && generation === feedGeneration.current) setLoadingMore(false)
-    }
-  }, [feed.data, filters])
-
-  const selectedKey = signalKey ?? null
-  const rowItem = selectedKey
-    ? items.find((entry) => entry.signal_id === selectedKey) ?? null
-    : null
-  const rowItemLocked = rowItem?.locked === true
-
-  /* Toute ouverture demande le détail : la ligne ne porte que le résumé du
-   * flux et ne contient pas les blocs de valeur de la fiche. Un signal
-   * verrouillé ne passe jamais par là : il part à la facturation. */
-  useEffect(() => {
-    if (!selectedKey) {
-      detailGeneration.current += 1
-      setDetail({ key: null, data: null, loading: false, error: null })
-      return
-    }
-    if (feed.loading) return
-    if (rowItemLocked) {
-      detailGeneration.current += 1
-      setDetail({ key: selectedKey, data: null, loading: false, error: null })
-      navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
-      return
-    }
-    const generation = ++detailGeneration.current
-    setDetail({ key: selectedKey, data: null, loading: true, error: null })
-    signals.detail(selectedKey).then(
-      (data) => {
-        if (!mounted.current || generation !== detailGeneration.current) return
-        if (data.locked) {
-          setDetail({ key: selectedKey, data: null, loading: false, error: null })
-          navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
-          return
-        }
-        setDetail({ key: selectedKey, data, loading: false, error: null })
-      },
-      (error) => {
-        if (mounted.current && generation === detailGeneration.current) {
-          setDetail({ key: selectedKey, data: null, loading: false, error })
-        }
-      },
-    )
-  }, [detailRetryToken, feed.loading, navigate, rowItemLocked, selectedKey])
-
-  const selectedItem: UnlockedFeedItem | null = detail.key === selectedKey && detail.data
-    ? detail.data
-    : rowItem && !rowItem.locked
-      ? rowItem
-      : null
-  const drawerLoading = Boolean(selectedKey) && !selectedItem && (feed.loading || detail.loading)
-  const drawerError = detail.key === selectedKey ? detail.error : null
-  const redesigned = feed.data?.signals_companies_v2_enabled === true
-  const [holderProfile, setHolderProfile] = useState<CompanyProfile | null>(null)
-
-  useEffect(() => {
-    const selectedCompanyKey = selectedItem?.company_key
-    if (!redesigned || !selectedCompanyKey) {
-      setHolderProfile(null)
-      return
-    }
-    let active = true
-    setHolderProfile(null)
-    void companies.get(selectedCompanyKey).then((value) => {
-      if (active) setHolderProfile(value)
-    }).catch(() => {
-      if (active) setHolderProfile(null)
-    })
-    return () => { active = false }
-  }, [redesigned, selectedItem?.company_key])
-
-  // ── Filtres navigateur ────────────────────────────────────────────────────
-
-  const minAmount = Number.parseFloat(filters.min)
-  const hasMin = Number.isFinite(minAmount) && minAmount > 0
-  const needle = foldCase(filters.q.trim())
-
-  const rows = useMemo(() => {
-    if (!hasMin && !needle) return items
-    return items.filter((entry) => {
-      // Un signal verrouillé ne publie ni montant ni titulaire : aucun filtre
-      // navigateur ne peut affirmer qu'il correspond.
-      if (entry.locked) return false
-      if (hasMin) {
-        const value = Number.parseFloat(entry.contract.amount?.value ?? '')
-        if (!Number.isFinite(value) || value < minAmount) return false
-      }
-      if (needle) {
-        const haystack = foldCase(`${entry.company.name ?? ''} ${signalObject(entry) ?? ''}`)
-        if (!haystack.includes(needle)) return false
-      }
-      return true
-    })
-  }, [hasMin, items, minAmount, needle])
-
-  const zones = useMemo(() => {
-    const seen = new Set<string>()
-    for (const entry of items) {
-      if (entry.locked) continue
-      const code = entry.contract.location?.subdivision_code
-      if (code) seen.add(code)
-    }
-    return [...seen]
-  }, [items])
-
-  // ── Écriture de l'URL ─────────────────────────────────────────────────────
-
-  const setParam = useCallback(
-    (name: string, value: string) => {
-      const params = new URLSearchParams(location.search)
-      if (value) params.set(name, value)
-      else params.delete(name)
-      navigate(
-        { pathname: location.pathname, search: params.toString() ? `?${params}` : '' },
-        { replace: true },
-      )
-    },
-    [location.pathname, location.search, navigate],
-  )
-
-  /* La ligne qui a ouvert le tiroir : sa clé, pour lui rendre le focus à la
-   * fermeture plutôt que de le laisser tomber sur le document. */
-  const openerKey = useRef<string | null>(null)
-
-  const openSignal = useCallback(
-    (key: string) => {
-      openerKey.current = key
-      navigate(`/app/signals/${encodeURIComponent(key)}${location.search}`)
-    },
-    [location.search, navigate],
-  )
-
-  /* `replace` : fermer le tiroir ne doit pas laisser une entrée d'historique
-   * derrière soi. Sans quoi « Précédent » rouvrirait le tiroir qu'on vient de
-   * fermer plutôt que de quitter la page. L'ouverture, elle, reste un `push` :
-   * chaque signal ouvert mérite sa propre étape dans l'historique. */
-  const closeDrawer = useCallback(() => {
-    navigate(`/app/signals${location.search}`, { replace: true })
-  }, [location.search, navigate])
-
-  useEffect(() => {
-    if (selectedKey) return
-    const key = openerKey.current
-    if (!key) return
-    openerKey.current = null
-    document
-      .querySelector<HTMLElement>(`[data-signal-key="${CSS.escape(key)}"] button`)
-      ?.focus()
-  }, [selectedKey])
-
-  const openBilling = useCallback(
-    (key: string) => {
-      navigate('/app/billing', { state: { lockedSignalKey: key } })
-    },
-    [navigate],
-  )
-
-  /* Échap referme le tiroir de bureau. Sous 900 px, la feuille Radix possède
-   * déjà cette touche : deux gestionnaires fermeraient deux fois. */
-  useEffect(() => {
-    if (!selectedKey || compact) return
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeDrawer()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [closeDrawer, compact, selectedKey])
-
-  // ── Actions optimistes ────────────────────────────────────────────────────
-
-  const applyStatus = useCallback((key: string, status: UnifiedStatus) => {
-    setItems((current) =>
-      current.map((entry) =>
-        entry.signal_id === key && !entry.locked ? { ...entry, status } : entry,
-      ),
-    )
-    setDetail((current) =>
-      current.data && current.data.signal_id === key
-        ? { ...current, data: { ...current.data, status } }
-        : current,
-    )
-  }, [])
-
-  /** Déplace un signal d'un compteur à l'autre. `clampedOut`, si fourni, reçoit
-   *  si le décrément a été plafonné à 0 (le compteur d'origine était déjà nul :
-   *  un signal peut apparaître dans un segment sans que son compteur le porte,
-   *  par exemple juste après une pagination). Le rollback en a besoin : il ne
-   *  doit réinjecter le point que si un point a réellement été retiré, sans
-   *  quoi une action annulée gonflerait le compteur au-delà de sa vraie
-   *  valeur. */
-  const shiftCounts = useCallback(
-    (from: UnifiedStatus, to: UnifiedStatus, clampedOut?: { current: boolean }) => {
-      setCounts((current) => {
-        if (!current) return current
-        const clamped = current[from] <= 0
-        if (clampedOut) clampedOut.current = clamped
-        return { ...current, [from]: Math.max(0, current[from] - 1), [to]: current[to] + 1 }
-      })
-    },
-    [],
-  )
-
-  const runAction = useCallback(
-    async (next: UnifiedStatus, call: (key: string) => Promise<unknown>) => {
-      const target = selectedItem
-      if (!target || busy) return
-      const previous = target.status
-      if (previous === next) return
-      const key = target.signal_id
-
-      const clamped = { current: false }
-      setActionError(false)
-      setBusy(true)
-      applyStatus(key, next)
-      shiftCounts(previous, next, clamped)
-      try {
-        await call(key)
-      } catch {
-        // Se dédire entièrement : la ligne, le tiroir ET les compteurs — mais
-        // sans réinjecter un point qui n'en a jamais été retiré.
-        applyStatus(key, previous)
-        setCounts((current) =>
-          current
-            ? {
-                ...current,
-                [next]: Math.max(0, current[next] - 1),
-                [previous]: clamped.current ? current[previous] : current[previous] + 1,
-              }
-            : current,
-        )
-        if (mounted.current) setActionError(true)
-      } finally {
-        if (mounted.current) setBusy(false)
-      }
-    },
-    [applyStatus, busy, selectedItem, shiftCounts],
-  )
-
-  // ── Rendu ─────────────────────────────────────────────────────────────────
-
-  const planCode = feed.data?.plan_code ?? null
-  const discoveryGrantCount = activationMoment
-    && planCode === 'discovery'
-    && postActivationBilling?.plan_code === 'discovery'
-    ? postActivationBilling.discovery.granted_signal_count
-    : null
-  /* Le compteur décrit UNE seule population à la fois :
-   *  - sans filtre navigateur, le nombre de signaux CHARGÉS (`items`) ;
-   *  - avec un filtre navigateur (montant, recherche), le nombre RETENU sur
-   *    ce total chargé — jamais les deux mélangés dans un seul chiffre.
-   * `has_more` et `counts_truncated` disent tous deux que ce total peut être
-   * un plancher, pas une somme définitive : c'est le signal du « + ». */
-  const hasClientFilter = hasMin || Boolean(needle)
-  const selectedSegmentCount = filters.segment !== 'all' && COUNTED_SEGMENTS.includes(filters.segment)
-    ? counts?.[filters.segment] ?? null
-    : null
-  const loadedCount = selectedSegmentCount ?? discoveryGrantCount ?? items.length
-  const moreBeyondLoaded = planCode !== 'discovery'
-    && (Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated))
-  const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''
-  const signalCount = !feed.data
-    ? t.common.loading
-    : hasClientFilter
-      ? interpolate(copy.countFiltered, { count: `${rows.length}`, total: `${loadedCount}${suffix}` })
-      : interpolate(plural(loadedCount, copy.count.one, copy.count.other), {
-        count: `${loadedCount}${suffix}`,
-      })
-
-  const sectorLocked = feed.data?.filter_access.sector === false
-  const displayedRows = useMemo(() => {
-    if (planCode !== 'discovery') return rows
-    const unlocked = rows.filter((item) => !item.locked)
-    const locked = rows.filter((item) => item.locked)
-    return [...unlocked, ...locked.slice(0, 5)]
-  }, [planCode, rows])
-  const hiddenDiscoveryCount = planCode === 'discovery'
-    ? Math.max(0, rows.length - displayedRows.length)
-    : 0
-
-  const drawer = (
-    <SignalDrawer
-      item={selectedItem}
-      loading={drawerLoading}
-      error={drawerError}
-      busy={busy}
-      compact={compact}
-      redesigned={redesigned}
-      holderProfile={holderProfile}
-      planCode={feed.data?.plan_code ?? null}
-      onClose={closeDrawer}
-      onRetry={() => setDetailRetryToken((token) => token + 1)}
-      onContacted={() => void runAction('contacted', (key) => feedback.markContacted(key))}
-      onSave={() => void runAction('saved', (key) => feedback.write(key, { relevance: 'relevant' }))}
-      onIgnore={() =>
-        void runAction('ignored', (key) =>
-          feedback.write(key, { relevance: 'not_relevant', reason: 'other' }))}
-    />
-  )
-
-  return (
-    <div className={`${styles.page} ${redesigned ? styles.pageRedesigned : ''}`} data-page="signals">
-      <ScreenHeader title={copy.title} description={copy.subtitle} />
-
-      {feed.data?.provisional_profile ? (
-        <aside className={styles.provisionalBanner} role="note">
-          <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
-          <Link to="/app/confirm-profile">Confirmer mon profil</Link>
-        </aside>
-      ) : null}
-
-      <div
-        className={styles.filters}
-        role="toolbar"
-        aria-label={copy.filters.toolbar}
-      >
-        <ScreenSegments label={copy.filters.statusGroup}>
-          {SEGMENTS.map((segment) => {
-            const count = segment !== 'all' && COUNTED_SEGMENTS.includes(segment)
-              ? counts?.[segment] ?? null
-              : null
-            return (
-              <button
-                type="button"
-                key={segment}
-                data-segment={segment}
-                aria-pressed={filters.segment === segment}
-                onClick={() => setParam('status', segment)}
-              >
-                {copy.segments[segment]}
-                {count === null ? null : <span className={styles.segmentCount}>{count}</span>}
-              </button>
-            )
-          })}
-        </ScreenSegments>
-
-        <div className={styles.filter} title={sectorLocked ? t.reference.signalsPage.restrictedFilter : undefined}>
-          <input
-            list="signals-zones"
-            placeholder={copy.filters.zone}
-            aria-label={copy.filters.zone}
-            value={filters.zone}
-            onChange={(event) => setParam('zone', event.target.value.toUpperCase())}
-          />
-          <datalist id="signals-zones">
-            {zones.map((zone) => <option value={zone} key={zone} />)}
-          </datalist>
-        </div>
-
-        <div className={styles.filter} title={copy.filters.loadedOnly}>
-          <input
-            placeholder={copy.filters.sectorPlaceholder}
-            aria-label={copy.filters.sector}
-            value={filters.cpv}
-            maxLength={8}
-            inputMode="numeric"
-            disabled={sectorLocked}
-            aria-describedby={sectorLocked ? 'signals-sector-restricted' : undefined}
-            onChange={(event) => setParam('cpv', event.target.value.replace(/\D/g, ''))}
-          />
-          {sectorLocked ? <span role="tooltip" id="signals-sector-restricted" className={styles.filterTooltip}>{t.reference.signalsPage.restrictedFilter}</span> : null}
-        </div>
-
-        <div className={styles.filter}>
-          <input
-            type="number"
-            min={0}
-            step={1000}
-            placeholder={copy.filters.minAmount}
-            aria-label={copy.filters.minAmount}
-            value={filters.min}
-            aria-describedby="signals-loaded-only"
-            onChange={(event) => setParam('min', event.target.value)}
-          />
-        </div>
-
-        <div className={styles.filter}>
-          <select
-            aria-label={copy.filters.period}
-            value={filters.period}
-            onChange={(event) => setParam('period', event.target.value)}
-          >
-            {PERIODS.map((period) => (
-              <option value={period} key={period}>{copy.filters.periodOptions[period]}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className={`${styles.filter} ${styles.searchFilter}`} title={copy.filters.loadedOnly}>
-          <input
-            type="search"
-            value={filters.q}
-            placeholder={copy.filters.search}
-            aria-label={copy.filters.search}
-            aria-describedby="signals-loaded-only"
-            onChange={(event) => setParam('q', event.target.value)}
-          />
-        </div>
-      </div>
-
-      <span role="tooltip" id="signals-loaded-only" className={styles.filterTooltip}>
-        {copy.filters.loadedOnly}
-      </span>
-
-      {actionError ? (
-        <p className={styles.alert} role="alert">{copy.actionError}</p>
-      ) : null}
-
-      <div className={`${styles.layout} ${redesigned ? styles.layoutRedesigned : ''}`}>
-        <section className={`${styles.tableColumn} ${redesigned ? styles.tableColumnRedesigned : ''}`} aria-busy={feed.loading}>
-          {compact ? <div className={styles.cardList} role="list">
-            {displayedRows.map((entry) => entry.locked ? (
-              <LockedSignalCardRow key={entry.signal_id} item={entry} redesigned={redesigned} onOpen={() => openBilling(entry.signal_id)} />
-            ) : (
-              <SignalCardRow key={entry.signal_id} item={entry} redesigned={redesigned} selected={entry.signal_id === selectedKey} onOpen={openSignal} />
-            ))}
-            {hiddenDiscoveryCount ? <Link className={styles.lockedCardRow} to="/tarifs">{hiddenDiscoveryCount} autres signaux — voir les offres</Link> : null}
-          </div> : <table className={styles.table}>
-            <thead>
-              <tr>
-                <th scope="col">{copy.columns.date}</th>
-                <th scope="col">{copy.columns.winner}</th>
-                <th scope="col">{copy.columns.object}</th>
-                <th scope="col" className={styles.cellNumeric}>{copy.columns.amount}</th>
-                {compact ? null : <th scope="col">{copy.columns.place}</th>}
-                {redesigned ? null : <th scope="col">{copy.columns.match}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {displayedRows.map((entry) => (entry.locked ? (
-                <LockedRow
-                  key={entry.signal_id}
-                  item={entry}
-                  compact={compact}
-                  redesigned={redesigned}
-                  note={t.reference.signalsPage.lockedReason}
-                  onOpen={() => openBilling(entry.signal_id)}
-                />
-              ) : (
-                <SignalRow
-                  key={entry.signal_id}
-                  item={entry}
-                  selected={entry.signal_id === selectedKey}
-                  compact={compact}
-                  redesigned={redesigned}
-                  onOpen={openSignal}
-                />
-              )))}
-              {hiddenDiscoveryCount ? (
-                <tr className={styles.lockedRow}>
-                  <td colSpan={redesigned ? 5 : compact ? 5 : 6}>
-                    {hiddenDiscoveryCount} autres signaux dans votre zone — <Link to="/tarifs">voir les offres</Link>
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>}
-
-          {feed.loading && !feed.data ? (
-            <p className={styles.note} role="status">{t.common.loading}</p>
-          ) : feed.error && !feed.data ? (
-            <div className={styles.note} role="alert">
-              <p>{t.reference.messages.loadError}</p>
-              <button type="button" className="text-link" onClick={() => void loadFeed()}>
-                {t.common.retry}
-              </button>
-            </div>
-          ) : rows.length === 0 ? (
-            <p className={styles.note}>{copy.empty}</p>
-          ) : null}
-
-          <div className={styles.footer}>
-            <span className={styles.count}>{signalCount}</span>
-            {paginationError ? (
-              <span role="alert">
-                {t.reference.messages.loadError}{' '}
-                <button type="button" className="text-link" onClick={() => void loadMore()}>
-                  {t.common.retry}
-                </button>
-              </span>
-            ) : planCode !== 'discovery' && feed.data?.page.has_more ? (
-              <button
-                type="button"
-                className="text-link"
-                disabled={loadingMore}
-                onClick={() => void loadMore()}
-              >
-                {loadingMore ? t.common.loading : copy.loadMore}
-              </button>
-            ) : null}
-          </div>
-        </section>
-
-        {compact ? null : <div className={styles.drawerColumn}>{drawer}</div>}
-      </div>
-
-      {compact ? (
-        <Sheet
-          open={Boolean(selectedKey)}
-          onOpenChange={(open) => {
-            if (!open) closeDrawer()
-          }}
-        >
-          <SheetContent
-            side="right"
-            className={styles.sheet}
-            closeLabel={copy.drawer.close}
-            aria-describedby={undefined}
-          >
-            <SheetTitle className={styles.visuallyHidden}>{copy.title}</SheetTitle>
-            {drawer}
-          </SheetContent>
-        </Sheet>
-      ) : null}
-    </div>
-  )
+    if (data?.counts_available) setCachedCounts({ key: countsKey, counts: data.counts, truncated: data.counts_truncated })
+  }, [data, countsKey])
+  const counts = data?.counts_available ? { counts: data.counts, truncated: data.counts_truncated } : cachedCounts?.key === countsKey ? cachedCounts : null
+  const labels = fr ? { new: 'Nouveaux', saved: 'Sauvegardés', contacted: 'Contactés', ignored: 'Ignorés', all: 'Tous' } : { new: 'New', saved: 'Saved', contacted: 'Contacted', ignored: 'Ignored', all: 'All' }
+  return <main className={styles.workspace} data-page="signals">
+    <header className={styles.heading}><div><p className={styles.eyebrow}>{fr ? 'Votre prospection' : 'Your prospecting'}</p><h1>{fr ? 'Signaux' : 'Signals'}</h1><p>{fr ? 'Les marchés à transformer en conversations commerciales.' : 'Turn relevant contracts into sales conversations.'}</p></div></header>
+    <TargetBar />
+    {!p.profilesLoading && p.profiles.length === 0 && <section className={styles.guide}><h2>{fr ? 'Votre prochaine opportunité commence par votre cible' : 'Your next opportunity starts with your target'}</h2><Link to="/app/icps" className={styles.primary}>{fr ? 'Configurer mon profil cible' : 'Set up my target profile'}</Link></section>}
+    <section className={styles.panel} aria-label={fr ? 'Liste des signaux' : 'Signal list'}>
+      <div className={styles.tabs} role="tablist" aria-label={fr ? 'Statut des signaux' : 'Signal status'}>{statuses.map((value) => <button className={styles.tab} role="tab" aria-selected={status === value} key={value} onClick={() => update({ status: value })}>{labels[value]}{value !== 'all' && value !== 'ignored' && counts && <span className={styles.count}>{number(counts.counts[value])}{counts.truncated ? '+' : ''}</span>}</button>)}</div>
+      <div className={styles.toolbar}><label className={styles.search}><Search aria-hidden="true" /><input type="search" maxLength={120} disabled={!canSearch} aria-describedby={!canSearch ? 'signal-search-access' : undefined} aria-label={fr ? 'Rechercher un signal' : 'Search signals'} placeholder={fr ? 'Entreprise, marché, mot-clé…' : 'Company, contract, keyword…'} value={canSearch ? search : ''} onChange={(event) => setSearch(event.target.value)} /></label>
+        <select value={sort} aria-label={fr ? 'Trier les signaux' : 'Sort signals'} onChange={(event) => update({ sort: event.target.value })}><option value="recent">{fr ? 'Les plus récents' : 'Most recent'}</option><option value="amount">{fr ? 'Montant décroissant' : 'Highest amount'}</option></select></div>
+      {!canSearch && <p className={styles.muted} id="signal-search-access">{fr ? 'La recherche par mot-clé est disponible avec un abonnement.' : 'Keyword search is available with a subscription.'}</p>}
+      {data && <div className={styles.resultMeta}><span>{number(data.items.length)} {fr ? 'signaux sur cette page' : 'signals on this page'}</span>{data.history_access?.scope === 'grants_only' && <span>{fr ? 'Votre sélection Découverte' : 'Your Discovery selection'}</span>}{data.page.scan_truncated && <span>{fr ? 'Affinez votre recherche pour explorer davantage de résultats.' : 'Refine your search to explore more results.'}</span>}</div>}
+      {resource.loading && <div className={styles.loading} role="status">{fr ? 'Chargement des signaux…' : 'Loading signals…'}<div className={styles.skeleton} /><div className={styles.skeleton} /></div>}
+      {resource.error != null && <div className={styles.empty} role="alert"><h2>{fr ? 'Vos signaux ne sont pas chargés' : 'Your signals could not load'}</h2><button className={styles.button} onClick={resource.reload}>{fr ? 'Réessayer' : 'Retry'}</button></div>}
+      {data?.items.map((item) => <SignalListRow key={item.signal_id} item={item} onOpen={() => {
+        const next = new URLSearchParams(location.search)
+        next.delete('presentation_artifact_id')
+        if (!item.locked && item.presentation?.artifact_id) next.set('presentation_artifact_id', item.presentation.artifact_id)
+        navigate(signalDetailPath(item.signal_id, next.toString()))
+      }} />)}
+      {data && data.items.length === 0 && <div className={styles.empty}><h2>{status === 'new' ? (fr ? 'Vous êtes à jour' : 'You’re up to date') : (fr ? 'Aucun signal dans cette sélection' : 'No signals in this selection')}</h2><p>{status === 'new' ? (fr ? 'Retrouvez vos marchés sauvegardés pour poursuivre vos échanges.' : 'Return to your saved contracts to continue your conversations.') : (fr ? 'Vos prochaines actions apparaîtront ici.' : 'Your next actions will appear here.')}</p><button className={styles.soft} onClick={() => update({ status: status === 'new' ? 'saved' : 'all', q: null })}>{status === 'new' ? (fr ? 'Voir les sauvegardés' : 'View saved') : (fr ? 'Voir tous les signaux' : 'View all signals')}</button></div>}
+      {data && (cursor || data.page.has_more) && <footer className={styles.footer}><button className={styles.button} disabled={!cursor} onClick={() => update({ cursor: null })}><ArrowLeft aria-hidden="true" />{fr ? 'Première page' : 'First page'}</button><button className={styles.button} disabled={!data.page.has_more || !data.page.next_cursor} onClick={() => update({ cursor: data.page.next_cursor ?? null })}>{fr ? 'Page suivante' : 'Next page'}<ArrowRight aria-hidden="true" /></button></footer>}
+    </section>
+    {signalKey && <SignalDetail key={signalKey} signalKey={signalKey} onClose={() => {
+      const next = new URLSearchParams(location.search)
+      next.delete('presentation_artifact_id')
+      navigate({ pathname: '/app/signals', search: next.toString() }, { replace: true })
+    }} />}
+  </main>
 }

@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from alembic import command
 from billing_helpers import subscribe
 from fastapi.testclient import TestClient
+from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
 
 from signals.accounts.icp_input import TargetIcpInput
 from signals.accounts.schema import target_icp
@@ -103,7 +104,7 @@ def _client(engine: sa.Engine, *, email: str = "customer@kivou.ch") -> TestClien
 
 
 @pytest.mark.slow
-def test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history(engine):
+def test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history(engine, tmp_path):
     _persist_ted(engine, "566039-2026.xml")
     client = _client(engine, email="migration@kivou.ch")
     created = client.post(
@@ -132,8 +133,15 @@ def test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history(en
             ).scalar_one(),
         }
 
-    config = alembic_config(engine)
-    command.downgrade(config, "0016_campaign_factory")
+    # Current APIs prepare synthetic state; the migration itself starts from a
+    # separate real 0016 schema, without traversing unrelated later downgrades.
+    historical_engine = create_database_engine(
+        f"sqlite+pysqlite:///{tmp_path / 'historical-0016.db'}"
+    )
+    config = alembic_config(historical_engine)
+    command.upgrade(config, "0016_campaign_factory")
+    copy_synthetic_rows_to_historical_schema(engine, historical_engine)
+    engine = historical_engine
     assert current_revision(engine) == "0016_campaign_factory"
     command.upgrade(config, "0017_target_icp_revision")
 
@@ -171,6 +179,7 @@ def test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history(en
     assert stored_signal.target_icp_revision == 1
     assert stored_signal.invalidated_at is None
     assert before == after
+    historical_engine.dispose()
 
 
 def test_target_revision_changes_only_with_matching_criteria(engine):
@@ -295,10 +304,9 @@ def test_a_still_valid_match_is_updated_to_the_new_revision_without_duplicate(en
 
     assert changed.status_code == 200, changed.text
     assert changed.json()["matching_revision"] == 2
-    assert [
-        item["signal_id"]
-        for item in client.get("/signals?freshness=all").json()["items"]
-    ] == [signal_key]
+    assert [item["signal_id"] for item in client.get("/signals?freshness=all").json()["items"]] == [
+        signal_key
+    ]
     with engine.connect() as connection:
         rows = connection.execute(
             sa.select(materialized_signal).where(
@@ -589,9 +597,7 @@ def test_two_concurrent_updates_are_serialized_into_distinct_revisions(engine):
     ) in ((["staffing_and_labour"], ["FR"]), (["equipment_rental"], ["DE"]))
     with engine.connect() as connection:
         rows = connection.execute(
-            sa.select(materialized_signal).where(
-                materialized_signal.c.target_icp_id == target_id
-            )
+            sa.select(materialized_signal).where(materialized_signal.c.target_icp_id == target_id)
         ).all()
     current = [row for row in rows if row.invalidated_at is None]
     assert len(current) == 1

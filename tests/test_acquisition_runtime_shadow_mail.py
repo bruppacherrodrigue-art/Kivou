@@ -5,7 +5,7 @@ import datetime as dt
 from signals.acquisition_runtime.shadow_mail import ShadowMailInput, render_shadow_mail
 
 
-def test_shadow_mail_contains_only_the_bait_facts_and_required_links() -> None:
+def test_shadow_mail_contains_v2_facts_and_required_links() -> None:
     mail = render_shadow_mail(
         ShadowMailInput(
             family_key="ready_mix_concrete",
@@ -24,13 +24,20 @@ def test_shadow_mail_contains_only_the_bait_facts_and_required_links() -> None:
     )
 
     assert mail.subject == "Entreprise Exemple vient de gagner un chantier béton en Rhône"
-    assert mail.body.startswith("Bonjour Alice Martin,")
+    assert mail.status == "SHADOW"
+    assert mail.body.startswith("Bonjour,\n\n")
+    assert "Alice" not in mail.body and "Marie" not in mail.body
     assert "Entreprise Exemple vient d'être retenu pour le gros œuvre" in mail.body
     assert "125 k€" in mail.body
     assert "8 septembre" in mail.body
-    assert "Il leur faudra du béton prêt à l'emploi sur place." in mail.body
-    assert "https://kivou.eu/a/token-1" in mail.body
-    assert "Source : registres publics et avis d'attribution officiel" in mail.body
-    assert "https://www.boamp.fr/avis/1" not in mail.body
-    assert "Ne plus recevoir" in mail.body
-    assert len(mail.body.split("\n\n—\n", maxsplit=1)[0].split()) <= 90
+    assert "Sur ce type de lot, le titulaire sous-traite souvent béton prêt à l'emploi." in mail.body
+    assert "Pourquoi vous :" in mail.body
+    assert "Kivou repère les marchés publics attribués près de chez vous" in mail.body
+    assert "Détail du marché : https://kivou.eu/a/token-1" in mail.body
+    assert "Source du signal : https://www.boamp.fr/avis/1" in mail.body
+    assert "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire." in mail.body
+    assert "Rodrigue / Kivou · kivou.eu" in mail.body
+    assert "Kivou, Sion (Suisse)" not in mail.body
+    assert "Ne plus recevoir : https://kivou.eu/unsubscribe/token-1" in mail.body
+    assert "LOT 02" not in mail.body
+    assert len(mail.body.split("\n\n—\n", maxsplit=1)[0].split()) <= 110

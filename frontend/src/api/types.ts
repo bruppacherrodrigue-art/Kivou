@@ -484,6 +484,8 @@ export interface UnlockedFeedItem {
   /** Le statut unifié de CE signal pour CE compte. Jamais recalculé côté
    *  frontend. */
   status: UnifiedStatus
+  /** Account workflow version, distinct from any source revision. */
+  status_revision?: number
   company_key?: string | null
   target_icp_id: string | null
   company: Company
@@ -503,6 +505,7 @@ export interface LockedFeedItem {
   locked: true
   signal_id: string
   status: UnifiedStatus
+  status_revision?: number
   target_icp_id: string | null
   unlock_required: 'paid_plan'
   event: {
@@ -540,8 +543,8 @@ export function isLocked(item: FeedItem | SignalDetail): item is LockedFeedItem 
 }
 
 export interface FeedPage {
+  scope?: ProspectingProjectionScope
   items: FeedItem[]
-  signals_companies_v2_enabled?: boolean
   total_returned: number
   page: {
     limit: number
@@ -587,6 +590,7 @@ export interface FeedPage {
 }
 
 export type UnlockedDetail = UnlockedFeedItem & {
+  scope?: ProspectingProjectionScope
   company_key?: string | null
   evidence: Evidence
   opportunity_id: string
@@ -597,6 +601,7 @@ export type UnlockedDetail = UnlockedFeedItem & {
 }
 
 export type LockedDetail = LockedFeedItem & {
+  scope?: ProspectingProjectionScope
   access: { granted: false; reason: string; upgrade_to: PurchasablePlan[] }
   read_at: string
   language: string
@@ -608,6 +613,29 @@ export interface SignalNote {
   signal_id: string
   note: string | null
   updated_at: string | null
+  revision?: number
+}
+
+export interface SignalStatusResult {
+  signal_id: string
+  status: UnifiedStatus
+  revision: number
+  updated_at: string
+  interaction: Interaction | null
+}
+
+export interface ProspectingQueryScope {
+  target_icp_id?: string | null
+  offer_category?: string | null
+  subdivision_code?: string | null
+  min_amount?: string | null
+  amount_currency?: string | null
+}
+
+export interface ProspectingProjectionScope extends ProspectingQueryScope {
+  matching_revision: number
+  offer_categories: OfferKind[]
+  context_tag: string
 }
 
 // ─── Fiche entreprise SaaS ──────────────────────────────────────────────────
@@ -615,6 +643,20 @@ export interface SignalNote {
 export interface CompanyOfficialIdentifier {
   scheme: string
   value: string
+}
+
+export interface CompanyPublicContact {
+  organization_name: string
+  organization_ref: string
+  identifiers?: CompanyOfficialIdentifier[]
+  source: 'boamp'
+  source_notice_id?: string
+  source_url?: string
+  observed_at: string
+  phone?: string
+  email?: string
+  website?: string
+  contact_name?: string
 }
 
 export interface CompanyOfficialIdentity {
@@ -642,6 +684,9 @@ export interface DirectoryCompany {
   department_label?: string
   city?: string
   employees?: number
+  workforce?: { minimum: number | null; maximum: number; precision: 'range' | 'estimate' }
+  available_fields?: Array<'workforce' | 'directors' | 'website' | 'phone' | 'email'>
+  fields_locked?: boolean
   website_url?: string
   website_source?: string
   website_observed_at?: string
@@ -672,9 +717,11 @@ export interface PublicMarket {
   source: 'public_awards'
 }
 
-export interface DirectoryCompanyProfile {
+export interface DirectoryCompanyProfile extends Partial<PrivateCompanyContext> {
+  public_contacts?: CompanyPublicContact[]
+  available_contact_fields?: Array<'phone' | 'email' | 'website'>
+  contacts_locked?: boolean
   company_key?: string
-  company_profile_v2_enabled?: boolean
   plan_code?: PlanCode
   directory: DirectoryCompany
   market_summary?: HolderMarketSummary & {
@@ -740,10 +787,14 @@ export interface CompanyRelatedSignal {
   }
 }
 
-export interface CompanyProfile {
+export interface CompanyProfile extends Partial<PrivateCompanyContext> {
+  public_contacts?: CompanyPublicContact[]
+  available_contact_fields?: Array<'phone' | 'email' | 'website'>
+  contacts_locked?: boolean
   company_key: string
   city: string | null
   official_identity: CompanyOfficialIdentity
+  available_fields?: string[]
   related_signals: CompanyRelatedSignal[]
   coverage: {
     related_signals_complete: boolean
@@ -761,7 +812,6 @@ export interface CompanyProfile {
   market_summary?: DirectoryCompanyProfile['market_summary'] | null
   directory?: DirectoryCompany | null
   contact_lookup?: CompanyContactLookup | null
-  company_profile_v2_enabled?: boolean
   plan_code?: PlanCode
 }
 
@@ -778,11 +828,17 @@ export interface CompanyListItem {
   contact_status: CompanyContactStatus
   contacted_at: string | null
   top_fit: string | null
+  tracked?: boolean
+  origin?: 'signal' | 'user'
 }
 
 export interface CompanyListPage {
+  scope?: ProspectingProjectionScope
+  counts?: Record<CompanyContactStatus, number>
+  total?: number
+  counts_available?: boolean
+  counts_truncated?: boolean
   items: CompanyListItem[]
-  signals_companies_v2_enabled?: boolean
   page: {
     limit: number
     cursor: string | null
@@ -805,6 +861,98 @@ export interface CompanyNoteResult {
   company_key: string
   note: string | null
   updated_at: string
+  revision?: number
+}
+
+export interface CompanyCapabilities {
+  can_view_company_data: boolean
+  can_enrich_company: boolean
+  can_lookup_contact: boolean
+  can_manage_personal_contact: boolean
+  can_take_notes: boolean
+  can_follow_company: boolean
+}
+
+export interface PersonalContact {
+  name: string
+  role: string | null
+  email: string | null
+  phone: string | null
+  source: 'user'
+}
+
+export interface ManualContactInput {
+  name: string
+  role?: string | null
+  email?: string | null
+  phone?: string | null
+  expected_revision: number
+}
+
+export interface ManualContactView {
+  contact: PersonalContact | null
+  revision: number
+  updated_at: string | null
+}
+
+export interface CompanyMembership {
+  tracked: boolean
+  tracked_at: string | null
+  revision: number
+  origin: string | null
+}
+
+export interface PrivateCompanyContext {
+  directory_enrichment?: CompanyDirectoryEnrichment | null
+  canonical_company_key: string | null
+  private_subject_key: string | null
+  identity_resolution: 'unresolved' | 'resolved' | 'isolated'
+  note_revision: number
+  note_updated_at: string | null
+  manual_contact: ManualContactView
+  membership: CompanyMembership
+  capabilities: CompanyCapabilities
+}
+
+export interface CompanyDirectoryEnrichment {
+  state: 'locked' | 'identity_unavailable' | 'available' | 'queued' | 'running' | 'ready' | 'partial' | 'failed' | 'budget_wait'
+  can_refresh: boolean
+  job_id?: string | null
+  requested_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  observed_at?: string | null
+  retry_after?: string | null
+  missing_fields: Array<'website' | 'phone' | 'email'>
+  stale_fields?: Array<'website' | 'phone' | 'email'>
+  added_fields: Array<'website' | 'phone' | 'email'>
+  outcome?: 'enriched' | 'no_change' | null
+}
+
+/** Strict replacement DTO. Legacy surfaces remain temporarily source-compatible. */
+export type CompanyDossierResponse = (CompanyProfile | DirectoryCompanyProfile) & PrivateCompanyContext & { company_key: string }
+
+export interface DirectoryOptions {
+  families: { key: string; label: string }[]
+  departments: { code: string; label: string }[]
+}
+
+export interface DirectorySearchPage {
+  items: Array<{
+    company_key: string
+    canonical_company_key: string | null
+    private_subject_key: string | null
+    name: string
+    city: string | null
+    country: 'FR'
+    directory: DirectoryCompany
+    tracked: boolean
+    capabilities: CompanyCapabilities
+  }>
+  page: { limit: number; next_cursor: string | null; has_more: boolean; scan_truncated: false }
+  counts: { total: number; exact: true }
+  scope: null
+  read_at: string
 }
 
 export interface DashboardFollowUp {
@@ -815,6 +963,7 @@ export interface DashboardFollowUp {
 }
 
 export interface DashboardResponse {
+  scope?: ProspectingProjectionScope
   as_of: string
   last_seen_at: string | null
   new_since_last_visit: number

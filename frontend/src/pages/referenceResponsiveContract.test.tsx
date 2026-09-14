@@ -76,9 +76,12 @@ describe('contrat responsive connecté à 390 px', () => {
     // d'où une requête DOM directe pour vérifier leur unicité structurelle.
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(document.querySelectorAll('h1')).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Ouvrir la navigation' })).not.toBeInTheDocument()
-
     const sheet = screen.getByRole('dialog')
+    // V11 uses native showModal(): browser-level inertness is covered by Playwright.
+    // jsdom implements the open fallback but cannot emulate the top-layer focus trap.
+    expect(sheet.tagName).toBe('DIALOG')
+    expect(sheet).toHaveAttribute('open')
+    expect(sheet).toHaveAttribute('aria-modal', 'true')
     expect(within(sheet).getAllByRole('button', { name: 'Fermer' }).length).toBeGreaterThan(0)
   })
 
@@ -132,7 +135,7 @@ describe('contrat responsive connecté à 390 px', () => {
     await user.click(within(drawer).getByRole('link', { name: 'Aujourd’hui' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Vos premiers signaux' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Aujourd’hui' })).toBeVisible()
   })
 
   it('localise le drawer et le ferme avec retour focus sur sa destination déjà active', async () => {

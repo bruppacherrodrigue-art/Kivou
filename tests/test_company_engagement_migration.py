@@ -3,12 +3,12 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS = "0033_requeue_unresolved_siret"
 HEAD = "0034_company_engagement"
-CURRENT_HEAD = "0058_model_call_budget"
 
 
 def _engine(tmp_path, name):
@@ -36,12 +36,26 @@ def test_company_contact_schema_is_account_scoped_with_a_closed_status(tmp_path)
     command.upgrade(alembic_config(engine), HEAD)
     inspector = sa.inspect(engine)
     columns = {c["name"]: c for c in inspector.get_columns("company_contact")}
-    assert set(columns) == {"account_id", "company_key", "status", "contacted_at", "created_at", "updated_at"}
+    assert set(columns) == {
+        "account_id",
+        "company_key",
+        "status",
+        "contacted_at",
+        "created_at",
+        "updated_at",
+    }
     assert columns["status"]["nullable"] is False
     assert columns["contacted_at"]["nullable"] is True
-    assert inspector.get_pk_constraint("company_contact")["constrained_columns"] == ["account_id", "company_key"]
+    assert inspector.get_pk_constraint("company_contact")["constrained_columns"] == [
+        "account_id",
+        "company_key",
+    ]
     fks = inspector.get_foreign_keys("company_contact")
-    assert len(fks) == 1 and fks[0]["referred_table"] == "account" and fks[0]["options"] == {"ondelete": "CASCADE"}
+    assert (
+        len(fks) == 1
+        and fks[0]["referred_table"] == "account"
+        and fks[0]["options"] == {"ondelete": "CASCADE"}
+    )
     checks = {c["name"] for c in inspector.get_check_constraints("company_contact")}
     assert "ck_company_contact_status" in checks
     note_columns = {c["name"]: c for c in inspector.get_columns("company_note")}
@@ -59,7 +73,11 @@ def test_account_visit_schema_is_a_leaf_table_scoped_to_account(tmp_path):
     assert columns["updated_at"]["nullable"] is False
     assert inspector.get_pk_constraint("account_visit")["constrained_columns"] == ["account_id"]
     fks = inspector.get_foreign_keys("account_visit")
-    assert len(fks) == 1 and fks[0]["referred_table"] == "account" and fks[0]["options"] == {"ondelete": "CASCADE"}
+    assert (
+        len(fks) == 1
+        and fks[0]["referred_table"] == "account"
+        and fks[0]["options"] == {"ondelete": "CASCADE"}
+    )
 
 
 def test_company_engagement_migration_roundtrips(tmp_path):

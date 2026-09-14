@@ -8,6 +8,7 @@ import dataclasses
 import datetime as dt
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
@@ -30,18 +31,39 @@ class HistoryCursor:
     date: dt.date | None
     signal_key: str
     version: Literal[1] = _CURSOR_VERSION
+    context_tag: str | None = None
+    sort: str = "recent"
+    amount: Decimal | None = None
+    currency: str | None = None
 
     def __post_init__(self) -> None:
         if self.version != _CURSOR_VERSION or not _SIGNAL_KEY.fullmatch(self.signal_key):
             raise InvalidHistoryCursor("invalid history cursor")
+        if self.sort not in ("recent", "amount") or (
+            self.context_tag is not None and not re.fullmatch(r"[a-f0-9]{24}", self.context_tag)
+        ):
+            raise InvalidHistoryCursor("invalid history cursor")
 
 
 def encode_history_cursor(cursor: HistoryCursor) -> str:
+    extra = (
+        {
+            "x": {
+                "f": cursor.context_tag,
+                "s": cursor.sort,
+                "a": str(cursor.amount) if cursor.amount is not None else None,
+                "u": cursor.currency,
+            }
+        }
+        if cursor.context_tag is not None or cursor.sort != "recent"
+        else {}
+    )
     payload = json.dumps(
         {
             "v": cursor.version,
             "d": cursor.date.isoformat() if cursor.date is not None else None,
             "k": cursor.signal_key,
+            **extra,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -62,7 +84,10 @@ def decode_history_cursor(value: str) -> HistoryCursor:
         payload = json.loads(raw)
     except (UnicodeEncodeError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError) as error:
         raise InvalidHistoryCursor("invalid history cursor") from error
-    if not isinstance(payload, dict) or frozenset(payload) != _CURSOR_KEYS:
+    if not isinstance(payload, dict) or frozenset(payload) not in (
+        _CURSOR_KEYS,
+        _CURSOR_KEYS | {"x"},
+    ):
         raise InvalidHistoryCursor("invalid history cursor")
     if payload["v"] != _CURSOR_VERSION or not isinstance(payload["k"], str):
         raise InvalidHistoryCursor("invalid history cursor")
@@ -71,8 +96,25 @@ def decode_history_cursor(value: str) -> HistoryCursor:
         raise InvalidHistoryCursor("invalid history cursor")
     try:
         parsed_date = None if raw_date is None else dt.date.fromisoformat(raw_date)
-        return HistoryCursor(date=parsed_date, signal_key=payload["k"])
-    except (TypeError, ValueError) as error:
+        extra = payload.get("x")
+        if extra is None:
+            return HistoryCursor(date=parsed_date, signal_key=payload["k"])
+        if not isinstance(extra, dict) or set(extra) != {"f", "s", "a", "u"}:
+            raise ValueError("invalid cursor context")
+        amount = None if extra["a"] is None else Decimal(extra["a"])
+        if amount is not None and (not amount.is_finite() or amount < 0):
+            raise ValueError("invalid amount")
+        if extra["u"] is not None and not re.fullmatch(r"[A-Z]{3}", extra["u"]):
+            raise ValueError("invalid currency")
+        return HistoryCursor(
+            date=parsed_date,
+            signal_key=payload["k"],
+            context_tag=extra["f"],
+            sort=extra["s"],
+            amount=amount,
+            currency=extra["u"],
+        )
+    except (TypeError, ValueError, InvalidOperation) as error:
         raise InvalidHistoryCursor("invalid history cursor") from error
 
 
@@ -87,9 +129,16 @@ def effective_history_date(signal: StoredSignal) -> tuple[dt.date | None, Histor
     return None, "unknown"
 
 
-def cursor_for_signal(signal: StoredSignal) -> HistoryCursor:
+def cursor_for_signal(signal: StoredSignal, *, context_tag=None, sort="recent") -> HistoryCursor:
     date, _kind = effective_history_date(signal)
-    return HistoryCursor(date=date, signal_key=signal.signal_key)
+    return HistoryCursor(
+        date=date,
+        signal_key=signal.signal_key,
+        context_tag=context_tag,
+        sort=sort,
+        amount=signal.award.amount,
+        currency=signal.award.currency,
+    )
 
 
 def history_sort_key(signal: StoredSignal) -> tuple[int, int]:

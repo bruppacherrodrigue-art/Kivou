@@ -5,6 +5,7 @@ import datetime as dt
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 from sqlalchemy.dialects import postgresql
 from test_contract_award_text_capacity import REAL_BOAMP_CONTRACT_REFERENCE
 
@@ -59,7 +60,10 @@ COMPANY_ENRICHMENT_REVISION = "0055_company_enrichment"
 COMPANY_CONTACT_REVISION = "0054_company_contact_lookup"
 COMPANY_CONTACT_MERGE_REVISION = "0056_company_contact_merge"
 DIRECTORY_CONTACT_KEYS_REVISION = "0057_directory_contact_keys"
-CURRENT_HEAD = "0058_model_call_budget"
+CLIENT_LOCATION_REVISION = "0058_client_location"
+PROSPECTING_STATE_REVISION = "0059_prospecting_state"
+NOTICE_FACTS_REVISION = "0060_boamp_notice_facts"
+MODEL_BUDGET_REVISION = "0058_model_call_budget"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -148,19 +152,22 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
-    assert script.get_revision(CURRENT_HEAD).down_revision == DIRECTORY_CONTACT_KEYS_REVISION
+    assert script.get_revision(MODEL_BUDGET_REVISION).down_revision == DIRECTORY_CONTACT_KEYS_REVISION
     assert (
         script.get_revision(DIRECTORY_CONTACT_KEYS_REVISION).down_revision
         == COMPANY_CONTACT_MERGE_REVISION
     )
+    assert (
+        script.get_revision(CLIENT_LOCATION_REVISION).down_revision
+        == DIRECTORY_CONTACT_KEYS_REVISION
+    )
+    assert script.get_revision(PROSPECTING_STATE_REVISION).down_revision == CLIENT_LOCATION_REVISION
+    assert script.get_revision(NOTICE_FACTS_REVISION).down_revision == PROSPECTING_STATE_REVISION
     assert set(script.get_revision(COMPANY_CONTACT_MERGE_REVISION).down_revision) == {
         COMPANY_ENRICHMENT_REVISION,
         COMPANY_CONTACT_REVISION,
     }
-    assert (
-        script.get_revision(COMPANY_ENRICHMENT_REVISION).down_revision
-        == PROSPECT_MAIL_REVISION
-    )
+    assert script.get_revision(COMPANY_ENRICHMENT_REVISION).down_revision == PROSPECT_MAIL_REVISION
     assert script.get_revision(PROSPECT_MAIL_REVISION).down_revision == SUPPLIER_ACTIVITY_REVISION
     assert script.get_revision(COMPANY_CONTACT_REVISION).down_revision == SUPPLIER_ACTIVITY_REVISION
     assert (
@@ -172,8 +179,7 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         == ASSISTED_PROSPECTION_REVISION
     )
     assert (
-        script.get_revision(ASSISTED_PROSPECTION_REVISION).down_revision
-        == SUPPLIER_DOMAIN_REVISION
+        script.get_revision(ASSISTED_PROSPECTION_REVISION).down_revision == SUPPLIER_DOMAIN_REVISION
     )
     assert script.get_revision("0046_sirene_apollo_binding").down_revision == (
         "0045_pr7_shadow_mail"

@@ -48,6 +48,9 @@ export type ApiErrorCode =
   | 'contact_lookup_failed'
   | 'contact_lookup_identity_unavailable'
   | 'contact_lookup_suppressed'
+  | 'note_conflict'
+  | 'status_conflict'
+  | 'manual_contact_conflict'
   /** Panne réseau ou réponse illisible : ce code n'existe pas côté serveur. */
   | 'network_error'
   /** Erreur de validation FastAPI (422 pydantic), qui n'a pas de `code`. */
@@ -88,6 +91,19 @@ export class ApiError extends Error {
 
 type Listener = () => void
 const unauthenticatedListeners = new Set<Listener>()
+const signOutStartedListeners = new Set<Listener>()
+
+/** Intent-only lifecycle event: purge private UI immediately, before logout HTTP settles.
+ * SessionProvider remains the sole authority for the authenticated session. */
+export function onSignOutStarted(listener: Listener): () => void {
+  signOutStartedListeners.add(listener)
+  return () => { signOutStartedListeners.delete(listener) }
+}
+
+/** Only auth.logout emits this; subscribers must not perform another logout request. */
+export function notifySignOutStarted(): void {
+  for (const listener of signOutStartedListeners) listener()
+}
 
 /** Prévient l'application qu'une session n'est plus valable.
  *
@@ -109,6 +125,9 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   query?: QueryParams
+  signal?: AbortSignal
+  /** Internal conditional requests only; credentials/origin remain browser-owned. */
+  headers?: Readonly<Record<string, string>>
   /** Coupe la diffusion du 401 — utilisé par le seul appel qui a le droit
    *  d'échouer sans conséquence : la vérification de session au démarrage. */
   silentUnauthenticated?: boolean
@@ -184,6 +203,11 @@ async function readError(response: Response): Promise<ApiError> {
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, query, silentUnauthenticated = false } = options
+  const headers: Record<string, string> = {}
+  for (const [name, value] of Object.entries(options.headers ?? {})) {
+    if (['if-match', 'if-none-match', 'accept'].includes(name.toLowerCase())) headers[name] = value
+  }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
 
   let response: Response
   try {
@@ -192,13 +216,16 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       // Le cookie de session est HttpOnly : il n'est lisible par aucun script,
       // et `same-origin` est ce qui le fait voyager malgré tout.
       credentials: 'same-origin',
-      headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+      headers,
+      signal: options.signal,
       body: body === undefined ? undefined : JSON.stringify(body),
     })
-  } catch {
+  } catch (error) {
+    if (options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError')) throw error
     throw new ApiError(0, 'network_error', '')
   }
 
+  options.signal?.throwIfAborted()
   if (response.status === 401 && !silentUnauthenticated) {
     for (const listener of unauthenticatedListeners) listener()
   }
@@ -207,6 +234,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   if (response.status === 204) return undefined as T
   const text = await response.text()
+  options.signal?.throwIfAborted()
   if (!text) return undefined as T
   return JSON.parse(text) as T
 }

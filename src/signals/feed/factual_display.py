@@ -16,6 +16,7 @@ from signals.feed import policy
 from signals.feed.french_departments import department_label, location_subdivision
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
+from signals.ingestion.client_location import resolve_client_location
 from signals.personalization.prospect_mail import client_market_object
 
 _MAX_OBJECT_LENGTH = 180
@@ -132,7 +133,15 @@ def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         client_market_object(raw_object), limit=_MAX_OBJECT_LENGTH
     ) or _clean(cpv_label(item.signal.award.cpv_main, lang=lang), limit=_MAX_OBJECT_LENGTH)
     amount = _amount(item.signal.award.amount, item.signal.award.currency, lang=lang)
-    location = _location(item.signal.award.place_of_performance, lang=lang)
+    resolved_location = resolve_client_location(
+        execution=item.signal.award.place_of_performance,
+        buyers=item.signal.event.procedure_buyers,
+    )
+    location = _location(
+        item.signal.award.client_location
+        or (resolved_location.location if resolved_location is not None else None),
+        lang=lang,
+    )
     buyer = _buyer(item)
     source_date = attribution_date(item.signal.award)
     if item.signal.award.award_date is not None:

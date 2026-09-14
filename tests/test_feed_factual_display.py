@@ -21,7 +21,7 @@ from feed_helpers import (
 from signals.api import ApiConfig, create_app
 from signals.feed.factual_display import _headline
 from signals.persistence.database import create_database_engine, migrate_to_latest
-from signals.persistence.schema import materialized_signal
+from signals.persistence.schema import contract_award, materialized_signal
 
 NOW = dt.datetime(2026, 8, 25, 9, 0, tzinfo=dt.UTC)
 
@@ -78,14 +78,25 @@ def _feed_item(client: TestClient, signal_key: str) -> dict:
     return next(item for item in response.json()["items"] if item["signal_id"] == signal_key)
 
 
+def _without_buyer_locations(event):
+    # A missing worksite is not a missing location when the official buyer
+    # publishes a city. Remove only location evidence for absence fixtures.
+    return event.model_copy(
+        update={
+            "procedure_buyers": tuple(
+                buyer.model_copy(update={"location": None, "address": None})
+                for buyer in event.procedure_buyers
+            )
+        }
+    )
+
+
 def test_rich_title_starts_with_the_winner_and_never_with_an_identifier(
     client, engine, icp
 ) -> None:
     event, awards = simap_award("33112-02")
     with engine.begin() as connection:
-        signal_key = materialize(
-            connection, event, awards[0], target_icp_id=icp
-        ).signal_key
+        signal_key = materialize(connection, event, awards[0], target_icp_id=icp).signal_key
 
     item = _feed_item(client, signal_key)
     display = item["factual_display"]
@@ -106,6 +117,7 @@ def test_missing_object_uses_the_cpv_label_and_keeps_other_missing_facts_absent(
     client, engine, icp
 ) -> None:
     event, awards = simap_award("29997-02")
+    event = _without_buyer_locations(event)
     award = awards[0].model_copy(
         update={"title": None, "value": None, "place_of_performance": None}
     )
@@ -181,9 +193,7 @@ def test_notification_date_is_never_presented_as_an_award_date(client, engine, i
 def test_fact_copy_uses_the_account_language_without_changing_facts(client, engine, icp) -> None:
     event, awards = simap_award("38918-02")
     with engine.begin() as connection:
-        signal_key = materialize(
-            connection, event, awards[0], target_icp_id=icp
-        ).signal_key
+        signal_key = materialize(connection, event, awards[0], target_icp_id=icp).signal_key
 
     french = _feed_item(client, signal_key)
     response = client.patch("/me", json={"locale": "en"})
@@ -205,13 +215,9 @@ def test_fact_copy_uses_the_account_language_without_changing_facts(client, engi
 
 def test_history_api_applies_winner_and_current_event_filters(client, engine, icp) -> None:
     recent_event, recent_awards = simap_award("29997-02")
-    recent_award = recent_awards[0].model_copy(
-        update={"award_date": dt.date(2026, 8, 13)}
-    )
+    recent_award = recent_awards[0].model_copy(update={"award_date": dt.date(2026, 8, 13)})
     stale_event, stale_awards = simap_award("33112-02")
-    stale_award = stale_awards[0].model_copy(
-        update={"award_date": dt.date(2024, 1, 3)}
-    )
+    stale_award = stale_awards[0].model_copy(update={"award_date": dt.date(2024, 1, 3)})
     with engine.begin() as connection:
         recent_key = materialize(
             connection, recent_event, recent_award, target_icp_id=icp
@@ -313,13 +319,22 @@ def test_a_named_buyer_further_down_the_list_is_not_hidden_by_a_siret_only_first
     assert buyer["identifier"] == {"scheme": "SIREN", "value": "200046977"}
 
 
-def test_a_postal_code_yields_a_department_and_its_label(client, decp_like_signal):
+def test_a_postal_code_yields_a_department_and_its_label(client, decp_like_signal, engine):
     body = client.get(f"/signals/{decp_like_signal.signal_key}").json()
     location = body["contract"]["location"]
     assert location["locality"] is None
-    assert location["postal_code"] == "92350"
+    # The client projection communicates department precision, not a city or
+    # address; the original published postal code remains a canonical fact.
+    assert location["postal_code"] is None
     assert location["subdivision_code"] == "FR-92"
     assert location["subdivision_label"] == "Hauts-de-Seine"
+    with engine.connect() as connection:
+        original = connection.scalar(
+            sa.select(contract_award.c.place_of_performance).where(
+                contract_award.c.award_key == decp_like_signal.materialization_award_key,
+            )
+        )
+    assert original["postal_code"] == "92350"
 
 
 def test_completeness_does_not_count_a_siret_as_a_buyer_name(client, decp_like_signal):
@@ -341,6 +356,7 @@ def test_a_country_alone_is_not_a_location(client, icp, engine):
     from signals.domain.values import Location
 
     event, awards = simap_award("33112-02")
+    event = _without_buyer_locations(event)
     award = awards[0].model_copy(update={"place_of_performance": Location(country="FR")})
     with engine.begin() as connection:
         signal = materialize(connection, event, award, target_icp_id=icp)

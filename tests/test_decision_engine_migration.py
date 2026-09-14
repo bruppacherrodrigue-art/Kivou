@@ -3,13 +3,13 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.persistence.schema import acquisition_decision_evaluation
 
 PREVIOUS = "0011_company_research"
 HEAD = "0012_decision_engine"
-CURRENT_HEAD = "0058_model_call_budget"
 
 
 def test_decision_engine_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:
@@ -21,9 +21,7 @@ def test_decision_engine_migration_is_linear_and_adds_exactly_one_table(tmp_path
     command.upgrade(config, HEAD)
 
     inspector = sa.inspect(engine)
-    assert set(inspector.get_table_names()) - before == {
-        "acquisition_decision_evaluation"
-    }
+    assert set(inspector.get_table_names()) - before == {"acquisition_decision_evaluation"}
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(HEAD).down_revision == PREVIOUS
@@ -61,16 +59,19 @@ def test_migrated_table_matches_core_schema_and_excludes_pii(tmp_path) -> None:
     }
 
     assert columns == {column.name for column in acquisition_decision_evaluation.columns}
-    assert not {
-        "business_email",
-        "contact_name",
-        "first_name",
-        "last_name",
-        "phone",
-        "score",
-        "confidence",
-        "raw_provider_response",
-    } & columns
+    assert (
+        not {
+            "business_email",
+            "contact_name",
+            "first_name",
+            "last_name",
+            "phone",
+            "score",
+            "confidence",
+            "raw_provider_response",
+        }
+        & columns
+    )
 
 
 def test_postgresql_offline_migration_contains_only_decision_audit(capsys) -> None:

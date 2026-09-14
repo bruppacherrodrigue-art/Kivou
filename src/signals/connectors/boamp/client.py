@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import json
 from collections.abc import Iterator
 from typing import Any, Self
 
@@ -85,9 +86,7 @@ def award_query(cursor: AwardCursor) -> dict[str, Any]:
 def tender_query(cursor: AwardCursor) -> dict[str, Any]:
     """Même fenêtre déterministe, limitée aux avis d'appel à la concurrence."""
     query = award_query(cursor)
-    query["where"] = query["where"].replace(
-        f'nature="{AWARD_NATURE}"', f'nature="{TENDER_NATURE}"'
-    )
+    query["where"] = query["where"].replace(f'nature="{AWARD_NATURE}"', f'nature="{TENDER_NATURE}"')
     return query
 
 
@@ -115,10 +114,28 @@ class BoampClient:
             self._client.close()
 
     def fetch_page(self, cursor: AwardCursor, *, tender_notices: bool = False) -> list[dict]:
+        return self._fetch_records(tender_query(cursor) if tender_notices else award_query(cursor))
+
+    def fetch_record(self, notice_id: str) -> dict | None:
+        """Exact ID lookup for bounded administrative backfill, never a date scan.
+
+        Explore v2.1 specifies that the text equality operator is exact:
+        https://help.opendatasoft.com/apis/ods-explore-v2/
+        """
+        if not notice_id or len(notice_id) > 256 or any(ord(char) < 32 for char in notice_id):
+            raise ValueError("invalid BOAMP notice identity")
+        records = self._fetch_records({"where": "idweb=" + json.dumps(notice_id), "limit": 2})
+        if len(records) > 1 or (records and records[0].get("idweb") != notice_id):
+            raise BoampHttpError(
+                "BOAMP exact lookup returned ambiguous identity", category="malformed"
+            )
+        return records[0] if records else None
+
+    def _fetch_records(self, params: dict[str, Any]) -> list[dict]:
         try:
             response = self._client.get(
                 RECORDS_URL,
-                params=tender_query(cursor) if tender_notices else award_query(cursor),
+                params=params,
             )
         except httpx.TimeoutException as error:
             raise BoampHttpError("BOAMP request timed out", category="timeout") from error

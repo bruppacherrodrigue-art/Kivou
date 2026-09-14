@@ -5,6 +5,7 @@ import secrets
 
 import sqlalchemy as sa
 
+import signals.engagement.prospecting_schema  # noqa: F401
 from signals.accounts.schema import account, account_deletion_request
 from signals.persistence.schema import METADATA
 
@@ -15,15 +16,16 @@ def _account_tables() -> tuple[sa.Table, ...]:
     return tuple(
         table
         for table in METADATA.sorted_tables
-        if "account_id" in table.c
-        and table is not account_deletion_request
+        if "account_id" in table.c and table is not account_deletion_request
     )
 
 
 def export_account(connection: sa.Connection, *, account_id: str) -> dict[str, object]:
-    account_row = connection.execute(
-        sa.select(account).where(account.c.account_id == account_id)
-    ).mappings().one()
+    account_row = (
+        connection.execute(sa.select(account).where(account.c.account_id == account_id))
+        .mappings()
+        .one()
+    )
     data: dict[str, list[dict[str, object]]] = {}
     for table in _account_tables():
         if table is account:
@@ -44,11 +46,15 @@ def request_deletion(
     connection: sa.Connection, *, account_id: str, now: dt.datetime
 ) -> dt.datetime:
     scheduled_for = now + dt.timedelta(hours=24)
-    existing = connection.execute(
-        sa.select(account_deletion_request).where(
-            account_deletion_request.c.account_id == account_id
+    existing = (
+        connection.execute(
+            sa.select(account_deletion_request).where(
+                account_deletion_request.c.account_id == account_id
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     if existing is not None:
         return existing["scheduled_for"]
     connection.execute(
@@ -64,12 +70,16 @@ def request_deletion(
 
 def purge_due_deletions(engine: sa.Engine, *, now: dt.datetime) -> int:
     with engine.begin() as connection:
-        due = connection.execute(
-            sa.select(account_deletion_request.c.account_id).where(
-                account_deletion_request.c.completed_at.is_(None),
-                account_deletion_request.c.scheduled_for <= now,
+        due = (
+            connection.execute(
+                sa.select(account_deletion_request.c.account_id).where(
+                    account_deletion_request.c.completed_at.is_(None),
+                    account_deletion_request.c.scheduled_for <= now,
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for account_id in due:
             for table in reversed(_account_tables()):
                 if table is account:

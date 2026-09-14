@@ -13,7 +13,10 @@ from alembic import context
 import signals.accounts.schema
 import signals.billing.schema
 import signals.companies.schema
-import signals.engagement.schema  # noqa: F401
+import signals.engagement.prospecting_schema
+import signals.engagement.schema
+import signals.persistence.notice_schema
+import signals.supplier_directory.catalogue_schema  # noqa: F401
 from signals.persistence.schema import METADATA
 
 target_metadata = METADATA

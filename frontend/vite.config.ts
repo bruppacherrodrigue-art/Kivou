@@ -17,6 +17,8 @@ const API_PREFIXES = [
   '/companies',
   '/billing',
   '/notification-preferences',
+  '/dashboard',
+  '/account',
 ]
 
 export default defineConfig({

@@ -25,7 +25,7 @@ from signals.accounts.service import authenticate
 from signals.api import routes_notes
 from signals.api.config import SESSION_COOKIE_NAME
 from signals.engagement import notes
-from signals.engagement.schema import MAXIMUM_NOTE_LENGTH, signal_feedback, signal_note
+from signals.engagement.schema import MAXIMUM_SIGNAL_NOTE_LENGTH, signal_feedback, signal_note
 
 
 @pytest.fixture
@@ -68,10 +68,12 @@ def test_note_roundtrip_does_not_create_feedback_or_analytics(alice, engine):
     assert events(engine) == []
 
 
-def test_empty_note_deletes_only_the_current_note(alice, engine):
+def test_empty_note_retains_a_revisioned_tombstone(alice, engine):
     key = paid_signal(engine, alice)
     alice.put(f"/signals/{key}/note", json={"note": "Temporaire"})
-    cleared = alice.put(f"/signals/{key}/note", json={"note": "   "})
+    cleared = alice.put(f"/signals/{key}/note", json={"note": "   ", "expected_revision": 1})
+    assert cleared.status_code == 200
+    assert cleared.json()["revision"] == 2
     assert cleared.json()["note"] is None
     assert alice.get(f"/signals/{key}/note").json()["note"] is None
 
@@ -102,13 +104,13 @@ def test_two_concurrent_first_notes_converge_without_feedback_or_analytics(
 
     monkeypatch.setattr(routes_notes, "current_session", preserved_session)
     barrier = threading.Barrier(2)
-    original_upsert_returning = notes.upsert_returning
+    original_conflict_insert = notes._conflict_insert
 
-    def synchronized_upsert_returning(connection, table, values, **kwargs):
+    def synchronized_conflict_insert(connection, table):
         barrier.wait(timeout=5)
-        return original_upsert_returning(connection, table, values, **kwargs)
+        return original_conflict_insert(connection, table)
 
-    monkeypatch.setattr(notes, "upsert_returning", synchronized_upsert_returning)
+    monkeypatch.setattr(notes, "_conflict_insert", synchronized_conflict_insert)
 
     def write(note: str) -> tuple[int, dict]:
         with TestClient(
@@ -116,20 +118,26 @@ def test_two_concurrent_first_notes_converge_without_feedback_or_analytics(
             headers={"Origin": ORIGIN},
         ) as concurrent:
             concurrent.cookies.update(alice.cookies)
-            response = concurrent.put(f"/signals/{key}/note", json={"note": note})
+            response = concurrent.put(
+                f"/signals/{key}/note", json={"note": note, "expected_revision": 0}
+            )
             return response.status_code, response.json()
 
     values = ("Première note", "Seconde note")
     with ThreadPoolExecutor(max_workers=2) as pool:
         outcomes = tuple(pool.map(write, values))
 
-    assert tuple(status for status, _body in outcomes) == (200, 200)
-    assert tuple(body["note"] for _status, body in outcomes) == values
-    assert alice.get(f"/signals/{key}/note").json()["note"] in values
+    assert sorted(status for status, _body in outcomes) == [200, 409]
+    winner = next(body for status, body in outcomes if status == 200)
+    loser = next(body for status, body in outcomes if status == 409)
+    assert loser["detail"]["code"] == "note_conflict"
+    assert loser["detail"]["note"] == winner["note"]
+    assert alice.get(f"/signals/{key}/note").json()["note"] == winner["note"]
     with engine.connect() as connection:
-        assert connection.execute(
-            sa.select(sa.func.count()).select_from(signal_note)
-        ).scalar_one() == 1
+        assert (
+            connection.execute(sa.select(sa.func.count()).select_from(signal_note)).scalar_one()
+            == 1
+        )
         assert (
             connection.execute(sa.select(sa.func.count()).select_from(signal_feedback)).scalar_one()
             == 0
@@ -137,7 +145,7 @@ def test_two_concurrent_first_notes_converge_without_feedback_or_analytics(
     assert events(engine) == []
 
 
-def test_existing_note_update_is_one_atomic_returning_upsert(alice, engine):
+def test_existing_note_update_is_one_atomic_revision_guarded_write(alice, engine):
     key = paid_signal(engine, alice)
     assert alice.put(f"/signals/{key}/note", json={"note": "Initiale"}).status_code == 200
     statements: list[str] = []
@@ -150,7 +158,9 @@ def test_existing_note_update_is_one_atomic_returning_upsert(alice, engine):
 
     sa.event.listen(engine, "before_cursor_execute", capture_statement)
     try:
-        response = alice.put(f"/signals/{key}/note", json={"note": "Mise à jour"})
+        response = alice.put(
+            f"/signals/{key}/note", json={"note": "Mise à jour", "expected_revision": 1}
+        )
     finally:
         sa.event.remove(engine, "before_cursor_execute", capture_statement)
 
@@ -158,10 +168,9 @@ def test_existing_note_update_is_one_atomic_returning_upsert(alice, engine):
     assert response.json()["note"] == "Mise à jour"
     assert len(statements) == 1
     normalized = " ".join(statements[0].upper().split())
-    assert normalized.startswith("INSERT INTO SIGNAL_NOTE")
-    assert "ON CONFLICT (ACCOUNT_ID, SIGNAL_KEY) DO UPDATE SET" in normalized
-    assert "RETURNING ACCOUNT_ID, SIGNAL_KEY, NOTE, UPDATED_AT" in normalized
-    assert "DO NOTHING" not in normalized
+    assert normalized.startswith("UPDATE SIGNAL_NOTE")
+    assert "SIGNAL_NOTE.REVISION =" in normalized
+    assert "RETURNING ACCOUNT_ID, SIGNAL_KEY, NOTE, REVISION" in normalized
     with engine.connect() as connection:
         row = connection.execute(
             sa.select(signal_note).where(signal_note.c.signal_key == key)
@@ -183,7 +192,7 @@ def test_note_update_preserves_created_at_and_advances_authoritative_updated_at(
         ).one()
 
     clock.advance(dt.timedelta(minutes=5))
-    updated = alice.put(f"/signals/{key}/note", json={"note": "Révisée"})
+    updated = alice.put(f"/signals/{key}/note", json={"note": "Révisée", "expected_revision": 1})
     assert updated.status_code == 200
     with engine.connect() as connection:
         after = connection.execute(
@@ -222,7 +231,7 @@ def test_locked_anonymous_foreign_origin_and_long_notes_fail_closed(alice, app, 
     assert alice.put(f"/signals/{locked}/note", json={"note": "interdit"}).status_code == 403
     assert (
         alice.put(
-            f"/signals/{unlocked}/note", json={"note": "x" * (MAXIMUM_NOTE_LENGTH + 1)}
+            f"/signals/{unlocked}/note", json={"note": "x" * (MAXIMUM_SIGNAL_NOTE_LENGTH + 1)}
         ).status_code
         == 422
     )

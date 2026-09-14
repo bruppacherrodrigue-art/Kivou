@@ -121,7 +121,11 @@ def test_contact_status_defaults_to_to_contact_and_moves_forward(client, icp, en
     _seed(engine, icp, count=1)
     key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
     profile = client.get(f"/companies/{key}").json()
-    assert profile["contact_status"] == "to_contact" and profile["contacted_at"] is None and profile["note"] is None
+    assert (
+        profile["contact_status"] == "to_contact"
+        and profile["contacted_at"] is None
+        and profile["note"] is None
+    )
     assert [s["status"] for s in profile["signals"]] == ["new"]
     moved = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
     assert moved["contact_status"] == "contacted" and _iso(moved["contacted_at"]) == NOW
@@ -157,9 +161,17 @@ def test_contacted_at_refreshes_on_a_new_cycle_after_a_walk_back(client, icp, en
 def test_company_note_is_written_read_and_cleared(client, icp, engine):
     _seed(engine, icp, count=1)
     key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
-    assert client.put(f"/companies/{key}/note", json={"body": "Rappeler jeudi"}).json()["note"] == "Rappeler jeudi"
+    assert (
+        client.put(f"/companies/{key}/note", json={"body": "Rappeler jeudi"}).json()["note"]
+        == "Rappeler jeudi"
+    )
     assert client.get(f"/companies/{key}").json()["note"] == "Rappeler jeudi"
-    assert client.put(f"/companies/{key}/note", json={"body": "  "}).json()["note"] is None
+    assert (
+        client.put(f"/companies/{key}/note", json={"body": "  ", "expected_revision": 1}).json()[
+            "note"
+        ]
+        is None
+    )
     assert client.get(f"/companies/{key}").json()["note"] is None
     assert client.put(f"/companies/{key}/note", json={"body": "x" * 2001}).status_code == 422
 
@@ -230,8 +242,15 @@ def test_two_signals_one_contacted_are_listed_under_the_company(client, icp, eng
 
 
 def test_unknown_or_foreign_company_is_404(client, icp, engine):
-    assert client.post("/companies/cmp_000000000000000000/contact", json={"status": "contacted"}).status_code == 404
-    assert client.put("/companies/cmp_000000000000000000/note", json={"body": "x"}).status_code == 404
+    assert (
+        client.post(
+            "/companies/cmp_000000000000000000/contact", json={"status": "contacted"}
+        ).status_code
+        == 404
+    )
+    assert (
+        client.put("/companies/cmp_000000000000000000/note", json={"body": "x"}).status_code == 404
+    )
 
 
 # ─── fix round 2 — la frontière du compte, et celle de l'origine ─────────────

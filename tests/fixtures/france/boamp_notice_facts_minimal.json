@@ -1,0 +1,55 @@
+{
+  "idweb": "26-fixture-facts",
+  "nature": "ATTRIBUTION",
+  "dateparution": "2026-09-12",
+  "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-fixture-facts",
+  "objet": "Travaux publics de démonstration",
+  "donnees": {
+    "EFORMS": {
+      "ContractAwardNotice": {
+        "cbc:VersionID": "01",
+        "cac:ContractingParty": {"cac:Party": {"cac:PartyIdentification": {"cbc:ID": "ORG-BUYER"}}},
+        "cac:ProcurementProject": {"cbc:Name": "Travaux publics de démonstration"},
+        "cac:ProcurementProjectLot": [
+          {"cbc:ID": "LOT-1", "cac:ProcurementProject": {
+            "cbc:Name": "Lot un",
+            "cbc:Description": "Rénovation de la couverture.",
+            "cac:PlannedPeriod": {"cbc:DurationMeasure": {"#text": "26.5", "@unitCode": "MONTH"}},
+            "cac:ContractExtension": {"cbc:MaximumNumberNumeric": "3"}
+          }},
+          {"cbc:ID": "LOT-2", "cac:ProcurementProject": {
+            "cbc:Name": "Lot deux",
+            "cbc:Description": "Remplacement des fenêtres.",
+            "cac:PlannedPeriod": {"cbc:DurationMeasure": {"#text": "90", "@unitCode": "DAY"}}
+          }}
+        ],
+        "ext:UBLExtensions": {"ext:UBLExtension": {"ext:ExtensionContent": {"efext:EformsExtension": {
+          "efac:Organizations": {"efac:Organization": [
+            {"efac:Company": {"cac:PartyIdentification": {"cbc:ID": "ORG-BUYER"}, "cac:PartyName": {"cbc:Name": "Collectivité exemple"}, "cac:PartyLegalEntity": {"cbc:CompanyID": "11111111100011"}, "cac:Contact": {"cbc:ElectronicMail": "buyer@example.test"}}},
+            {"efac:Company": {"cac:PartyIdentification": {"cbc:ID": "ORG-COURT"}, "cac:PartyName": {"cbc:Name": "Tribunal exemple"}, "cac:Contact": {"cbc:ElectronicMail": "court@example.test"}}},
+            {"efac:Company": {"cac:PartyIdentification": {"cbc:ID": "ORG-1"}, "cac:PartyName": {"cbc:Name": "Entreprise exemple un"}, "cac:PartyLegalEntity": {"cbc:CompanyID": "22222222200022"}, "cbc:WebsiteURI": "https://winner-one.example.test", "cac:Contact": {"cbc:Name": "Accueil entreprise un", "cbc:ElectronicMail": "winner-one@example.test", "cbc:Telephone": "+33 1 00 00 00 01"}}},
+            {"efac:Company": {"cac:PartyIdentification": {"cbc:ID": "ORG-2"}, "cac:PartyName": {"cbc:Name": "Entreprise exemple deux"}, "cac:PartyLegalEntity": {"cbc:CompanyID": "33333333300033"}, "cac:Contact": {"cbc:ElectronicMail": "winner-two@example.test"}}}
+          ]},
+          "efac:NoticeResult": {
+            "efac:LotResult": [
+              {"cbc:ID": "RES-1", "cbc:TenderResultCode": "selec-w", "efac:TenderLot": {"cbc:ID": "LOT-1"}, "efac:LotTender": {"cbc:ID": "TEN-1"}, "efac:SettledContract": {"cbc:ID": "CON-1"}, "efac:FrameworkAgreementValues": {"cbc:MinimumValueAmount": {"#text": "100.01", "@currencyID": "EUR"}, "cbc:MaximumValueAmount": {"#text": "9007199254740993.1234", "@currencyID": "EUR"}}},
+              {"cbc:ID": "RES-2", "cbc:TenderResultCode": "selec-w", "efac:TenderLot": {"cbc:ID": "LOT-2"}, "efac:LotTender": {"cbc:ID": "TEN-2"}, "efac:SettledContract": {"cbc:ID": "CON-2"}}
+            ],
+            "efac:LotTender": [
+              {"cbc:ID": "TEN-1", "efac:TenderingParty": {"cbc:ID": "TPA-1"}, "efac:TenderLot": {"cbc:ID": "LOT-1"}, "cac:LegalMonetaryTotal": {"cbc:PayableAmount": {"#text": "1234567.8912", "@currencyID": "EUR"}}},
+              {"cbc:ID": "TEN-2", "efac:TenderingParty": {"cbc:ID": "TPA-2"}, "efac:TenderLot": {"cbc:ID": "LOT-2"}, "cac:LegalMonetaryTotal": {"cbc:PayableAmount": {"#text": "7654.32", "@currencyID": "CHF"}}}
+            ],
+            "efac:TenderingParty": [
+              {"cbc:ID": "TPA-1", "efac:Tenderer": {"cbc:ID": "ORG-1"}},
+              {"cbc:ID": "TPA-2", "efac:Tenderer": {"cbc:ID": "ORG-2"}}
+            ],
+            "efac:SettledContract": [
+              {"cbc:ID": "CON-1", "cbc:Title": "Marché couverture", "cbc:AwardDate": "2026-09-01", "efac:LotTender": {"cbc:ID": "TEN-1"}},
+              {"cbc:ID": "CON-2", "cbc:Title": "Marché fenêtres", "cbc:AwardDate": "2026-09-02", "efac:LotTender": {"cbc:ID": "TEN-2"}}
+            ]
+          }
+        }}}}
+      }
+    }
+  }
+}

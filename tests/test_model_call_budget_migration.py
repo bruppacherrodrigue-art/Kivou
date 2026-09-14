@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from migration_head_helpers import CURRENT_HEAD
 from sqlalchemy.exc import IntegrityError
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
@@ -21,7 +22,7 @@ def test_model_budget_migration_creates_persistent_ledger(tmp_path) -> None:
     engine = _migrated_engine(tmp_path)
     inspector = sa.inspect(engine)
 
-    assert current_revision(engine) == "0058_model_call_budget"
+    assert current_revision(engine) == CURRENT_HEAD
     assert {"model_daily_budget", "model_call_journal"} <= set(inspector.get_table_names())
     budget_columns = {column["name"] for column in inspector.get_columns("model_daily_budget")}
     assert {

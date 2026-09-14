@@ -6,14 +6,18 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
 from feed_helpers import SIMAP_RICH, make_account, make_icp, materialize_simap
+from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.companies.schema import saas_company
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
-from signals.persistence.schema import METADATA, materialized_signal
+from signals.persistence.schema import METADATA, contract_award, materialized_signal
 
 PREVIOUS = "0021_reliability_operations"
 HEAD = "0022_saas_company_profile"
-CURRENT_HEAD = "0058_model_call_budget"
+# Current materialization requires client_location, but these historical
+# roundtrips must not enter the deliberately irreversible 0059/0060.
+FIXTURE_HEAD = "0058_client_location"
 
 
 def test_company_migration_is_the_single_additive_head(tmp_path) -> None:
@@ -37,8 +41,8 @@ def test_company_migration_roundtrip_matches_core_schema(tmp_path) -> None:
     config = alembic_config(migrated)
     # 0031_french_official_company adds a column to saas_company after HEAD
     # (0022): the parity check is against the currently declared core schema,
-    # so it must upgrade all the way to CURRENT_HEAD, not stop at HEAD.
-    command.upgrade(config, CURRENT_HEAD)
+    # so it must reach the last reversible fixture schema, not stop at HEAD.
+    command.upgrade(config, FIXTURE_HEAD)
     METADATA.create_all(core)
 
     assert {column["name"] for column in sa.inspect(migrated).get_columns(saas_company.name)} == {
@@ -80,8 +84,9 @@ def test_company_migration_backfills_the_index_for_existing_signals(tmp_path) ->
     config = alembic_config(engine)
     # Seed through the current application schema: current materialization also
     # enqueues winner enrichment, which correctly requires revision 0030.
-    command.upgrade(config, CURRENT_HEAD)
-    with engine.begin() as connection:
+    seed_engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'seed.db'}")
+    command.upgrade(alembic_config(seed_engine), FIXTURE_HEAD)
+    with seed_engine.begin() as connection:
         account_id = make_account(connection, "company-backfill@kivou.test", "Backfill")
         icp_id = make_icp(connection, account_id)
         signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
@@ -91,7 +96,9 @@ def test_company_migration_backfills_the_index_for_existing_signals(tmp_path) ->
             )
         )
 
-    command.downgrade(config, PREVIOUS)
+    command.upgrade(config, PREVIOUS)
+    copy_synthetic_rows_to_historical_schema(seed_engine, engine)
+    seed_engine.dispose()
     assert "company_identity_fingerprint" not in {
         column["name"] for column in sa.inspect(engine).get_columns(materialized_signal.name)
     }
@@ -103,3 +110,68 @@ def test_company_migration_backfills_the_index_for_existing_signals(tmp_path) ->
                 materialized_signal.c.signal_key == signal.signal_key
             )
         )
+
+
+def test_historical_company_backfill_keeps_siret_only_unresolved_without_future_cache(
+    tmp_path, monkeypatch
+):
+    from signals.companies import indexing
+
+    seed_engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'seed-siret.db'}")
+    command.upgrade(alembic_config(seed_engine), FIXTURE_HEAD)
+    with seed_engine.begin() as connection:
+        account_id = make_account(connection, "siret-only@kivou.test", "Historical")
+        icp_id = make_icp(connection, account_id)
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == signal.signal_key)
+            .values(
+                winner_name="12345678900011",
+                winner_identifier_scheme="SIRET",
+                winner_identifier_value="12345678900011",
+                winner_country="FR",
+            )
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == signal.materialization_award_key)
+            .values(
+                awardee_parties=[
+                    {
+                        "members": [
+                            {
+                                "organization": {
+                                    "legal_name": "12345678900011",
+                                    "country": "FR",
+                                    "identifiers": [{"scheme": "SIRET", "value": "12345678900011"}],
+                                }
+                            }
+                        ]
+                    }
+                ]
+            )
+        )
+    historical = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'historical-siret.db'}")
+    config = alembic_config(historical)
+    command.upgrade(config, PREVIOUS)
+    copy_synthetic_rows_to_historical_schema(seed_engine, historical)
+    seed_engine.dispose()
+
+    def forbidden_runtime_reader(*args, **kwargs):
+        raise AssertionError("historical backfill must not depend on the current runtime reader")
+
+    monkeypatch.setattr(indexing, "index_signal_company_identities", forbidden_runtime_reader)
+    command.upgrade(config, HEAD)
+    assert "client_location" not in {
+        column["name"] for column in sa.inspect(historical).get_columns("contract_award")
+    }
+    assert "official_source" not in {
+        column["name"] for column in sa.inspect(historical).get_columns("saas_company")
+    }
+    with historical.begin() as connection:
+        assert indexing.backfill_signal_company_identities(connection) == 1
+        assert (
+            connection.scalar(sa.select(materialized_signal.c.company_identity_fingerprint)) is None
+        )
+    historical.dispose()

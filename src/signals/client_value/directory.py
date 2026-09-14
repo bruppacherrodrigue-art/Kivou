@@ -5,14 +5,17 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
+from urllib.parse import urlsplit
 
 import sqlalchemy as sa
+from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from signals.accounts.schema import target_icp
 from signals.companies.contracts import safe_https_url
 from signals.domain.french_departments import DEPARTMENTS
 from signals.feed.text import normalize_text
 from signals.persistence.schema import supplier_directory
+from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
     SupplierFamily,
     load_supplier_family_catalog,
@@ -29,17 +32,7 @@ _TRADE_VERTICALS = {
     "equipment_hire": "equipment_hire",
 }
 
-_GENERIC_MAILBOXES = frozenset(
-    {
-        "accueil",
-        "bonjour",
-        "commercial",
-        "contact",
-        "info",
-        "secretariat",
-        "service-client",
-    }
-)
+_EMAIL = TypeAdapter(EmailStr)
 
 
 def _normalized_name(value: str | None) -> str:
@@ -75,15 +68,66 @@ def _safe_website(value: str | None) -> str | None:
         return None
 
 
-def _published_generic_email(row: Mapping[str, Any]) -> tuple[str, str] | None:
-    """Return only a clearly generic mailbox observed on its own public site."""
+def published_email_evidence(row: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Publish an observed mailbox, without inferring its owner or deliverability.
 
-    email = row["professional_email"]
-    evidence_url = _safe_website(row["email_evidence_url"])
-    if not isinstance(email, str) or not evidence_url or row["email_source"] != "site":
+    ``site`` describes direct publication provenance (also used by the public
+    catalogue mirror). Model discoveries additionally need retained page proof.
+    A partial trade-family decision does not revoke independently proven email.
+    """
+    if row.get("suppressed_at") is not None or row.get("email_source") not in {"site", "model"}:
         return None
-    local, separator, _domain = email.casefold().partition("@")
-    if not separator or local not in _GENERIC_MAILBOXES:
+    try:
+        email = str(_EMAIL.validate_python(row.get("professional_email")))
+    except ValidationError:
+        return None
+    evidence_url = _safe_website(row.get("email_evidence_url"))
+    website = _safe_website(row.get("website_url"))
+    if not evidence_url or not website:
+        return None
+    host = lambda url: (urlsplit(url).hostname or "").casefold().removeprefix("www.").rstrip(".")
+    own_host = host(website)
+    if host(evidence_url) != own_host:
+        return None
+    domain = row.get("domain")
+    if domain and str(domain).casefold().removeprefix("www.").rstrip(".") != own_host:
+        return None
+    if row.get("email_source") == "model":
+        if is_placeholder_email(email):
+            return None
+        evidence = row.get("enrichment_evidence")
+        pages = evidence.get("candidate_pages", ()) if isinstance(evidence, dict) else ()
+        if not isinstance(pages, (list, tuple)):
+            return None
+        for page in pages:
+            if not isinstance(page, dict) or page.get("url") != evidence_url:
+                continue
+            status = page.get("status_code")
+            if not isinstance(status, int) or not 200 <= status < 400:
+                continue
+            published = page.get("published_emails") or ()
+            if isinstance(published, (list, tuple)) and email.casefold() in {
+                value.casefold() for value in published if isinstance(value, str)
+            }:
+                return email, evidence_url
+            text = str(page.get("text") or "").casefold()
+            for source, replacement in (
+                ("[at]", "@"),
+                ("(at)", "@"),
+                (" at ", "@"),
+                ("[dot]", "."),
+                ("(dot)", "."),
+                (" dot ", "."),
+                ("[arrobase]", "@"),
+                ("[point]", "."),
+            ):
+                text = text.replace(source, replacement)
+            text = re.sub(r"\s*([@.])\s*", r"\1", text)
+            if re.search(
+                r"(?<![\w.!#$%&'*+/=?^`{|}~@-])" + re.escape(email.casefold()) + r"(?![\w@.-])",
+                text,
+            ):
+                return email, evidence_url
         return None
     return email, evidence_url
 
@@ -98,9 +142,19 @@ def _person_name(value: str) -> str:
     return " ".join(without_parentheses.split()).title()
 
 
-def _clean_directors(
-    value: object, *, preferred_name: str | None = None
-) -> list[dict[str, str]]:
+def _director_role(value: str) -> str:
+    formatted = value.strip().capitalize()
+    for acronym in ("sas", "sarl", "sa", "scop", "selarl"):
+        formatted = re.sub(
+            rf"\b{acronym}\b",
+            acronym.upper(),
+            formatted,
+            flags=re.IGNORECASE,
+        )
+    return formatted
+
+
+def _clean_directors(value: object, *, preferred_name: str | None = None) -> list[dict[str, str]]:
     if not isinstance(value, list):
         return []
     result: list[dict[str, str]] = []
@@ -126,7 +180,7 @@ def _clean_directors(
         director = {"name": client_name}
         title = entry.get("title")
         if isinstance(title, str) and title.strip():
-            director["title"] = title.strip().capitalize()
+            director["title"] = _director_role(title)
         result.append(director)
     return result
 
@@ -159,7 +213,7 @@ def _company_view(
         "department_label": DEPARTMENTS.get(row["department"]),
         "city": row["city"],
         "employees": row["employees"],
-        "website_url": _safe_website(row["website_url"]),
+        "website_url": None if matched_by_name else _safe_website(row["website_url"]),
     }
     result.update({key: value for key, value in optional.items() if value is not None})
     if result.get("website_url") and row["domain_source"]:
@@ -168,16 +222,12 @@ def _company_view(
         result["website_observed_at"] = row["domain_observed_at"].isoformat()
     if family_labels:
         result["family_labels"] = family_labels
-    if row["suppressed_at"] is None:
-        directors = _clean_directors(
-            row["directors"], preferred_name=row["director_display_name"]
-        )
+    if row["suppressed_at"] is None and not matched_by_name:
+        directors = _clean_directors(row["directors"], preferred_name=row["director_display_name"])
         if directors:
             result["directors"] = directors
             if row["directors_observed_at"]:
-                result["directors_observed_at"] = row[
-                    "directors_observed_at"
-                ].isoformat()
+                result["directors_observed_at"] = row["directors_observed_at"].isoformat()
         if include_public_contact:
             display_name = row["director_display_name"]
             if display_name:
@@ -191,14 +241,12 @@ def _company_view(
                     result["phone_source"] = row["phone_source"]
                 if row["phone_observed_at"]:
                     result["phone_observed_at"] = row["phone_observed_at"].isoformat()
-            published_email = _published_generic_email(row)
+            published_email = published_email_evidence(row)
             if published_email is not None:
                 result["published_email"] = published_email[0]
                 result["published_email_source_url"] = published_email[1]
                 if row["email_observed_at"]:
-                    result["published_email_observed_at"] = row[
-                        "email_observed_at"
-                    ].isoformat()
+                    result["published_email_observed_at"] = row["email_observed_at"].isoformat()
             if row["enrichment_observed_at"]:
                 result["contact_observed_at"] = row["enrichment_observed_at"].isoformat()
     if include_public_contact and row["legal_name_observed_at"]:
@@ -232,6 +280,7 @@ def directory_company(
                 matched_by_name=False,
                 include_public_contact=include_public_contact,
             )
+        return None
 
     wanted_name = _normalized_name(legal_name)
     if not wanted_name or not department:

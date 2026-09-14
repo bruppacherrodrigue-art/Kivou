@@ -7,6 +7,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.accounts.schema import account
 from signals.engagement.schema import signal_alert_delivery
@@ -21,15 +22,12 @@ PREVIOUS = "0022_saas_company_profile"
 #: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0024,
 #: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0023_transactional_email_runtime"
-CURRENT_HEAD = "0058_model_call_budget"
 LEASE_TABLE = "signal_alert_job_lease"
 NOW = dt.datetime(2026, 8, 23, 10, 0, tzinfo=dt.UTC)
 
 
 def sqlite_engine(tmp_path: pathlib.Path):
-    return create_database_engine(
-        f"sqlite+pysqlite:///{tmp_path / 'transactional-email.db'}"
-    )
+    return create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'transactional-email.db'}")
 
 
 def require_revision(config) -> None:
@@ -38,9 +36,7 @@ def require_revision(config) -> None:
         pytest.fail(f"la migration {HEAD} n'existe pas encore")
 
 
-def seeded_previous_schema(
-    tmp_path: pathlib.Path, *, status: str, error: str | None = None
-):
+def seeded_previous_schema(tmp_path: pathlib.Path, *, status: str, error: str | None = None):
     engine = sqlite_engine(tmp_path)
     config = alembic_config(engine)
     command.upgrade(config, PREVIOUS)
@@ -86,9 +82,7 @@ def read_delivery(engine):
 
 def read_status(engine) -> str:
     with engine.connect() as connection:
-        return connection.execute(
-            sa.text("SELECT status FROM signal_alert_delivery")
-        ).scalar_one()
+        return connection.execute(sa.text("SELECT status FROM signal_alert_delivery")).scalar_one()
 
 
 def test_transactional_email_migration_is_the_single_additive_head(tmp_path) -> None:
@@ -119,9 +113,7 @@ def test_migrated_schema_matches_declared_delivery_runtime_schema(tmp_path) -> N
         migrated_columns = {
             column["name"] for column in sa.inspect(migrated).get_columns(table_name)
         }
-        declared_columns = {
-            column["name"] for column in sa.inspect(core).get_columns(table_name)
-        }
+        declared_columns = {column["name"] for column in sa.inspect(core).get_columns(table_name)}
         if table_name == signal_alert_delivery.name:
             declared_columns.remove("recipient_context_fingerprint")
         assert migrated_columns == declared_columns

@@ -41,6 +41,7 @@ from signals.accounts import service
 from signals.api.cards import presentation_bindings_for_items, render_unlocked_card
 from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
+from signals.api.notice_projection import project_notice_facts
 from signals.billing import discovery, paywall
 from signals.billing import service as billing
 from signals.billing.access import (
@@ -56,8 +57,11 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.client_value.company_contacts import suppressed_notice_sirens
 from signals.client_value.directory import local_circuit
 from signals.client_value.history import department_for_place, history_for_company
+from signals.client_value.notice_facts import load_award_notice_facts
+from signals.client_value.targeting import context_fingerprint, resolve_scope
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.service import (
@@ -67,8 +71,10 @@ from signals.engagement import analytics, feedback
 from signals.engagement.status import (
     DEFAULT_LISTING_STATUSES,
     UNIFIED_STATUSES,
+    get_workflow,
     status_resolver,
     unified_status,
+    workflow_by_signal,
 )
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
@@ -111,6 +117,9 @@ def list_signals(
     view_mode: Annotated[SignalView, Query(alias="view")] = "recent",
     freshness: Freshness = policy.DEFAULT_FRESHNESS,
     target_icp_id: str | None = None,
+    offer_category: str | None = None,
+    amount_currency: Literal["EUR", "CHF"] | None = None,
+    sort: Literal["recent", "amount"] = "recent",
     primary_event: PrimaryEvent | None = None,
     country: str | None = Query(default=None, min_length=2, max_length=2),
     subdivision_code: str | None = Query(
@@ -159,9 +168,7 @@ def list_signals(
         else:
             raise api_error(422, "invalid_status", f"statut inconnu : {value!r}")
     if len(set(legacy_recency_values)) > 1:
-        raise api_error(
-            422, "invalid_status", "un seul statut de récence est admis par requête"
-        )
+        raise api_error(422, "invalid_status", "un seul statut de récence est admis par requête")
     if legacy_recency_values:
         legacy_recency_status = legacy_recency_values[0]
         if recency_status is not None and recency_status != legacy_recency_status:
@@ -250,11 +257,41 @@ def list_signals(
                 limit=access.entitlements.max_active_icps,
             )
         )
+        consultation = resolve_scope(
+            connection,
+            account_id=session.account_id,
+            entitlements=access.entitlements,
+            allowed_target_icp_ids=allowed,
+            target_icp_id=target_icp_id,
+            offer_category=offer_category,
+            subdivision_code=subdivision_code,
+            min_amount=min_amount,
+            amount_currency=amount_currency,
+            query_parameters=request.query_params,
+        )
+        cursor_context = context_fingerprint(
+            {
+                "scope": consultation.context_tag,
+                "view": view_mode,
+                "freshness": freshness,
+                "primary_event": primary_event,
+                "country": country,
+                "recency_status": recency_status,
+                "cpv_prefix": cpv_prefix,
+                "date_from": effective_date_from,
+                "date_to": effective_date_to,
+                "q": q,
+                "winner": winner,
+                "statuses": sorted(statuses),
+                "sort": sort,
+            }
+        )
         access = _grant_discovery(connection, session.account_id, access, allowed, now)
         # §2 — une lecture groupée par requête ; le statut de chaque signal se
         # dérive de là, jamais d'un aller-retour en base par carte.
+        workflows = workflow_by_signal(connection, account_id=session.account_id)
         resolve_status = status_resolver(
-            feedback.feedback_by_signal(connection, account_id=session.account_id)
+            feedback.feedback_by_signal(connection, account_id=session.account_id), workflows
         )
         try:
             if view_mode == "history":
@@ -278,6 +315,9 @@ def list_signals(
                     cursor=cursor,
                     status_of=resolve_status,
                     statuses=statuses,
+                    consultation_scope=consultation,
+                    sort=sort,
+                    context_tag=cursor_context,
                 )
             else:
                 page = query.feed_page(
@@ -300,6 +340,8 @@ def list_signals(
                     offset=offset,
                     status_of=resolve_status,
                     statuses=statuses,
+                    consultation_scope=consultation,
+                    sort=sort,
                 )
         except query.ForeignTargetIcp as error:
             # Le profil d'un autre compte se comporte comme un profil inexistant.
@@ -365,29 +407,33 @@ def list_signals(
         }
     )
     return {
+        "scope": consultation.payload(),
         "items": [
-            _render(
-                item,
-                access,
-                lang=lang,
-                presentation=presentations.get(item.signal.signal_key),
-                company_key=company_keys.get(item.signal.signal_key),
-                enrichment=enrichments.get(item.signal.signal_key),
-                status=resolve_status(item.signal.signal_key),
-                generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
-                commercial_start_delay_months_by_cpv_prefix=(
-                    request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+            {
+                **_render(
+                    item,
+                    access,
+                    lang=lang,
+                    presentation=presentations.get(item.signal.signal_key),
+                    company_key=company_keys.get(item.signal.signal_key),
+                    enrichment=enrichments.get(item.signal.signal_key),
+                    status=resolve_status(item.signal.signal_key),
+                    generated_for_you_enabled=request.app.state.config.generated_for_you_enabled,
+                    commercial_start_delay_months_by_cpv_prefix=(
+                        request.app.state.config.commercial_start_delay_months_by_cpv_prefix
+                    ),
                 ),
-            )
+                "status_revision": workflows[item.signal.signal_key].revision
+                if item.signal.signal_key in workflows
+                else 0,
+            }
             for item in page.items
         ],
         "total_returned": len(page.items),
         "page": page_payload,
         "excluded": {
             "without_display_name": page.excluded_without_display_name,
-            "by_freshness": (
-                0 if view_mode == "history" else page.excluded_by_freshness
-            ),
+            "by_freshness": (0 if view_mode == "history" else page.excluded_by_freshness),
             # PR2b tâche 3 — `feed_page` compte désormais lui aussi ce que
             # `subdivision_code`/`q` écartent, exactement comme l'historique.
             "by_filters": page.excluded_by_filters,
@@ -405,9 +451,6 @@ def list_signals(
         "view": view_mode,
         "language": lang,
         "plan_code": access.plan_code,
-        "signals_companies_v2_enabled": (
-            request.app.state.config.signals_companies_v2_enabled
-        ),
         "provisional_profile": provisional_profile,
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
@@ -492,9 +535,7 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
         allowed_target_icp_ids=allowed,
         limit=policy.MAXIMUM_PAGE_SIZE,
     )
-    candidates = [
-        item for item in eligible.items if (item.signal.award.title or "").strip()
-    ]
+    candidates = [item for item in eligible.items if (item.signal.award.title or "").strip()]
     granted = discovery.grant_up_to_limit(
         connection, account_id=account_id, candidates=candidates, now=now
     )
@@ -507,6 +548,11 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
 def get_signal(
     signal_key: str,
     request: Request,
+    target_icp_id: str | None = None,
+    offer_category: str | None = None,
+    subdivision_code: str | None = None,
+    amount_currency: Literal["EUR", "CHF"] | None = None,
+    min_amount: Decimal | None = Query(default=None, ge=0),  # noqa: B008
     presentation_artifact_id: str | None = Query(
         default=None,
         min_length=64,
@@ -523,6 +569,7 @@ def get_signal(
     enrichment = None
     presentation = None
     holder_history = None
+    notice_facts = None
     circuit = ()
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
@@ -548,6 +595,21 @@ def get_signal(
             as_of=as_of,
             allowed_target_icp_ids=allowed,
         )
+        consultation = resolve_scope(
+            connection,
+            account_id=session.account_id,
+            entitlements=access.entitlements,
+            allowed_target_icp_ids=allowed,
+            target_icp_id=target_icp_id,
+            offer_category=offer_category,
+            subdivision_code=subdivision_code,
+            min_amount=min_amount,
+            amount_currency=amount_currency,
+            query_parameters=request.query_params,
+        )
+        # Consultation filters describe the return view, not signal authority.
+        # A known link from a company/history remains readable under the same
+        # account and plan checks even when it is outside the current filters.
         if item is not None:
             # §34 — la tentative sur un signal verrouillé est enregistrée aussi,
             # avec `access_granted` : c'est elle qui mesure l'appétit derrière
@@ -567,7 +629,18 @@ def get_signal(
             interaction = feedback.get_feedback(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
+            workflow = get_workflow(
+                connection, account_id=session.account_id, signal_key=signal_key
+            )
             if unlocked:
+                persisted_facts = load_award_notice_facts(
+                    connection, item.signal.materialization_award_key
+                )
+                if persisted_facts is not None:
+                    notice_facts = project_notice_facts(
+                        persisted_facts, entitlements=access.entitlements,
+                        suppressed_sirens=suppressed_notice_sirens(connection, (persisted_facts,)),
+                    )
                 if signal_key in service.landing_signal_keys(
                     connection, account_id=session.account_id
                 ):
@@ -608,22 +681,29 @@ def get_signal(
                     winner_name=(
                         enrichment.official_name
                         if enrichment is not None and enrichment.official_name is not None
-                        else item.display.name if item.display is not None else None
+                        else item.display.name
+                        if item.display is not None
+                        else None
                     ),
-                    department=department_for_place(item.signal.award.place_of_performance),
+                    department=department_for_place(
+                        item.signal.award.client_location or item.signal.award.place_of_performance
+                    ),
                     as_of=as_of,
                 )
-                place = item.signal.award.place_of_performance or {}
+                client_place = (
+                    item.signal.award.client_location or item.signal.award.place_of_performance
+                )
+                place = client_place or {}
                 circuit = local_circuit(
                     connection,
                     target_icp_id=item.signal.target_icp_id,
-                    department=department_for_place(item.signal.award.place_of_performance),
+                    department=department_for_place(client_place),
                     city=place.get("locality"),
                 )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
-    status = unified_status(interaction)
+    status = unified_status(interaction, workflow)
     if not access.is_unlocked(item):
         # Le compte POSSÈDE ce signal : répondre 404 confondrait « pas à vous »
         # et « pas encore accessible », et empêcherait de dire ce que le
@@ -636,6 +716,7 @@ def get_signal(
         )
         locked["read_at"] = as_of.isoformat()
         locked["language"] = lang
+        locked["scope"] = consultation.payload()
         return locked
 
     detail = view.signal_detail(
@@ -651,6 +732,11 @@ def get_signal(
     detail["language"] = lang
     detail["locked"] = False
     detail["status"] = status
+    detail["status_revision"] = workflow.revision if workflow else 0
+    detail["scope"] = consultation.payload()
+    detail["outside_consultation_scope"] = not consultation.matches(item.signal)
+    if notice_facts is not None:
+        detail["notice_facts"] = notice_facts
     if company_key is not None:
         detail["company_key"] = company_key
     if enrichment is not None:
@@ -665,6 +751,19 @@ def get_signal(
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.
     detail["interaction"] = _interaction(interaction)
+    # A bookmarked signal from another target stays accessible, without
+    # attaching the current profile's commercial rationale to it.
+    if consultation.target_icp_id in (None, item.signal.target_icp_id):
+        from signals.api.commercial_context import commercial_context
+
+        context = commercial_context(
+            detail,
+            offers=consultation.offer_categories,
+            selected_offer=consultation.offer_category,
+            lang=lang,
+        )
+        if context is not None:
+            detail["commercial_context"] = context
     return detail
 
 

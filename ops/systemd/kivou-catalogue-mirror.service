@@ -1,0 +1,29 @@
+[Unit]
+Description=Kivou public company catalogue mirror (staging only)
+After=network-online.target postgresql.service
+Wants=network-online.target
+ConditionPathExists=/etc/kivou/catalogue-mirror.env
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+EnvironmentFile=/etc/kivou/catalogue-mirror.env
+Environment=KIVOU_ACQUISITION_ENVIRONMENT=STAGING
+ExecStart=/srv/kivou/app/.venv/bin/python -m signals.supplier_directory.catalogue_worker --apply
+TimeoutStartSec=120
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true

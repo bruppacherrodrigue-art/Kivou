@@ -3,13 +3,13 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.persistence.schema import METADATA, acquisition_event, acquisition_opportunity
 
 PREVIOUS_REVISION = "0006_award_text_capacity"
 ACQUISITION_REVISION = "0007_acquisition_event_store"
-CURRENT_HEAD = "0058_model_call_budget"
 
 
 def test_upgrade_from_0006_adds_only_acquisition_memory_tables(tmp_path) -> None:
@@ -100,9 +100,7 @@ def test_postgresql_offline_migration_creates_only_the_two_acquisition_tables(
     capsys,
 ) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
 
     command.upgrade(config, f"{PREVIOUS_REVISION}:{ACQUISITION_REVISION}", sql=True)
 

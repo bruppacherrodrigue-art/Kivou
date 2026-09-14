@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.persistence.schema import (
@@ -13,7 +14,8 @@ from signals.persistence.schema import (
 PREVIOUS = "0013_personalization"
 #: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
 COMPLIANCE = "0014_compliance"
-CURRENT_HEAD = "0058_model_call_budget"
+# The historical roundtrip stays before the irreversible prospecting archive.
+FIXTURE_HEAD = "0058_client_location"
 
 
 def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -71,14 +73,14 @@ def test_compliance_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'roundtrip.db'}")
     config = alembic_config(engine)
     command.upgrade(config, PREVIOUS)
-    command.upgrade(config, CURRENT_HEAD)
+    command.upgrade(config, FIXTURE_HEAD)
 
     inspector = sa.inspect(engine)
     for table in (acquisition_contact_suppression, acquisition_compliance_assessment):
         assert {column["name"] for column in inspector.get_columns(table.name)} == {
             column.name for column in table.columns
         }
-    assert current_revision(engine) == CURRENT_HEAD
+    assert current_revision(engine) == FIXTURE_HEAD
     assert {
         item["name"]
         for item in inspector.get_check_constraints(acquisition_contact_suppression.name)
@@ -102,12 +104,11 @@ def test_compliance_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
         item["name"] for item in inspector.get_indexes(acquisition_contact_suppression.name)
     } == {"ix_contact_suppression_identity"}
     assert {
-        item["name"]
-        for item in inspector.get_indexes(acquisition_compliance_assessment.name)
+        item["name"] for item in inspector.get_indexes(acquisition_compliance_assessment.name)
     } == {"ix_compliance_assessment_opportunity_time"}
-    assert {
-        index.name for index in acquisition_compliance_assessment.indexes
-    } == {"ix_compliance_assessment_opportunity_time"}
+    assert {index.name for index in acquisition_compliance_assessment.indexes} == {
+        "ix_compliance_assessment_opportunity_time"
+    }
 
     command.downgrade(config, PREVIOUS)
     names = set(sa.inspect(engine).get_table_names())
@@ -115,8 +116,8 @@ def test_compliance_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
     assert acquisition_compliance_assessment.name not in names
     assert current_revision(engine) == PREVIOUS
 
-    command.upgrade(config, CURRENT_HEAD)
-    assert current_revision(engine) == CURRENT_HEAD
+    command.upgrade(config, FIXTURE_HEAD)
+    assert current_revision(engine) == FIXTURE_HEAD
 
 
 def test_compliance_postgresql_offline_sql_has_exactly_two_tables_and_index(capsys) -> None:

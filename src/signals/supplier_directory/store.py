@@ -207,13 +207,19 @@ class SupplierDirectoryStore:
         employees: int | None,
         observed_at: dt.datetime,
         naf_label: str | None = None,
+        preserve_known_fields: bool = False,
     ) -> SupplierDirectoryRecord:
         _require_aware(observed_at)
         with self._engine.begin() as connection:
-            current = (
+            if preserve_known_fields and connection.dialect.name == "sqlite":
                 connection.execute(
-                    sa.select(supplier_directory).where(supplier_directory.c.siren == siren)
+                    sa.update(supplier_directory).where(sa.false()).values(updated_at=observed_at)
                 )
+            statement = sa.select(supplier_directory).where(supplier_directory.c.siren == siren)
+            if preserve_known_fields:
+                statement = statement.with_for_update()
+            current = (
+                connection.execute(statement)
                 .mappings()
                 .one_or_none()
             )
@@ -258,6 +264,31 @@ class SupplierDirectoryStore:
                 "employees_observed_at": observed_at if employees is not None else None,
                 "updated_at": observed_at,
             }
+            if preserve_known_fields and current is not None:
+                for field, date in (
+                    ("naf_code", "naf_observed_at"),
+                    ("naf_label", "naf_label_observed_at"),
+                    ("department", "department_observed_at"),
+                    ("city", "city_observed_at"),
+                    ("employees", "employees_observed_at"),
+                ):
+                    # Do not associate an old activity label with a new NAF code.
+                    if field == "naf_label" and naf_code and naf_code != current["naf_code"]:
+                        continue
+                    if values[field] is None or values[field] == "":
+                        values[field] = supplier_directory.c[field]
+                        values[date] = supplier_directory.c[date]
+                if current["family_keys"] and (
+                    current["family_confirmation_status"] == "confirmed"
+                    or existing_family_is_fresh
+                    or not family_key
+                ):
+                    # Register refreshes cannot renew or revoke model evidence.
+                    for field in (
+                        "family_keys", "family_source", "family_confidence",
+                        "family_confirmation_status", "families_observed_at",
+                    ):
+                        values[field] = supplier_directory.c[field]
             if current is None:
                 connection.execute(
                     sa.insert(supplier_directory).values(
@@ -655,9 +686,12 @@ class SupplierDirectoryStore:
         reverification_reason: str | None,
         observed_at: dt.datetime,
     ) -> bool:
-        """Replace every model-judged field in one atomic directory write."""
+        """Persist a pass without erasing known facts when evidence is missing."""
+
+        from signals.client_value.capabilities import usable_phone
 
         _require_aware(observed_at)
+        phone = usable_phone(phone)
         bounded_directors: list[dict[str, str]] = []
         for item in directors[:20]:
             if not item.get("name"):
@@ -723,7 +757,57 @@ class SupplierDirectoryStore:
             "website_next_retry_at": None,
             "website_unreachable_at": None,
         }
-        return self._update(siren, values, observed_at, skip_if_suppressed=True)
+        previous_domain = sa.func.lower(sa.func.rtrim(supplier_directory.c.domain, "."))
+        normalized_domain = sa.case(
+            (previous_domain.like("www.%"), sa.func.substr(previous_domain, 5)),
+            else_=previous_domain,
+        )
+        unchanged_domain = (
+            sa.true() if website is None
+            else normalized_domain == website.casefold().removeprefix("www.").rstrip(".")
+        )
+        # A public-data refresh does not revoke a verified provider binding
+        # unless it establishes a different website identity. Database triggers
+        # still invalidate private caches when a binding really changes.
+        for key in ("apollo_organization_id", "apollo_status", "apollo_observed_at"):
+            values[key] = sa.case((unchanged_domain, supplier_directory.c[key]), else_=None)
+        if website is None:
+            for key in (
+                "domain", "website_url", "website_title", "website_title_observed_at",
+                "domain_source", "domain_confidence", "domain_validation_method",
+                "domain_validation_evidence_url", "domain_observed_at",
+            ):
+                values[key] = supplier_directory.c[key]
+        if email is None:
+            for key in (
+                "professional_email", "email_source", "email_confidence",
+                "email_verification_status", "email_contact_name", "email_contact_title",
+                "email_evidence_url", "email_observed_at",
+            ):
+                values[key] = sa.case((unchanged_domain, supplier_directory.c[key]), else_=None)
+        if phone is None:
+            for key in ("phone", "phone_source", "phone_observed_at"):
+                values[key] = supplier_directory.c[key]
+        if not bounded_directors:
+            for key in ("directors", "directors_observed_at"):
+                values[key] = supplier_directory.c[key]
+        if director_display_name is None:
+            for key in ("director_display_name", "director_source", "director_observed_at"):
+                values[key] = supplier_directory.c[key]
+        if not family_confirmed:
+            for key in (
+                "family_keys", "family_source", "family_confidence",
+                "family_confirmation_status", "families_observed_at",
+            ):
+                values[key] = sa.case(
+                    (supplier_directory.c.family_confirmation_status == "confirmed",
+                     supplier_directory.c[key]),
+                    else_=sa.literal(values[key], type_=supplier_directory.c[key].type),
+                )
+        return self._update(
+            siren, values, observed_at, skip_if_suppressed=True,
+            preserve_published_email=email is None,
+        )
 
     def fresh_directors(self, siren: str, *, at: dt.datetime) -> SupplierDirectoryRecord | None:
         record = self.get(siren)
@@ -773,9 +857,29 @@ class SupplierDirectoryStore:
         observed_at: dt.datetime,
         *,
         skip_if_suppressed: bool = False,
+        preserve_published_email: bool = False,
     ) -> bool:
         _require_aware(observed_at)
         with self._engine.begin() as connection:
+            if preserve_published_email:
+                # Keep field-level publication provenance before replacing the
+                # model packet. Only an already verified public observation can
+                # become a site-sourced field; never promote an inferred email.
+                from signals.client_value.directory import published_email_evidence
+
+                if connection.dialect.name == "sqlite":
+                    connection.execute(sa.update(supplier_directory).where(sa.false())
+                                       .values(updated_at=observed_at))
+                previous = connection.execute(
+                    sa.select(supplier_directory).where(supplier_directory.c.siren == siren)
+                    .with_for_update()
+                ).mappings().one_or_none()
+                if (previous is not None and previous["email_source"] == "model"
+                        and published_email_evidence(previous) is not None):
+                    kept_source = values["email_source"]
+                    values["email_source"] = sa.case(
+                        (kept_source == "model", "site"), else_=kept_source,
+                    )
             predicate = supplier_directory.c.siren == siren
             if skip_if_suppressed:
                 predicate = sa.and_(predicate, supplier_directory.c.suppressed_at.is_(None))

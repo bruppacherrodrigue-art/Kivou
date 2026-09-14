@@ -135,9 +135,7 @@ def get_feedback(
     return None if row is None else _row(row)
 
 
-def feedback_by_signal(
-    connection: sa.Connection, *, account_id: str
-) -> dict[str, StoredFeedback]:
+def feedback_by_signal(connection: sa.Connection, *, account_id: str) -> dict[str, StoredFeedback]:
     """Toutes les lignes de retour du compte, indexées par signal — une requête.
 
     Le statut unifié (`engagement.status`) se dérive par signal ; le lire un
@@ -161,7 +159,7 @@ class SignalContext:
     event_age_days: int | None
 
 
-def put_feedback(
+def _put_feedback(
     connection: sa.Connection,
     *,
     account_id: str,
@@ -235,7 +233,7 @@ def put_feedback(
     return get_feedback(connection, account_id=account_id, signal_key=context.signal_key)
 
 
-def mark_contacted(
+def _mark_contacted(
     connection: sa.Connection,
     *,
     account_id: str,
@@ -300,6 +298,36 @@ def mark_contacted(
         },
     )
     return get_feedback(connection, account_id=account_id, signal_key=context.signal_key), True
+
+
+def put_feedback(
+    connection, *, account_id, context, relevance, reason_code, note, now, user_id=None
+):
+    """Legacy feedback shares the reversible workflow's transaction lock."""
+    from signals.engagement.status import record_feedback
+
+    return record_feedback(
+        connection,
+        account_id=account_id,
+        context=context,
+        relevance=relevance,
+        reason_code=reason_code,
+        note=note,
+        now=now,
+        user_id=user_id,
+    )
+
+
+def mark_contacted(connection, *, account_id, context, now, user_id=None):
+    from signals.engagement.status import record_contacted
+
+    return record_contacted(
+        connection,
+        account_id=account_id,
+        context=context,
+        now=now,
+        user_id=user_id,
+    )
 
 
 # ─── §31 — l'export d'apprentissage, interne et déterministe ──────────────────

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+import pytest
 import sqlalchemy as sa
 
 from signals.client_value.directory import directory_company, local_circuit
@@ -175,6 +176,7 @@ def test_directory_company_formats_the_published_director_for_the_client(tmp_pat
         phone_observed_at=NOW,
         email_evidence_url="https://example.test/contact",
         enrichment_observed_at=NOW,
+        professional_email="alice@alyabatiment.fr",
     )
     with db.begin() as connection:
         connection.execute(sa.insert(supplier_directory), value)
@@ -191,20 +193,20 @@ def test_directory_company_formats_the_published_director_for_the_client(tmp_pat
     assert result["directors_observed_at"] == NOW.replace(tzinfo=None).isoformat()
     assert result["director_display_name"] == "Mosbah Benzaoui"
     assert result["director_display_title"] == "Président"
-    assert "published_email" not in result
-    assert "published_email_source_url" not in result
+    assert result["published_email"] == "alice@alyabatiment.fr"
+    assert result["published_email_source_url"] == "https://example.test/contact"
     assert result["phone"] == "+33 4 74 00 00 00"
     assert result["phone_source"] == "model"
     assert result["phone_observed_at"] == NOW.replace(tzinfo=None).isoformat()
 
 
-def test_directory_company_exposes_only_a_generic_mailbox_published_on_the_site(
+def test_directory_company_exposes_a_generic_mailbox_published_on_the_site(
     tmp_path,
 ) -> None:
     db = engine(tmp_path)
     value = row("481153435", "ALYA BATIMENT")
     value.update(
-        professional_email="contact@example.test",
+        professional_email="contact@alyabatiment.fr",
         email_source="site",
         email_evidence_url="https://example.test/contact",
         email_observed_at=NOW,
@@ -220,9 +222,122 @@ def test_directory_company_exposes_only_a_generic_mailbox_published_on_the_site(
         )
 
     assert result is not None
-    assert result["published_email"] == "contact@example.test"
+    assert result["published_email"] == "contact@alyabatiment.fr"
     assert result["published_email_source_url"] == "https://example.test/contact"
     assert result["published_email_observed_at"] == NOW.replace(tzinfo=None).isoformat()
+
+
+@pytest.mark.parametrize("source", ["site", "model"])
+def test_directory_publishes_nominative_email_with_own_site_evidence(tmp_path, source):
+    db = engine(tmp_path)
+    value = row("481153435", "ALYA BATIMENT")
+    value.update(
+        domain="alyabatiment.fr",
+        website_url="https://alyabatiment.fr",
+        email_source=source,
+        professional_email="alice@alyabatiment.fr",
+        email_evidence_url="https://alyabatiment.fr/contact",
+        enrichment_evidence={
+            "candidate_pages": [
+                {
+                    "url": "https://alyabatiment.fr/contact",
+                    "status_code": 200,
+                    "published_emails": ["alice@alyabatiment.fr"],
+                    "text": "Contact",
+                }
+            ]
+        },
+        reverification_required_at=NOW,
+        reverification_reason="model_confidence_below_threshold",
+    )
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), value)
+        result = directory_company(
+            connection,
+            siren="481153435",
+            legal_name=None,
+            department=None,
+            include_public_contact=True,
+        )
+    assert result.get("published_email") == "alice@alyabatiment.fr"
+    assert result["published_email_source_url"] == "https://alyabatiment.fr/contact"
+    assert "email_contact_name" not in result
+
+
+@pytest.mark.parametrize("change", ["missing", "foreign", "substring", "suppressed"])
+def test_directory_rejects_unproven_model_email(tmp_path, change):
+    db = engine(tmp_path)
+    value = row("481153435", "ALYA BATIMENT")
+    value.update(
+        domain="alyabatiment.fr",
+        website_url="https://alyabatiment.fr",
+        email_source="model",
+        professional_email="alice@alyabatiment.fr",
+        email_evidence_url="https://alyabatiment.fr/contact",
+        enrichment_evidence={
+            "candidate_pages": [
+                {
+                    "url": "https://alyabatiment.fr/contact",
+                    "status_code": 200,
+                    "published_emails": [],
+                    "text": "malice@alyabatiment.fr",
+                }
+            ]
+        },
+    )
+    if change == "missing":
+        value["enrichment_evidence"] = {}
+    elif change == "foreign":
+        value["email_evidence_url"] = "https://foreign.test/contact"
+    elif change == "suppressed":
+        value["suppressed_at"] = NOW
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), value)
+        result = directory_company(
+            connection,
+            siren="481153435",
+            legal_name=None,
+            department=None,
+            include_public_contact=True,
+        )
+    assert "published_email" not in result
+
+
+def test_name_only_directory_candidate_never_transfers_contact_values(tmp_path):
+    db = engine(tmp_path)
+    value = row("481153435", "ALYA BATIMENT")
+    value.update(
+        phone="0144556677",
+        professional_email="contact@alyabatiment.fr",
+        email_evidence_url="https://example.test/contact",
+    )
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), value)
+        result = directory_company(
+            connection,
+            siren=None,
+            legal_name="ALYA BATIMENT",
+            department="38",
+            include_public_contact=True,
+        )
+    assert result["resolution_note"] == "rapprochement par nom"
+    assert not {"website_url", "phone", "published_email", "director_display_name"}.intersection(
+        result
+    )
+
+
+def test_known_different_siren_never_falls_back_to_same_company_name(tmp_path):
+    db = engine(tmp_path)
+    with db.begin() as connection:
+        connection.execute(sa.insert(supplier_directory), row("481153435", "ALYA BATIMENT"))
+        result = directory_company(
+            connection,
+            siren="562136036",
+            legal_name="ALYA BATIMENT",
+            department="38",
+            include_public_contact=True,
+        )
+    assert result is None
 
 
 def test_local_circuit_filters_the_profile_families_and_orders_proximity_then_size(
@@ -292,9 +407,11 @@ def test_local_circuit_is_empty_without_department_or_matching_profile_family(tm
         )
         connection.execute(sa.insert(supplier_directory), row("331364729", "ESCOLLE BETON"))
 
-        assert local_circuit(
-            connection, target_icp_id=target_icp_id, department=None, city="Grenoble"
-        ) == ()
-        assert local_circuit(
-            connection, target_icp_id=target_icp_id, department="38", city="Grenoble"
-        ) == ()
+        assert (
+            local_circuit(connection, target_icp_id=target_icp_id, department=None, city="Grenoble")
+            == ()
+        )
+        assert (
+            local_circuit(connection, target_icp_id=target_icp_id, department="38", city="Grenoble")
+            == ()
+        )

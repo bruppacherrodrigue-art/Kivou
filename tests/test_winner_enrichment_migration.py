@@ -10,6 +10,8 @@ import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
 from feed_helpers import make_account, make_icp, materialize_simap
+from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
+from migration_head_helpers import CURRENT_HEAD
 from sqlalchemy.exc import IntegrityError
 
 from signals.companies.schema import saas_company, winner_enrichment_job
@@ -24,7 +26,8 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
 LATEST = "0042_account_deletion"
-CURRENT_HEAD = "0058_model_call_budget"
+# Seed through the current materializer without entering irreversible 0059+.
+FIXTURE_HEAD = "0058_client_location"
 
 
 def _engine(path: pathlib.Path):
@@ -39,17 +42,14 @@ def test_migration_is_the_single_additive_head(tmp_path) -> None:
 
     command.upgrade(config, HEAD)
 
-    assert set(sa.inspect(engine).get_table_names()) - before == {
-        winner_enrichment_job.name
-    }
+    assert set(sa.inspect(engine).get_table_names()) - before == {winner_enrichment_job.name}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
-    assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
-        scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
-        == FRENCH_OFFICIAL_COMPANY
+        scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     )
+    assert scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision == FRENCH_OFFICIAL_COMPANY
     assert scripts.get_revision(FRENCH_OFFICIAL_COMPANY).down_revision == HEAD
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert (pathlib.Path(scripts.versions) / "0030_winner_enrichment.py").is_file()
@@ -75,12 +75,10 @@ def test_migration_roundtrip_matches_core_schema(tmp_path) -> None:
         "updated_at",
     }
     assert {
-        column["name"]
-        for column in sa.inspect(migrated).get_columns(winner_enrichment_job.name)
+        column["name"] for column in sa.inspect(migrated).get_columns(winner_enrichment_job.name)
     } == expected
     assert expected == {
-        column["name"]
-        for column in sa.inspect(core).get_columns(winner_enrichment_job.name)
+        column["name"] for column in sa.inspect(core).get_columns(winner_enrichment_job.name)
     }
 
     command.downgrade(config, PREVIOUS)
@@ -93,17 +91,14 @@ def test_migration_roundtrip_matches_core_schema(tmp_path) -> None:
 def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
     engine = _engine(tmp_path / "backfill.db")
     config = alembic_config(engine)
-    command.upgrade(config, HEAD)
+    seed_engine = _engine(tmp_path / "seed.db")
+    command.upgrade(alembic_config(seed_engine), FIXTURE_HEAD)
     observed_at = dt.datetime(2026, 8, 18, 9, 0, tzinfo=dt.UTC)
-    with engine.begin() as connection:
+    with seed_engine.begin() as connection:
         account_id = make_account(connection, "winner-migration@kivou.eu", "Winner")
         icp_id = make_icp(connection, account_id)
-        completed_signal = materialize_simap(
-            connection, "33112-02", target_icp_id=icp_id
-        )
-        pending_signal = materialize_simap(
-            connection, "29997-02", target_icp_id=icp_id
-        )
+        completed_signal = materialize_simap(connection, "33112-02", target_icp_id=icp_id)
+        pending_signal = materialize_simap(connection, "29997-02", target_icp_id=icp_id)
         connection.execute(
             sa.update(materialized_signal)
             .where(materialized_signal.c.signal_key == pending_signal.signal_key)
@@ -135,14 +130,13 @@ def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
             )
         )
 
-    command.downgrade(config, PREVIOUS)
+    command.upgrade(config, PREVIOUS)
+    copy_synthetic_rows_to_historical_schema(seed_engine, engine)
+    seed_engine.dispose()
     command.upgrade(config, HEAD)
 
     with engine.connect() as connection:
-        rows = {
-            row.signal_key: row
-            for row in connection.execute(sa.select(winner_enrichment_job))
-        }
+        rows = {row.signal_key: row for row in connection.execute(sa.select(winner_enrichment_job))}
     assert rows[completed_signal.signal_key].status == "completed"
     assert rows[completed_signal.signal_key].attempt_count == 1
     assert rows[completed_signal.signal_key].finished_at is not None
@@ -154,7 +148,7 @@ def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
 
 def test_database_rejects_an_impossible_state(tmp_path) -> None:
     engine = _engine(tmp_path / "constraints.db")
-    command.upgrade(alembic_config(engine), HEAD)
+    command.upgrade(alembic_config(engine), FIXTURE_HEAD)
     with engine.begin() as connection:
         account_id = make_account(connection, "winner-constraint@kivou.eu", "Winner")
         icp_id = make_icp(connection, account_id)

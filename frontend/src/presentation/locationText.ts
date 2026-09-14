@@ -26,5 +26,21 @@ export function normalCasePlace(value: string | null | undefined): string | null
 /** Les agrégats nationaux ne sont jamais présentés comme un lieu. */
 export function visiblePlaceName(value: string | null | undefined): string | null {
   const place = normalCasePlace(value)
-  return place && folded(place) !== 'territoire metropolitain' ? place : null
+  if (!place) return null
+  const candidate = folded(place)
+  if (new Set([
+    'territoire metropolitain',
+    'france metropolitaine',
+    'comm',
+    'commune',
+    'decp',
+    'dept',
+    'departement',
+    'reg',
+    'region',
+    'pays',
+  ]).has(candidate)) return null
+  if (candidate.includes('boamp') || candidate.includes('decp')) return null
+  if (/^(?:(?:[a-z]{2,4}[- ]?)?\d{2,8}|[a-z]{2}\d[a-z0-9]{2,5})$/i.test(place)) return null
+  return place
 }

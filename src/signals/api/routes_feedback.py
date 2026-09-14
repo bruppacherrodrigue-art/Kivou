@@ -27,9 +27,10 @@ from signals.api.dependencies import current_session, enforce_origin, request_no
 from signals.api.errors import api_error
 from signals.billing import service as billing_service
 from signals.billing.access import feed_access
+from signals.client_value.company_identity import resolve_company_subject
 from signals.companies.service import company_keys_for_signals
 from signals.engagement import company as company_engagement
-from signals.engagement import feedback
+from signals.engagement import feedback, status
 from signals.engagement.schema import MAXIMUM_NOTE_LENGTH
 from signals.feed import query as feed_query
 
@@ -141,6 +142,14 @@ def interaction_block(stored: feedback.StoredFeedback | None) -> dict[str, Any] 
     }
 
 
+def _workflow_response(connection, *, account_id, signal_key, stored):
+    workflow = status.get_workflow(connection, account_id=account_id, signal_key=signal_key)
+    return {
+        "status": status.unified_status(stored, workflow),
+        "revision": workflow.revision if workflow is not None else 0,
+    }
+
+
 @router.get("/signals/{signal_key}/feedback")
 def read_feedback(signal_key: str, request: Request) -> dict[str, Any]:
     now = request_now(request)
@@ -150,7 +159,13 @@ def read_feedback(signal_key: str, request: Request) -> dict[str, Any]:
         stored = feedback.get_feedback(
             connection, account_id=session.account_id, signal_key=signal_key
         )
-    return {"signal_id": signal_key, "interaction": interaction_block(stored)}
+        workflow = _workflow_response(
+            connection,
+            account_id=session.account_id,
+            signal_key=signal_key,
+            stored=stored,
+        )
+    return {"signal_id": signal_key, "interaction": interaction_block(stored), **workflow}
 
 
 @router.put("/signals/{signal_key}/feedback")
@@ -173,7 +188,13 @@ def write_feedback(signal_key: str, payload: FeedbackRequest, request: Request) 
             )
         except feedback.InvalidFeedback as error:
             raise api_error(422, error.code, str(error)) from error
-    return {"signal_id": signal_key, "interaction": interaction_block(stored)}
+        workflow = _workflow_response(
+            connection,
+            account_id=session.account_id,
+            signal_key=signal_key,
+            stored=stored,
+        )
+    return {"signal_id": signal_key, "interaction": interaction_block(stored), **workflow}
 
 
 @router.post("/signals/{signal_key}/contacted")
@@ -194,20 +215,30 @@ def mark_contacted(signal_key: str, request: Request) -> dict[str, Any]:
         if changed:
             # PR1 §4 — un signal contacté fait avancer SON entreprise, jamais
             # l'inverse : le contact d'entreprise ne touche pas ses signaux.
-            company_key = company_keys_for_signals(
-                connection, signal_keys=(signal_key,)
-            ).get(signal_key)
+            company_key = company_keys_for_signals(connection, signal_keys=(signal_key,)).get(
+                signal_key
+            )
             if company_key is not None:
+                subject = resolve_company_subject(
+                    connection, account_id=session.account_id, company_key=company_key, now=now
+                )
                 company_engagement.mark_contacted_if_pending(
                     connection,
                     account_id=session.account_id,
-                    company_key=company_key,
+                    company_key=subject.private_subject_key,
                     now=now,
                 )
+        workflow = _workflow_response(
+            connection,
+            account_id=session.account_id,
+            signal_key=signal_key,
+            stored=stored,
+        )
     return {
         "signal_id": signal_key,
         "interaction": interaction_block(stored),
         # `False` dit « c'était déjà enregistré » — utile au client, et sans
         # effet sur le décompte des actions commerciales.
         "recorded": changed,
+        **workflow,
     }

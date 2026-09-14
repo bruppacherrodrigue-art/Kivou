@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from signals.domain import OrganizationRef, Provenance, PublicEvent, TenderNotice
+from signals.domain import Location, OrganizationRef, Provenance, PublicEvent, TenderNotice
 
 DETAIL_URL = (
     "https://www.simap.ch/api/publications/v1/project/{project_id}"
@@ -46,6 +46,21 @@ def extract_tender(
                 legal_name=buyer_name,
                 country=address.get("countryId"),
                 website=_translated(address.get("url"), language),
+                location=(
+                    Location(
+                        country=address.get("countryId"),
+                        locality=_translated(address.get("city"), language),
+                        postal_code=address.get("postalCode"),
+                    )
+                    if any(
+                        (
+                            address.get("countryId"),
+                            _translated(address.get("city"), language),
+                            address.get("postalCode"),
+                        )
+                    )
+                    else None
+                ),
             ),
         )
         if buyer_name

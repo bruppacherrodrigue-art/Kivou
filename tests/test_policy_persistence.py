@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 from test_policy_gateway import NOW, grant, request, snapshot
 
 from signals.acquisition.contracts import EventType, OpportunityConcurrencyConflict
@@ -30,7 +31,6 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
-CURRENT_HEAD = "0058_model_call_budget"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:
@@ -88,9 +88,7 @@ def test_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
 @pytest.mark.slow
 def test_postgresql_offline_migration_contains_only_policy_tables(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
     sql = capsys.readouterr().out
     assert "CREATE TABLE acquisition_policy_snapshot" in sql

@@ -83,6 +83,8 @@ class StoredAward:
     lot_title: str | None = None
     contract_reference: str | None = None
     place_of_performance: dict[str, Any] | None = None
+    client_location: dict[str, Any] | None = None
+    client_location_basis: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -259,6 +261,8 @@ def _award(row: sa.Row) -> StoredAward:
         lot_title=row.lot_title,
         contract_reference=row.contract_reference,
         place_of_performance=row.place_of_performance,
+        client_location=row.client_location,
+        client_location_basis=row.client_location_basis,
     )
 
 

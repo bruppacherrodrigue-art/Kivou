@@ -117,9 +117,7 @@ def test_recent_view_now_accepts_the_previously_history_only_filters(alice, engi
 
     still_history_only = alice.get("/signals?view=recent&recency_status=recent_award")
     assert still_history_only.status_code == 422
-    assert (
-        still_history_only.json()["detail"]["code"] == "history_filters_require_history_view"
-    )
+    assert still_history_only.json()["detail"]["code"] == "history_filters_require_history_view"
 
 
 def test_min_amount_keeps_amounts_at_or_above_and_excludes_unpublished_amounts(alice, engine):
@@ -127,13 +125,25 @@ def test_min_amount_keeps_amounts_at_or_above_and_excludes_unpublished_amounts(a
     pay(engine, alice, plan="essential")
     pool = _SourcePool()
     below = _seed(
-        engine, icp, pool, award_date=dt.date(2026, 8, 10), value=Money(amount=Decimal("500000"), currency="CHF")
+        engine,
+        icp,
+        pool,
+        award_date=dt.date(2026, 8, 10),
+        value=Money(amount=Decimal("500000"), currency="CHF"),
     )
     at_threshold = _seed(
-        engine, icp, pool, award_date=dt.date(2026, 8, 11), value=Money(amount=Decimal("1000000"), currency="CHF")
+        engine,
+        icp,
+        pool,
+        award_date=dt.date(2026, 8, 11),
+        value=Money(amount=Decimal("1000000"), currency="CHF"),
     )
     above = _seed(
-        engine, icp, pool, award_date=dt.date(2026, 8, 12), value=Money(amount=Decimal("2500000"), currency="CHF")
+        engine,
+        icp,
+        pool,
+        award_date=dt.date(2026, 8, 12),
+        value=Money(amount=Decimal("2500000"), currency="CHF"),
     )
     unpublished_amount = _seed(engine, icp, pool, award_date=dt.date(2026, 8, 13), value=None)
 
@@ -141,8 +151,7 @@ def test_min_amount_keeps_amounts_at_or_above_and_excludes_unpublished_amounts(a
     assert {below, at_threshold, above, unpublished_amount} <= unfiltered
 
     filtered = {
-        item["signal_id"]
-        for item in _items(alice.get("/signals?freshness=all&min_amount=1000000"))
+        item["signal_id"] for item in _items(alice.get("/signals?freshness=all&min_amount=1000000"))
     }
     assert at_threshold in filtered
     assert above in filtered
@@ -155,10 +164,18 @@ def test_q_matches_the_awardee_name_case_and_accent_insensitively(alice, engine)
     pay(engine, alice, plan="essential")
     pool = _SourcePool()
     named = _seed(
-        engine, icp, pool, award_date=dt.date(2026, 8, 13), awardee_parties=_awardee("Établissements Müller SA")
+        engine,
+        icp,
+        pool,
+        award_date=dt.date(2026, 8, 13),
+        awardee_parties=_awardee("Établissements Müller SA"),
     )
     other = _seed(
-        engine, icp, pool, award_date=dt.date(2026, 8, 12), awardee_parties=_awardee("Bâtiments du Léman Sàrl")
+        engine,
+        icp,
+        pool,
+        award_date=dt.date(2026, 8, 12),
+        awardee_parties=_awardee("Bâtiments du Léman Sàrl"),
     )
 
     matched = {
@@ -169,8 +186,7 @@ def test_q_matches_the_awardee_name_case_and_accent_insensitively(alice, engine)
     assert other not in matched
 
     matched_uppercase = {
-        item["signal_id"]
-        for item in _items(alice.get("/signals?freshness=all&q=MULLER"))
+        item["signal_id"] for item in _items(alice.get("/signals?freshness=all&q=MULLER"))
     }
     assert matched_uppercase == {named}
 
@@ -193,9 +209,7 @@ def test_q_matches_the_title_and_therefore_the_derived_short_object(alice, engin
         engine, icp, pool, award_date=dt.date(2026, 8, 12), title="Fourniture de mobilier de bureau"
     )
 
-    matched = {
-        item["signal_id"] for item in _items(alice.get("/signals?freshness=all&q=ecole"))
-    }
+    matched = {item["signal_id"] for item in _items(alice.get("/signals?freshness=all&q=ecole"))}
     assert matched == {matching}
     assert other not in matched
 
@@ -263,7 +277,12 @@ def test_a_basic_plan_can_use_min_amount_and_q_a_plan_without_it_cannot(alice, e
         assert response.json()["detail"]["code"] == "filter_not_entitled"
 
     pay(engine, alice, plan="essential")  # niveau « basic »
-    for query in ("min_amount=1000", "q=ab"):
+    # Sans profil, aucune devise ne peut être déduite : un seuil seul ne
+    # doit pas comparer implicitement les marchés EUR et CHF.
+    missing_currency = alice.get("/signals?min_amount=1000")
+    assert missing_currency.status_code == 422
+    assert missing_currency.json()["detail"]["field"] == "amount_currency"
+    for query in ("min_amount=1000&amount_currency=CHF", "q=ab"):
         response = alice.get(f"/signals?{query}")
         assert response.status_code == 200, response.text
 

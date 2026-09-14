@@ -5,7 +5,7 @@
  * côté serveur, et l'envoyer depuis le navigateur serait au mieux redondant,
  * au pire une élévation de privilège.
  */
-import { request } from './client'
+import { notifySignOutStarted, request } from './client'
 import type { QueryParams } from './client'
 import type {
   BillingStatus,
@@ -14,6 +14,7 @@ import type {
   CompanyListPage,
   CompanyContactResult,
   CompanyContactLookup,
+  CompanyDirectoryEnrichment,
   CompanyContactStatus,
   DirectoryCompanyProfile,
   DashboardResponse,
@@ -35,7 +36,18 @@ import type {
   Interaction,
   NegativeReason,
   Relevance,
+  CompanyDossierResponse,
+  CompanyMembership,
+  DirectorySearchPage,
+  DirectoryOptions,
+  ManualContactInput,
+  ManualContactView,
+  ProspectingQueryScope,
+  SignalStatusResult,
 } from './types'
+
+export interface RequestControl { signal?: AbortSignal }
+export interface ConsultationQuery extends QueryParams, ProspectingQueryScope {}
 
 // ─── Authentification ────────────────────────────────────────────────────────
 
@@ -55,7 +67,10 @@ export const auth = {
   login: (payload: { email: string; password: string }) =>
     request<Me>('/auth/login', { method: 'POST', body: payload }),
 
-  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+  logout: () => {
+    notifySignOutStarted()
+    return request<void>('/auth/logout', { method: 'POST' })
+  },
 
   requestPasswordReset: (email: string) =>
     request<{ status: string }>('/auth/password-reset/request', {
@@ -73,9 +88,9 @@ export const auth = {
 // ─── Profils de ciblage ──────────────────────────────────────────────────────
 
 export const icps = {
-  list: () => request<TargetIcp[]>('/target-icps'),
+  list: (options: RequestControl = {}) => request<TargetIcp[]>('/target-icps', options),
 
-  options: () => request<TargetIcpOptions>('/target-icps/options'),
+  options: (options: RequestControl = {}) => request<TargetIcpOptions>('/target-icps/options', options),
 
   get: (id: string) => request<TargetIcp>(`/target-icps/${encodeURIComponent(id)}`),
 
@@ -91,7 +106,7 @@ export const icps = {
 
 // ─── Signaux ─────────────────────────────────────────────────────────────────
 
-export interface FeedQuery extends QueryParams {
+export interface FeedQuery extends ConsultationQuery {
   view?: 'recent' | 'history'
   freshness?: Freshness
   target_icp_id?: string | null
@@ -110,66 +125,113 @@ export interface FeedQuery extends QueryParams {
   limit?: number
   offset?: number
   cursor?: string | null
+  q?: string | null
+  sort?: 'recent' | 'amount' | null
 }
 
-export interface SignalDetailQuery extends QueryParams {
+export interface SignalDetailQuery extends ConsultationQuery {
   presentation_artifact_id?: string | null
 }
 
 export const signals = {
-  feed: (query: FeedQuery = {}) => request<FeedPage>('/signals', { query }),
+  feed: (query: FeedQuery = {}, options: RequestControl = {}) => request<FeedPage>('/signals', { query, ...options }),
 
-  detail: (signalKey: string, query: SignalDetailQuery = {}) =>
-    request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`, { query }),
+  detail: (signalKey: string, query: SignalDetailQuery = {}, options: RequestControl = {}) =>
+    request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`, { query, ...options }),
+
+  setStatus: (signalKey: string, status: UnifiedStatus, expectedRevision: number, options: RequestControl = {}) =>
+    request<SignalStatusResult>(`/signals/${encodeURIComponent(signalKey)}/status`, {
+      method: 'PUT', body: { status, expected_revision: expectedRevision }, ...options,
+    }),
 }
 
 export const signalNotes = {
-  read: (signalKey: string) =>
-    request<SignalNote>(`/signals/${encodeURIComponent(signalKey)}/note`),
+  read: (signalKey: string, options: RequestControl = {}) =>
+    request<SignalNote & { revision: number }>(`/signals/${encodeURIComponent(signalKey)}/note`, options),
 
-  write: (signalKey: string, note: string) =>
-    request<SignalNote>(`/signals/${encodeURIComponent(signalKey)}/note`, {
+  write: (signalKey: string, note: string, expectedRevision?: number, options: RequestControl = {}) =>
+    request<SignalNote & { revision: number }>(`/signals/${encodeURIComponent(signalKey)}/note`, {
       method: 'PUT',
-      body: { note },
+      body: { note, expected_revision: expectedRevision }, ...options,
     }),
 }
 
 // ─── Entreprises ─────────────────────────────────────────────────────────────
 
-export const companies = {
-  list: (query: {
+export interface CompanyListQuery extends ConsultationQuery {
+    view?: 'prospection'
     contact_status?: CompanyContactStatus[] | null
     q?: string | null
+    sort?: 'recent' | 'amount' | null
     limit?: number
     cursor?: string | null
-  } = {}) => request<CompanyListPage>('/companies', { query }),
+}
+export interface DirectorySearchQuery extends QueryParams {
+  q?: string | null
+  department?: string | null
+  family?: string | null
+  sort?: 'name' | 'city'
+  limit?: number
+  cursor?: string | null
+}
+
+export const companies = {
+  list: (query: CompanyListQuery = {}, options: RequestControl = {}) => request<CompanyListPage>('/companies', { query, ...options }),
 
   get: (companyKey: string) =>
     request<CompanyProfile>(`/companies/${encodeURIComponent(companyKey)}`),
 
-  directoryGet: (siren: string) =>
-    request<DirectoryCompanyProfile>(`/companies/directory/${encodeURIComponent(siren)}`),
+  dossier: (companyKey: string, options: RequestControl = {}) =>
+    request<CompanyDossierResponse>(`/companies/${encodeURIComponent(companyKey)}`, options),
 
-  contact: (companyKey: string, status: CompanyContactStatus) =>
+  directorySearch: (query: DirectorySearchQuery = {}, options: RequestControl = {}) =>
+    request<DirectorySearchPage>('/companies/directory', { query, ...options }),
+  directoryOptions: (options: RequestControl = {}) =>
+    request<DirectoryOptions>('/companies/directory/options', options),
+
+  directoryGet: (siren: string, options: RequestControl = {}) =>
+    request<DirectoryCompanyDossierResponse>(`/companies/directory/${encodeURIComponent(siren)}`, options),
+
+  contact: (companyKey: string, status: CompanyContactStatus, options: RequestControl = {}) =>
     request<CompanyContactResult>(`/companies/${encodeURIComponent(companyKey)}/contact`, {
       method: 'POST',
-      body: { status },
+      body: { status }, ...options,
     }),
 
-  contactLookup: (companyKey: string) =>
+  contactLookup: (companyKey: string, options: RequestControl = {}) =>
     request<CompanyContactLookup>(`/companies/${encodeURIComponent(companyKey)}/contact-lookup`, {
-      method: 'POST',
+      method: 'POST', ...options,
     }),
 
-  note: (companyKey: string, body: string) =>
-    request<CompanyNoteResult>(`/companies/${encodeURIComponent(companyKey)}/note`, {
+  queueDirectoryEnrichment: (companyKey: string, options: RequestControl = {}) =>
+    request<CompanyDirectoryEnrichment & { queued: boolean }>(
+      `/companies/${encodeURIComponent(companyKey)}/directory-enrichment`,
+      { method: 'POST', ...options },
+    ),
+
+  note: (companyKey: string, body: string, expectedRevision?: number, options: RequestControl = {}) =>
+    request<CompanyNoteResult & { revision: number }>(`/companies/${encodeURIComponent(companyKey)}/note`, {
       method: 'PUT',
-      body: { body },
+      body: { body, expected_revision: expectedRevision }, ...options,
     }),
+
+  follow: (companyKey: string, options: RequestControl = {}) =>
+    request<CompanyMembership & { company_key: string }>(`/companies/${encodeURIComponent(companyKey)}/prospection`, { method: 'PUT', body: {}, ...options }),
+
+  manualContact: (companyKey: string, options: RequestControl = {}) =>
+    request<ManualContactView>(`/companies/${encodeURIComponent(companyKey)}/manual-contact`, options),
+
+  saveManualContact: (companyKey: string, payload: ManualContactInput, options: RequestControl = {}) =>
+    request<ManualContactView>(`/companies/${encodeURIComponent(companyKey)}/manual-contact`, { method: 'PUT', body: payload, ...options }),
+
+  deleteManualContact: (companyKey: string, expectedRevision: number, options: RequestControl = {}) =>
+    request<ManualContactView>(`/companies/${encodeURIComponent(companyKey)}/manual-contact`, { method: 'DELETE', headers: { 'If-Match': `"${expectedRevision}"` }, ...options }),
 }
 
+type DirectoryCompanyDossierResponse = DirectoryCompanyProfile & import('./types').PrivateCompanyContext & { company_key: string }
+
 export const dashboard = {
-  get: () => request<DashboardResponse>('/dashboard'),
+  get: (query: ConsultationQuery = {}, options: RequestControl = {}) => request<DashboardResponse>('/dashboard', { query, ...options }),
 }
 
 export const accountData = {
@@ -212,7 +274,7 @@ export const feedback = {
 export const billing = {
   plans: () => request<PlanCatalogue>('/billing/plans'),
 
-  status: () => request<BillingStatus>('/billing/status'),
+  status: (options: RequestControl = {}) => request<BillingStatus>('/billing/status', options),
 
   /** Le navigateur n'envoie QUE le plan et la devise. Aucun `price_id`, aucun
    *  coupon, aucun drapeau fondateur : le serveur choisit le prix. */

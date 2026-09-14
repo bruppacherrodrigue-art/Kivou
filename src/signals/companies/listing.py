@@ -26,18 +26,26 @@ import dataclasses
 import datetime as dt
 import json
 import re
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Literal
 
 import sqlalchemy as sa
 
 from signals.billing.access import FeedAccess
+from signals.client_value.company_identity import exact_french_siren
 from signals.companies.schema import saas_company
 from signals.companies.service import (
     company_keys_for_signals,
     ensure_companies_for_signal_keys,
 )
 from signals.engagement.company import contacts_by_company
+from signals.engagement.prospecting_schema import (
+    account_company_alias_override,
+    account_company_membership,
+    company_manual_contact,
+    company_subject_alias,
+)
+from signals.engagement.schema import company_contact, company_note
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
 from signals.feed.policy import fit_band
@@ -49,7 +57,7 @@ from signals.feed.query import (
 )
 from signals.feed.text import normalize_text
 from signals.persistence.repository import StoredSignal, signal_from_row
-from signals.persistence.schema import materialized_signal
+from signals.persistence.schema import materialized_signal, supplier_directory
 
 _SCAN_BATCH = 250
 
@@ -77,6 +85,10 @@ class CompanyCursor:
     date: dt.date | None
     company_key: str
     version: Literal[1] = _CURSOR_VERSION
+    context_tag: str | None = None
+    sort: str = "recent"
+    amount: Decimal | None = None
+    currency: str | None = None
 
     def __post_init__(self) -> None:
         if self.version != _CURSOR_VERSION or not _COMPANY_KEY.fullmatch(self.company_key):
@@ -84,11 +96,24 @@ class CompanyCursor:
 
 
 def encode_company_cursor(cursor: CompanyCursor) -> str:
+    extra = (
+        {
+            "x": {
+                "f": cursor.context_tag,
+                "s": cursor.sort,
+                "a": str(cursor.amount) if cursor.amount is not None else None,
+                "u": cursor.currency,
+            }
+        }
+        if cursor.context_tag is not None or cursor.sort != "recent"
+        else {}
+    )
     payload = json.dumps(
         {
             "v": cursor.version,
             "d": cursor.date.isoformat() if cursor.date is not None else None,
             "k": cursor.company_key,
+            **extra,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -109,7 +134,10 @@ def decode_company_cursor(value: str) -> CompanyCursor:
         payload = json.loads(raw)
     except (UnicodeEncodeError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError) as error:
         raise InvalidCompanyCursor("invalid company cursor") from error
-    if not isinstance(payload, dict) or frozenset(payload) != _CURSOR_KEYS:
+    if not isinstance(payload, dict) or frozenset(payload) not in (
+        _CURSOR_KEYS,
+        _CURSOR_KEYS | {"x"},
+    ):
         raise InvalidCompanyCursor("invalid company cursor")
     if payload["v"] != _CURSOR_VERSION or not isinstance(payload["k"], str):
         raise InvalidCompanyCursor("invalid company cursor")
@@ -118,8 +146,30 @@ def decode_company_cursor(value: str) -> CompanyCursor:
         raise InvalidCompanyCursor("invalid company cursor")
     try:
         parsed_date = None if raw_date is None else dt.date.fromisoformat(raw_date)
-        return CompanyCursor(date=parsed_date, company_key=payload["k"])
-    except (TypeError, ValueError) as error:
+        extra = payload.get("x")
+        if extra is None:
+            return CompanyCursor(date=parsed_date, company_key=payload["k"])
+        if not isinstance(extra, dict) or set(extra) != {"f", "s", "a", "u"}:
+            raise ValueError("invalid cursor context")
+        amount = None if extra["a"] is None else Decimal(extra["a"])
+        if amount is not None and (not amount.is_finite() or amount < 0):
+            raise ValueError("invalid amount")
+        if extra["s"] not in ("recent", "amount") or (
+            extra["f"] is not None
+            and (not isinstance(extra["f"], str) or not re.fullmatch(r"[a-f0-9]{24}", extra["f"]))
+        ):
+            raise ValueError("invalid cursor context")
+        if extra["u"] is not None and not re.fullmatch(r"[A-Z]{3}", extra["u"]):
+            raise ValueError("invalid currency")
+        return CompanyCursor(
+            date=parsed_date,
+            company_key=payload["k"],
+            context_tag=extra["f"],
+            sort=extra["s"],
+            amount=amount,
+            currency=extra["u"],
+        )
+    except (TypeError, ValueError, InvalidOperation) as error:
         raise InvalidCompanyCursor("invalid company cursor") from error
 
 
@@ -143,6 +193,8 @@ class CompanyRow:
     #: dernier signal de cette entreprise » doit rebalayer l'entreprise entière,
     #: une fois par entreprise. `None` seulement si aucun signal n'a été absorbé.
     last_signal_key: str | None = None
+    tracked: bool = False
+    origin: str = "signal"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -153,6 +205,8 @@ class CompanyPage:
     next_cursor: str | None
     has_more: bool
     scan_truncated: bool
+    counts: dict[str, int] = dataclasses.field(default_factory=dict)
+    total: int = 0
 
 
 def _sort_key(row: CompanyRow) -> tuple[int, int, str]:
@@ -210,6 +264,7 @@ def _scan_accessible_signals(
     as_of: dt.date,
     allowed_target_icp_ids: frozenset[str] | None,
     access: FeedAccess,
+    consultation_scope=None,
 ) -> tuple[list[StoredSignal], bool]:
     """Les signaux DÉBLOQUÉS du compte, dans la même portée que `view=history`.
 
@@ -237,9 +292,7 @@ def _scan_accessible_signals(
 
     query = _ownership_scoped(account_id)
     if allowed_target_icp_ids is not None:
-        query = query.where(
-            materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids))
-        )
+        query = query.where(materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)))
     if not access.is_paid:
         # Un compte Découverte possède quelques clés explicites. Les chercher
         # directement évite qu'un grand profil fasse tomber ses cadeaux hors
@@ -285,7 +338,9 @@ def _scan_accessible_signals(
                 account_id=account_id,
                 target_icp_label=profile.label,
             )
-            if access.is_unlocked(item):
+            if access.is_unlocked(item) and (
+                consultation_scope is None or consultation_scope.matches(signal)
+            ):
                 accessible.append(signal)
         if len(rows) < batch_limit:
             exhausted = True
@@ -310,8 +365,16 @@ def list_companies(
     limit: int,
     cursor: str | None,
     now: dt.datetime,
+    consultation_scope=None,
+    sort: str = "recent",
+    context_tag: str | None = None,
 ) -> CompanyPage:
     decoded_cursor = None if cursor is None else decode_company_cursor(cursor)
+    if decoded_cursor is not None and (
+        (decoded_cursor.context_tag is not None and decoded_cursor.context_tag != context_tag)
+        or decoded_cursor.sort != sort
+    ):
+        raise InvalidCompanyCursor("cursor belongs to another consultation")
 
     signals, scan_truncated = _scan_accessible_signals(
         connection,
@@ -319,6 +382,7 @@ def list_companies(
         as_of=as_of,
         allowed_target_icp_ids=allowed_target_icp_ids,
         access=access,
+        consultation_scope=consultation_scope,
     )
 
     ensure_companies_for_signal_keys(
@@ -329,13 +393,89 @@ def list_companies(
     company_keys = company_keys_for_signals(
         connection, signal_keys=tuple(signal.signal_key for signal in signals)
     )
+    # Read private reconciliation in batches. A list never copies/deletes notes.
+    membership_rows = connection.execute(
+        sa.select(account_company_membership).where(
+            account_company_membership.c.account_id == account_id,
+        )
+    ).all()
+    private_rows = [
+        (
+            fields,
+            list(
+                connection.execute(
+                    sa.select(table).where(table.c.account_id == account_id)
+                ).mappings()
+            ),
+        )
+        for table, fields in (
+            (company_note, ("body",)),
+            (company_contact, ("status", "contacted_at")),
+            (company_manual_contact, ("name", "role", "email", "phone", "deleted_at")),
+        )
+    ]
+    relevant_keys = set(company_keys.values()) | {row.company_key for row in membership_rows}
+    relevant_keys.update(row["company_key"] for _fields, rows in private_rows for row in rows)
+    bindings = {
+        row.alias_company_key: row
+        for row in connection.execute(
+            sa.select(company_subject_alias).where(
+                company_subject_alias.c.alias_company_key.in_(relevant_keys),
+            )
+        )
+    }
+    quarantined = {key for key, row in bindings.items() if row.resolution_status != "exact"}
+    public = {
+        key: row.canonical_company_key for key, row in bindings.items() if key not in quarantined
+    }
+    for row in connection.execute(
+        sa.select(saas_company).where(saas_company.c.company_key.in_(relevant_keys))
+    ).mappings():
+        siren = exact_french_siren(row["official_identifiers"], country=row["official_country"])
+        if siren and row["company_key"] not in quarantined:
+            key = row["company_key"]
+            canonical = f"cmp_directory_{siren}"
+            if key in public and public[key] != canonical:
+                quarantined.add(key)
+                public.pop(key)
+            else:
+                public.setdefault(key, canonical)
+    overrides = {
+        row.alias_company_key: row.private_subject_key
+        for row in connection.execute(
+            sa.select(account_company_alias_override).where(
+                account_company_alias_override.c.account_id == account_id
+            )
+        )
+        if row.alias_company_key not in quarantined
+    }
+    conflicts = set()
+    for fields, rows in private_rows:
+        values = {}
+        for row in rows:
+            key = row["company_key"]
+            if key in overrides and overrides[key] != key:
+                continue
+            canonical = public.get(key, key)
+            values.setdefault(canonical, set()).add(tuple(row[field] for field in fields))
+        conflicts.update(key for key, states in values.items() if len(states) > 1)
+
+    def subject(key):
+        if key in quarantined:
+            return key
+        canonical = public.get(key, key)
+        return overrides.get(key, key if canonical in conflicts else canonical)
+
+    memberships = {subject(row.company_key): row.origin for row in membership_rows}
 
     accumulators: dict[str, _Accumulator] = {}
     for signal in signals:
         company_key = company_keys.get(signal.signal_key)
         if company_key is None:
             continue
-        accumulators.setdefault(company_key, _Accumulator()).absorb(signal)
+        accumulators.setdefault(subject(company_key), _Accumulator()).absorb(signal)
+    for key in memberships:
+        accumulators.setdefault(key, _Accumulator())
 
     identities: dict[str, sa.Row] = {}
     if accumulators:
@@ -344,16 +484,46 @@ def list_companies(
                 saas_company.c.company_key,
                 saas_company.c.official_name,
                 saas_company.c.official_country,
-            ).where(saas_company.c.company_key.in_(sorted(accumulators)))
+            ).where(
+                saas_company.c.company_key.in_(
+                    sorted(set(accumulators) | set(company_keys.values()))
+                )
+            )
         ).all()
-        identities = {row.company_key: row for row in rows}
+        identities = {subject(row.company_key): row for row in rows}
+    directory = (
+        {
+            f"cmp_directory_{row.siren}": row
+            for row in connection.execute(
+                sa.select(
+                    supplier_directory.c.siren,
+                    supplier_directory.c.legal_name,
+                    supplier_directory.c.city,
+                ).where(
+                    supplier_directory.c.siren.in_(
+                        [
+                            key.removeprefix("cmp_directory_")
+                            for key in accumulators
+                            if key.startswith("cmp_directory_")
+                        ]
+                    )
+                )
+            )
+        }
+        if accumulators
+        else {}
+    )
 
-    contacts = contacts_by_company(connection, account_id=account_id)
+    contacts = {}
+    stored_contacts = contacts_by_company(connection, account_id=account_id)
+    for key in sorted(stored_contacts, key=lambda key: (key == subject(key), key)):
+        contacts[subject(key)] = stored_contacts[key]
 
     rows: list[CompanyRow] = []
     for company_key, acc in accumulators.items():
         identity = identities.get(company_key)
-        if identity is None:
+        directory_identity = directory.get(company_key)
+        if identity is None and directory_identity is None:
             # Une entreprise projetée mais pas (encore) lisible n'a rien à
             # afficher — ne devrait pas arriver (clé FK), mais ne fabrique rien.
             continue
@@ -361,9 +531,12 @@ def list_companies(
         rows.append(
             CompanyRow(
                 company_key=company_key,
-                name=identity.official_name,
-                city=acc.city,
-                country=identity.official_country,
+                name=identity.official_name
+                if identity is not None
+                else directory_identity.legal_name,
+                city=acc.city
+                or (directory_identity.city if directory_identity is not None else None),
+                country=identity.official_country if identity is not None else "FR",
                 awards_count=acc.awards_count,
                 total_amount=tuple(sorted(acc.amounts.items())),
                 last_award_at=acc.last_award_at,
@@ -371,29 +544,69 @@ def list_companies(
                 contacted_at=contact.contacted_at if contact is not None else None,
                 top_fit=_RANK_TO_FIT[acc.top_fit_rank],
                 last_signal_key=acc.last_signal_key,
+                tracked=company_key in memberships,
+                origin=memberships.get(company_key, "signal"),
             )
         )
 
     if query:
         needle = normalize_text(query)
         rows = [row for row in rows if needle in normalize_text(row.name)]
-    if contact_statuses is not None:
-        rows = [row for row in rows if row.contact_status in contact_statuses]
     if contacted_before is not None:
         rows = [
-            row for row in rows if row.contacted_at is not None and row.contacted_at <= contacted_before
+            row
+            for row in rows
+            if row.contacted_at is not None and row.contacted_at <= contacted_before
         ]
 
-    rows.sort(key=_sort_key)
+    counts = {
+        status: sum(row.contact_status == status for row in rows)
+        for status in ("to_contact", "contacted", "replied")
+    }
+    total = len(rows)
+    if contact_statuses is not None:
+        rows = [row for row in rows if row.contact_status in contact_statuses]
+
+    def ordering(row):
+        if sort != "amount":
+            return _sort_key(row)
+        if not row.total_amount:
+            return (1, "", Decimal(0), row.company_key)
+        currency, amount = row.total_amount[0]
+        return (0, currency, -amount, row.company_key)
+
+    rows.sort(key=ordering)
 
     if decoded_cursor is not None:
-        cursor_key = _cursor_key(decoded_cursor)
-        rows = [row for row in rows if _sort_key(row) > cursor_key]
+        cursor_key = (
+            _cursor_key(decoded_cursor)
+            if sort != "amount"
+            else (
+                (1, "", Decimal(0), decoded_cursor.company_key)
+                if decoded_cursor.amount is None
+                else (
+                    0,
+                    decoded_cursor.currency,
+                    -decoded_cursor.amount,
+                    decoded_cursor.company_key,
+                )
+            )
+        )
+        rows = [row for row in rows if ordering(row) > cursor_key]
 
     page = rows[:limit]
     has_more = len(rows) > limit
     next_cursor = (
-        encode_company_cursor(CompanyCursor(date=page[-1].last_award_at, company_key=page[-1].company_key))
+        encode_company_cursor(
+            CompanyCursor(
+                date=page[-1].last_award_at,
+                company_key=page[-1].company_key,
+                context_tag=context_tag,
+                sort=sort,
+                currency=page[-1].total_amount[0][0] if page[-1].total_amount else None,
+                amount=page[-1].total_amount[0][1] if page[-1].total_amount else None,
+            )
+        )
         if has_more
         else None
     )
@@ -405,6 +618,8 @@ def list_companies(
         next_cursor=next_cursor,
         has_more=has_more,
         scan_truncated=scan_truncated,
+        counts=counts,
+        total=total,
     )
 
 

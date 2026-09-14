@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import (
     alembic_config,
@@ -12,7 +13,6 @@ from signals.persistence.database import (
 
 PREVIOUS = "0026_acquisition_runtime"
 HEAD = "0027_signal_notes"
-CURRENT_HEAD = "0058_model_call_budget"
 
 
 def _engine(tmp_path, name):

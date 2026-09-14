@@ -9,6 +9,7 @@ describe('isolation du vendor dashboard dans le bundle', () => {
       encoding: 'utf8',
       env: { ...process.env, NODE_ENV: 'production' },
       stdio: 'pipe',
+      timeout: 90_000,
     })
 
     expect(() => {
@@ -16,7 +17,11 @@ describe('isolation du vendor dashboard dans le bundle', () => {
         cwd: process.cwd(),
         encoding: 'utf8',
         stdio: 'pipe',
+        timeout: 10_000,
       })
     }).not.toThrow()
-  }, 30_000)
+  // This integration test builds the entire product (48.7 s measured under
+  // parallel CPU load), not just a component. Bound child processes as well;
+  // keep every CSS-isolation assertion and the global unit timeout unchanged.
+  }, 105_000)
 })

@@ -1,7 +1,7 @@
 import { ArrowRight, CreditCard, ExternalLink } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { ApiError } from '../api/client'
+import { ApiError, onSignOutStarted } from '../api/client'
 import { billing } from '../api/endpoints'
 import { describeError } from '../api/errorCopy'
 import type {
@@ -14,7 +14,8 @@ import type {
 } from '../api/types'
 import {
   clearCheckoutIntent,
-  saveCheckoutIntent,
+  saveCheckoutReturn,
+  validateCheckoutReturn,
   validateSignalKey,
 } from '../billing/checkoutIntent'
 import { secureBillingDestination } from '../billing/destination'
@@ -45,6 +46,11 @@ function purchasablePlanFromSearch(search: string): PurchasablePlan | null {
 
 export function Billing() {
   const me = useCurrentUser()
+  return <AccountBilling key={me.account_id} />
+}
+
+function AccountBilling() {
+  const me = useCurrentUser()
   const { t, date, money } = useI18n()
   const copy = t.reference.billingSettings
   const location = useLocation()
@@ -70,10 +76,16 @@ export function Billing() {
   const lockedSignalKey = validateSignalKey(
     (location.state as { lockedSignalKey?: unknown } | null)?.lockedSignalKey,
   )
+  const returnState = location.state as { checkoutIntent?: unknown; checkoutAccountId?: unknown } | null
+  const checkoutReturn = returnState?.checkoutAccountId === accountId
+    ? validateCheckoutReturn(returnState.checkoutIntent)
+    : lockedSignalKey ? validateCheckoutReturn({ kind: 'signal', signalKey: lockedSignalKey }) : null
 
   useEffect(() => {
     mounted.current = true
+    const unsubscribe = onSignOutStarted(() => { mounted.current = false; actionGeneration.current += 1; busyRef.current = true })
     return () => {
+      unsubscribe()
       mounted.current = false
       actionGeneration.current += 1
       busyRef.current = false
@@ -132,7 +144,7 @@ export function Billing() {
     : authoritativeStatus?.entitlements ?? null
 
   async function startCheckout(plan: PurchasablePlan) {
-    if (busyRef.current) return
+    if (!mounted.current || busyRef.current) return
     const cataloguePlan = authoritativeCatalogue?.plans.find((item) => item.plan_code === plan)
     if (
       authoritativeStatus?.billing_action !== 'choose_plan' ||
@@ -162,7 +174,7 @@ export function Billing() {
         return
       }
       clearCheckoutIntent()
-      if (lockedSignalKey !== null) saveCheckoutIntent(lockedSignalKey)
+      if (checkoutReturn) saveCheckoutReturn(accountId, checkoutReturn)
       window.location.assign(destination)
     } catch (caught) {
       if (
@@ -177,7 +189,7 @@ export function Billing() {
   }
 
   async function openPortal() {
-    if (busyRef.current) return
+    if (!mounted.current || busyRef.current) return
     if (
       authoritativeStatus?.billing_action !== 'manage_subscription' &&
       authoritativeStatus?.billing_action !== 'recover_payment'

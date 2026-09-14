@@ -22,6 +22,8 @@ import sqlalchemy as sa
 from billing_helpers import FakeStripe, subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import COMPLETE_ICP_INPUT, ORIGIN, PASSWORD
+from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.accounts.schema import target_icp
 from signals.api import ApiConfig, create_app
@@ -216,9 +218,7 @@ def test_one_account_never_reads_the_billing_of_another(app, engine):
 # ─── §23 — les limites d'ICP ─────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    ("plan", "limit"), [("discovery", 1), ("essential", 1), ("pro", 3)]
-)
+@pytest.mark.parametrize(("plan", "limit"), [("discovery", 1), ("essential", 1), ("pro", 3)])
 def test_each_plan_declares_its_active_icp_limit(alice, engine, plan: str, limit: int):
     if plan != "discovery":
         pay(engine, alice, plan=plan)
@@ -385,7 +385,7 @@ def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
         command.upgrade(alembic_config(engine), revision)
         assert current_revision(engine) == revision
     migrate_to_latest(engine)
-    assert current_revision(engine) == "0058_model_call_budget"
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 @pytest.mark.slow
@@ -401,14 +401,19 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
     from signals.persistence.repository import list_signals
 
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'live.db'}")
-    migrate_to_latest(engine)
-    with engine.begin() as connection:
-        account_id = make_account(connection, "alice@negoce-romand.ch", "Negoce Romand")
-        icp_id = make_icp(connection, account_id, "Intrants")
-        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+    seed_engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'seed.db'}")
+    try:
+        command.upgrade(alembic_config(seed_engine), "0058_client_location")
+        with seed_engine.begin() as connection:
+            account_id = make_account(connection, "alice@negoce-romand.ch", "Negoce Romand")
+            icp_id = make_icp(connection, account_id, "Intrants")
+            signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        command.upgrade(alembic_config(engine), "0002_account_auth_target_icp")
+        copy_synthetic_rows_to_historical_schema(seed_engine, engine)
+    finally:
+        seed_engine.dispose()
     assert ICP_INPUT
 
-    command.downgrade(alembic_config(engine), "0002_account_auth_target_icp")
     migrate_to_latest(engine)
 
     with engine.connect() as connection:
@@ -416,7 +421,7 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
         icps = connection.execute(sa.select(target_icp)).all()
     assert [item.signal_key for item in signals] == [signal.signal_key]
     assert [row.target_icp_id for row in icps] == [icp_id]
-    assert current_revision(engine) == "0058_model_call_budget"
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 def test_the_billing_migration_touches_no_earlier_table(tmp_path: pathlib.Path):

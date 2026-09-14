@@ -27,6 +27,7 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
 
 from signals.accounts.icp_input import TargetIcpInput
 from signals.accounts.ownership import (
@@ -131,14 +132,22 @@ def engine(tmp_path: pathlib.Path):
 
 @pytest.fixture
 def legacy_engine(tmp_path: pathlib.Path):
-    """Une base SPEC-010 peuplée AVANT les comptes, puis migrée en 0002."""
+    """Une vraie base SPEC-010 peuplée AVANT les comptes, puis mise à jour."""
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
+    seed_engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'seed.db'}")
+    try:
+        command.upgrade(alembic_config(seed_engine), "0058_client_location")
+        with seed_engine.begin() as connection:
+            materialize(connection, target_icp_id=RESEARCH_ICP_ID)
+        command.upgrade(alembic_config(engine), "0001_initial")
+        copy_synthetic_rows_to_historical_schema(seed_engine, engine)
+    finally:
+        seed_engine.dispose()
     migrate_to_latest(engine)
-    with engine.begin() as connection:
-        materialize(connection, target_icp_id=RESEARCH_ICP_ID)
-    command.downgrade(alembic_config(engine), "0001_initial")
-    migrate_to_latest(engine)
-    return engine
+    try:
+        yield engine
+    finally:
+        engine.dispose()
 
 
 @pytest.mark.slow

@@ -56,12 +56,21 @@ ERROR_CODES: tuple[str, ...] = (
     "signal_not_accessible",
     # PR1 — statut unifié new/saved/ignored/contacted
     "invalid_status",
+    "note_revision_required",
+    "note_conflict",
+    "status_conflict",
+    "manual_contact_conflict",
+    "invalid_directory_cursor",
     # PR1 Task 4 — GET /companies
     "invalid_contact_status",
     "invalid_company_cursor",
     # PR6b — recherche explicite d'un décideur depuis la fiche entreprise.
     "contact_lookup_unavailable",
     "contact_lookup_locked",
+    "company_enrichment_locked",
+    "company_enrichment_identity_unavailable",
+    "company_enrichment_busy",
+    "company_enrichment_unavailable",
     "contact_lookup_quota_exhausted",
     "contact_lookup_failed",
     "contact_lookup_identity_unavailable",

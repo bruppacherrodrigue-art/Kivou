@@ -3,12 +3,12 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS = "0008_policy_gateway"
 HEAD = "0009_supplier_discovery"
-CURRENT_HEAD = "0058_model_call_budget"
 
 
 def test_supplier_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -46,17 +46,13 @@ def test_supplier_discovery_run_has_one_to_one_policy_evaluation_constraint(tmp_
     )
     assert policy_fk["referred_table"] == "policy_evaluation"
     assert policy_fk["options"]["ondelete"] == "RESTRICT"
-    checks = {
-        item["name"] for item in inspector.get_check_constraints("supplier_discovery_run")
-    }
+    checks = {item["name"] for item in inspector.get_check_constraints("supplier_discovery_run")}
     assert "ck_supplier_discovery_run_provider_total" in checks
 
 
 def test_postgresql_offline_migration_contains_only_supplier_tables(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
     sql = capsys.readouterr().out
     assert "CREATE TABLE acquisition_supplier" in sql

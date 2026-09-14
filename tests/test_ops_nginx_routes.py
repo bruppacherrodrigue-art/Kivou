@@ -31,10 +31,17 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("POST", "/billing/plan"),
         ("POST", "/billing/portal"),
         ("GET", "/companies"),
+        ("GET", "/companies/directory"),
+        ("GET", "/companies/directory/options"),
         ("GET", "/companies/directory/{siren}"),
         ("GET", "/companies/{company_key}"),
         ("POST", "/companies/{company_key}/contact"),
         ("POST", "/companies/{company_key}/contact-lookup"),
+        ("POST", "/companies/{company_key}/directory-enrichment"),
+        ("GET", "/companies/{company_key}/manual-contact"),
+        ("PUT", "/companies/{company_key}/manual-contact"),
+        ("DELETE", "/companies/{company_key}/manual-contact"),
+        ("PUT", "/companies/{company_key}/prospection"),
         ("PUT", "/companies/{company_key}/note"),
         ("GET", "/dashboard"),
         ("GET", "/me"),
@@ -48,6 +55,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("POST", "/signals/{signal_key}/contacted"),
         ("PUT", "/signals/{signal_key}/feedback"),
         ("PUT", "/signals/{signal_key}/note"),
+        ("PUT", "/signals/{signal_key}/status"),
         ("GET", "/target-icps"),
         ("GET", "/target-icps/options"),
         ("GET", "/target-icps/{target_icp_id}"),
@@ -62,6 +70,7 @@ PRIVATE_ASGI_ROUTES = frozenset(
     {
         ("GET", "/openapi.json"),
         ("GET", "/internal/commercial-cockpit"),
+        ("GET", "/internal/company-catalogue"),
         ("GET", "/internal/acquisition-ops/health"),
         ("GET", "/internal/acquisition-ops/readiness"),
         ("GET", "/internal/acquisition-ops/incidents"),
@@ -233,8 +242,7 @@ def _only_founder_server(listen_directive: str) -> ServerBlock:
         if listen_directive in _direct_server_directives(block.body)
     ]
     assert len(matching) == 1, (
-        f"expected one founder nginx server with {listen_directive!r}, "
-        f"got {len(matching)}"
+        f"expected one founder nginx server with {listen_directive!r}, got {len(matching)}"
     )
     return matching[0]
 
@@ -247,7 +255,9 @@ def _founder_fail_closed_selectors() -> tuple[str, ...]:
     inline = tuple(
         match.group(1).strip()
         for match in re.finditer(
-            r"^[ \t]*location[ \t]+(.+?)[ \t]*\{[ \t]*return 404;[ \t]*\}[ \t]*$", body, re.MULTILINE
+            r"^[ \t]*location[ \t]+(.+?)[ \t]*\{[ \t]*return 404;[ \t]*\}[ \t]*$",
+            body,
+            re.MULTILINE,
         )
     )
     multiline = tuple(
@@ -259,11 +269,7 @@ def _founder_fail_closed_selectors() -> tuple[str, ...]:
 
 
 def _only_server(listen_directive: str) -> ServerBlock:
-    matching = [
-        block
-        for block in _server_blocks(_site_text())
-        if listen_directive in block.body
-    ]
+    matching = [block for block in _server_blocks(_site_text()) if listen_directive in block.body]
     assert len(matching) == 1, (
         f"expected one nginx server with {listen_directive!r}, got {len(matching)}"
     )
@@ -272,29 +278,17 @@ def _only_server(listen_directive: str) -> ServerBlock:
 
 def _proxy_locations() -> tuple[LocationBlock, ...]:
     https = _only_server("listen 443 ssl http2;")
-    return tuple(
-        block for block in _location_blocks(https.body) if "proxy_pass" in block.body
-    )
+    return tuple(block for block in _location_blocks(https.body) if "proxy_pass" in block.body)
 
 
 def _only_location(server: ServerBlock, selector: str) -> LocationBlock:
-    matching = [
-        block
-        for block in _location_blocks(server.body)
-        if block.selector == selector
-    ]
-    assert len(matching) == 1, (
-        f"expected one nginx location {selector!r}, got {len(matching)}"
-    )
+    matching = [block for block in _location_blocks(server.body) if block.selector == selector]
+    assert len(matching) == 1, f"expected one nginx location {selector!r}, got {len(matching)}"
     return matching[0]
 
 
 def _directives(text: str) -> tuple[str, ...]:
-    return tuple(
-        code
-        for line in text.splitlines()
-        if (code := line.split("#", 1)[0].strip())
-    )
+    return tuple(code for line in text.splitlines() if (code := line.split("#", 1)[0].strip()))
 
 
 def _header_directives(path: Path) -> tuple[str, ...]:
@@ -306,11 +300,7 @@ def _header_directives(path: Path) -> tuple[str, ...]:
 
 
 def _directives_starting_with(text: str, prefix: str) -> tuple[str, ...]:
-    return tuple(
-        directive
-        for directive in _directives(text)
-        if directive.startswith(prefix)
-    )
+    return tuple(directive for directive in _directives(text) if directive.startswith(prefix))
 
 
 def _direct_server_directives(text: str) -> tuple[str, ...]:
@@ -418,9 +408,7 @@ def test_sensitive_headers_change_only_the_referrer_policy() -> None:
 
     ordinary = _header_directives(ordinary_path)
     sensitive = _header_directives(sensitive_path)
-    ordinary_policy = (
-        'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
-    )
+    ordinary_policy = 'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
     sensitive_policy = 'add_header Referrer-Policy "no-referrer" always;'
 
     assert _directives(sensitive_path.read_text()) == sensitive
@@ -429,9 +417,7 @@ def test_sensitive_headers_change_only_the_referrer_policy() -> None:
     assert sensitive.count(ordinary_policy) == 0
     assert sensitive.count(sensitive_policy) == 1
     assert sensitive == tuple(
-        sensitive_policy
-        if directive.startswith("add_header Referrer-Policy ")
-        else directive
+        sensitive_policy if directive.startswith("add_header Referrer-Policy ") else directive
         for directive in ordinary
     )
 
@@ -480,8 +466,7 @@ def test_http_sensitive_locations_redirect_without_leaking_referrers_or_errors()
         ):
             assert directives.count(expected) == 1
         assert not any(
-            directive.startswith(("proxy_pass ", "try_files "))
-            for directive in directives
+            directive.startswith(("proxy_pass ", "try_files ")) for directive in directives
         )
 
 
@@ -499,23 +484,19 @@ def test_https_attribution_is_sensitive_and_preserves_its_proxy_contract() -> No
         "include /etc/nginx/kivou-proxy-params.conf;",
     ):
         assert directives.count(expected) == 1
-    assert _directives_starting_with(
-        attribution.body, "proxy_hide_header "
-    ) == ("proxy_hide_header Referrer-Policy;",)
+    assert _directives_starting_with(attribution.body, "proxy_hide_header ") == (
+        "proxy_hide_header Referrer-Policy;",
+    )
     assert _directives_starting_with(attribution.body, "proxy_pass ") == (
         "proxy_pass http://127.0.0.1:KIVOU_API_PORT;",
     )
-    assert not any(
-        directive.startswith("try_files ") for directive in directives
-    )
+    assert not any(directive.startswith("try_files ") for directive in directives)
 
 
 def test_unsubscribe_link_is_public_redacted_and_not_kill_switched() -> None:
     no_referrer = 'add_header Referrer-Policy "no-referrer" always;'
     for listen_directive in ("listen 80;", "listen 443 ssl http2;"):
-        location = _only_location(
-            _only_server(listen_directive), "^~ /unsubscribe/"
-        )
+        location = _only_location(_only_server(listen_directive), "^~ /unsubscribe/")
         directives = _directives(location.body)
         assert not any("sensitive-links-gate" in item for item in directives)
         assert "error_log /dev/null crit;" in directives
@@ -540,12 +521,8 @@ def test_https_reset_page_is_sensitive_no_cache_and_not_a_generic_spa_route() ->
         "error_log /dev/null crit;",
     ):
         assert directives.count(expected) == 1
-    assert _directives_starting_with(reset.body, "try_files ") == (
-        "try_files /index.html =404;",
-    )
-    assert not any(
-        directive.startswith("proxy_pass ") for directive in directives
-    )
+    assert _directives_starting_with(reset.body, "try_files ") == ("try_files /index.html =404;",)
+    assert not any(directive.startswith("proxy_pass ") for directive in directives)
     assert "include /etc/nginx/kivou-proxy-params.conf;" not in directives
 
 
@@ -553,9 +530,7 @@ def test_sensitive_locations_have_one_effective_no_referrer_policy() -> None:
     sensitive_path = NGINX_DIR / "kivou-sensitive-link-security-headers.conf"
     assert sensitive_path.is_file(), f"missing nginx fragment: {sensitive_path}"
 
-    sensitive_include = (
-        "include /etc/nginx/kivou-sensitive-link-security-headers.conf;"
-    )
+    sensitive_include = "include /etc/nginx/kivou-sensitive-link-security-headers.conf;"
     ordinary_include = "include /etc/nginx/kivou-security-headers.conf;"
     sensitive_headers = _header_directives(sensitive_path)
     expected_policy = 'add_header Referrer-Policy "no-referrer" always;'
@@ -571,9 +546,7 @@ def test_sensitive_locations_have_one_effective_no_referrer_policy() -> None:
     for location in locations:
         directives = _directives(location.body)
         effective_headers = tuple(
-            directive
-            for directive in directives
-            if directive.startswith("add_header ")
+            directive for directive in directives if directive.startswith("add_header ")
         )
         if sensitive_include in directives:
             effective_headers += sensitive_headers
@@ -588,9 +561,9 @@ def test_sensitive_locations_have_one_effective_no_referrer_policy() -> None:
 
     https = _only_server("listen 443 ssl http2;")
     attribution = _only_location(https, "^~ /a/")
-    assert _directives_starting_with(
-        attribution.body, "proxy_hide_header Referrer-Policy"
-    ) == ("proxy_hide_header Referrer-Policy;",)
+    assert _directives_starting_with(attribution.body, "proxy_hide_header Referrer-Policy") == (
+        "proxy_hide_header Referrer-Policy;",
+    )
 
 
 def test_sensitive_routes_leave_ordinary_location_contracts_unchanged() -> None:
@@ -598,9 +571,9 @@ def test_sensitive_routes_leave_ordinary_location_contracts_unchanged() -> None:
     https = _only_server("listen 443 ssl http2;")
     ordinary_include = "include /etc/nginx/kivou-security-headers.conf;"
 
-    assert _directives(
-        _only_location(http, "/.well-known/acme-challenge/").body
-    ) == ("root /var/www/certbot;",)
+    assert _directives(_only_location(http, "/.well-known/acme-challenge/").body) == (
+        "root /var/www/certbot;",
+    )
     assert _directives(_only_location(http, "/").body) == (
         "return 301 https://STAGING_HOST$request_uri;",
     )
@@ -618,21 +591,14 @@ def test_sensitive_routes_leave_ordinary_location_contracts_unchanged() -> None:
         ordinary_include,
         'add_header Cache-Control "no-cache" always;',
     )
-    assert _directives(_only_location(https, "/").body) == (
-        "try_files $uri $uri/ /index.html;",
-    )
+    assert _directives(_only_location(https, "/").body) == ("try_files $uri $uri/ /index.html;",)
 
     for location in _proxy_locations():
         if location.selector in {"^~ /a/", "^~ /unsubscribe/"}:
             continue
         directives = _directives(location.body)
-        assert not any(
-            "kivou-sensitive-link" in directive for directive in directives
-        )
-        assert not any(
-            directive.startswith("error_log /dev/null")
-            for directive in directives
-        )
+        assert not any("kivou-sensitive-link" in directive for directive in directives)
+        assert not any(directive.startswith("error_log /dev/null") for directive in directives)
 
 
 def test_nginx_template_header_delegates_installation_to_atomic_runbook() -> None:
@@ -734,9 +700,7 @@ def test_founder_console_has_exactly_one_public_http_and_https_server() -> None:
         ("listen 443 ssl http2;", "listen [::]:443 ssl http2;"),
     }
     for server in servers:
-        assert _direct_server_directives(server.body).count(
-            "server_name control.kivou.eu;"
-        ) == 1
+        assert _direct_server_directives(server.body).count("server_name control.kivou.eu;") == 1
 
     lowered = site.lower()
     assert "127.0.0.1:8081" not in site
@@ -752,9 +716,9 @@ def test_founder_http_serves_only_acme_and_redirects_to_canonical_https() -> Non
         "/.well-known/acme-challenge/",
         "/",
     }
-    assert _directives(
-        _only_location(http, "/.well-known/acme-challenge/").body
-    ) == ("root /var/www/certbot;",)
+    assert _directives(_only_location(http, "/.well-known/acme-challenge/").body) == (
+        "root /var/www/certbot;",
+    )
     assert _directives(_only_location(http, "/").body) == (
         "return 301 https://control.kivou.eu$request_uri;",
     )
@@ -806,31 +770,25 @@ def test_founder_https_preserves_frontend_and_security_contracts() -> None:
 
     selectors = frozenset(block.selector for block in locations)
     assert "= /healthz" not in selectors
-    assert tuple(
-        block.selector for block in locations if "proxy_pass" in block.body
-    ) == (*FOUNDER_ACTION_POST_SELECTORS, "^~ /api/founder/")
-    assert _directives(_only_location(https, "/").body) == (
-        "try_files $uri $uri/ /index.html;",
+    assert tuple(block.selector for block in locations if "proxy_pass" in block.body) == (
+        *FOUNDER_ACTION_POST_SELECTORS,
+        "^~ /api/founder/",
     )
+    assert _directives(_only_location(https, "/").body) == ("try_files $uri $uri/ /index.html;",)
 
 
 def test_founder_uses_only_production_security_header_fragments() -> None:
     site = _founder_site_text()
 
     assert "include /etc/nginx/kivou-security-headers.conf;" not in site
-    assert site.count(
-        "include /etc/nginx/kivou-production-security-headers.conf;"
-    ) == 3
+    assert site.count("include /etc/nginx/kivou-production-security-headers.conf;") == 3
 
 
 def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> None:
     https = _only_founder_server("listen 443 ssl http2;")
     shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
     founder_user = "proxy_set_header X-Kivou-Founder-User $remote_user;"
-    origin_secret = (
-        "proxy_set_header X-Kivou-Founder-Origin-Secret "
-        "$kivou_founder_origin_secret;"
-    )
+    origin_secret = "proxy_set_header X-Kivou-Founder-Origin-Secret $kivou_founder_origin_secret;"
 
     for selector in (*FOUNDER_ACTION_POST_SELECTORS, "^~ /api/founder/"):
         api = _only_location(https, selector)
@@ -845,10 +803,12 @@ def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> N
         assert directives.index(shared_params) < directives.index(founder_user)
         assert directives.index(shared_params) < directives.index(origin_secret)
         assert not any(
-            directive.startswith((
-                "proxy_set_header Host ",
-                "proxy_set_header X-Forwarded-Proto ",
-            ))
+            directive.startswith(
+                (
+                    "proxy_set_header Host ",
+                    "proxy_set_header X-Forwarded-Proto ",
+                )
+            )
             for directive in directives
         )
 
@@ -890,9 +850,7 @@ def test_founder_https_never_proxies_customer_or_internal_routes() -> None:
 
     for _, route_path in PUBLIC_ASGI_ROUTES | PRIVATE_ASGI_ROUTES:
         sample = _sample_path(route_path)
-        assert not any(
-            _matches(block.selector, sample) for block in proxy_locations
-        ), route_path
+        assert not any(_matches(block.selector, sample) for block in proxy_locations), route_path
 
 
 def test_production_customer_host_fails_closed_on_founder_api() -> None:
@@ -932,18 +890,13 @@ def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:
         "$http_cookie",
     ):
         assert forbidden not in variables
-    assert not any(
-        variable.startswith(("$http_", "$upstream_http_"))
-        for variable in variables
-    )
+    assert not any(variable.startswith(("$http_", "$upstream_http_")) for variable in variables)
 
 
 def test_safe_path_map_redacts_attribution_and_uses_normalized_uri_elsewhere() -> None:
     limits = (NGINX_DIR / "kivou-limits.conf").read_text()
 
-    assert _map_directives(
-        limits, "$uri", "$kivou_safe_path_map"
-    ) == (
+    assert _map_directives(limits, "$uri", "$kivou_safe_path_map") == (
         "~^/a/ /a/[redacted];",
         "~^/unsubscribe/ /unsubscribe/[redacted];",
         "/reset-password /reset-password;",

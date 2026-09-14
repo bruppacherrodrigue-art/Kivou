@@ -467,6 +467,24 @@ def _organization(organization: TedOrganization) -> OrganizationRef | None:
         country=alpha2(organization.country),
         address=address or None,
         website=organization.website,
+        location=(
+            Location(
+                country=alpha2(organization.country),
+                subdivision_code=organization.nuts,
+                subdivision_scheme="NUTS" if organization.nuts else None,
+                locality=organization.city,
+                postal_code=organization.postal_zone,
+            )
+            if any(
+                (
+                    alpha2(organization.country),
+                    organization.nuts,
+                    organization.city,
+                    organization.postal_zone,
+                )
+            )
+            else None
+        ),
     )
 
 

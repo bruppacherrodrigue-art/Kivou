@@ -11,11 +11,19 @@ import {
   DISCOVERY_STATUS,
   PRO_STATUS,
   callsTo,
-  mockApi,
+  mockApi as installApi,
+  ME,
+  type Routes,
   recordedCalls,
   renderApp,
 } from '../test/harness'
 import { saveCheckoutIntent, readCheckoutIntent } from './checkoutIntent'
+
+// V11 confirms /me after billing and gates checkout with the authoritative
+// billing action. Individual cases can still override either endpoint.
+function mockApi(routes: Routes) {
+  return installApi({ 'GET /billing/status': { body: DISCOVERY_STATUS }, 'GET /me': { body: ME }, ...routes })
+}
 
 /* P0-03 §9 à §12 — le retour de paiement, et la seule chose qui l'autorise.
  *
@@ -206,6 +214,7 @@ describe('passage autoritaire vers Stripe', () => {
     expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'pro', currency: 'chf' })
     expect(recordedCalls.map((call) => `${call.method} ${call.url}`)).toEqual([
       'GET /billing/plans',
+      'GET /billing/status',
       'POST /billing/checkout',
     ])
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_reference')

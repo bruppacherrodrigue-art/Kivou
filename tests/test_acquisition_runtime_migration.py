@@ -7,6 +7,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import (
     alembic_config,
@@ -26,7 +27,6 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
-CURRENT_HEAD = "0058_model_call_budget"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
@@ -77,9 +77,7 @@ def _observation_values(**overrides: object) -> dict[str, object]:
 
 def _insert_observation(engine: sa.Engine, values: dict[str, object]) -> None:
     with engine.begin() as connection:
-        connection.execute(
-            sa.insert(acquisition_runtime_observation).values(**values)
-        )
+        connection.execute(sa.insert(acquisition_runtime_observation).values(**values))
 
 
 def test_acquisition_runtime_migration_is_one_additive_revision(tmp_path) -> None:
@@ -105,20 +103,16 @@ def test_acquisition_runtime_migration_matches_declared_schema(tmp_path) -> None
 
     for table_name in (*sorted(RUNTIME_TABLES), acquisition_campaign_member.name):
         migrated_columns = {
-            column["name"]
-            for column in sa.inspect(migrated).get_columns(table_name)
+            column["name"] for column in sa.inspect(migrated).get_columns(table_name)
         }
         declared_columns = {
-            column["name"]
-            for column in sa.inspect(declared).get_columns(table_name)
+            column["name"] for column in sa.inspect(declared).get_columns(table_name)
         }
         assert migrated_columns == declared_columns
 
     checks = {
         check["name"]
-        for check in sa.inspect(migrated).get_check_constraints(
-            acquisition_campaign_member.name
-        )
+        for check in sa.inspect(migrated).get_check_constraints(acquisition_campaign_member.name)
     }
     assert "ck_campaign_member_transport_identity" in checks
 

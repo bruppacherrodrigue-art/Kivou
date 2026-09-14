@@ -74,7 +74,10 @@ def cycle(engine, mailer, *, now: dt.datetime = NOW, url: str | None = PUBLIC_AP
 
 
 def test_real_alert_job_output_reuses_the_same_card_facts(
-    app, engine, mailer, monkeypatch: pytest.MonkeyPatch,
+    app,
+    engine,
+    mailer,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     cards = []
     original = alert_job.feed_view.feed_item
@@ -90,8 +93,16 @@ def test_real_alert_job_output_reuses_the_same_card_facts(
 
     assert report.sent
     assert len(cards) == 1
-    line = renderer.line_from_card(cards[0], url=f"{PUBLIC_APP_URL}/signals/{line_key(cards[0])}", lang="fr")
-    for value in (line.company, line.contract_title, line.amount, line.location, line.for_you_sentence):
+    line = renderer.line_from_card(
+        cards[0], url=f"{PUBLIC_APP_URL}/signals/{line_key(cards[0])}", lang="fr"
+    )
+    for value in (
+        line.company,
+        line.contract_title,
+        line.amount,
+        line.location,
+        line.for_you_sentence,
+    ):
         if value:
             assert value in mailer.last.text_body
             assert value in mailer.last.html_body
@@ -835,7 +846,9 @@ def test_the_alert_card_has_no_recency_claim_or_prose_outside_the_card(app, engi
     assert "Ouvrir" in message.html_body
 
 
-def test_cli_dry_run_contract_matches_dashboard_card(app, engine, monkeypatch, capsys):
+def test_cli_dry_run_shares_dashboard_facts_and_preserves_email_sentence_policy(
+    app, engine, monkeypatch, capsys
+):
     client, keys = subscriber(app, engine, plan="pro", count=1)
     dashboard = client.get("/dashboard").json()
     account_id = account_of(client)
@@ -849,7 +862,18 @@ def test_cli_dry_run_contract_matches_dashboard_card(app, engine, monkeypatch, c
     assert card["signal_id"] == keys[0]
     assert card["company"]["name"] in message["text_body"]
     assert card["contract"]["title"] in message["text_body"]
-    assert card["analysis"]["fit"]["for_you_sentence"] in message["text_body"]
+    # The app's generated-copy flag is intentionally false by default, while
+    # the historical email channel keeps its approved persisted sentence.
+    assert app.state.config.generated_for_you_enabled is False
+    with engine.connect() as connection:
+        cached_sentence = connection.scalar(
+            sa.select(for_you_sentence.c.sentence).where(
+                for_you_sentence.c.signal_key == keys[0],
+            )
+        )
+    assert cached_sentence
+    assert cached_sentence in message["text_body"]
+    assert cached_sentence != card["analysis"]["fit"]["for_you_sentence"]
     assert f"/app/signals/{keys[0]}" in message["html_body"]
     for forbidden in ("Une attribution concernant", "Publication récente", "date de décision"):
         assert forbidden not in message["text_body"]
@@ -978,9 +1002,7 @@ def test_the_job_reads_no_hidden_clock():
 # ─── Décision produit — `suppressed` est TERMINAL ─────────────────────────────
 
 
-def test_a_suppressed_alert_is_never_resurrected_but_future_ones_still_ship(
-    app, engine, mailer
-):
+def test_a_suppressed_alert_is_never_resurrected_but_future_ones_still_ship(app, engine, mailer):
     """Réactiver ses notifications ne ressuscite pas les anciens messages.
 
     Décision produit, pas conséquence d'implémentation : un signal supprimé

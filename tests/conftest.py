@@ -59,6 +59,7 @@ EXHAUSTIVE_MIGRATION_SUITES = frozenset(
         "test_card_presentation_migration.py",
         "test_company_engagement_migration.py",
         "test_company_contact_lookup_migration.py",
+        "test_company_live_merge_migration.py",
         "test_company_research_migration.py",
         "test_compliance_migration.py",
         "test_contact_discovery_migration.py",
@@ -74,6 +75,7 @@ EXHAUSTIVE_MIGRATION_SUITES = frozenset(
         "test_personalization_migration.py",
         "test_portal_capture_migration.py",
         "test_prospection_actions_migration.py",
+        "test_prospecting_migration.py",
         "test_reliability_operations_migration.py",
         "test_response_intelligence_migration.py",
         "test_saas_company_migration.py",
@@ -112,9 +114,7 @@ def shared_migrated_sqlite_template_path(worker_basetemp: pathlib.Path) -> pathl
     """Return one template path shared by every xdist worker in this run."""
 
     session_root = (
-        worker_basetemp.parent
-        if worker_basetemp.name.startswith("popen-gw")
-        else worker_basetemp
+        worker_basetemp.parent if worker_basetemp.name.startswith("popen-gw") else worker_basetemp
     )
     return session_root / "kivou-migrated-head.db"
 
@@ -337,9 +337,7 @@ def disposable_database_url(admin_url: str, name: str) -> str:
     """
     import sqlalchemy as sa
 
-    return sa.engine.make_url(admin_url).set(database=name).render_as_string(
-        hide_password=False
-    )
+    return sa.engine.make_url(admin_url).set(database=name).render_as_string(hide_password=False)
 
 
 def register_disposable_database(engine, admin, name: str) -> None:

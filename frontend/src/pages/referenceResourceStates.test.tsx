@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
+  DASHBOARD,
   ICP,
   PRO_STATUS,
   STALE_ITEM,
@@ -15,11 +16,17 @@ import {
 } from '../test/harness'
 
 afterEach(() => vi.unstubAllGlobals())
+const ancillary = {
+  'GET /dashboard': { body: DASHBOARD },
+  'GET /target-icps/options': { body: { zones: [], sectors: [] } },
+  [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: { body: { note: null, revision: 0, updated_at: null } },
+}
 
 describe('états indépendants des vues de référence', () => {
 
   it('conserve la liste utilisable quand le détail sélectionné échoue', async () => {
     mockApi({
+      ...ancillary,
       'GET /signals': { body: feedPage([STALE_ITEM]) },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: {
         status: 503,
@@ -34,10 +41,10 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    const table = await screen.findByRole('table')
-    expect(within(table).getByText(STALE_ITEM.company.name!)).toBeVisible()
+    const list = await screen.findByRole('region', { name: 'Liste des signaux' })
+    expect(await within(list).findByText(STALE_ITEM.company.name!)).toBeVisible()
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Le signal n’a pas pu être chargé.')
+    expect(alert).toHaveTextContent('Ce signal ne peut pas être ouvert pour le moment.')
     expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.getByRole('button', { name: /réessayer/i })).toBeVisible()
   })
@@ -45,6 +52,7 @@ describe('états indépendants des vues de référence', () => {
 
   it('conserve le shell du compte quand les notifications échouent', async () => {
     mockApi({
+      ...ancillary,
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: PRO_STATUS },
       'GET /notification-preferences': {
@@ -65,6 +73,7 @@ describe('états indépendants des vues de référence', () => {
     let detailReads = 0
     let rejectRetry!: (reason: unknown) => void
     mockApi({
+      ...ancillary,
       'GET /signals': { body: feedPage([STALE_ITEM]) },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: () => {
         detailReads += 1
@@ -80,13 +89,13 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Le signal n’a pas pu être chargé.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ce signal ne peut pas être ouvert pour le moment.')
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
 
-    expect(await screen.findByRole('status', { name: 'Chargement du signal' })).toBeVisible()
+    expect(await within(screen.getByRole('dialog')).findByRole('status')).toHaveTextContent('Chargement du signal')
     expect(screen.getByText(STALE_ITEM.company.name!)).toBeVisible()
     await act(async () => rejectRetry(new Error('detail retry failed')))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Le signal n’a pas pu être chargé.')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ce signal ne peut pas être ouvert pour le moment.')
     expect(screen.getByText(STALE_ITEM.company.name!)).toBeVisible()
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
@@ -98,6 +107,7 @@ describe('états indépendants des vues de référence', () => {
    * tableau, et le tiroir affiche normalement son contenu. */
   it('n’annonce qu’une fois une panne initiale du feed sur une route profonde', async () => {
     mockApi({
+      ...ancillary,
       'GET /signals': {
         status: 503,
         body: { detail: { code: 'signal_unavailable' } },
@@ -114,7 +124,7 @@ describe('états indépendants des vues de référence', () => {
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Voirie' })).toBeVisible()
     const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('Les informations n’ont pas pu être chargées.')
+    expect(alert).toHaveTextContent('Vos signaux ne sont pas chargés')
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 

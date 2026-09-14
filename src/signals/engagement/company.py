@@ -20,8 +20,14 @@ import datetime as dt
 import sqlalchemy as sa
 
 from signals.billing.service import aware_datetime
-from signals.engagement.schema import COMPANY_CONTACT_STATUSES, company_contact, company_note
-from signals.persistence.conflicts import upsert_returning
+from signals.engagement.notes import write_revisioned_note
+from signals.engagement.schema import (
+    COMPANY_CONTACT_STATUSES,
+    MAXIMUM_COMPANY_NOTE_LENGTH,
+    company_contact,
+    company_note,
+)
+from signals.persistence.conflicts import _conflict_insert, upsert_returning
 
 
 class InvalidContactStatus(ValueError):
@@ -158,24 +164,36 @@ def mark_contacted_if_pending(
 
     Une entreprise déjà `contacted` ou `replied` n'est pas rétrogradée par un
     signal marqué contacté après coup : l'action la plus avancée l'emporte.
-    Une seule lecture ici pour décider — `_upsert_contact` n'en refait pas une
-    seconde, `contacted_at` s'y calcule en SQL (voir sa docstring).
+    La garde est évaluée par la base sur la ligne verrouillée, pas depuis une
+    lecture applicative susceptible d'être périmée.
     """
-    existing = get_contact(connection, account_id=account_id, company_key=company_key)
-    if existing is not None and existing.status != "to_contact":
-        return False
-    _upsert_contact(
-        connection, account_id=account_id, company_key=company_key, status="contacted", now=now
+    statement = (
+        _conflict_insert(connection, company_contact)
+        .values(
+            account_id=account_id,
+            company_key=company_key,
+            status="contacted",
+            contacted_at=now,
+            created_at=now,
+            updated_at=now,
+        )
+        .on_conflict_do_update(
+            index_elements=[company_contact.c.account_id, company_contact.c.company_key],
+            set_={"status": "contacted", "contacted_at": now, "updated_at": now},
+            where=company_contact.c.status == "to_contact",
+        )
+        .returning(company_contact.c.company_key)
     )
-    return True
+    return connection.execute(statement).first() is not None
 
 
 @dataclasses.dataclass(frozen=True)
 class StoredCompanyNote:
     account_id: str
     company_key: str
-    body: str
+    body: str | None
     updated_at: dt.datetime
+    revision: int
 
 
 def get_note(
@@ -189,7 +207,13 @@ def get_note(
     ).first()
     if row is None:
         return None
-    return StoredCompanyNote(row.account_id, row.company_key, row.body, aware_datetime(row.updated_at))
+    return StoredCompanyNote(
+        row.account_id,
+        row.company_key,
+        row.body or None,
+        aware_datetime(row.updated_at),
+        row.revision,
+    )
 
 
 def put_note(
@@ -199,37 +223,28 @@ def put_note(
     company_key: str,
     body: str,
     now: dt.datetime,
-) -> StoredCompanyNote | None:
-    """Un corps vide (ou blanc) supprime la note et rend `None`."""
-    if not body.strip():
-        connection.execute(
-            sa.delete(company_note).where(
-                company_note.c.account_id == account_id,
-                company_note.c.company_key == company_key,
-            )
-        )
-        return None
-    values = {
-        "account_id": account_id,
-        "company_key": company_key,
-        "body": body,
-        "created_at": now,
-        "updated_at": now,
-    }
-    row = upsert_returning(
+    expected_revision: int | None = None,
+) -> StoredCompanyNote:
+    """Keep an empty revisioned tombstone when the account clears its note."""
+    row = write_revisioned_note(
         connection,
-        company_note,
-        values,
-        index_elements=[company_note.c.account_id, company_note.c.company_key],
-        update_values={"body": body, "updated_at": now},
-        returning=(
-            company_note.c.account_id,
-            company_note.c.company_key,
-            company_note.c.body,
-            company_note.c.updated_at,
-        ),
+        table=company_note,
+        account_id=account_id,
+        key_column="company_key",
+        key=company_key,
+        text_column="body",
+        text=body,
+        maximum_length=MAXIMUM_COMPANY_NOTE_LENGTH,
+        expected_revision=expected_revision,
+        now=now,
     )
-    return StoredCompanyNote(row.account_id, row.company_key, row.body, aware_datetime(row.updated_at))
+    return StoredCompanyNote(
+        row.account_id,
+        row.company_key,
+        row.body or None,
+        aware_datetime(row.updated_at),
+        row.revision,
+    )
 
 
 __all__ = [

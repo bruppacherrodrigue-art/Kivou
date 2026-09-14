@@ -7,6 +7,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.engagement.schema import signal_alert_delivery
 from signals.persistence.database import (
@@ -32,16 +33,13 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
 LATEST = "0042_account_deletion"
-CURRENT_HEAD = "0058_model_call_budget"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
 
 
 def engine_at_previous(tmp_path: pathlib.Path) -> sa.Engine:
-    engine = create_database_engine(
-        f"sqlite+pysqlite:///{tmp_path / 'alert-recipient-context.db'}"
-    )
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'alert-recipient-context.db'}")
     command.upgrade(alembic_config(engine), PREVIOUS)
     serialized_now = NOW.isoformat()
     with engine.begin() as connection:
@@ -88,9 +86,7 @@ def engine_at_previous(tmp_path: pathlib.Path) -> sa.Engine:
                     "now": serialized_now,
                     "sent_at": serialized_now if status == "sent" else None,
                     "failed_at": (
-                        serialized_now
-                        if status in {"failed", "unknown_delivery_state"}
-                        else None
+                        serialized_now if status in {"failed", "unknown_delivery_state"} else None
                     ),
                     "attempt_count": attempts,
                     "retryable": retryable,
@@ -128,11 +124,10 @@ def test_0025_is_additive_and_precedes_the_runtime_head(tmp_path) -> None:
     assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert scripts.get_revision(LATEST).down_revision == "0041_for_you_model_fit"
-    assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
-        scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
-        == FRENCH_OFFICIAL_COMPANY
+        scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     )
+    assert scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision == FRENCH_OFFICIAL_COMPANY
     assert scripts.get_revision(FRENCH_OFFICIAL_COMPANY).down_revision == WINNER_ENRICHMENT
     assert scripts.get_revision(WINNER_ENRICHMENT).down_revision == PRODUCTION_OBSERVATION
     assert scripts.get_revision(PRODUCTION_OBSERVATION).down_revision == CARD_PRESENTATION
@@ -182,9 +177,7 @@ def test_postgresql_offline_sql_is_additive_and_never_classifies_history(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
-    config.set_main_option(
-        "sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou"
-    )
+    config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
 
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
     upgrade_sql = capsys.readouterr().out.lower()
