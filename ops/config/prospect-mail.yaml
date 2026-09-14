@@ -4,95 +4,118 @@ families:
   ready_mix_concrete:
     subject_label: béton
     footer_label: béton prêt à l'emploi
-    sentence: Il leur faudra du béton prêt à l'emploi sur place.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent le béton prêt à l'emploi
+    trade_label: fournisseur de béton prêt à l'emploi
   reinforcement_steel:
     subject_label: ferraillage
     footer_label: armatures et ferraillage
-    sentence: Ils vont commander des armatures pour le gros œuvre.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent les armatures et le ferraillage
+    trade_label: spécialiste des armatures et du ferraillage
   subcontracted_structural_work:
     subject_label: gros œuvre
     footer_label: sous-traitance de gros œuvre
-    sentence: Ils vont sous-traiter une partie du gros œuvre.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent une partie du gros œuvre
+    trade_label: entreprise de gros œuvre
   formwork:
     subject_label: coffrage
     footer_label: coffrage
-    sentence: Ils vont avoir besoin de coffrage pour le gros œuvre.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent le coffrage
+    trade_label: coffreur
   scaffolding:
     subject_label: échafaudage
     footer_label: échafaudage
-    sentence: Ils vont avoir besoin d'un échafaudage pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent l'échafaudage
+    trade_label: échafaudeur
   plastering:
     subject_label: plâtrerie
     footer_label: plâtrerie
-    sentence: Ils vont chercher une entreprise de plâtrerie pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la plâtrerie
+    trade_label: plâtrier
   flooring:
     subject_label: revêtements de sol
     footer_label: revêtements de sol
-    sentence: Ils vont avoir des revêtements de sol à poser sur ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent les revêtements de sol
+    trade_label: poseur de revêtements de sol
   exterior_joinery:
     subject_label: menuiserie extérieure
     footer_label: menuiserie extérieure
-    sentence: Ils vont avoir besoin de menuiseries extérieures pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la menuiserie extérieure
+    trade_label: menuisier extérieur
   plumbing:
     subject_label: plomberie
     footer_label: plomberie
-    sentence: Ils vont chercher une entreprise de plomberie pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la plomberie
+    trade_label: plombier
   electrical:
     subject_label: électricité
     footer_label: électricité
-    sentence: Ils vont chercher une entreprise d'électricité pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent l'électricité
+    trade_label: électricien
   hvac:
     subject_label: chauffage et ventilation
     footer_label: chauffage et ventilation
-    sentence: Ils vont avoir des équipements de chauffage et de ventilation à installer.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent le chauffage et la ventilation
+    trade_label: chauffagiste-ventiliste
   insulation:
     subject_label: isolation
     footer_label: isolation
-    sentence: Il y aura de l'isolation à fournir sur ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent l'isolation
+    trade_label: entreprise d'isolation
   road_construction:
     subject_label: voirie
     footer_label: travaux routiers
-    sentence: Ils vont sous-traiter une partie des travaux de voirie.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la voirie
+    trade_label: entreprise de travaux routiers
   asphalt:
     subject_label: enrobés
     footer_label: enrobés et asphalte
-    sentence: Ils vont avoir besoin d'enrobés pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent les enrobés et l'asphalte
+    trade_label: spécialiste des enrobés et de l'asphalte
   road_markings:
     subject_label: signalisation routière
     footer_label: signalisation routière
-    sentence: Ils vont avoir de la signalisation routière à fournir et à poser.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la signalisation routière
+    trade_label: spécialiste de la signalisation routière
   earthmoving:
     subject_label: terrassement
     footer_label: terrassement
-    sentence: Ils vont sous-traiter une partie du terrassement.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent le terrassement
+    trade_label: terrassier
   demolition:
     subject_label: démolition
     footer_label: démolition
-    sentence: Ils vont chercher une entreprise de démolition pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la démolition
+    trade_label: entreprise de démolition
   waste_removal:
     subject_label: évacuation des déchets
     footer_label: évacuation des déchets
-    sentence: Ils vont avoir des déchets de chantier à évacuer.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent l'évacuation des déchets
+    trade_label: entreprise d'évacuation des déchets
   waterproofing:
     subject_label: étanchéité
     footer_label: étanchéité
-    sentence: Ils vont chercher une entreprise d'étanchéité pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent l'étanchéité
+    trade_label: étancheur
   structural_steel:
     subject_label: charpente métallique
     footer_label: charpente métallique
-    sentence: Ils vont avoir besoin d'une charpente métallique pour ce chantier.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la charpente métallique
+    trade_label: charpentier métallique
   facade_cladding:
     subject_label: bardage
     footer_label: bardage et façade
-    sentence: Ils vont avoir du bardage et des éléments de façade à poser.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent le bardage et la façade
+    trade_label: façadier-bardeur
   timber_carpentry:
     subject_label: charpente
     footer_label: charpente bois
-    sentence: Ils vont avoir besoin de bois et de charpente dans les prochaines semaines.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la charpente bois
+    trade_label: charpentier bois
   roofing:
     subject_label: couverture
     footer_label: couverture et zinguerie
-    sentence: Ils vont chercher un couvreur-zingueur pour ce lot.
+    sentence: Sur ce type de lot, le titulaire sous-traite souvent la couverture et la zinguerie
+    trade_label: couvreur-zingueur
 
 work_terms:
   - key: timber_carpentry

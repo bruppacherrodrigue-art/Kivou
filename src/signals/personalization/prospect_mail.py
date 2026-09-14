@@ -30,6 +30,7 @@ class FamilyMailCopy:
     subject_label: str
     footer_label: str
     sentence: str
+    trade_label: str
 
 
 @dataclass(frozen=True)
@@ -70,8 +71,8 @@ _BODY_TECHNICAL_PATTERN = re.compile(
 )
 _FOOTER_SEPARATOR = "\n\n—\n"
 _SURNAME_PARTICLES = frozenset({"al", "el", "de", "du", "des", "le", "la", "van", "von"})
-_FEMALE_FIRST_NAMES = frozenset({"anne", "claire", "camille", "charlotte", "chloe", "elise", "emilie", "eva", "julie", "laura", "lea", "louise", "marie", "marion", "margot", "martine", "monique", "nina", "pauline", "sophie", "valerie", "virginie"})
-_MALE_FIRST_NAMES = frozenset({"adrien", "alexandre", "alain", "arnaud", "benjamin", "bernard", "bruno", "christophe", "daniel", "david", "dominique", "françois", "franck", "gabriel", "georges", "guillaume", "henri", "hugo", "jacques", "jean", "jerome", "joseph", "julien", "laurent", "loic", "louis", "luc", "marc", "marcel", "martin", "mathieu", "michel", "nicolas", "olivier", "patrick", "paul", "philippe", "pierre", "remi", "renaud", "robert", "romain", "sebastien", "thomas", "victor", "yann", "xavier"})
+_FEMALE_FIRST_NAMES = frozenset({"alice", "anne", "claire", "camille", "charlotte", "chloe", "elise", "emilie", "eva", "julie", "laura", "lea", "louise", "marie", "marion", "margot", "martine", "monique", "nina", "pauline", "sophie", "valerie", "virginie"})
+_MALE_FIRST_NAMES = frozenset({"adrien", "alexandre", "alain", "arnaud", "benjamin", "bernard", "bruno", "christophe", "daniel", "david", "dominique", "françois", "franck", "gabriel", "georges", "gregory", "guillaume", "henri", "hugo", "jacques", "jean", "jerome", "joseph", "julien", "laurent", "loic", "louis", "luc", "marc", "marcel", "martin", "mathieu", "michel", "nicolas", "olivier", "patrick", "paul", "philippe", "pierre", "remi", "renaud", "robert", "romain", "sebastien", "thomas", "victor", "yann", "xavier"})
 _LEGAL_FORMS = re.compile(r"\b(?:SASU?|SARL|EURL|SA|SCI|SNC|EI|EIRL|MICRO[- ]?ENTREPRISE|ASSOCIATION)\b", re.IGNORECASE)
 _REGISTRY_MENTION = re.compile(r"\s*\((?:RCS|SIREN|RM|registre)[^)]*\)", re.IGNORECASE)
 
@@ -102,10 +103,11 @@ def load_prospect_mail_catalog(path: Path | None = None) -> ProspectMailCatalog:
                 subject_label=str(value["subject_label"]).strip(),
                 footer_label=str(value["footer_label"]).strip(),
                 sentence=str(value["sentence"]).strip(),
+                trade_label=str(value["trade_label"]).strip(),
             )
         except KeyError as exc:
             raise ValueError(f"prospect mail family is incomplete: {key}") from exc
-        if not copy.subject_label or not copy.footer_label or not copy.sentence.endswith("."):
+        if not all((copy.subject_label, copy.footer_label, copy.sentence, copy.trade_label)):
             raise ValueError(f"prospect mail family is invalid: {key}")
         families[key] = copy
     terms: list[WorkTerm] = []
@@ -173,6 +175,17 @@ def normalize_company_name(value: object) -> str:
         name = _normal_case(" ".join(_LEGAL_FORMS.sub(" ", abbreviated[1]).split()).strip(" ,;:-"))
         return f"{sigle.upper()} ({name})" if sigle and name else (sigle.upper() or name)
     return _normal_case(" ".join(_LEGAL_FORMS.sub(" ", raw).split()).strip(" ,;:-"))
+
+
+def normalize_holder_name(value: object) -> str:
+    raw = " ".join(str(value or "").split()).strip(" ,;:-")
+    terminal_sigle = re.search(
+        r"(?:\s[-–—]\s|\s+(?i:EN\s+ABREGE)\s+)([A-Z][A-Z0-9&.-]{1,15})$",
+        raw,
+    )
+    if terminal_sigle:
+        return terminal_sigle.group(1).upper()
+    return normalize_company_name(raw)
 
 
 def _work_description(raw_subject: str, catalog: ProspectMailCatalog) -> str:
@@ -243,8 +256,6 @@ def _render_html(
     signal_sentence: str,
     family_sentence: str,
     attribution_url: str,
-    signal_source_url: str,
-    footer_reason: str,
     unsubscribe_url: str,
 ) -> str:
     return "".join(
@@ -256,11 +267,17 @@ def _render_html(
                 "<p>Si ça vous intéresse, le détail du marché est ici : "
                 f"{_linked(attribution_url, 'Voir le marché')}</p>"
             ),
-            f"<p>Source du signal : {_linked(signal_source_url, signal_source_url)}</p>",
-            "<p>Un mot en retour suffit, je vous envoie le contact du titulaire.</p>",
-            "<p>Rodrigue / Kivou · kivou.eu</p>",
             (
-                f"<p>—<br>{html.escape(footer_reason)} Source : registres publics et avis "
+                "<p>Kivou repère les marchés publics attribués près de chez vous et vous "
+                "dit qui les a gagnés.</p>"
+            ),
+            "<p>Bien à vous,<br>Rodrigue / Kivou · kivou.eu</p>",
+            (
+                "<p>P.S. : Vous travaillez sur ce type de chantier ? Un mot en retour et "
+                "je vous envoie les prochains marchés de votre secteur.</p>"
+            ),
+            (
+                "<p>—<br>Source : registres publics et avis "
                 "d'attribution officiel.<br>"
                 f"{_linked(unsubscribe_url, 'Ne plus recevoir')}</p>"
             ),
@@ -279,8 +296,7 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
     civility = director_civility(director_name)
     surname = " ".join(director_name.split()[1:]) if director_name else ""
     greeting = f"Bonjour {civility} {surname}," if civility and surname else "Bonjour,"
-    company_name = normalize_company_name(row.get("company_name"))
-    holder = str(row.get("signal_holder") or "").strip()
+    holder = normalize_holder_name(row.get("signal_holder"))
     city = _normal_case(str(row.get("signal_city") or "").strip()) or None
     department = str(row.get("signal_department") or "").strip()
     place = f"à {city}" if city else f"en {department}"
@@ -301,15 +317,13 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
         f"attribué le {date}."
     )
     attribution_url = str(row["attribution_url"])
-    signal_url = str(row.get("signal_source_url") or attribution_url)
     unsubscribe_url = str(row["unsubscribe_url"])
     target_city = _normal_case(str(row.get("company_city") or "").strip()) or None
     distance = row.get("distance_km")
-    distance_text = f" à {distance} km du chantier" if distance not in (None, "") else ""
-    family_sentence = f"Sur ce type de lot, le titulaire sous-traite souvent {family.footer_label}."
-    why_you = (
-        f"Pourquoi vous : votre entreprise, {company_name or 'votre société'}, exerce le métier de "
-        f"{family.footer_label} à {target_city or department}{distance_text}."
+    distance_text = f", à {distance} km du chantier" if distance not in (None, "") else ""
+    family_sentence = (
+        f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} "
+        f"à {target_city or department}{distance_text}."
     )
     signature = "Rodrigue / Kivou · kivou.eu"
     if row.get("rodrigue_phone"):
@@ -319,15 +333,19 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
             greeting,
             signal_sentence,
             family_sentence,
-            why_you,
+            f"Si ça vous intéresse, le détail du marché est ici : {attribution_url}",
             "Kivou repère les marchés publics attribués près de chez vous et vous dit qui les a gagnés.",
-            f"Détail du marché : {attribution_url}",
-            f"Source du signal : {signal_url}",
-            "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire.",
-            signature,
+            f"Bien à vous,\n{signature}",
+            (
+                "P.S. : Vous travaillez sur ce type de chantier ? Un mot en retour et je vous "
+                "envoie les prochains marchés de votre secteur."
+            ),
         )
     )
-    footer = f"Ne plus recevoir : {unsubscribe_url}"
+    footer = (
+        "Source : registres publics et avis d'attribution officiel.\n"
+        f"Ne plus recevoir : {unsubscribe_url}"
+    )
     text = f"{body}{_FOOTER_SEPARATOR}{footer}"
     word_count = len(body.split())
     candidate = RenderedProspectMail(
@@ -338,8 +356,6 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
             signal_sentence=signal_sentence,
             family_sentence=family_sentence,
             attribution_url=attribution_url,
-            signal_source_url=signal_url,
-            footer_reason="",
             unsubscribe_url=unsubscribe_url,
         ),
         word_count=word_count,
@@ -398,10 +414,24 @@ def validate_prospect_mail(
             return "director_name_invalid"
     elif greeting != "Bonjour,":
         return "director_name_invalid"
-    if "Rodrigue / Kivou · kivou.eu" not in body or "P.S. : Un mot en retour suffit" not in body:
+    tagline = "Kivou repère les marchés publics attribués près de chez vous et vous dit qui les a gagnés."
+    signature = "Bien à vous,\nRodrigue / Kivou · kivou.eu"
+    postscript = (
+        "P.S. : Vous travaillez sur ce type de chantier ? Un mot en retour et je vous "
+        "envoie les prochains marchés de votre secteur."
+    )
+    footer = mail.text.partition(_FOOTER_SEPARATOR)[2]
+    if (
+        tagline not in body
+        or signature not in body
+        or not body.endswith(postscript)
+        or body.index(tagline) > body.index(signature)
+    ):
         return "signature_invalid"
+    if "Source : registres publics et avis d'attribution officiel." not in footer:
+        return "footer_source_invalid"
     urls = _URL_PATTERN.findall(mail.text)
-    if len(urls) != 3:
+    if len(urls) != 2:
         return "url_count_invalid"
     if any(mail.html.count(f'href="{html.escape(url, quote=True)}"') != 1 for url in urls):
         return "html_link_count_invalid"
@@ -424,6 +454,7 @@ __all__ = [
     "load_prospect_mail_catalog",
     "normalize_company_name",
     "normalize_director_name",
+    "normalize_holder_name",
     "render_prospect_mail",
     "validate_prospect_mail",
 ]
