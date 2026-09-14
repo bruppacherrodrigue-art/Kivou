@@ -23,6 +23,7 @@ from billing_helpers import FakeStripe, subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import COMPLETE_ICP_INPUT, ORIGIN, PASSWORD
 from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.accounts.schema import target_icp
 from signals.api import ApiConfig, create_app
@@ -384,7 +385,7 @@ def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
         command.upgrade(alembic_config(engine), revision)
         assert current_revision(engine) == revision
     migrate_to_latest(engine)
-    assert current_revision(engine) == "0060_boamp_notice_facts"
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 @pytest.mark.slow
@@ -420,7 +421,7 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
         icps = connection.execute(sa.select(target_icp)).all()
     assert [item.signal_key for item in signals] == [signal.signal_key]
     assert [row.target_icp_id for row in icps] == [icp_id]
-    assert current_revision(engine) == "0060_boamp_notice_facts"
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 def test_the_billing_migration_touches_no_earlier_table(tmp_path: pathlib.Path):

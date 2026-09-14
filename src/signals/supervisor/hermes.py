@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import Field, ValidationError
 
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import ModelRoute
+from signals.model_runtime.openrouter import estimate_reservation
 from signals.supervisor.contracts import (
     ProposedAction,
     SupervisorContext,
@@ -158,10 +163,16 @@ class HermesSupervisorAdapter:
         *,
         transport: HermesTransport | None = None,
         pin: HermesPin | None = None,
+        model_route: ModelRoute | None = None,
+        budget_store: ModelBudgetStore | None = None,
+        batch_id: str | None = None,
     ) -> None:
         self.settings = settings
         self.transport = transport or SubprocessHermesTransport(settings)
         self.pin = pin or load_hermes_pin()
+        self.model_route = model_route
+        self.budget_store = budget_store
+        self.batch_id = batch_id
 
     def _validate_metadata(self, response: dict[str, Any]) -> None:
         if response.get("ok") is not True:
@@ -188,11 +199,11 @@ class HermesSupervisorAdapter:
         if response.get("executable_tools") != []:
             raise SupervisorVersionMismatch("Hermes bridge exposed executable tools")
 
-    @staticmethod
-    def _validate_route(response: dict[str, Any]) -> None:
+    def _validate_route(self, response: dict[str, Any]) -> None:
+        expected_model = self.model_route.model if self.model_route else OPENROUTER_MODEL
         if (
             response.get("provider") != OPENROUTER_PROVIDER
-            or response.get("model") != OPENROUTER_MODEL
+            or response.get("model") != expected_model
             or response.get("automatic_retries") != 0
             or response.get("fallbacks") is not False
         ):
@@ -258,21 +269,71 @@ class HermesSupervisorAdapter:
         )
         original_schema = plan_contract.model_json_schema()
         provider_schema = transform_provider_schema(original_schema)
-        response = self.transport.invoke(
-            {
+        instructions = self._instructions(original_schema)
+        context_json = self._context_json(context)
+        model = self.model_route.model if self.model_route else OPENROUTER_MODEL
+        request = {
                 "operation": "plan",
-                "instructions": self._instructions(original_schema),
-                "context_json": self._context_json(context),
+                "instructions": instructions,
+                "context_json": context_json,
                 "max_tokens": self.settings.limits.max_output_tokens,
                 "timeout_seconds": self.settings.limits.invocation_timeout_seconds,
                 "provider": OPENROUTER_PROVIDER,
-                "model": OPENROUTER_MODEL,
+                "model": model,
                 "provider_routing": OPENROUTER_PROVIDER_ROUTING,
                 "response_schema": provider_schema,
             }
-        )
-        self._validate_metadata(response)
-        self._validate_route(response)
+        reservation_id: str | None = None
+        if self.budget_store is not None and self.model_route is not None:
+            reservation_id = str(uuid.uuid4())
+            reserved = estimate_reservation(
+                self.model_route,
+                messages=[
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": context_json},
+                ],
+                max_tokens=self.settings.limits.max_output_tokens,
+            )
+            self.budget_store.reserve(
+                route=self.model_route,
+                estimated_usd=reserved,
+                call_id=reservation_id,
+                batch_id=self.batch_id,
+            )
+        try:
+            response = self.transport.invoke(request)
+        except Exception:
+            if reservation_id is not None:
+                self.budget_store.fail(call_id=reservation_id, error_code="HERMES_TRANSPORT")
+            raise
+        try:
+            self._validate_metadata(response)
+            self._validate_route(response)
+        except Exception:
+            if reservation_id is not None:
+                self.budget_store.fail(
+                    call_id=reservation_id, error_code="HERMES_RESPONSE_INVALID"
+                )
+            raise
+        if reservation_id is not None:
+            usage = response.get("usage")
+            try:
+                if not isinstance(usage, Mapping):
+                    raise TypeError
+                input_tokens = int(usage["input_tokens"])
+                output_tokens = int(usage["output_tokens"])
+                actual_usd = Decimal(str(usage["cost_usd"]))
+            except (KeyError, TypeError, ValueError) as exc:
+                self.budget_store.fail(
+                    call_id=reservation_id, error_code="HERMES_USAGE_MISSING"
+                )
+                raise SupervisorValidationError("Hermes usage is missing") from exc
+            self.budget_store.succeed(
+                call_id=reservation_id,
+                actual_usd=actual_usd,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
         raw_plan = response.get("response")
         if not isinstance(raw_plan, str):
             raise SupervisorValidationError("Hermes response is missing a structured plan")

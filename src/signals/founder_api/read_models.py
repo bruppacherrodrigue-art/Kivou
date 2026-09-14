@@ -33,10 +33,13 @@ from signals.founder_api.prospection import (
 )
 from signals.founder_api.providers import FounderProviderName
 from signals.founder_api.system_status import (
+    FounderModelBudget,
     FounderProviderCost,
     FounderSystemHostReader,
     FounderSystemPage,
 )
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import routes_from_environment
 from signals.operations.contracts import (
     AcquisitionOperationalHealth,
     AutonomousReadiness,
@@ -92,9 +95,7 @@ class FounderQualitySummary(FounderContract):
     unresolved_sector_count: int = Field(ge=0)
     unknown_mrr_journey_count: int = Field(ge=0)
 
-    _times = field_validator("window_start", "window_end")(
-        lambda value: _aware(value)
-    )
+    _times = field_validator("window_start", "window_end")(lambda value: _aware(value))
 
 
 class FounderAttentionItem(FounderContract):
@@ -134,15 +135,16 @@ class FounderTodaySummary(FounderContract):
     business_period_start: dt.datetime
     business_period_end: dt.datetime
 
-    _times = field_validator(
-        "generated_at", "business_period_start", "business_period_end"
-    )(lambda value: _aware(value))
+    _times = field_validator("generated_at", "business_period_start", "business_period_end")(
+        lambda value: _aware(value)
+    )
 
 
 class FounderSystemSummary(FounderContract):
     health: AcquisitionOperationalHealth
     readiness: AutonomousReadiness
     hermes: FounderAgentStatus
+    model_budgets: tuple[FounderModelBudget, ...]
     database_access: Literal["READ_ONLY"] = "READ_ONLY"
 
 
@@ -239,6 +241,7 @@ class FounderReadService:
             disk=host.disk,
             backups=host.backups,
             provider_costs=self._provider_costs(now=now),
+            model_budgets=self._model_budgets(now=now),
             deployed_sha=host.deployed_sha,
         )
 
@@ -275,16 +278,13 @@ class FounderReadService:
             health=health,
             readiness=readiness,
             hermes=hermes,
+            model_budgets=self._model_budgets(now=now),
         )
         today = FounderTodaySummary(
             generated_at=now,
             open_attention_count=len(attention),
-            critical_attention_count=sum(
-                item.severity == "CRITICAL" for item in attention
-            ),
-            positive_replies_last_completed_week=(
-                business.funnel.positive_reply_count
-            ),
+            critical_attention_count=sum(item.severity == "CRITICAL" for item in attention),
+            positive_replies_last_completed_week=(business.funnel.positive_reply_count),
             paid_accounts_last_completed_week=business.funnel.paid_account_count,
             business_period_start=business.week_start,
             business_period_end=business.week_end,
@@ -330,6 +330,28 @@ class FounderReadService:
                 )
                 for row in rows
             )
+
+    def _model_budgets(self, *, now: dt.datetime) -> tuple[FounderModelBudget, ...]:
+        model_routes = routes_from_environment(batch_id="founder-system")
+        model_store = ModelBudgetStore(self._engine, clock=lambda: now)
+        return tuple(
+            FounderModelBudget(
+                usage=route.usage,
+                model=route.model,
+                usage_date=(summary := model_store.summary(route.usage)).usage_date,
+                actual_usd=summary.actual_usd,
+                reserved_usd=summary.reserved_usd,
+                cap_usd=route.daily_budget_usd,
+                remaining_usd=(route.daily_budget_usd - summary.actual_usd - summary.reserved_usd),
+                call_count=(stats := model_store.usage_stats(route.usage)).call_count,
+                succeeded_call_count=stats.succeeded_call_count,
+                failed_call_count=stats.failed_call_count,
+                rejected_call_count=stats.rejected_call_count,
+                input_tokens=stats.input_tokens,
+                output_tokens=stats.output_tokens,
+            )
+            for route in model_routes.routes
+        )
 
     def _provider_costs(self, *, now: dt.datetime) -> tuple[FounderProviderCost, ...]:
         local_now = now.astimezone(_ZURICH)
@@ -493,11 +515,9 @@ class FounderReadService:
         not_relevant_total = int(totals["not_relevant_total"] or 0)
         negative_rate = (
             int(
-                (
-                    Decimal(not_relevant_total)
-                    / Decimal(feedback_total)
-                    * Decimal(10_000)
-                ).quantize(Decimal("1"))
+                (Decimal(not_relevant_total) / Decimal(feedback_total) * Decimal(10_000)).quantize(
+                    Decimal("1")
+                )
             )
             if feedback_total
             else None
@@ -506,9 +526,7 @@ class FounderReadService:
             window_start=start,
             window_end=now,
             feedback_updated_in_window_count=feedback_total,
-            relevant_feedback_updated_in_window_count=int(
-                totals["relevant_total"] or 0
-            ),
+            relevant_feedback_updated_in_window_count=int(totals["relevant_total"] or 0),
             not_relevant_feedback_updated_in_window_count=not_relevant_total,
             contacted_in_window_count=int(totals["contacted_total"] or 0),
             negative_feedback_rate_bps=negative_rate,
@@ -520,9 +538,7 @@ class FounderReadService:
                 for row in reasons
             ),
             unresolved_sector_count=business.data_quality.unresolved_sector_count,
-            unknown_mrr_journey_count=(
-                business.data_quality.unknown_mrr_journey_count
-            ),
+            unknown_mrr_journey_count=(business.data_quality.unknown_mrr_journey_count),
         )
 
 
@@ -557,15 +573,9 @@ def _dead_letter_attention(row: Mapping[str, object]) -> FounderAttentionItem:
         scope_type=str(row.get("scope_type") or "UNKNOWN"),
         scope_ref=str(row.get("scope_ref") or "unknown"),
         source_component=(
-            str(row["source_component"])
-            if row.get("source_component") is not None
-            else None
+            str(row["source_component"]) if row.get("source_component") is not None else None
         ),
-        attempt_count=(
-            int(row["attempt_count"])
-            if row.get("attempt_count") is not None
-            else None
-        ),
+        attempt_count=(int(row["attempt_count"]) if row.get("attempt_count") is not None else None),
         human_review_required=True,
         pause_required=False,
     )
@@ -602,11 +612,7 @@ def _hermes_reason_codes(
     prefixes = ("HERMES", "RUNTIME", "SUPERVISOR", "QA_SHADOW")
     return tuple(
         sorted(
-            {
-                code
-                for code in (*health_reasons, *readiness_blockers)
-                if code.startswith(prefixes)
-            }
+            {code for code in (*health_reasons, *readiness_blockers) if code.startswith(prefixes)}
         )
     )
 
@@ -660,6 +666,7 @@ __all__ = [
     "FounderAgentStatus",
     "FounderAttentionItem",
     "FounderConsoleOverview",
+    "FounderModelBudget",
     "FounderQualitySummary",
     "FounderReadService",
     "FounderReasonCount",

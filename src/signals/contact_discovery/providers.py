@@ -5,17 +5,19 @@ from __future__ import annotations
 import json
 import os
 import re
+import uuid
 from typing import TYPE_CHECKING, Protocol
 
 import httpx
+import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, ValidationError
+
+from signals.model_runtime.budget import DailyModelBudgetExhausted, ModelBudgetStore
+from signals.model_runtime.config import ModelRoute, routes_from_environment
+from signals.model_runtime.openrouter import OpenRouterGateway
 
 if TYPE_CHECKING:
     from signals.contact_discovery.web import OfficialDirector, WebsiteEvidence
-
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "anthropic/claude-sonnet-4.6"
-
 
 class PublishedContactExtraction(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
@@ -63,15 +65,13 @@ class OpenRouterPublishedContactExtractor:
     def __init__(
         self,
         *,
-        api_key: str,
-        client: httpx.Client | None = None,
-        model: str = DEFAULT_MODEL,
+        gateway: OpenRouterGateway,
+        route: ModelRoute,
+        batch_id: str,
     ) -> None:
-        if not api_key.strip():
-            raise ValueError("OpenRouter API key is required")
-        self._api_key = api_key
-        self._client = client or httpx.Client(timeout=20.0, follow_redirects=False)
-        self._model = model
+        self._gateway = gateway
+        self._route = route
+        self._batch_id = batch_id
 
     def extract(self, *, company_name, directors, evidence):
         if not evidence:
@@ -98,32 +98,20 @@ class OpenRouterPublishedContactExtractor:
             ],
         }
         try:
-            response = self._client.post(
-                OPENROUTER_URL,
-                headers={"authorization": f"Bearer {self._api_key}"},
-                json={
-                    "model": self._model,
-                    "temperature": 0,
-                    "max_tokens": 1000,
-                    "messages": [
-                        {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}
-                    ],
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "published_contact",
-                            "strict": True,
-                            "schema": PublishedContactExtraction.model_json_schema(),
-                        },
-                    },
-                },
+            response = self._gateway.json_call(
+                route=self._route,
+                messages=[
+                    {"role": "user", "content": json.dumps(prompt, ensure_ascii=False)}
+                ],
+                schema=PublishedContactExtraction.model_json_schema(),
+                schema_name="published_contact",
+                max_tokens=1_000,
+                batch_id=self._batch_id,
             )
-            if response.status_code != 200 or len(response.content) > 262_144:
-                return None
-            payload = response.json()
-            content = payload["choices"][0]["message"]["content"]
-            extraction = PublishedContactExtraction.model_validate_json(content)
-        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, ValidationError):
+            extraction = PublishedContactExtraction.model_validate_json(response.content)
+        except DailyModelBudgetExhausted:
+            raise
+        except (RuntimeError, TypeError, ValueError, ValidationError):
             return None
         if (
             _normalized(extraction.dirigeant)
@@ -139,16 +127,28 @@ class OpenRouterPublishedContactExtractor:
 
 
 def published_contact_extractor_from_environment(
-    *, client: httpx.Client | None = None
+    *,
+    engine: sa.Engine,
+    batch_id: str | None = None,
+    client: httpx.Client | None = None,
 ) -> PublishedContactExtractor:
     key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not key:
         raise ValueError("contact extraction model is not configured")
-    return OpenRouterPublishedContactExtractor(api_key=key, client=client)
+    resolved_batch_id = batch_id or f"published-contact-{uuid.uuid4().hex[:12]}"
+    routes = routes_from_environment(batch_id=resolved_batch_id)
+    return OpenRouterPublishedContactExtractor(
+        gateway=OpenRouterGateway(
+            api_key=key,
+            budgets=ModelBudgetStore(engine),
+            client=client,
+        ),
+        route=routes.route("enrichment_judge"),
+        batch_id=resolved_batch_id,
+    )
 
 
 __all__ = [
-    "OpenRouterPublishedContactExtractor",
     "PublishedContactExtraction",
     "PublishedContactExtractor",
     "coherent_email_domain",

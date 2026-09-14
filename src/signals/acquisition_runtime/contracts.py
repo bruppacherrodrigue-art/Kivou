@@ -130,6 +130,14 @@ class RuntimeRunStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class RuntimeExecutionConfigurationError(RuntimeError):
+    """A bounded configuration error which never carries configuration values."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(f"acquisition runtime execution configuration error: {code}")
+        self.code = code
+
+
 class _FrozenModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 

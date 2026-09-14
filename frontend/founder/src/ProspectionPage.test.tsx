@@ -30,6 +30,9 @@ const PROSPECTION: FounderProspection = {
     last_cycle_at: '2026-09-10T11:46:00Z',
     last_cycle_status: 'SUPPRESSED',
     last_cycle_reason_code: 'NO_ELIGIBLE_OPPORTUNITY',
+    prepared_today_count: 3,
+    daily_pending_cap: 25,
+    next_run_at: '2026-09-11T04:00:00Z',
   },
   queue: {
     available: false,
@@ -48,6 +51,12 @@ const PROSPECTION: FounderProspection = {
       enriched_week_count: 31,
       model: 'anthropic/claude-sonnet-4.6',
       cumulative_cost_usd: '0.954200',
+      latest_batch_id: 'benchmark-1',
+      latest_batch_call_count: 30,
+      latest_batch_input_tokens: 90000,
+      latest_batch_output_tokens: 2400,
+      latest_batch_cost_usd: '0.012000',
+      latest_batch_mean_input_tokens: '3000',
     },
     reverification_reason_counts: [
       { key: 'email_below_threshold', label: 'email_below_threshold', count: 12 },
@@ -293,6 +302,18 @@ function installProspectionFetch(
         json: async () => actionList(actionItems.filter((item) => item.status === status)),
       }
     }
+    if (url.endsWith('/api/founder/actions/prospection/prepare')) {
+      return {
+        ok: true,
+        status: 202,
+        json: async () => ({
+          version: 'founder-prospection-prepare-v1',
+          status: 'accepted',
+          prepared_today_count: 3,
+          daily_pending_cap: 25,
+        }),
+      }
+    }
     if (url.includes('/api/founder/prospection?')) {
       return { ok: true, status: 200, json: async () => prospection }
     }
@@ -311,6 +332,77 @@ afterEach(() => {
 })
 
 describe('ProspectionPage', () => {
+  it('shows the preparation schedule and launches a cycle from the daily queue card', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState({}, '', '/prospection')
+    const fetchMock = installProspectionFetch()
+
+    render(<FounderApp />)
+
+    const queue = (await screen.findByRole('heading', { name: 'File du jour' })).closest('section')
+    expect(queue).not.toBeNull()
+    expect(within(queue!).getByText(/Dernier cycle ·/)).toBeInTheDocument()
+    expect(within(queue!).getByText(/Résultat · .*Aucune opportunité éligible/)).toBeInTheDocument()
+    expect(within(queue!).getByText(/Prochain passage/)).toBeInTheDocument()
+    expect(within(queue!).getByText('File · 3/25')).toBeInTheDocument()
+
+    await user.click(within(queue!).getByRole('button', { name: 'Préparer la file du jour' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/founder/actions/prospection/prepare',
+      expect.objectContaining({ method: 'POST', credentials: 'same-origin' }),
+    ))
+    expect(within(queue!).getByText('Préparation en cours · 3/25')).toBeInTheDocument()
+  })
+
+  it('ends local polling after a refreshed stopped cycle that completed before RUNNING was observed', async () => {
+    const user = userEvent.setup()
+    let launched = false
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/api/founder/actions/prospection/list')) {
+        return { ok: true, status: 200, json: async () => actionList([]) }
+      }
+      if (url.endsWith('/api/founder/actions/prospection/prepare')) {
+        launched = true
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({
+            version: 'founder-prospection-prepare-v1',
+            status: 'accepted',
+            prepared_today_count: 3,
+            daily_pending_cap: 25,
+          }),
+        }
+      }
+      if (url.includes('/api/founder/prospection?')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            ...PROSPECTION,
+            generated_at: launched ? '2026-09-11T08:00:02Z' : PROSPECTION.generated_at,
+          }),
+        }
+      }
+      if (url.endsWith('/api/founder/session')) {
+        return { ok: true, status: 200, json: async () => SESSION }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    }))
+    window.history.replaceState({}, '', '/prospection')
+    render(<FounderApp />)
+
+    const queue = (await screen.findByRole('heading', { name: 'File du jour' })).closest('section')
+    await user.click(within(queue!).getByRole('button', { name: 'Préparer la file du jour' }))
+
+    await waitFor(() => expect(
+      within(queue!).queryByText('Préparation en cours · 3/25'),
+    ).not.toBeInTheDocument())
+    expect(within(queue!).getByRole('button', { name: 'Préparer la file du jour' })).toBeEnabled()
+  })
+
   it('routes to the production directory and always places the empty review queue first', async () => {
     window.history.replaceState({}, '', '/prospection')
     const fetchMock = installProspectionFetch()

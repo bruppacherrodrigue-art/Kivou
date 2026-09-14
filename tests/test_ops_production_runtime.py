@@ -493,6 +493,13 @@ def test_production_api_has_no_runtime_write_allowlist() -> None:
     assert "ReadWritePaths" not in parsed["Service"]
 
 
+def test_production_for_you_loads_the_active_prospecting_scope() -> None:
+    body = read(PRODUCTION / "kivou-for-you.service")
+
+    assert "EnvironmentFile=/etc/kivou/production.env" in body
+    assert "EnvironmentFile=-/etc/kivou/acquisition-production.env" in body
+
+
 def test_production_api_runs_only_behind_the_local_proxy() -> None:
     body = read(PRODUCTION / "kivou-api.service")
 

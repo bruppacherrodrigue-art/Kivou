@@ -12,6 +12,9 @@ WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/founder.env
 EnvironmentFile=/etc/kivou/production.env
 EnvironmentFile=/etc/kivou/acquisition-production.env
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 ExecStart=/srv/kivou/app/.venv/bin/uvicorn signals.founder_api.asgi:app --host 127.0.0.1 --port 8011 --workers 2 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header --no-access-log --timeout-keep-alive 20
 Restart=on-failure
 RestartSec=5s
@@ -33,7 +36,9 @@ RestrictSUIDSGID=true
 RestrictNamespaces=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 LockPersonality=true
-MemoryDenyWriteExecute=true
+# Intentionally no MemoryDenyWriteExecute: the bounded Founder action starts
+# the Playwright-backed supplier discovery child, whose Node/V8 runtime needs
+# executable JIT pages. The dedicated acquisition unit has the same exception.
 
 [Install]
 WantedBy=multi-user.target

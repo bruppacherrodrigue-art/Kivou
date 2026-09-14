@@ -3,12 +3,12 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS = "0040_for_you_raw_diagnostics"
 HEAD = "0041_for_you_model_fit"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def test_for_you_migration_adds_bounded_raw_diagnostics(tmp_path) -> None:

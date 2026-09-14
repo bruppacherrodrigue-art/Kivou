@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AcquisitionStatus } from './AcquisitionStatus'
+import { AcquisitionStatus, cycleResultLabel } from './AcquisitionStatus'
 import {
   approveFounderProspect,
   correctFounderProspect,
   FounderApiError,
   loadFounderProspectionActions,
+  prepareFounderProspection,
   rejectFounderProspect,
   sendFounderProspects,
 } from './api'
@@ -68,6 +69,7 @@ type ProspectionPageProps = {
   filters: FounderProspectionFilters
   refreshing: boolean
   onFiltersChange: (filters: FounderProspectionFilters) => void
+  onRefresh: () => void
 }
 
 export function ProspectionPage({
@@ -75,6 +77,7 @@ export function ProspectionPage({
   filters,
   refreshing,
   onFiltersChange,
+  onRefresh,
 }: ProspectionPageProps) {
   const [openMail, setOpenMail] = useState<FounderProspectionActionTarget | null>(null)
   const mailTriggerRef = useRef<HTMLButtonElement | null>(null)
@@ -97,6 +100,7 @@ export function ProspectionPage({
       <ProspectionHero data={data} />
       <QueueSection
         data={data}
+        onRefresh={onRefresh}
         onOpenMail={(item, trigger) => {
           mailTriggerRef.current = trigger
           setOpenMail(item)
@@ -136,7 +140,7 @@ function DirectorySection({
   filters,
   refreshing,
   onFiltersChange,
-}: ProspectionPageProps) {
+}: Omit<ProspectionPageProps, 'onRefresh'>) {
   const [searchDraft, setSearchDraft] = useState(filters.q)
   const { directory } = data
   const { pagination } = directory
@@ -179,6 +183,14 @@ function DirectorySection({
             <div className="prospection-inline-list">
               <small>Coût cumulé</small>
               <strong>{formatUsd(directory.enrichment.cumulative_cost_usd)}</strong>
+            </div>
+            <div className="prospection-inline-list">
+              <small>Dernière passe</small>
+              <strong>{formatUsd(directory.enrichment.latest_batch_cost_usd)}</strong>
+              <span>
+                {formatCount(directory.enrichment.latest_batch_call_count)} appels ·{' '}
+                {formatCount(directory.enrichment.latest_batch_input_tokens)} tokens entrée
+              </span>
             </div>
           </div>
         </div>
@@ -364,9 +376,11 @@ function DirectoryTableRow({ row }: { row: FounderDirectoryRow }) {
 
 function QueueSection({
   data,
+  onRefresh,
   onOpenMail,
 }: {
   data: FounderProspection
+  onRefresh: () => void
   onOpenMail: (item: FounderProspectionActionTarget, trigger: HTMLButtonElement) => void
 }) {
   const [items, setItems] = useState<FounderProspectionActionTarget[]>([])
@@ -385,7 +399,64 @@ function QueueSection({
   const [sendingCount, setSendingCount] = useState(0)
   const [sendNotice, setSendNotice] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [preparationState, setPreparationState] = useState<'idle' | 'requesting' | 'polling'>('idle')
   const sendRequestRef = useRef<{ fingerprint: string; requestId: string } | null>(null)
+  const preparationBaselineRef = useRef<string | null>(null)
+  const preparationStartedAtRef = useRef<number | null>(null)
+  const preparationSawRunningRef = useRef(false)
+  const preparationGeneratedAtRef = useRef<string | null>(null)
+
+  const acquisition = data.acquisition_status
+  const preparationRunning = preparationState !== 'idle' || acquisition.activity === 'RUNNING'
+  const preparationAtCap = acquisition.prepared_today_count >= acquisition.daily_pending_cap
+
+  useEffect(() => {
+    if (preparationState !== 'polling') return undefined
+    if (acquisition.activity === 'RUNNING') preparationSawRunningRef.current = true
+    const cycleCompleted = acquisition.last_cycle_at !== preparationBaselineRef.current
+    const returnedToStopped = preparationSawRunningRef.current && acquisition.activity === 'STOPPED'
+    const refreshedAfterLaunch = data.generated_at !== preparationGeneratedAtRef.current
+    const fastCycleCompleted = refreshedAfterLaunch && acquisition.activity === 'STOPPED'
+    if (cycleCompleted || returnedToStopped || fastCycleCompleted || preparationAtCap) {
+      setPreparationState('idle')
+      return undefined
+    }
+    if (
+      preparationStartedAtRef.current !== null
+      && Date.now() - preparationStartedAtRef.current >= 25 * 60 * 1000
+    ) {
+      setPreparationState('idle')
+      setActionError('La préparation prend plus de temps que prévu. Actualise la page pour vérifier son état.')
+      return undefined
+    }
+    const interval = window.setInterval(onRefresh, 2_000)
+    return () => window.clearInterval(interval)
+  }, [
+    acquisition.activity,
+    acquisition.last_cycle_at,
+    data.generated_at,
+    onRefresh,
+    preparationAtCap,
+    preparationState,
+  ])
+
+  const prepareQueue = async () => {
+    if (preparationRunning || preparationAtCap) return
+    setPreparationState('requesting')
+    setActionError(null)
+    preparationBaselineRef.current = acquisition.last_cycle_at
+    preparationStartedAtRef.current = Date.now()
+    preparationSawRunningRef.current = false
+    preparationGeneratedAtRef.current = data.generated_at
+    try {
+      await prepareFounderProspection()
+      setPreparationState('polling')
+      onRefresh()
+    } catch (error) {
+      setPreparationState('idle')
+      setActionError(founderActionErrorMessage(error, 'La préparation de la file a échoué.'))
+    }
+  }
 
   const refreshQueue = useCallback(async (signal?: AbortSignal) => {
     const activeSignal = signal ?? new AbortController().signal
@@ -663,6 +734,39 @@ function QueueSection({
         meta={cycleDateLabel(data.queue.last_cycle_at)}
       />
       <article className="control-panel prospection-queue-panel">
+        <div className="prospection-preparation-bar">
+          <div className="prospection-preparation-facts" aria-label="Planification de la préparation">
+            <span>
+              Dernier cycle · {acquisition.last_cycle_at
+                ? formatDateTime(acquisition.last_cycle_at)
+                : 'Aucun cycle observé'}
+            </span>
+            <span>Résultat · {cycleResultLabel(acquisition)}</span>
+            <span>
+              Prochain passage · {acquisition.next_run_at
+                ? formatDateTime(acquisition.next_run_at)
+                : 'Non planifié'}
+            </span>
+            <span>File · {acquisition.prepared_today_count}/{acquisition.daily_pending_cap}</span>
+          </div>
+          <button
+            type="button"
+            className="prospection-action-primary"
+            disabled={preparationRunning || preparationAtCap}
+            onClick={() => void prepareQueue()}
+          >
+            Préparer la file du jour
+          </button>
+        </div>
+        {preparationRunning ? (
+          <p className="prospection-action-notice" role="status">
+            Préparation en cours · {acquisition.prepared_today_count}/{acquisition.daily_pending_cap}
+          </p>
+        ) : preparationAtCap ? (
+          <p className="prospection-action-warning" role="status">
+            La file du jour a atteint son plafond de 25 cibles.
+          </p>
+        ) : null}
         {actionError ? <p className="prospection-action-error" role="alert">{actionError}</p> : null}
         {!loaded ? (
           <div className="prospection-compact-empty">

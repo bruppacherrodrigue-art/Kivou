@@ -18,8 +18,40 @@ from signals.contact_discovery.web import (
     PublishedWebsiteContactProvider,
     WebsiteEvidence,
 )
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import routes_from_environment
+from signals.model_runtime.openrouter import OpenRouterGateway
+from signals.persistence.database import create_database_engine, migrate_to_latest
 
 NOW = dt.datetime(2026, 9, 10, 12, tzinfo=dt.UTC)
+
+
+def _model_response(content: str) -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "choices": [{"message": {"content": content}}],
+            "usage": {
+                "prompt_tokens": 400,
+                "completion_tokens": 50,
+                "cost": "0.00011",
+            },
+        },
+    )
+
+
+def _model_extractor(tmp_path, handler):
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'contact-model.db'}")
+    migrate_to_latest(engine)
+    route = routes_from_environment(batch_id="contact-test").route("enrichment_judge")
+    gateway = OpenRouterGateway(
+        api_key="test",
+        budgets=ModelBudgetStore(engine, clock=lambda: NOW),
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    return OpenRouterPublishedContactExtractor(
+        gateway=gateway, route=route, batch_id="contact-test"
+    ), engine
 
 
 def _profile():
@@ -35,33 +67,19 @@ def _profile():
     )
 
 
-def test_model_extraction_is_strict_and_must_select_published_email() -> None:
+def test_model_extraction_is_strict_and_must_select_published_email(tmp_path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/v1/chat/completions"
         payload = __import__("json").loads(request.content)
         assert payload["max_tokens"] == 1000
         schema = payload["response_format"]["json_schema"]["schema"]
         assert set(schema["required"]) == {"email", "dirigeant", "confiance"}
-        return httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {
-                        "message": {
-                            "content": (
-                                '{"email":"alice@beton-alpes.fr",'
-                                '"dirigeant":"Alice Martin","confiance":0.98}'
-                            )
-                        }
-                    }
-                ]
-            },
+        return _model_response(
+            '{"email":"alice@beton-alpes.fr",'
+            '"dirigeant":"Alice Martin","confiance":0.98}'
         )
 
-    extractor = OpenRouterPublishedContactExtractor(
-        api_key="test",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
-    )
+    extractor, engine = _model_extractor(tmp_path, handler)
     result = extractor.extract(
         company_name="BETON ALPES",
         directors=(OfficialDirector(name="Alice Martin", title="Gérante"),),
@@ -77,29 +95,20 @@ def test_model_extraction_is_strict_and_must_select_published_email() -> None:
     assert result is not None
     assert result.dirigeant == "Alice Martin"
     assert result.email == "alice@beton-alpes.fr"
-
-
-def test_model_extraction_rejects_invented_email() -> None:
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda _request: httpx.Response(
-                200,
-                json={
-                    "choices": [
-                        {
-                            "message": {
-                                "content": (
-                                    '{"email":"invented@beton-alpes.fr",'
-                                    '"dirigeant":"Alice Martin","confiance":0.50}'
-                                )
-                            }
-                        }
-                    ]
-                },
-            )
-        )
+    assert ModelBudgetStore(engine, clock=lambda: NOW).calls()[0].usage == (
+        "enrichment_judge"
     )
-    result = OpenRouterPublishedContactExtractor(api_key="test", client=client).extract(
+
+
+def test_model_extraction_rejects_invented_email(tmp_path) -> None:
+    extractor, _engine = _model_extractor(
+        tmp_path,
+        lambda _request: _model_response(
+            '{"email":"invented@beton-alpes.fr",'
+            '"dirigeant":"Alice Martin","confiance":0.50}'
+        ),
+    )
+    result = extractor.extract(
         company_name="BETON ALPES",
         directors=(OfficialDirector(name="Alice Martin", title="Gérante"),),
         evidence=(
@@ -305,30 +314,17 @@ def test_website_reports_mx_failure_when_published_email_is_not_deliverable(capl
     assert decision.reason == "mx invalide"
 
 
-def test_model_can_normalize_textually_published_email_without_director() -> None:
+def test_model_can_normalize_textually_published_email_without_director(tmp_path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         payload = __import__("json").loads(request.content)
         assert payload["max_tokens"] == 1000
-        return httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {
-                        "message": {
-                            "content": (
-                                '{"email":"devis@beton-alpes.fr",'
-                                '"dirigeant":"BETON ALPES","confiance":0.9}'
-                            )
-                        }
-                    }
-                ]
-            },
+        return _model_response(
+            '{"email":"devis@beton-alpes.fr",'
+            '"dirigeant":"BETON ALPES","confiance":0.9}'
         )
 
-    result = OpenRouterPublishedContactExtractor(
-        api_key="test",
-        client=httpx.Client(transport=httpx.MockTransport(handler)),
-    ).extract(
+    extractor, _engine = _model_extractor(tmp_path, handler)
+    result = extractor.extract(
         company_name="BETON ALPES",
         directors=(),
         evidence=(
@@ -586,28 +582,16 @@ def test_website_does_not_record_third_party_contact_form() -> None:
     assert recorded == []
 
 
-def test_model_rejects_published_email_from_unrelated_domain() -> None:
-    client = httpx.Client(
-        transport=httpx.MockTransport(
-            lambda _request: httpx.Response(
-                200,
-                json={
-                    "choices": [
-                        {
-                            "message": {
-                                "content": (
-                                    '{"email":"mairie@certines.fr",'
-                                    '"dirigeant":"Alice Martin","confiance":0.95}'
-                                )
-                            }
-                        }
-                    ]
-                },
-            )
-        )
+def test_model_rejects_published_email_from_unrelated_domain(tmp_path) -> None:
+    extractor, _engine = _model_extractor(
+        tmp_path,
+        lambda _request: _model_response(
+            '{"email":"mairie@certines.fr",'
+            '"dirigeant":"Alice Martin","confiance":0.95}'
+        ),
     )
 
-    result = OpenRouterPublishedContactExtractor(api_key="test", client=client).extract(
+    result = extractor.extract(
         company_name="JACQUET",
         directors=(OfficialDirector(name="Alice Martin", title="Gérante"),),
         evidence=(

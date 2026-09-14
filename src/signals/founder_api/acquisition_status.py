@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import datetime as dt
+import fcntl
 import os
 import subprocess
 from collections.abc import Callable, Mapping
+from pathlib import Path
 from typing import Literal
 
 import sqlalchemy as sa
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from sqlalchemy.engine import Engine
 
 from signals.acquisition_runtime.store import (
@@ -17,8 +19,11 @@ from signals.acquisition_runtime.store import (
     AcquisitionRuntimeStore,
 )
 from signals.founder_api.contracts import FounderContract
-from signals.persistence.schema import acquisition_runtime_observation
+from signals.persistence.schema import acquisition_runtime_observation, prospect_target
+from signals.prospection_actions.day import prospection_day_bounds
+from signals.prospection_actions.preparation import DAILY_PENDING_CAP
 
+ACQUISITION_SERVICE_UNIT = "kivou-acquisition-production.service"
 ACQUISITION_TIMER_UNIT = "kivou-acquisition-production.timer"
 
 
@@ -31,8 +36,9 @@ def _aware(value: dt.datetime) -> dt.datetime:
 class FounderAcquisitionActivity(FounderContract):
     activity: Literal["RUNNING", "STOPPED", "UNKNOWN"]
     activity_since: dt.datetime | None = None
+    next_run_at: dt.datetime | None = None
 
-    _activity_since = field_validator("activity_since")(
+    _activity_times = field_validator("activity_since", "next_run_at")(
         lambda value: _aware(value) if value is not None else None
     )
 
@@ -45,8 +51,11 @@ class FounderAcquisitionStatus(FounderContract):
     last_cycle_at: dt.datetime | None = None
     last_cycle_status: str | None = None
     last_cycle_reason_code: str | None = None
+    prepared_today_count: int = Field(default=0, ge=0, le=DAILY_PENDING_CAP)
+    daily_pending_cap: int = Field(default=DAILY_PENDING_CAP, ge=DAILY_PENDING_CAP, le=DAILY_PENDING_CAP)
+    next_run_at: dt.datetime | None = None
 
-    _times = field_validator("activity_since", "last_cycle_at")(
+    _times = field_validator("activity_since", "last_cycle_at", "next_run_at")(
         lambda value: _aware(value) if value is not None else None
     )
 
@@ -61,17 +70,27 @@ class SystemdAcquisitionActivityReader:
         "ActiveState",
         "ActiveEnterTimestamp",
         "InactiveEnterTimestamp",
+        "ExecMainStartTimestamp",
+        "NextElapseUSecRealtime",
+        "Id",
     )
 
-    def __init__(self, *, run: CommandRunner = subprocess.run) -> None:
+    def __init__(
+        self,
+        *,
+        run: CommandRunner = subprocess.run,
+        lock_path: Path = Path("/run/kivou/acquisition.lock"),
+    ) -> None:
         self._run = run
+        self._lock_path = lock_path
 
-    def __call__(self, _: dt.datetime) -> FounderAcquisitionActivity:
+    def __call__(self, now: dt.datetime) -> FounderAcquisitionActivity:
         try:
             completed = self._run(
                 (
                     "systemctl",
                     "show",
+                    ACQUISITION_SERVICE_UNIT,
                     ACQUISITION_TIMER_UNIT,
                     "--no-pager",
                     *(f"--property={key}" for key in self._PROPERTIES),
@@ -84,24 +103,62 @@ class SystemdAcquisitionActivityReader:
             )
         except (OSError, subprocess.TimeoutExpired):
             return FounderAcquisitionActivity(activity="UNKNOWN")
-        values = _systemd_properties(
+        records = _systemd_records(
             completed.stdout,
             allowed=frozenset(self._PROPERTIES),
         )
-        if completed.returncode != 0 or values.get("LoadState") != "loaded":
+        service = records.get(ACQUISITION_SERVICE_UNIT)
+        timer = records.get(ACQUISITION_TIMER_UNIT, {})
+        if service is None and len(records) == 1:
+            service = next(iter(records.values()))
+        if completed.returncode != 0 or service is None or service.get("LoadState") != "loaded":
             return FounderAcquisitionActivity(activity="UNKNOWN")
-        active_state = values.get("ActiveState")
-        if active_state == "active":
+        next_run_at = (
+            _systemd_time(timer.get("NextElapseUSecRealtime"))
+            if timer.get("LoadState") == "loaded" and timer.get("ActiveState") == "active"
+            else None
+        )
+        if self._lock_is_held():
             return FounderAcquisitionActivity(
                 activity="RUNNING",
-                activity_since=_systemd_time(values.get("ActiveEnterTimestamp")),
+                activity_since=now,
+                next_run_at=next_run_at,
+            )
+        active_state = service.get("ActiveState")
+        if active_state in {"active", "activating"}:
+            return FounderAcquisitionActivity(
+                activity="RUNNING",
+                activity_since=_systemd_time(
+                    service.get("ExecMainStartTimestamp")
+                    or service.get("ActiveEnterTimestamp")
+                ),
+                next_run_at=next_run_at,
             )
         if active_state == "inactive":
             return FounderAcquisitionActivity(
                 activity="STOPPED",
-                activity_since=_systemd_time(values.get("InactiveEnterTimestamp")),
+                activity_since=_systemd_time(service.get("InactiveEnterTimestamp")),
+                next_run_at=next_run_at,
             )
-        return FounderAcquisitionActivity(activity="UNKNOWN")
+        return FounderAcquisitionActivity(activity="UNKNOWN", next_run_at=next_run_at)
+
+    def _lock_is_held(self) -> bool:
+        try:
+            lock_fd = os.open(self._lock_path, os.O_RDWR)
+        except OSError:
+            return False
+        try:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            finally:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            return False
+        finally:
+            os.close(lock_fd)
+        return False
 
 
 class FounderAcquisitionStatusReadService:
@@ -129,6 +186,18 @@ class FounderAcquisitionStatusReadService:
                 .mappings()
                 .one_or_none()
             )
+            day_start, day_end = prospection_day_bounds(now)
+            prepared_today = int(
+                connection.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(prospect_target)
+                    .where(
+                        prospect_target.c.created_at >= day_start,
+                        prospect_target.c.created_at < day_end,
+                    )
+                )
+                or 0
+            )
         cycle_ref = None if observation is None else observation["last_cycle_ref"]
         cycle_reason_code = (
             self._runtime_store.read_cycle_reason_code(str(cycle_ref))
@@ -139,6 +208,7 @@ class FounderAcquisitionStatusReadService:
             activity=activity,
             observation=observation,
             cycle_reason_code=cycle_reason_code,
+            prepared_today_count=min(prepared_today, DAILY_PENDING_CAP),
         )
 
 
@@ -147,11 +217,14 @@ def _status_from_rows(
     activity: FounderAcquisitionActivity,
     observation: Mapping[str, object] | None,
     cycle_reason_code: str | None,
+    prepared_today_count: int,
 ) -> FounderAcquisitionStatus:
     if observation is None:
         return FounderAcquisitionStatus(
             activity=activity.activity,
             activity_since=activity.activity_since,
+            prepared_today_count=prepared_today_count,
+            next_run_at=activity.next_run_at,
         )
     last_cycle_at = observation["last_cycle_at"]
     return FounderAcquisitionStatus(
@@ -170,6 +243,8 @@ def _status_from_rows(
             else None
         ),
         last_cycle_reason_code=cycle_reason_code,
+        prepared_today_count=prepared_today_count,
+        next_run_at=activity.next_run_at,
     )
 
 
@@ -181,6 +256,30 @@ def _systemd_properties(output: str, *, allowed: frozenset[str]) -> dict[str, st
         for key, value in (line.split("=", 1),)
         if key in allowed
     }
+
+
+def _systemd_records(
+    output: str,
+    *,
+    allowed: frozenset[str],
+) -> dict[str, dict[str, str]]:
+    records: dict[str, dict[str, str]] = {}
+    current: dict[str, str] = {}
+    anonymous = 0
+    for line in (*output.splitlines(), ""):
+        if not line:
+            if current:
+                key = current.get("Id") or f"anonymous-{anonymous}"
+                records[key] = current
+                current = {}
+                anonymous += 1
+            continue
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        if key in allowed:
+            current[key] = value
+    return records
 
 
 def _systemd_time(value: str | None) -> dt.datetime | None:
@@ -196,6 +295,7 @@ def _systemd_time(value: str | None) -> dt.datetime | None:
 
 
 __all__ = [
+    "ACQUISITION_SERVICE_UNIT",
     "ACQUISITION_TIMER_UNIT",
     "AcquisitionActivityReader",
     "CommandRunner",

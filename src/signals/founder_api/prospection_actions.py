@@ -7,6 +7,10 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query
 
 from signals.founder_api.access import FounderIdentityDependency
+from signals.founder_api.acquisition_actions import (
+    FounderAcquisitionLauncher,
+    FounderAcquisitionLaunchError,
+)
 from signals.prospection_actions.contracts import (
     CONTRACT_VERSION,
     ApproveCommand,
@@ -29,8 +33,35 @@ def _error(error: ProspectionActionError) -> HTTPException:
     )
 
 
-def build_prospection_actions_router(service: ProspectionActions) -> APIRouter:
+def build_prospection_actions_router(
+    service: ProspectionActions,
+    *,
+    acquisition_launcher: FounderAcquisitionLauncher | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api/founder/actions/prospection")
+
+    if acquisition_launcher is not None:
+
+        @router.post("/prepare", status_code=202)
+        def prepare(identity: FounderIdentityDependency):
+            del identity
+            try:
+                result = acquisition_launcher.prepare()
+            except FounderAcquisitionLaunchError as error:
+                raise HTTPException(
+                    status_code=error.status_code,
+                    detail={
+                        "code": error.code,
+                        "message": error.message,
+                        "target_ids": [],
+                    },
+                ) from error
+            return {
+                "version": "founder-prospection-prepare-v1",
+                "status": "accepted",
+                "prepared_today_count": result.prepared_today_count,
+                "daily_pending_cap": result.daily_pending_cap,
+            }
 
     @router.get("/list")
     def list_targets(

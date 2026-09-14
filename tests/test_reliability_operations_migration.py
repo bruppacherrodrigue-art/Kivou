@@ -5,6 +5,7 @@ import pathlib
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.persistence.schema import (
@@ -15,7 +16,6 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0020_hermes_learning_loop"
 HEAD = "0021_reliability_operations"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 TABLES = (acquisition_operational_incident, acquisition_dead_letter)
 
 

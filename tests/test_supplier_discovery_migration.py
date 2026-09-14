@@ -3,12 +3,12 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS = "0008_policy_gateway"
 HEAD = "0009_supplier_discovery"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def test_supplier_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:

@@ -19,6 +19,7 @@ from signals.persistence.schema import (
     supplier_directory,
 )
 from signals.personalization.prospect_mail import RenderedProspectMail, render_prospect_mail
+from signals.prospection_actions.day import prospection_day, prospection_day_bounds
 from signals.prospection_actions.service import ProspectLinkIssuer, _history_id
 from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
@@ -93,15 +94,14 @@ class ProspectPreparationService:
         now = self._clock()
         if now.tzinfo is None or now.utcoffset() is None:
             raise ValueError("preparation clock must be timezone-aware")
-        observed_on = now.astimezone(dt.UTC).date()
+        observed_on = prospection_day(now)
         if not observed_on - dt.timedelta(days=30) <= signal.decision_date <= observed_on:
             return PreparationResult(
                 prepared=0,
                 status="pending_review",
                 reason="SIGNAL_OUTSIDE_ATTRIBUTION_WINDOW",
             )
-        day_start = dt.datetime.combine(now.astimezone(dt.UTC).date(), dt.time(), tzinfo=dt.UTC)
-        day_end = day_start + dt.timedelta(days=1)
+        day_start, day_end = prospection_day_bounds(now)
         family_order = {key: index for index, (key, _label) in enumerate(signal.families)}
         family_labels = dict(signal.families)
         catalog_by_key = {

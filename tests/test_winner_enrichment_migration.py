@@ -11,6 +11,7 @@ from alembic import command
 from alembic.script import ScriptDirectory
 from feed_helpers import make_account, make_icp, materialize_simap
 from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
+from migration_head_helpers import CURRENT_HEAD
 from sqlalchemy.exc import IntegrityError
 
 from signals.companies.schema import saas_company, winner_enrichment_job
@@ -25,7 +26,6 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
 LATEST = "0042_account_deletion"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 # Seed through the current materializer without entering irreversible 0059+.
 FIXTURE_HEAD = "0058_client_location"
 

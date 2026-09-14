@@ -5,6 +5,7 @@ import pathlib
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.persistence.schema import acquisition_response_evaluation
@@ -12,7 +13,6 @@ from signals.persistence.schema import acquisition_response_evaluation
 CAMPAIGN_FACTORY = "0016_campaign_factory"
 PREVIOUS = "0017_target_icp_revision"
 HEAD = "0018_response_intelligence"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:

@@ -5,7 +5,10 @@ from __future__ import annotations
 import httpx
 from fastapi import FastAPI
 
-from signals.founder_api.actions_composition import build_prospection_actions
+from signals.founder_api.actions_composition import (
+    build_founder_acquisition_launcher,
+    build_prospection_actions,
+)
 from signals.founder_api.app import create_founder_app
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.database import (
@@ -31,6 +34,7 @@ def build_application() -> FastAPI:
         config,
         read_service=FounderReadService(engine, operations=operations),
         prospection_actions=build_prospection_actions(write_engine, client=provider_client),
+        acquisition_launcher=build_founder_acquisition_launcher(write_engine),
     )
     application.state.founder_read_engine = engine
     application.state.founder_write_engine = write_engine

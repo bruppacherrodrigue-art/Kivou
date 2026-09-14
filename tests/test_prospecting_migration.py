@@ -14,6 +14,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD as HEAD
 
 from signals.client_value.company_identity import register_alias, resolve_subject
 from signals.engagement import company, notes
@@ -24,7 +25,6 @@ from signals.engagement.schema import (
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS = "0058_client_location"
-HEAD = "0060_boamp_notice_facts"
 NOW = dt.datetime(2026, 9, 13, 8, tzinfo=dt.UTC)
 
 
@@ -240,9 +240,53 @@ def test_upgrade_replay_does_not_overwrite_cas_tombstones_or_reversible_workflow
             )
             is not None
         )
+    assert current_revision(engine) == HEAD
+
+
+def test_archive_boundary_refuses_downgrade_without_changing_private_work(engine):
+    # This is the irreversible 0060 boundary, not a claim that arbitrary later
+    # migrations are transactionally undone when a downgrade reaches that guard.
+    populated_0058(engine)
+    config = alembic_config(engine)
+    archive = "0060_boamp_notice_facts"
+    command.upgrade(config, archive)
+    with engine.begin() as connection:
+        notes.put(
+            connection,
+            account_id="account_a",
+            signal_key="sig_shared",
+            note="x" * 2000,
+            expected_revision=1,
+            now=NOW,
+        )
+        notes.put(
+            connection,
+            account_id="account_a",
+            signal_key="sig_shared",
+            note="",
+            expected_revision=2,
+            now=NOW,
+        )
+        connection.execute(
+            sa.update(signal_workflow)
+            .where(
+                signal_workflow.c.account_id == "account_a",
+                signal_workflow.c.signal_key == "sig_contacted",
+            )
+            .values(status="new", revision=7)
+        )
+        tables = [
+            sa.Table(name, sa.MetaData(), autoload_with=connection)
+            for name in ("signal_note", "signal_workflow", "signal_feedback")
+        ]
+        before = {table.name: connection.execute(sa.select(table)).all() for table in tables}
     with pytest.raises(RuntimeError, match="without downgrading"):
         command.downgrade(config, PREVIOUS)
-    assert current_revision(engine) == HEAD
+    assert current_revision(engine) == archive
+    with engine.connect() as connection:
+        assert {
+            table.name: connection.execute(sa.select(table)).all() for table in tables
+        } == before
 
 
 def test_migrated_note_compare_and_swap_allows_only_one_concurrent_winner(engine):

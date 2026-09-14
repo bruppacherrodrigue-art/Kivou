@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — enrichissement des nouveaux titulaires toutes les trente minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=60
+Unit=kivou-winner-enrichment.service
+
+[Install]
+WantedBy=timers.target

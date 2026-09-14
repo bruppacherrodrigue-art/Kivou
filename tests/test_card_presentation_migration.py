@@ -7,6 +7,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.accounts.schema import account, target_icp
 from signals.persistence.database import (
@@ -25,7 +26,6 @@ PREVIOUS = "0027_signal_notes"
 #: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0029,
 #: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0028_card_presentation"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 TABLE_NAME = "card_presentation_artifact"
 ACTIVE_INDEX = "uq_card_presentation_active_publication"
 TENANT_READ_INDEX = "ix_card_presentation_tenant_read"

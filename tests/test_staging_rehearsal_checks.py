@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
+from migration_head_helpers import CURRENT_HEAD
 from test_notice_backfill import record
 from test_prospecting_migration import engine as engine  # noqa: PLC0414
 from test_prospecting_migration import populated_0058
@@ -74,7 +75,7 @@ def test_populated_copy_migration_and_contract_checks_preserve_original_accounts
     populated_0058(engine)
     baseline = checks.capture_baseline(engine)
     report = checks.migrate_and_check(engine, now=NOW)
-    assert current_revision(engine) == "0060_boamp_notice_facts"
+    assert current_revision(engine) == CURRENT_HEAD
     assert report["legacy_preserved"] is True
     assert report["contracts"]["note_cas"] is True
     assert report["contracts"]["note_tombstones"] is True

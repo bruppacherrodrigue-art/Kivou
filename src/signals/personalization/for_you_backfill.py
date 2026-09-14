@@ -9,6 +9,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import uuid
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -20,15 +21,15 @@ from signals.persistence.schema import for_you_sentence, materialized_signal
 from signals.personalization.for_you import POLICY_VERSION, ForYouProvider
 from signals.personalization.for_you_store import enqueue_stored_for_you_sentence
 from signals.personalization.for_you_worker import (
+    DEFAULT_BATCH_LIMIT,
     DEFAULT_CONCURRENCY,
-    DEFAULT_DAILY_LIMIT,
     ForYouWorker,
     ForYouWorkerReport,
 )
 
 DATABASE_URL_ENV = "KIVOU_DATABASE_URL"
 CONCURRENCY_ENV = "KIVOU_FOR_YOU_CONCURRENCY"
-DAILY_LIMIT_ENV = "KIVOU_FOR_YOU_DAILY_LIMIT"
+BATCH_LIMIT_ENV = "KIVOU_FOR_YOU_BATCH_LIMIT"
 
 
 def _positive(value: str) -> int:
@@ -53,7 +54,7 @@ def backfill(
     since: dt.date,
     now: dt.datetime,
     concurrency: int = DEFAULT_CONCURRENCY,
-    daily_limit: int = DEFAULT_DAILY_LIMIT,
+    batch_limit: int = DEFAULT_BATCH_LIMIT,
 ) -> ForYouWorkerReport:
     if limit < 1:
         raise ValueError("limit must be positive")
@@ -91,7 +92,7 @@ def backfill(
             if (result := enqueue_stored_for_you_sentence(connection, signal_key=key, now=now))
             is not None
         )
-    return ForYouWorker(engine, provider, concurrency=concurrency, daily_limit=daily_limit).run(
+    return ForYouWorker(engine, provider, concurrency=concurrency, batch_limit=batch_limit).run(
         now=now, limit=limit, for_you_ids=queued
     )
 
@@ -102,20 +103,24 @@ def main(arguments: Sequence[str] | None = None) -> int:
     if not database_url:
         raise SystemExit(f"{DATABASE_URL_ENV} is required")
     concurrency = _positive(os.environ.get(CONCURRENCY_ENV, str(DEFAULT_CONCURRENCY)))
-    daily_limit = _positive(os.environ.get(DAILY_LIMIT_ENV, str(DEFAULT_DAILY_LIMIT)))
-    provider = text_generator_from_environment()
+    batch_limit = _positive(os.environ.get(BATCH_LIMIT_ENV, str(DEFAULT_BATCH_LIMIT)))
+    engine = create_database_engine(database_url)
+    provider = text_generator_from_environment(
+        engine=engine, batch_id=f"for-you-backfill-{uuid.uuid4()}"
+    )
     try:
         report = backfill(
-            create_database_engine(database_url),
+            engine,
             provider,
             limit=parsed.limit,
             since=parsed.since,
             now=dt.datetime.now(dt.UTC),
             concurrency=concurrency,
-            daily_limit=daily_limit,
+            batch_limit=batch_limit,
         )
     finally:
         provider.close()
+        engine.dispose()
     print(json.dumps(report.as_dict(), sort_keys=True))
     return 0
 

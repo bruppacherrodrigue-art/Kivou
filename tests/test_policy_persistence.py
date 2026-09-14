@@ -8,6 +8,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 from test_policy_gateway import NOW, grant, request, snapshot
 
 from signals.acquisition.contracts import EventType, OpportunityConcurrencyConflict
@@ -30,7 +31,6 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:

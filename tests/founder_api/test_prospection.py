@@ -184,6 +184,28 @@ def test_directory_reports_enrichment_and_filters_clickable_review_reasons() -> 
     )
     with engine.begin() as connection:
         connection.execute(sa.insert(supplier_directory), [today, this_week, older])
+    from signals.model_runtime.budget import ModelBudgetStore
+    from signals.model_runtime.config import ModelRoute
+
+    model_store = ModelBudgetStore(engine, clock=lambda: NOW)
+    model_route = ModelRoute(
+        usage="enrichment_judge",
+        model="mistralai/mistral-small",
+        daily_budget_usd=Decimal("2"),
+    )
+    model_store.reserve(
+        route=model_route,
+        estimated_usd=Decimal("0.01"),
+        call_id="latest-pass-call",
+        siren=str(today["siren"]),
+        batch_id="latest-pass",
+    )
+    model_store.succeed(
+        call_id="latest-pass-call",
+        actual_usd=Decimal("0.004"),
+        input_tokens=1200,
+        output_tokens=80,
+    )
 
     service = FounderReadService(engine, timer_reader=_stopped_timer)
     result = service.prospection(now=NOW)
@@ -192,6 +214,12 @@ def test_directory_reports_enrichment_and_filters_clickable_review_reasons() -> 
     assert result.directory.enrichment.enriched_week_count == 2
     assert result.directory.enrichment.model == "anthropic/claude-sonnet-4.6"
     assert result.directory.enrichment.cumulative_cost_usd == Decimal("0.006000")
+    assert result.directory.enrichment.latest_batch_id == "latest-pass"
+    assert result.directory.enrichment.latest_batch_call_count == 1
+    assert result.directory.enrichment.latest_batch_input_tokens == 1200
+    assert result.directory.enrichment.latest_batch_output_tokens == 80
+    assert result.directory.enrichment.latest_batch_cost_usd == Decimal("0.004")
+    assert result.directory.enrichment.latest_batch_mean_input_tokens == Decimal("1200")
     assert [item.model_dump() for item in result.directory.reverification_reason_counts] == [
         {"key": "email_below_threshold", "label": "email_below_threshold", "count": 2},
         {"key": "website_below_threshold", "label": "website_below_threshold", "count": 1},
@@ -250,9 +278,7 @@ def test_without_website_excludes_an_unconfirmed_raw_domain() -> None:
     assert unfiltered.directory.rows[0].professional_email == "contact0@example.test"
     assert unfiltered.directory.rows[0].qualification_status == "to_qualify"
 
-    without_website = FounderReadService(
-        engine, timer_reader=_stopped_timer
-    ).prospection(
+    without_website = FounderReadService(engine, timer_reader=_stopped_timer).prospection(
         now=NOW,
         directory_status=FounderDirectoryStatus.WITHOUT_WEBSITE,
     )

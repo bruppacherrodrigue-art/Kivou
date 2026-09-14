@@ -20,6 +20,9 @@ const READ_MODEL: FounderProspection = {
     last_cycle_at: '2026-09-11T09:30:00Z',
     last_cycle_status: 'SUCCEEDED',
     last_cycle_reason_code: null,
+    prepared_today_count: 3,
+    daily_pending_cap: 25,
+    next_run_at: '2026-09-11T11:00:00Z',
   },
   queue: { available: true, last_cycle_at: '2026-09-11T09:30:00Z', items: [] },
   directory: {
@@ -34,6 +37,12 @@ const READ_MODEL: FounderProspection = {
       enriched_week_count: 0,
       model: null,
       cumulative_cost_usd: '0.000000',
+      latest_batch_id: null,
+      latest_batch_call_count: 0,
+      latest_batch_input_tokens: 0,
+      latest_batch_output_tokens: 0,
+      latest_batch_cost_usd: '0',
+      latest_batch_mean_input_tokens: null,
     },
     reverification_reason_counts: [],
     family_counts: [],
@@ -169,6 +178,7 @@ function renderPage() {
       }}
       refreshing={false}
       onFiltersChange={vi.fn()}
+      onRefresh={vi.fn()}
     />,
   )
 }

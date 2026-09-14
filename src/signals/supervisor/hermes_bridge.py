@@ -27,6 +27,10 @@ OPENROUTER_PROVIDER_ROUTING = {
 }
 
 
+def _configured_model() -> str:
+    return os.environ.get("KIVOU_MODEL_HERMES", OPENROUTER_MODEL).strip()
+
+
 def _closed_provider_failure(exc: Exception) -> dict[str, Any] | None:
     class_names = {item.__name__ for item in type(exc).__mro__}
     status = getattr(exc, "status_code", None)
@@ -134,7 +138,7 @@ def _official_oneshot(
     """Make one exact OpenRouter call through Hermes' zero-retry client helper."""
     if (
         provider != OPENROUTER_PROVIDER
-        or model != OPENROUTER_MODEL
+        or model != _configured_model()
         or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
     ):
         raise BridgeRequestError("the frozen OpenRouter route is required")
@@ -175,7 +179,8 @@ def _official_oneshot(
                 "provider": {
                     **OPENROUTER_PROVIDER_ROUTING,
                     "allow_fallbacks": False,
-                }
+                },
+                "usage": {"include": True},
             },
         )
         actual_model = getattr(response, "model", None)
@@ -186,12 +191,29 @@ def _official_oneshot(
         content = getattr(message, "content", None)
         if not isinstance(content, str) or not content.strip():
             raise BridgeRequestError("OpenRouter returned no structured response")
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "prompt_tokens", None)
+        output_tokens = getattr(usage, "completion_tokens", None)
+        cost = getattr(usage, "cost", None)
+        if (
+            isinstance(input_tokens, bool)
+            or not isinstance(input_tokens, int)
+            or isinstance(output_tokens, bool)
+            or not isinstance(output_tokens, int)
+            or cost is None
+        ):
+            raise BridgeRequestError("OpenRouter returned no billable usage")
         return {
             "response": content.strip(),
             "provider": OPENROUTER_PROVIDER,
             "model": actual_model,
             "automatic_retries": 0,
             "fallbacks": False,
+            "usage": {
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_usd": str(cost),
+            },
         }
     finally:
         close = getattr(client, "close", None)
@@ -267,7 +289,9 @@ def handle_request(
         raise BridgeRequestError("instructions are required")
     if not isinstance(context_json, str) or not context_json.strip():
         raise BridgeRequestError("context_json is required")
-    if provider != OPENROUTER_PROVIDER or model != OPENROUTER_MODEL:
+    metadata = _validated_metadata(metadata_loader)
+    load_profile_environment()
+    if provider != OPENROUTER_PROVIDER or model != _configured_model():
         raise BridgeRequestError("the exact OpenRouter model is required")
     if (
         not isinstance(provider_routing, Mapping)
@@ -281,8 +305,6 @@ def handle_request(
         request["timeout_seconds"], name="timeout_seconds", maximum=300
     )
 
-    metadata = _validated_metadata(metadata_loader)
-    load_profile_environment()
     invoke = oneshot or _official_oneshot
     route = invoke(
         instructions=instructions,
@@ -301,13 +323,14 @@ def handle_request(
         "automatic_retries",
         "fallbacks",
     }
-    if not isinstance(route, Mapping) or set(route) != expected_route_fields:
+    route_fields = set(route) if isinstance(route, Mapping) else set()
+    if route_fields not in (expected_route_fields, expected_route_fields | {"usage"}):
         raise BridgeRequestError("Hermes one-shot route evidence is incomplete")
     response = route["response"]
     if (
         not isinstance(response, str)
         or route["provider"] != OPENROUTER_PROVIDER
-        or route["model"] != OPENROUTER_MODEL
+        or route["model"] != _configured_model()
         or route["automatic_retries"] != 0
         or route["fallbacks"] is not False
     ):

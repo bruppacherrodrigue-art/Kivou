@@ -8,6 +8,7 @@ import type {
   FounderProspectionFilters,
   FounderProspectionRejectionReason,
   FounderProspectionRejectionResponse,
+  FounderProspectionPrepareResponse,
   FounderProspectionSendResponse,
   FounderSession,
   FounderSystem,
@@ -27,6 +28,14 @@ export class FounderApiError extends Error {
     this.code = code
     this.targetIds = targetIds
   }
+}
+
+export async function prepareFounderProspection(): Promise<FounderProspectionPrepareResponse> {
+  return requestActionJson<FounderProspectionPrepareResponse>(
+    '/api/founder/actions/prospection/prepare',
+    {},
+    'La préparation de la file a échoué.',
+  )
 }
 
 type FounderActionErrorPayload = {

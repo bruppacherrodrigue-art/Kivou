@@ -24,6 +24,8 @@ from decimal import Decimal
 from pathlib import Path
 
 import sqlalchemy as sa
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from signals.accounts.data_rights import export_account
 from signals.accounts.schema import account
@@ -34,11 +36,21 @@ from signals.client_value.notice_facts import load_award_notice_facts
 from signals.connectors.boamp import BoampClient
 from signals.engagement import company, feedback, notes, status
 from signals.engagement.feedback import SignalContext
-from signals.persistence.database import current_revision, migrate_to_latest
+from signals.persistence.database import MIGRATIONS_PATH, current_revision, migrate_to_latest
 from signals.persistence.schema import contract_award, source_event
 
+
+def _candidate_head():
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS_PATH))
+    head = ScriptDirectory.from_config(config).get_current_head()
+    if head is None:
+        raise RuntimeError("candidate_migration_head_missing")
+    return head
+
+
 NOTICE_IDS = ("26-87113", "26-84423", "26-85899", "26-88050")
-HEAD = "0060_boamp_notice_facts"
+HEAD = _candidate_head()
 MAX_ROWS = 10000
 MAX_BASELINE_BYTES = 256 * 1024 * 1024
 MAX_BASELINE_ROW_BYTES = 4 * 1024 * 1024

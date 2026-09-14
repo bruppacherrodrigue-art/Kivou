@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.persistence.schema import (
@@ -13,7 +14,6 @@ from signals.persistence.schema import (
 PREVIOUS = "0013_personalization"
 #: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
 COMPLIANCE = "0014_compliance"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 # The historical roundtrip stays before the irreversible prospecting archive.
 FIXTURE_HEAD = "0058_client_location"
 

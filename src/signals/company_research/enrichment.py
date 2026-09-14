@@ -6,9 +6,7 @@ import datetime as dt
 import logging
 import re
 from collections.abc import Callable, Mapping
-from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
-from html.parser import HTMLParser
 from typing import Protocol
 from urllib.parse import urljoin, urlsplit
 
@@ -22,6 +20,16 @@ from signals.company_research.domain import (
     is_directory_domain,
     rejected_supplier_domain,
 )
+from signals.company_research.evidence import (
+    DirectoryClues,
+    PageRenderer,
+    PlaywrightPageRenderer,
+    RawRenderedPage,
+    ReducedRenderedPage,
+    directory_clues_from_text,
+    is_safe_public_https_url,
+    reduce_rendered_page,
+)
 from signals.personalization.prospect_mail import normalize_director_name
 from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_directory.store import FRESHNESS, SupplierDirectoryStore
@@ -30,8 +38,8 @@ from signals.supplier_discovery.families import (
     supplier_family_keys,
 )
 
-PAGE_TEXT_LIMIT = 3_000
-MODEL_MAX_TOKENS = 1_000
+MODEL_MAX_TOKENS = 300
+ARBITRATION_MIN_CONFIDENCE = Decimal("0.2")
 WEBSITE_CONFIDENCE_THRESHOLD = Decimal("0.8")
 EMAIL_CONFIDENCE_THRESHOLD = Decimal("0.8")
 FAMILY_CONFIDENCE_THRESHOLD = Decimal("0.7")
@@ -42,9 +50,27 @@ _DOMAIN_MENTION = re.compile(
     r"([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9-]{2,63})+)",
     re.IGNORECASE,
 )
-_EMAIL = re.compile(
-    r"[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE
-)
+_EMPLOYEE_BAND_MAX = {
+    "00": 0,
+    "01": 2,
+    "02": 5,
+    "03": 9,
+    "11": 19,
+    "12": 49,
+    "21": 99,
+    "22": 199,
+    "31": 249,
+    "32": 499,
+    "41": 999,
+}
+
+
+class InvalidCompanyEnrichmentDecision(RuntimeError):
+    """The provider answered, but its judgment did not satisfy the JSON contract."""
+
+    def __init__(self, message: str, *, raw_content: str | None = None) -> None:
+        super().__init__(message)
+        self.raw_content = raw_content
 
 
 class EnrichmentContract(BaseModel):
@@ -67,12 +93,7 @@ class CompanyEnrichmentInput(EnrichmentContract):
         return tuple(value or ())
 
 
-class RenderedPage(EnrichmentContract):
-    url: str = Field(min_length=8, max_length=2048)
-    status_code: int = Field(ge=100, le=599)
-    title: str = Field(default="", max_length=1024)
-    text: str = Field(default="", max_length=PAGE_TEXT_LIMIT)
-    published_emails: tuple[str, ...] = Field(default=(), max_length=50)
+RenderedPage = ReducedRenderedPage
 
 
 class SearchEvidence(EnrichmentContract):
@@ -81,13 +102,13 @@ class SearchEvidence(EnrichmentContract):
     snippet: str = Field(default="", max_length=2048)
     domain: str | None = Field(default=None, max_length=253)
     is_directory: bool
-    page: RenderedPage | None = None
+    directory_clues: DirectoryClues | None = None
 
 
 class CompanyWebEvidence(EnrichmentContract):
     query: str = Field(min_length=1, max_length=1024)
     results: tuple[SearchEvidence, ...] = Field(max_length=10)
-    candidate_pages: tuple[RenderedPage, ...] = Field(max_length=30)
+    candidate_pages: tuple[RenderedPage, ...] = Field(max_length=3)
 
 
 class CompanyEnrichmentDecision(EnrichmentContract):
@@ -100,6 +121,7 @@ class CompanyEnrichmentDecision(EnrichmentContract):
     family_confidence: Decimal = Field(ge=0, le=1)
     director_display_name: str | None = Field(max_length=256)
     phone: str | None = Field(max_length=32)
+    requested_page_url: str | None = Field(max_length=2048)
     notes: str = Field(max_length=2000)
 
     @field_validator("website", mode="before")
@@ -119,9 +141,10 @@ class CompanyEnrichmentDecision(EnrichmentContract):
 
 
 class CompanyEnrichmentProviderResult(EnrichmentContract):
+    call_id: str | None = Field(default=None, max_length=36)
     decision: CompanyEnrichmentDecision
     model: str = Field(min_length=1, max_length=128)
-    cost_usd: Decimal = Field(ge=0, max_digits=12, decimal_places=6)
+    cost_usd: Decimal = Field(ge=0, max_digits=14, decimal_places=8)
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
 
@@ -142,55 +165,18 @@ class CompanyEnrichmentProvider(Protocol):
     ) -> CompanyEnrichmentProviderResult: ...
 
 
-class _PageParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.title: list[str] = []
-        self.text: list[str] = []
-        self._title_depth = 0
-        self._ignored_depth = 0
+def decision_needs_arbiter(decision: CompanyEnrichmentDecision) -> bool:
+    """Escalate only a concrete but ambiguous fact, never a null decision."""
 
-    def handle_starttag(self, tag, _attrs):
-        if tag == "title":
-            self._title_depth += 1
-        if tag in {"script", "style", "noscript", "svg"}:
-            self._ignored_depth += 1
-
-    def handle_endtag(self, tag):
-        if tag == "title" and self._title_depth:
-            self._title_depth -= 1
-        if tag in {"script", "style", "noscript", "svg"} and self._ignored_depth:
-            self._ignored_depth -= 1
-
-    def handle_data(self, data):
-        if self._ignored_depth:
-            return
-        compact = " ".join(data.split())
-        if compact:
-            self.text.append(compact)
-            if self._title_depth:
-                self.title.append(compact)
-
-
-def _rendered_page(response: httpx.Response) -> RenderedPage | None:
-    if (
-        response.status_code != 200
-        or len(response.content) > MAX_RESPONSE_BYTES
-        or "html" not in response.headers.get("content-type", "text/html").casefold()
-    ):
-        return None
-    parser = _PageParser()
-    try:
-        parser.feed(response.text)
-    except (UnicodeError, ValueError):
-        return None
-    text = " ".join(parser.text)[:PAGE_TEXT_LIMIT]
-    return RenderedPage(
-        url=str(response.url),
-        status_code=response.status_code,
-        title=" ".join(parser.title)[:1024],
-        text=text,
-        published_emails=tuple(dict.fromkeys(match.casefold() for match in _EMAIL.findall(text)))[:50],
+    candidates = (
+        (decision.website, decision.website_confidence),
+        (decision.email, decision.email_confidence),
+        (decision.family, decision.family_confidence),
+    )
+    return any(
+        value is not None
+        and ARBITRATION_MIN_CONFIDENCE <= confidence < WEBSITE_CONFIDENCE_THRESHOLD
+        for value, confidence in candidates
     )
 
 
@@ -206,30 +192,24 @@ def _mentioned_domains(value: str) -> tuple[str, ...]:
 class CompanyWebCollector:
     """Collect bounded web evidence without deciding whether it belongs to a company."""
 
-    def __init__(self, *, serper_api_key: str, client: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        serper_api_key: str,
+        client: httpx.Client | None = None,
+        renderer: PageRenderer | None = None,
+    ) -> None:
         if not serper_api_key.strip():
             raise ValueError("Serper API key is required")
         self._key = serper_api_key
         self._client = client or httpx.Client(
             timeout=httpx.Timeout(8.0, connect=4.0), follow_redirects=True
         )
+        self._renderer = renderer or PlaywrightPageRenderer()
 
     def _fetch(self, url: str) -> RenderedPage | None:
-        try:
-            response = self._client.get(
-                url,
-                headers={"user-agent": "Kivou/1.0"},
-                follow_redirects=True,
-            )
-        except (httpx.HTTPError, UnicodeError, ValueError):
-            return None
-        return _rendered_page(response)
-
-    def _fetch_many(self, urls: tuple[str, ...]) -> dict[str, RenderedPage | None]:
-        if not urls:
-            return {}
-        with ThreadPoolExecutor(max_workers=min(10, len(urls))) as pool:
-            return dict(zip(urls, pool.map(self._fetch, urls), strict=True))
+        raw = self._renderer.render(url)
+        return reduce_rendered_page(raw) if raw is not None else None
 
     def collect(self, identity: CompanyEnrichmentInput) -> CompanyWebEvidence:
         query = " ".join(part for part in (identity.legal_name, identity.city) if part)
@@ -248,7 +228,7 @@ class CompanyWebCollector:
         if not isinstance(organic, list):
             raise TypeError("Serper collection returned invalid JSON")
 
-        parsed_results: list[tuple[str, str, str, str, bool, str]] = []
+        parsed_results: list[tuple[str, str, str, str, bool]] = []
         for raw in organic[:10]:
             if not isinstance(raw, dict):
                 continue
@@ -260,17 +240,16 @@ class CompanyWebCollector:
                 continue
             domain, _ = parsed
             directory = is_directory_domain(domain)
-            fetch_url = url if directory else f"https://{domain}/"
-            parsed_results.append((title, url, snippet, domain, directory, fetch_url))
-        fetched_results = self._fetch_many(
-            tuple(dict.fromkeys(item[5] for item in parsed_results))
-        )
+            parsed_results.append((title, url, snippet, domain, directory))
 
         results: list[SearchEvidence] = []
         candidate_domains: list[str] = []
-        home_pages: dict[str, RenderedPage] = {}
-        for title, url, snippet, domain, directory, fetch_url in parsed_results:
-            page = fetched_results[fetch_url]
+        for title, url, snippet, domain, directory in parsed_results:
+            clues = None
+            if directory:
+                raw = self._renderer.render(url)
+                if raw is not None:
+                    clues = directory_clues_from_text(raw.body_text or raw.main_text)
             results.append(
                 SearchEvidence(
                     title=title,
@@ -278,44 +257,61 @@ class CompanyWebCollector:
                     snippet=snippet,
                     domain=domain,
                     is_directory=directory,
-                    page=page,
+                    directory_clues=clues,
                 )
             )
             if directory:
-                for mentioned in _mentioned_domains(
-                    " ".join((title, snippet, page.text if page is not None else ""))
-                ):
-                    if not is_directory_domain(mentioned) and not rejected_supplier_domain(mentioned):
+                clue_values = " ".join(
+                    value for value in (title, snippet, clues.website if clues else None) if value
+                )
+                for mentioned in _mentioned_domains(clue_values):
+                    if not is_directory_domain(mentioned) and not rejected_supplier_domain(
+                        mentioned
+                    ):
                         candidate_domains.append(mentioned)
             else:
                 candidate_domains.append(domain)
-                if page is not None:
-                    home_pages[domain] = page
 
         candidate_domains = list(dict.fromkeys(candidate_domains))[:10]
-        candidate_urls = tuple(
-            dict.fromkeys(
-                urljoin(f"https://{domain}/", path)
-                for domain in candidate_domains
-                for path in ("/", "/contact", "/mentions-legales")
-                if not (path == "/" and domain in home_pages)
-            )
-        )
-        fetched_candidates = self._fetch_many(candidate_urls)
         pages: list[RenderedPage] = []
-        for domain in candidate_domains:
-            for path in ("/", "/contact", "/mentions-legales"):
+        for domain in candidate_domains[:1]:
+            for path in ("/", "/contact"):
                 url = urljoin(f"https://{domain}/", path)
-                page = home_pages.get(domain) if path == "/" else None
-                page = page or fetched_candidates.get(url)
+                page = self._fetch(url)
                 if page is not None:
                     pages.append(page)
-        unique_pages = tuple({page.url: page for page in pages}.values())[:30]
+        unique_pages = tuple({page.url: page for page in pages}.values())[:2]
         return CompanyWebEvidence(
             query=query,
             results=tuple(results),
             candidate_pages=unique_pages,
         )
+
+    def fetch_requested(
+        self, evidence: CompanyWebEvidence, requested_url: str
+    ) -> CompanyWebEvidence:
+        if len(evidence.candidate_pages) >= 3:
+            return evidence
+        if not is_safe_public_https_url(requested_url):
+            return evidence
+        parsed = domain_from_url(requested_url)
+        if parsed is None:
+            return evidence
+        requested_domain, normalized_url = parsed
+        candidate_domains = {
+            (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
+            for page in evidence.candidate_pages
+        }
+        if (
+            requested_domain not in candidate_domains
+            or is_directory_domain(requested_domain)
+            or rejected_supplier_domain(requested_domain)
+        ):
+            return evidence
+        page = self._fetch(normalized_url)
+        if page is None or page.url in {item.url for item in evidence.candidate_pages}:
+            return evidence
+        return evidence.model_copy(update={"candidate_pages": (*evidence.candidate_pages, page)})
 
     @staticmethod
     def empty_evidence(identity: CompanyEnrichmentInput) -> CompanyWebEvidence:
@@ -336,11 +332,15 @@ class CompanyWebCollector:
             text=identity.legal_name,
         )
         contact = RenderedPage(
-            url=f"https://{domain}/contact",
-            status_code=200,
-            title="Contact",
-            text=contact_text,
-            published_emails=tuple(match.casefold() for match in _EMAIL.findall(contact_text)),
+            **reduce_rendered_page(
+                RawRenderedPage(
+                    url=f"https://{domain}/contact",
+                    status_code=200,
+                    title="Contact",
+                    main_text=contact_text,
+                    body_text=contact_text,
+                )
+            ).model_dump()
         )
         return CompanyWebEvidence(
             query=f"{identity.legal_name} {identity.city or ''}".strip(),
@@ -351,7 +351,6 @@ class CompanyWebCollector:
                     snippet="",
                     domain=domain,
                     is_directory=False,
-                    page=home,
                 ),
             ),
             candidate_pages=(home, contact),
@@ -359,12 +358,45 @@ class CompanyWebCollector:
 
 
 class AnnuaireRawDirectorClient:
-    """Read the registry's bounded director payload without classifying roles."""
+    """Read one exact registry identity and its bounded unclassified directors."""
 
     def __init__(self, *, client: httpx.Client | None = None) -> None:
         self._client = client or httpx.Client(timeout=10.0, follow_redirects=False)
 
-    def find(self, siren: str) -> tuple[dict[str, object], ...]:
+    @staticmethod
+    def _directors(item: Mapping[str, object]) -> tuple[dict[str, object], ...]:
+        leaders = item.get("dirigeants")
+        if not isinstance(leaders, list):
+            return ()
+        output: list[dict[str, object]] = []
+        for leader in leaders[:20]:
+            if not isinstance(leader, dict):
+                continue
+            first_name = str(leader.get("prenoms") or "").strip()
+            last_name = str(leader.get("nom") or "").strip()
+            corporate_name = str(leader.get("denomination") or "").strip()
+            entity_type = str(leader.get("type_dirigeant") or "personne physique")
+            is_corporate = "morale" in entity_type.casefold()
+            name = (
+                corporate_name
+                if is_corporate
+                else " ".join(part for part in (first_name, last_name) if part)
+            )
+            if not name:
+                continue
+            value: dict[str, object] = {
+                "name": name,
+                "title": str(leader.get("qualite") or entity_type or "Dirigeant"),
+                "entity_type": entity_type,
+            }
+            if first_name and not is_corporate:
+                value["first_name"] = first_name
+            output.append(value)
+        return tuple(output)
+
+    def profile(self, siren: str) -> CompanyEnrichmentInput | None:
+        if re.fullmatch(r"\d{9}", siren) is None:
+            raise ValueError("SIREN must contain exactly nine digits")
         try:
             response = self._client.get(
                 f"{ANNUAIRE_BASE_URL}/search",
@@ -372,49 +404,48 @@ class AnnuaireRawDirectorClient:
                     "q": siren,
                     "page": 1,
                     "per_page": 1,
-                    "minimal": "true",
-                    "include": "dirigeants",
                 },
                 headers={"accept": "application/json", "user-agent": "Kivou/1.0"},
             )
             if response.status_code != 200 or len(response.content) > MAX_RESPONSE_BYTES:
-                return ()
+                return None
             payload = response.json()
             results = payload.get("results") if isinstance(payload, dict) else None
             item = results[0] if isinstance(results, list) and len(results) == 1 else None
-            leaders = item.get("dirigeants") if isinstance(item, dict) else None
-            if not isinstance(leaders, list):
-                return ()
-            output: list[dict[str, object]] = []
-            for leader in leaders[:20]:
-                if not isinstance(leader, dict):
-                    continue
-                first_name = str(leader.get("prenoms") or "").strip()
-                last_name = str(leader.get("nom") or "").strip()
-                corporate_name = str(leader.get("denomination") or "").strip()
-                entity_type = str(leader.get("type_dirigeant") or "personne physique")
-                is_corporate = "morale" in entity_type.casefold()
-                name = corporate_name if is_corporate else " ".join(
-                    part for part in (first_name, last_name) if part
-                )
-                if not name:
-                    continue
-                value: dict[str, object] = {
-                    "name": name,
-                    "title": str(leader.get("qualite") or entity_type or "Dirigeant"),
-                    "entity_type": entity_type,
-                }
-                if first_name and not is_corporate:
-                    value["first_name"] = first_name
-                output.append(value)
-            return tuple(output)
+            if not isinstance(item, dict) or str(item.get("siren") or "") != siren:
+                return None
+            legal_name = str(
+                item.get("nom_raison_sociale") or item.get("nom_complet") or ""
+            ).strip()
+            if not legal_name or not any(character.isalpha() for character in legal_name):
+                return None
+            establishment = item.get("siege")
+            establishment = establishment if isinstance(establishment, dict) else {}
+            postal = str(establishment.get("code_postal") or "").strip()
+            department = str(establishment.get("departement") or "").strip()
+            return CompanyEnrichmentInput(
+                siren=siren,
+                legal_name=legal_name,
+                city=str(establishment.get("libelle_commune") or "").strip() or None,
+                department=department or postal[:2] or None,
+                naf_code=str(item.get("activite_principale") or "").strip() or None,
+                naf_label=(
+                    str(item.get("libelle_activite_principale") or "").strip() or None
+                ),
+                employees=_EMPLOYEE_BAND_MAX.get(
+                    str(item.get("tranche_effectif_salarie") or "").strip()
+                ),
+                directors_raw=self._directors(item),
+            )
         except (httpx.HTTPError, TypeError, ValueError):
-            return ()
+            return None
+
+    def find(self, siren: str) -> tuple[dict[str, object], ...]:
+        profile = self.profile(siren)
+        return () if profile is None else profile.directors_raw
 
 
-def _page_for_email(
-    email: str, website: str, evidence: CompanyWebEvidence
-) -> RenderedPage | None:
+def _page_for_email(email: str, website: str, evidence: CompanyWebEvidence) -> RenderedPage | None:
     normalized = email.casefold()
     for page in evidence.candidate_pages:
         host = (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
@@ -442,9 +473,10 @@ def _director_title(name: str | None, directors: tuple[dict[str, object], ...]) 
     if name:
         folded = name.casefold()
         for director in directors:
-            if normalize_director_name(director.get("name")) == name or folded in str(
-                director.get("name") or ""
-            ).casefold():
+            if (
+                normalize_director_name(director.get("name")) == name
+                or folded in str(director.get("name") or "").casefold()
+            ):
                 return str(director.get("title") or "Dirigeant")[:256]
     return "Entreprise"
 
@@ -456,6 +488,7 @@ class CompanyEnrichmentService:
         directory: SupplierDirectoryStore,
         collector: CompanyWebCollector,
         provider: CompanyEnrichmentProvider,
+        arbiter: CompanyEnrichmentProvider | None = None,
         mx_verifier: Callable[[str], bool],
         director_source: Callable[[str], tuple[Mapping[str, object], ...]] | None = None,
         clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
@@ -463,6 +496,7 @@ class CompanyEnrichmentService:
         self._directory = directory
         self._collector = collector
         self._provider = provider
+        self._arbiter = arbiter
         self._mx = mx_verifier
         self._director_source = director_source
         self._clock = clock
@@ -507,7 +541,49 @@ class CompanyEnrichmentService:
             directors_raw=raw_directors,
         )
         evidence = self._collector.collect(identity)
-        provided = self._provider.enrich(identity, evidence)
+        total_cost = Decimal("0")
+        arbiter_used = False
+        try:
+            provided = self._provider.enrich(identity, evidence)
+            total_cost += provided.cost_usd
+        except InvalidCompanyEnrichmentDecision as error:
+            if self._arbiter is None:
+                raise
+            arbitrate = getattr(self._arbiter, "arbitrate", None)
+            provided = (
+                arbitrate(identity, evidence, error.raw_content)
+                if callable(arbitrate)
+                else self._arbiter.enrich(identity, evidence)
+            )
+            arbiter_used = True
+            total_cost += provided.cost_usd
+        decision = provided.decision
+        if (
+            decision.website
+            and not decision.email
+            and decision.requested_page_url
+            and len(evidence.candidate_pages) < 3
+        ):
+            expanded = self._collector.fetch_requested(evidence, decision.requested_page_url)
+            if len(expanded.candidate_pages) > len(evidence.candidate_pages):
+                evidence = expanded
+                provided = self._provider.enrich(identity, evidence)
+                total_cost += provided.cost_usd
+                decision = provided.decision
+        if (
+            self._arbiter is not None
+            and not arbiter_used
+            and decision_needs_arbiter(decision)
+        ):
+            arbitrate = getattr(self._arbiter, "arbitrate", None)
+            provided = (
+                arbitrate(identity, evidence, decision.model_dump(mode="json"))
+                if callable(arbitrate)
+                else self._arbiter.enrich(identity, evidence)
+            )
+            total_cost += provided.cost_usd
+        if total_cost != provided.cost_usd:
+            provided = provided.model_copy(update={"cost_usd": total_cost})
         decision = provided.decision
         candidate_domains = {
             (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
@@ -549,9 +625,7 @@ class CompanyEnrichmentService:
         )
         family = decision.family if family_ok else fallback_family
         display_name = normalize_director_name(decision.director_display_name)
-        known_director_names = {
-            normalize_director_name(item.get("name")) for item in raw_directors
-        }
+        known_director_names = {normalize_director_name(item.get("name")) for item in raw_directors}
         if display_name not in known_director_names:
             display_name = None
         needs_review = not (website_ok and email_ok and family_ok)
@@ -565,9 +639,7 @@ class CompanyEnrichmentService:
                     (
                         page.url
                         for page in evidence.candidate_pages
-                        if (urlsplit(page.url).hostname or "")
-                        .casefold()
-                        .removeprefix("www.")
+                        if (urlsplit(page.url).hostname or "").casefold().removeprefix("www.")
                         == retained_website
                     ),
                     None,
@@ -586,6 +658,7 @@ class CompanyEnrichmentService:
             phone=decision.phone,
             directors=raw_directors,
             notes=decision.notes,
+            call_id=provided.call_id,
             model=provided.model,
             cost_usd=provided.cost_usd,
             input_tokens=provided.input_tokens,
@@ -620,6 +693,7 @@ class CompanyEnrichmentService:
 
 
 __all__ = [
+    "ARBITRATION_MIN_CONFIDENCE",
     "MODEL_MAX_TOKENS",
     "AnnuaireRawDirectorClient",
     "CompanyEnrichmentDecision",
@@ -630,6 +704,8 @@ __all__ = [
     "CompanyEnrichmentService",
     "CompanyWebCollector",
     "CompanyWebEvidence",
+    "InvalidCompanyEnrichmentDecision",
     "RenderedPage",
     "SearchEvidence",
+    "decision_needs_arbiter",
 ]

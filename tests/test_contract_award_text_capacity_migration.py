@@ -5,6 +5,7 @@ import datetime as dt
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from migration_head_helpers import CURRENT_HEAD
 from sqlalchemy.dialects import postgresql
 from test_contract_award_text_capacity import REAL_BOAMP_CONTRACT_REFERENCE
 
@@ -61,7 +62,8 @@ COMPANY_CONTACT_MERGE_REVISION = "0056_company_contact_merge"
 DIRECTORY_CONTACT_KEYS_REVISION = "0057_directory_contact_keys"
 CLIENT_LOCATION_REVISION = "0058_client_location"
 PROSPECTING_STATE_REVISION = "0059_prospecting_state"
-CURRENT_HEAD = "0060_boamp_notice_facts"
+NOTICE_FACTS_REVISION = "0060_boamp_notice_facts"
+MODEL_BUDGET_REVISION = "0058_model_call_budget"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -150,6 +152,7 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
     )
+    assert script.get_revision(MODEL_BUDGET_REVISION).down_revision == DIRECTORY_CONTACT_KEYS_REVISION
     assert (
         script.get_revision(DIRECTORY_CONTACT_KEYS_REVISION).down_revision
         == COMPANY_CONTACT_MERGE_REVISION
@@ -159,7 +162,7 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
         == DIRECTORY_CONTACT_KEYS_REVISION
     )
     assert script.get_revision(PROSPECTING_STATE_REVISION).down_revision == CLIENT_LOCATION_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == PROSPECTING_STATE_REVISION
+    assert script.get_revision(NOTICE_FACTS_REVISION).down_revision == PROSPECTING_STATE_REVISION
     assert set(script.get_revision(COMPANY_CONTACT_MERGE_REVISION).down_revision) == {
         COMPANY_ENRICHMENT_REVISION,
         COMPANY_CONTACT_REVISION,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import uuid
 from decimal import Decimal
 from pathlib import Path
 
@@ -14,6 +15,25 @@ from signals.supervisor.contracts import BudgetEnvelope, SupervisorContext
 from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.registry import ALLOWED_COMMANDS
 from signals.supervisor.runtime import HealthState, SupervisorError, SupervisorSettings
+
+
+def _metered_shadow_adapter(settings: SupervisorSettings):
+    from signals.model_runtime.budget import ModelBudgetStore
+    from signals.model_runtime.config import routes_from_environment
+    from signals.persistence.database import create_database_engine
+
+    engine = create_database_engine()
+    batch_id = f"hermes-shadow-{uuid.uuid4()}"
+    route = routes_from_environment(batch_id=batch_id).route("hermes")
+    return (
+        HermesSupervisorAdapter(
+            settings,
+            model_route=route,
+            budget_store=ModelBudgetStore(engine),
+            batch_id=batch_id,
+        ),
+        engine,
+    )
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -80,7 +100,11 @@ def _shadow(adapter: HermesSupervisorAdapter, context_path: Path | None) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
-    adapter = HermesSupervisorAdapter(SupervisorSettings.from_environ())
+    settings = SupervisorSettings.from_environ()
     if arguments.command == "health":
-        return _health(adapter)
-    return _shadow(adapter, arguments.context)
+        return _health(HermesSupervisorAdapter(settings))
+    adapter, engine = _metered_shadow_adapter(settings)
+    try:
+        return _shadow(adapter, arguments.context)
+    finally:
+        engine.dispose()

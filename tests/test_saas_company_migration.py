@@ -7,6 +7,7 @@ from alembic import command
 from alembic.script import ScriptDirectory
 from feed_helpers import SIMAP_RICH, make_account, make_icp, materialize_simap
 from historical_migration_helpers import copy_synthetic_rows_to_historical_schema
+from migration_head_helpers import CURRENT_HEAD
 
 from signals.companies.schema import saas_company
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
@@ -14,7 +15,6 @@ from signals.persistence.schema import METADATA, contract_award, materialized_si
 
 PREVIOUS = "0021_reliability_operations"
 HEAD = "0022_saas_company_profile"
-CURRENT_HEAD = "0060_boamp_notice_facts"
 # Current materialization requires client_location, but these historical
 # roundtrips must not enter the deliberately irreversible 0059/0060.
 FIXTURE_HEAD = "0058_client_location"

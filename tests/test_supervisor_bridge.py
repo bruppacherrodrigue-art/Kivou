@@ -93,6 +93,36 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
     assert "toolsets" not in captured
 
 
+def test_plan_accepts_the_hermes_model_configured_for_this_process(monkeypatch):
+    configured = "mistralai/mistral-small"
+    monkeypatch.setenv("KIVOU_MODEL_HERMES", configured)
+
+    result = handle_request(
+        {
+            "operation": "plan",
+            "instructions": "system authority",
+            "context_json": '{"runtime_mode":"SHADOW"}',
+            "max_tokens": 512,
+            "timeout_seconds": 4.5,
+            "provider": "openrouter",
+            "model": configured,
+            "provider_routing": ROUTING,
+            "response_schema": PROVIDER_SCHEMA,
+        },
+        metadata_loader=lambda: PINNED_METADATA.copy(),
+        oneshot=lambda **_kwargs: {
+            "response": '{"plan_id":"plan_001"}',
+            "provider": "openrouter",
+            "model": configured,
+            "automatic_retries": 0,
+            "fallbacks": False,
+        },
+        load_profile_environment=lambda: None,
+    )
+
+    assert result["model"] == configured
+
+
 def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fallback(
     monkeypatch,
 ):
@@ -104,6 +134,11 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
             return SimpleNamespace(
                 model=MODEL,
                 choices=[SimpleNamespace(message=SimpleNamespace(content='{"plan_id":"p"}'))],
+                usage=SimpleNamespace(
+                    prompt_tokens=850,
+                    completion_tokens=120,
+                    cost=0.0042,
+                ),
             )
 
     class Client:
@@ -152,7 +187,13 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
             "require_parameters": True,
             "data_collection": "deny",
             "allow_fallbacks": False,
-        }
+        },
+        "usage": {"include": True},
+    }
+    assert result["usage"] == {
+        "input_tokens": 850,
+        "output_tokens": 120,
+        "cost_usd": "0.0042",
     }
     assert requests[0]["response_format"] == {
         "type": "json_schema",
@@ -169,6 +210,11 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
         "model": MODEL,
         "automatic_retries": 0,
         "fallbacks": False,
+        "usage": {
+            "input_tokens": 850,
+            "output_tokens": 120,
+            "cost_usd": "0.0042",
+        },
     }
     assert captured["closed"] is True
 
