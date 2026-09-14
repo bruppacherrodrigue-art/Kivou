@@ -366,6 +366,14 @@ nouvelle sauvegarde locale. Aucun dump n'a été restauré sur la base vive.
   réouverture prête, aucune entrée de journal prioritéerreur API/Founder depuis
   l'activation dans la fenêtre contrôlée.
 
+Contrôle complémentaire après reprise :80 lignes API/Founder examinées,
+0HTTP5xx,0traceback et0marqueurERROR. Le miroir a aussi été déclenché par son
+timer à11:10 UTC, code0 et877lignes inchangées. La reprise simultanée du winner
+a rencontré le verrou partagé (code75) ; après contrôle de libération et reprise
+séquencée, son passage à11:16 UTC termine code0, file vide, coût0. Les deux
+timers d'enrichissement sont ensuite actifs ; ce rattrapage ne modifie ni leurs
+limites ni les budgets.
+
 ## Réserve explicite : six avis BOAMP non complètement pris en charge
 
 La sélection initiale reste exactement28avis couvrant239 signaux courants.
