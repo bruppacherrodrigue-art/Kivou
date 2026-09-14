@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import datetime as dt
 
+import pytest
+
 from signals.domain import EventRef, Evidence, Location
 from signals.matching import (
     SCORE_POLICY_VERSION,
@@ -146,6 +148,28 @@ class TestHardFilters:
             _icp(territories=(Territory(country="CH", subdivision_code="CH-LU", subdivision_scheme="ISO-3166-2"),)),
         )
         assert result.decision == "exclude"
+
+    @pytest.mark.parametrize(
+        ("country", "subdivision", "expected"),
+        [
+            ("FR", None, "show"),
+            ("FR", "FR-75", "show"),
+            ("CH", "CH-VD", "show"),
+            ("CH", "CH-GE", "exclude"),
+        ],
+    )
+    def test_a_whole_country_can_be_combined_with_another_countrys_subdivision(
+        self, country: str, subdivision: str | None, expected: str
+    ) -> None:
+        result = _match(
+            _cu(country=country, subdivision_code=subdivision),
+            _icp(territories=(
+                Territory(country="FR"),
+                Territory(country="CH", subdivision_code="CH-VD", subdivision_scheme="ISO-3166-2"),
+            )),
+        )
+
+        assert result.decision == expected
 
     def test_an_included_cpv_prefix_excludes_another_sector(self) -> None:
         result = _match(_cu(cpv="45210000"), _icp(included_cpv_prefixes=("44",)))

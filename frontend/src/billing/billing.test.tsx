@@ -64,7 +64,7 @@ describe('grille tarifaire', () => {
     const optionOf = (plan: string) =>
       within(selector).getByRole('option', { name: new RegExp(`^${plan}\\b`) }).textContent ?? ''
 
-    // Les montants viennent du catalogue : 0 / 49 / 99, en CHF par défaut.
+    // Les montants viennent du catalogue : 0 / 49 / 99, exclusivement en EUR.
     expect(optionOf('Découverte')).toContain('Gratuit')
     expect(optionOf('Essentiel')).toMatch(/49/)
     expect(optionOf('Pro')).toMatch(/(^|\D)99/)
@@ -101,19 +101,15 @@ describe('grille tarifaire', () => {
 })
 
 describe('devise', () => {
-  it('demande un choix EXPLICITE, jamais déduit de la langue', async () => {
-    const user = userEvent.setup()
+  it('propose uniquement EUR même si un ancien catalogue contient CHF', async () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing', locale: 'fr' })
 
-    const group = await screen.findByRole('group', { name: 'Devise' })
-    expect(within(group).getByLabelText('CHF')).toBeInTheDocument()
-    expect(within(group).getByLabelText('EUR')).toBeInTheDocument()
-
-    // Une locale française ne présélectionne PAS l'euro.
-    expect(within(group).getByLabelText('CHF')).toBeChecked()
-    await user.click(within(group).getByLabelText('EUR'))
-    expect(within(group).getByLabelText('EUR')).toBeChecked()
+    const selector = await screen.findByLabelText('Offre')
+    expect(selector).toHaveTextContent('€')
+    expect(document.body).toHaveTextContent('Devise : EUR')
+    expect(document.body).not.toHaveTextContent('CHF')
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
   })
 })
 
@@ -125,7 +121,7 @@ describe('checkout', () => {
         body: {
           checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_123',
           plan: 'pro',
-          currency: 'chf',
+          currency: 'eur',
         },
       },
     })
@@ -136,7 +132,7 @@ describe('checkout', () => {
 
     await waitFor(() => expect(callsTo('/billing/checkout')).toHaveLength(1))
     const sent = callsTo('/billing/checkout')[0].body as Record<string, unknown>
-    expect(sent).toEqual({ plan: 'pro', currency: 'chf' })
+    expect(sent).toEqual({ plan: 'pro', currency: 'eur' })
 
     const serialised = JSON.stringify(sent)
     expect(serialised).not.toContain('price_')
@@ -154,7 +150,7 @@ describe('checkout', () => {
         body: {
           checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_456',
           plan: 'essential',
-          currency: 'chf',
+          currency: 'eur',
         },
       },
     })

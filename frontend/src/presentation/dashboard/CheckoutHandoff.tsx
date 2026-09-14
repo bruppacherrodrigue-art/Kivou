@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, CreditCard, Info } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { billing } from '../../api/endpoints'
 import { onSignOutStarted } from '../../api/client'
 import { describeError } from '../../api/errorCopy'
-import type { BillingStatus, CataloguePlan, Currency, PlanCatalogue, PurchasablePlan } from '../../api/types'
+import type { BillingStatus, CataloguePlan, PlanCatalogue, PurchasablePlan } from '../../api/types'
 import { useCurrentUser } from '../../auth/SessionProvider'
 import { clearCheckoutIntent, saveCheckoutReturn, validateCheckoutReturn } from '../../billing/checkoutIntent'
 import { secureBillingDestination } from '../../billing/destination'
 import { planFromSearch } from '../../billing/planRoute'
+import { SUBSCRIPTION_CURRENCY, subscriptionPrice } from '../../billing/subscriptionPricing'
 import { withRenderableSpaces } from '../../i18n'
 import { fr } from '../../i18n/fr'
 import { ReferenceLink } from '../router/ReferenceLink'
@@ -21,8 +22,8 @@ const PLAN_NAMES = {
   pro: 'Pro',
 } as const
 
-function priceFor(plan: CataloguePlan, currency: Currency): string | null {
-  const price = plan.monthly_price[currency]
+function priceFor(plan: CataloguePlan): string | null {
+  const price = subscriptionPrice(plan)
   if (!price) return null
   return withRenderableSpaces(new Intl.NumberFormat('fr-CH', {
     style: 'currency',
@@ -68,7 +69,6 @@ function AccountCheckoutHandoff({ accountId }: { accountId: string }) {
   const [loadError, setLoadError] = useState<unknown>(null)
   const [checkoutError, setCheckoutError] = useState<unknown>(null)
   const [destinationError, setDestinationError] = useState(false)
-  const [currency, setCurrency] = useState<Currency | null>(null)
   const [catalogueAttempt, setCatalogueAttempt] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const busyRef = useRef(false)
@@ -114,19 +114,9 @@ function AccountCheckoutHandoff({ accountId }: { accountId: string }) {
   }, [catalogueAttempt])
 
   const plan = catalogue?.plans.find((item) => item.plan_code === planCode) ?? null
-  const availableCurrencies = useMemo(
-    () =>
-      catalogue && plan
-        ? catalogue.currencies.filter((candidate) => plan.monthly_price[candidate] !== undefined)
-        : [],
-    [catalogue, plan],
-  )
-  const selectedCurrency =
-    currency && availableCurrencies.includes(currency)
-      ? currency
-      : availableCurrencies.includes('chf')
-        ? 'chf'
-        : (availableCurrencies[0] ?? null)
+  const selectedCurrency = catalogue?.currencies.includes(SUBSCRIPTION_CURRENCY) && plan && subscriptionPrice(plan)
+    ? SUBSCRIPTION_CURRENCY
+    : null
 
   async function submit() {
     if (!mountedRef.current || busyRef.current || !plan || !selectedCurrency || !plan.purchasable || billingStatus?.billing_action !== 'choose_plan') return
@@ -207,7 +197,7 @@ function AccountCheckoutHandoff({ accountId }: { accountId: string }) {
     )
   }
 
-  if (!plan.purchasable || availableCurrencies.length === 0 || !selectedCurrency) {
+  if (!plan.purchasable || !selectedCurrency) {
     return (
       <AuthShell eyebrow="Passage à l’offre" title={`Offre ${PLAN_NAMES[plan.plan_code]} indisponible`} description="Le catalogue actuel ne permet pas d’ouvrir un paiement pour cette offre." wide>
         <p className="form-error" role="alert">Cette offre est indisponible à l’achat dans les devises actuellement proposées. Aucun paiement n’a été ouvert.</p>
@@ -222,7 +212,7 @@ function AccountCheckoutHandoff({ accountId }: { accountId: string }) {
     </AuthShell>
   }
 
-  const price = priceFor(plan, selectedCurrency)
+  const price = priceFor(plan)
   const checkoutCopy = checkoutError ? describeError(checkoutError, fr) : null
 
   return (
@@ -232,12 +222,7 @@ function AccountCheckoutHandoff({ accountId }: { accountId: string }) {
         <span><CreditCard aria-hidden="true" /></span>
         <div><p className="card-kicker">Récapitulatif</p><strong>{PLAN_NAMES[plan.plan_code]} · {price} / mois</strong><p>Facturation mensuelle et renouvellement automatique selon les conditions affichées avant paiement.</p></div>
       </section>
-      <div className="form-field">
-        <label htmlFor="checkout-currency">Devise</label>
-        <select id="checkout-currency" className="lifecycle-select" value={selectedCurrency} disabled={submitting} onChange={(event) => setCurrency(event.target.value as Currency)}>
-          {availableCurrencies.map((candidate) => <option key={candidate} value={candidate}>{candidate.toUpperCase()}</option>)}
-        </select>
-      </div>
+      <p className="field-hint">Devise : EUR</p>
       <dl className="checkout-entitlements"><div><dt>Profils</dt><dd>{plan.entitlements.max_active_icps}</dd></div><div><dt>Territoires</dt><dd>{territoryLabel(plan)}</dd></div><div><dt>Alertes</dt><dd>{cadenceLabel(plan.entitlements.alert_cadence)}</dd></div><div><dt>Historique</dt><dd>{historyLabel(plan)}</dd></div></dl>
       {destinationError
         ? <p className="form-error" role="alert">La destination de paiement reçue est invalide. Aucun paiement n’a été ouvert.</p>

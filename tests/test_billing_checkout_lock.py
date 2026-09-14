@@ -116,7 +116,7 @@ def account_of(client: TestClient) -> str:
     return client.get("/me").json()["account_id"]
 
 
-def start(client: TestClient, plan: str = "pro", currency: str = "chf"):
+def start(client: TestClient, plan: str = "pro", currency: str = "eur"):
     return client.post("/billing/checkout", json={"plan": plan, "currency": currency})
 
 
@@ -140,7 +140,7 @@ def test_a_checkout_reserves_exactly_one_attempt(client, engine, stripe):
     assert len(rows) == 1
     assert rows[0].status == "open"
     assert rows[0].plan_code == "pro"
-    assert rows[0].currency == "chf"
+    assert rows[0].currency == "eur"
     assert rows[0].stripe_checkout_session_id is not None
     assert len(stripe.checkout_calls) == 1
 
@@ -307,10 +307,10 @@ def test_a_resumed_attempt_never_gets_a_fresh_key(client, engine, stripe):
     account_id = account_of(client)
     with engine.begin() as connection:
         first = attempts.reserve(
-            connection, account_id=account_id, plan_code="pro", currency="chf", now=NOW
+            connection, account_id=account_id, plan_code="pro", currency="eur", now=NOW
         )
         second = attempts.reserve(
-            connection, account_id=account_id, plan_code="pro", currency="chf", now=NOW
+            connection, account_id=account_id, plan_code="pro", currency="eur", now=NOW
         )
     assert first.attempt_id == second.attempt_id
     assert first.idempotency_key == second.idempotency_key

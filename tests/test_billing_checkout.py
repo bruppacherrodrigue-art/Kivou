@@ -96,8 +96,17 @@ def test_the_plan_catalogue_is_public_and_carries_no_stripe_identifier(client: T
         "pro",
     ]
     assert body["billing_interval"] == "month"
+    assert body["currencies"] == ["eur"]
+    assert "chf" not in str(body)
     for forbidden in ("price_", "prod_", "coupon_", "whsec", "sk_test"):
         assert forbidden not in str(body), forbidden
+
+
+def test_a_retired_chf_checkout_never_contacts_stripe(client: TestClient, stripe: FakeStripe):
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    assert response.status_code == 422
+    assert stripe.checkout_calls == []
+    assert stripe.customer_calls == []
 
 
 def test_the_catalogue_marks_pro_as_recommended(client: TestClient):
@@ -112,7 +121,7 @@ def test_the_catalogue_marks_pro_as_recommended(client: TestClient):
 def test_a_price_id_in_the_request_body_is_refused_outright(client: TestClient):
     response = client.post(
         "/billing/checkout",
-        json={"plan": "essential", "currency": "chf", "price_id": "price_attacker_controlled"},
+        json={"plan": "essential", "currency": "eur", "price_id": "price_attacker_controlled"},
     )
     assert response.status_code == 422
 
@@ -120,11 +129,12 @@ def test_a_price_id_in_the_request_body_is_refused_outright(client: TestClient):
 @pytest.mark.parametrize(
     "payload",
     [
-        {"plan": "discovery", "currency": "chf"},
-        {"plan": "enterprise", "currency": "chf"},
+        {"plan": "discovery", "currency": "eur"},
+        {"plan": "enterprise", "currency": "eur"},
         {"plan": "pro", "currency": "usd"},
+        {"plan": "pro", "currency": "chf"},
         {"plan": "pro"},
-        {"currency": "chf"},
+        {"currency": "eur"},
     ],
 )
 def test_only_a_purchasable_plan_and_a_billable_currency_are_accepted(client, payload: dict):
@@ -132,7 +142,7 @@ def test_only_a_purchasable_plan_and_a_billable_currency_are_accepted(client, pa
 
 
 @pytest.mark.parametrize("plan", ["essential", "pro"])
-@pytest.mark.parametrize("currency", ["chf", "eur"])
+@pytest.mark.parametrize("currency", ["eur"])
 def test_the_server_resolves_the_price_from_its_own_lookup_key(
     client: TestClient, stripe: FakeStripe, plan: str, currency: str
 ):
@@ -148,7 +158,7 @@ def test_the_server_resolves_the_price_from_its_own_lookup_key(
 def test_a_checkout_is_a_state_changing_request_and_is_csrf_protected(client: TestClient):
     response = client.post(
         "/billing/checkout",
-        json={"plan": "pro", "currency": "chf"},
+        json={"plan": "pro", "currency": "eur"},
         headers={"Origin": "https://attaquant.example"},
     )
     assert response.status_code == 403
@@ -157,7 +167,7 @@ def test_a_checkout_is_a_state_changing_request_and_is_csrf_protected(client: Te
 def test_an_unauthenticated_caller_cannot_open_a_checkout(engine, stripe: FakeStripe):
     anonymous = TestClient(build(engine, stripe), headers={"Origin": ORIGIN})
     assert (
-        anonymous.post("/billing/checkout", json={"plan": "pro", "currency": "chf"}).status_code
+        anonymous.post("/billing/checkout", json={"plan": "pro", "currency": "eur"}).status_code
         == 401
     )
 
@@ -168,7 +178,7 @@ def test_an_unauthenticated_caller_cannot_open_a_checkout(engine, stripe: FakeSt
 def test_one_stripe_customer_is_created_per_account_and_only_once(
     client: TestClient, stripe: FakeStripe, engine
 ):
-    client.post("/billing/checkout", json={"plan": "essential", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "essential", "currency": "eur"})
     client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     with engine.connect() as connection:
@@ -181,7 +191,7 @@ def test_one_stripe_customer_is_created_per_account_and_only_once(
 def test_the_stripe_customer_carries_the_account_for_reconciliation(
     client: TestClient, stripe: FakeStripe
 ):
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     account_id = client.get("/me").json()["account_id"]
     assert stripe.customer_calls[0]["account_id"] == account_id
     assert stripe.customer_calls[0]["idempotency_key"] == f"kivou-customer-{account_id}"
@@ -191,8 +201,8 @@ def test_two_accounts_get_two_distinct_stripe_customers(engine, stripe: FakeStri
     app = build(engine, stripe)
     alice = signed_up(app, "alice@negoce-romand.ch")
     bob = signed_up(app, "bob@materiaux-leman.ch")
-    alice.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
-    bob.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    alice.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
+    bob.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     with engine.connect() as connection:
         customers = connection.execute(sa.select(billing_customer.c.stripe_customer_id)).scalars()
@@ -203,7 +213,7 @@ def test_the_checkout_session_carries_the_account_on_both_reconciliation_paths(
     client: TestClient, stripe: FakeStripe
 ):
     """§13 — la session ET l'abonnement qui en naîtra portent le compte."""
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     account_id = client.get("/me").json()["account_id"]
     call = stripe.checkout_calls[-1]
     assert call["account_id"] == account_id
@@ -215,7 +225,7 @@ def test_the_return_urls_never_come_from_the_client(client: TestClient, stripe: 
     """Une URL de succès fournie par le client serait une redirection ouverte."""
     response = client.post(
         "/billing/checkout",
-        json={"plan": "pro", "currency": "chf", "success_url": "https://attaquant.example"},
+        json={"plan": "pro", "currency": "eur", "success_url": "https://attaquant.example"},
     )
     assert response.status_code == 422
     assert stripe.checkout_calls == []
@@ -225,8 +235,8 @@ def test_repeating_the_same_checkout_reuses_the_same_idempotency_key(
     client: TestClient, stripe: FakeStripe
 ):
     """§13 — deux clics ne doivent pas produire deux paiements."""
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     keys = {call["idempotency_key"] for call in stripe.checkout_calls}
     assert len(keys) == 1
 
@@ -235,13 +245,13 @@ def test_automatic_tax_is_off_unless_configuration_says_otherwise(
     client: TestClient, stripe: FakeStripe
 ):
     """§29 — la fiscalité est une décision, pas un défaut."""
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     assert stripe.checkout_calls[-1]["automatic_tax"] is False
 
 
 def test_automatic_tax_can_be_switched_on_by_configuration(engine, stripe: FakeStripe):
     client = signed_up(build(engine, stripe, stripe_automatic_tax=True))
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     assert stripe.checkout_calls[-1]["automatic_tax"] is True
 
 
@@ -255,7 +265,7 @@ def test_an_account_that_already_pays_cannot_open_a_second_checkout(
     with engine.begin() as connection:
         subscribe(connection, account_id=account_id, plan="pro", now=NOW)
 
-    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "already_subscribed"
     assert stripe.checkout_calls == []
@@ -269,7 +279,7 @@ def test_an_account_whose_subscription_lapsed_may_subscribe_again(
         subscribe(connection, account_id=account_id, plan="pro", status="canceled", now=NOW)
 
     assert (
-        client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"}).status_code == 200
+        client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"}).status_code == 200
     )
 
 
@@ -278,7 +288,7 @@ def test_an_account_whose_subscription_lapsed_may_subscribe_again(
 
 def test_visiting_the_success_url_grants_nothing(client: TestClient, engine, stripe: FakeStripe):
     """§14 — le navigateur n'est pas une autorité de paiement."""
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     # Ce que ferait un navigateur revenant de Stripe : appeler l'application.
     for path in ("/billing/status", "/billing/plans", "/signals"):
@@ -314,7 +324,7 @@ def test_the_portal_needs_an_existing_stripe_customer(client: TestClient):
 def test_the_portal_returns_a_hosted_url_with_a_configured_return_url(
     client: TestClient, stripe: FakeStripe
 ):
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     response = client.post("/billing/portal")
     assert response.status_code == 200
     assert response.json()["portal_url"].startswith("https://billing.stripe.test/")
@@ -322,7 +332,7 @@ def test_the_portal_returns_a_hosted_url_with_a_configured_return_url(
 
 
 def test_the_portal_is_csrf_protected(client: TestClient, stripe: FakeStripe):
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     response = client.post("/billing/portal", headers={"Origin": "https://attaquant.example"})
     assert response.status_code == 403
 
@@ -330,7 +340,7 @@ def test_the_portal_is_csrf_protected(client: TestClient, stripe: FakeStripe):
 def test_one_account_never_opens_the_portal_of_another(engine, stripe: FakeStripe):
     app = build(engine, stripe)
     alice, bob = signed_up(app, "alice@negoce-romand.ch"), signed_up(app, "bob@materiaux-leman.ch")
-    alice.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    alice.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     assert bob.post("/billing/portal").status_code == 409
     alice_url = alice.post("/billing/portal").json()["portal_url"]
@@ -341,18 +351,18 @@ def test_one_account_never_opens_the_portal_of_another(engine, stripe: FakeStrip
 
 
 def test_founding_is_never_applied_to_an_ordinary_account(client: TestClient, stripe: FakeStripe):
-    client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     assert stripe.checkout_calls[-1]["coupon_id"] is None
 
 
 def test_a_query_parameter_can_never_request_the_founding_offer(
     client: TestClient, stripe: FakeStripe
 ):
-    client.post("/billing/checkout?founding=true", json={"plan": "pro", "currency": "chf"})
+    client.post("/billing/checkout?founding=true", json={"plan": "pro", "currency": "eur"})
     assert stripe.checkout_calls[-1]["coupon_id"] is None
     assert (
         client.post(
-            "/billing/checkout", json={"plan": "pro", "currency": "chf", "founding": True}
+            "/billing/checkout", json={"plan": "pro", "currency": "eur", "founding": True}
         ).status_code
         == 422
     )
@@ -370,7 +380,7 @@ def test_an_eligible_account_receives_the_founding_discount(engine, stripe: Fake
 
     eligible_client = TestClient(app_holder["app"], headers={"Origin": ORIGIN})
     eligible_client.cookies = client.cookies
-    eligible_client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    eligible_client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     assert stripe.checkout_calls[-1]["coupon_id"] == "coupon_test_f"
 
 
@@ -380,5 +390,5 @@ def test_the_founding_discount_never_applies_to_another_plan(engine, stripe: Fak
     account_id = client.get("/me").json()["account_id"]
     app.state.founding_accounts = frozenset({account_id})
 
-    client.post("/billing/checkout", json={"plan": "essential", "currency": "chf"})
+    client.post("/billing/checkout", json={"plan": "essential", "currency": "eur"})
     assert stripe.checkout_calls[-1]["coupon_id"] is None

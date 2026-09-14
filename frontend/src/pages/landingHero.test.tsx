@@ -12,7 +12,7 @@ describe('hero exact de la référence publique', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByText('Veille des marchés attribués')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Voir mes 3 premiers signaux' })).toHaveAttribute('href', '/signup?plan=discovery')
-    expect(screen.getByRole('link', { name: 'Examiner un signal complet' })).toHaveAttribute('href', '/exemple-de-signal')
+    expect(screen.getByRole('link', { name: 'Découvrir le fonctionnement' })).toHaveAttribute('href', '/produit')
     expect(screen.getByText(/3 signaux gratuits · Sans carte bancaire/)).toBeInTheDocument()
 
     const signal = screen.getByText('H. Hüther GmbH').closest('article')!
@@ -26,7 +26,7 @@ describe('hero exact de la référence publique', () => {
     const view = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
     const nav = screen.getByRole('navigation', { name: 'Navigation principale' })
     for (const [name, href] of [
-      ['Accueil', '/'], ['Comment ça marche', '/produit'], ['Exemple de signal', '/exemple-de-signal'], ['Tarifs', '/tarifs'], ['Contact', '/contact'],
+      ['Accueil', '/'], ['Comment ça marche', '/produit'], ['Tarifs', '/tarifs'], ['Contact', '/contact'],
     ] as const) {
       expect(within(nav).getAllByRole('link', { name })[0]).toHaveAttribute('href', href)
     }

@@ -178,6 +178,7 @@ describe('contrat responsive connecté à 390 px', () => {
       'max-width: 820px',
       'max-width: 620px',
       'prefers-reduced-motion: reduce',
+      'max-width: 600px',
     ])
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*scroll-behavior:\s*auto/)
   })

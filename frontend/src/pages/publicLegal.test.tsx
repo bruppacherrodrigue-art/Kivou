@@ -155,7 +155,6 @@ describe('footer public exact', () => {
     const footer = screen.getByRole('contentinfo')
     for (const [name, href] of [
       ['Comment ça marche', '/produit'],
-      ['Exemple de signal', '/exemple-de-signal'],
       ['Tarifs', '/tarifs'],
       ['Créer un compte', '/signup?plan=discovery'],
       ['Se connecter', '/login'],
@@ -193,9 +192,9 @@ describe('navigation SPA du shell public', () => {
         session: UNAUTHENTICATED,
       })
       const finalCta = view.container.querySelector<HTMLElement>('.pricing-page .final-cta')!
-      await user.click(within(finalCta).getByRole('link', { name: 'Voir un signal' }))
+      await user.click(within(finalCta).getByRole('link', { name: 'Comment ça marche' }))
 
-      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/exemple-de-signal'))
+      await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/produit'))
       expect(scrollTo).toHaveBeenCalledWith(0, 0)
     } finally {
       scrollTo.mockRestore()

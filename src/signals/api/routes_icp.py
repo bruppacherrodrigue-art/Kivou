@@ -229,6 +229,9 @@ def update_target_icp(
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         state = billing_service.billing_state(connection, account_id=session.account_id)
+        was_provisional = service.is_provisional_profile(
+            connection, account_id=session.account_id
+        )
         try:
             previous = service.get_target_icp(
                 connection, account_id=session.account_id, target_icp_id=target_icp_id
@@ -246,12 +249,19 @@ def update_target_icp(
                 customer_input=payload.customer_input,
                 now=now,
             )
-            service.mark_landing_step(
-                connection,
-                account_id=session.account_id,
-                step="profile_confirmed",
-                now=now,
-            )
+            if payload.customer_input is not None and stored.status == "active":
+                service.mark_landing_step(
+                    connection,
+                    account_id=session.account_id,
+                    step="profile_confirmed",
+                    now=now,
+                )
+            elif was_provisional:
+                # A rename or incomplete save is not customer confirmation,
+                # even when the landing profile was technically active.
+                service.mark_provisional_onboarding(
+                    connection, account_id=session.account_id, now=now
+                )
         except service.TargetIcpNotFound as error:
             raise api_error(404, error.code, "profil de ciblage introuvable") from error
         except service.TerritoryLimitExceeded as error:
@@ -282,7 +292,11 @@ def update_target_icp(
         request.app.state.conversion_milestone_service.observe_activation_in_transaction(
             connection, account_id=session.account_id, observed_at=now
         )
+        provisional = service.is_provisional_profile(
+            connection, account_id=session.account_id
+        )
     return TargetIcpResponse.of(
         stored,
         max_territories=state.entitlements.max_territories_per_icp,
+        provisional=provisional,
     )

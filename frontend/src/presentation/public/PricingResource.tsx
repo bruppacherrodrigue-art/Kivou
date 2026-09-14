@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { billing } from '../../api/endpoints'
+import { SUBSCRIPTION_CURRENCY, subscriptionPrice } from '../../billing/subscriptionPricing'
 import type {
   AlertCadence,
   CataloguePlan,
@@ -33,9 +34,9 @@ export function usePricingResource(): PricingResourceState {
     setState({ status: 'loading', catalogue: null, currency: null })
     billing.plans().then((catalogue) => {
       if (!active) return
-      const currency = catalogue.currencies.includes('chf')
-        ? 'chf'
-        : catalogue.currencies[0] ?? null
+      const currency = catalogue.currencies.includes(SUBSCRIPTION_CURRENCY)
+        ? SUBSCRIPTION_CURRENCY
+        : null
       setState({ status: 'ready', catalogue, currency })
     }).catch(() => {
       if (active) setState({ status: 'error', catalogue: null, currency: null })
@@ -69,8 +70,8 @@ export function publicPrice(
   plan: CataloguePlan,
   currency: Currency | null,
 ): PublicPrice | null {
-  if (!currency) return null
-  const price = plan.monthly_price[currency]
+  if (currency !== SUBSCRIPTION_CURRENCY) return null
+  const price = subscriptionPrice(plan)
   if (!price) return null
   return {
     currency: price.currency.toUpperCase(),

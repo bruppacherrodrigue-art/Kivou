@@ -745,7 +745,7 @@ export const en: Dictionary = {
         terminalNotice: 'The previous attempt is no longer active. You can choose a plan and start again.',
         openingPortal: 'Opening…',
         currency: 'Currency',
-        currencyLead: 'Choose the billing currency. It is not inferred from your language.',
+        currencyLead: 'All subscriptions are billed in euros (EUR).',
         perMonth: '/ month',
         free: 'Free',
         recommended: 'Recommended',

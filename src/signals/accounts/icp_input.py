@@ -219,6 +219,9 @@ def to_target_icp(customer_input: TargetIcpInput, *, target_icp_id: str, label: 
         )
         if domain not in primary_trades
     )
+    subdivision_countries = {
+        code.split("-", 1)[0] for code in customer_input.territory_subdivisions
+    }
 
     return TargetICP(
         icp_id=target_icp_id,
@@ -239,7 +242,11 @@ def to_target_icp(customer_input: TargetIcpInput, *, target_icp_id: str, label: 
                 )
                 for code in customer_input.territory_subdivisions
             )
-            or tuple(Territory(country=country) for country in customer_input.territories)
+            + tuple(
+                Territory(country=country)
+                for country in customer_input.territories
+                if country not in subdivision_countries
+            )
         ),
         included_cpv_prefixes=customer_input.sector_cpv_prefixes,
         value_thresholds=(

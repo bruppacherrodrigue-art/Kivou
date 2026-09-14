@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { billing } from '../../api/endpoints'
+import { subscriptionPrice } from '../../billing/subscriptionPricing'
 import { useCurrentUser } from '../../auth/SessionProvider'
 import { validateCheckoutReturn, type CheckoutReturnIntent } from '../../billing/checkoutIntent'
 import { useI18n } from '../../i18n'
@@ -32,11 +33,11 @@ function AccountUpgrade({ onClose, intent, accountId }: { onClose: () => void; i
       : resource.error ? <div><p role="alert" className={styles.error}>{fr ? 'Les offres ne sont pas disponibles pour le moment.' : 'Plans are temporarily unavailable.'}</p><button className={styles.button} onClick={() => void resource.retry()}>{fr ? 'Réessayer' : 'Retry'}</button></div>
         : !canChoose ? <Link className={styles.primary} to="/app/billing" state={state}>{fr ? 'Gérer ma facturation' : 'Manage billing'}</Link>
           : <div className={styles.form}>{resource.data?.catalogue.plans.filter((plan) => plan.purchasable && plan.plan_code !== 'discovery').map((plan) => {
-            const prices = resource.data!.catalogue.currencies.flatMap((currency) => plan.monthly_price[currency] ? [plan.monthly_price[currency]!] : [])
-            if (!prices.length) return null
+            const price = subscriptionPrice(plan)
+            if (!price) return null
             const name = t.billing.plans[plan.plan_code]
             return <section className={styles.panel} key={plan.plan_code}>
-              <div className={styles.holder}><h3>{name}</h3><p>{prices.map((price) => money(price.amount_minor_units, price.currency.toUpperCase())).join(' · ')} {fr ? '/ mois' : '/ month'}</p>
+              <div className={styles.holder}><h3>{name}</h3><p>{money(price.amount_minor_units, price.currency.toUpperCase())} {fr ? '/ mois' : '/ month'}</p>
                 <p className={styles.muted}>{plan.entitlements.max_active_icps} {fr ? 'profil(s) actif(s)' : 'active profile(s)'} · {plan.entitlements.history_days === null ? (fr ? 'Tout l’historique disponible' : 'All available history') : `${plan.entitlements.history_days} ${fr ? 'jours d’historique' : 'days of history'}`}</p>
                 <button className={styles.primary} disabled={!target} onClick={() => navigate(`/app/billing?plan=${plan.plan_code}`, { state })}>{fr ? `Choisir ${name}` : `Choose ${name}`}</button>
               </div>

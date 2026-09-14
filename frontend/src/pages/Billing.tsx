@@ -7,7 +7,6 @@ import { describeError } from '../api/errorCopy'
 import type {
   BillingStatus,
   CataloguePlan,
-  Currency,
   Entitlements,
   PlanCode,
   PurchasablePlan,
@@ -19,6 +18,7 @@ import {
   validateSignalKey,
 } from '../billing/checkoutIntent'
 import { secureBillingDestination } from '../billing/destination'
+import { SUBSCRIPTION_CURRENCY, subscriptionPrice } from '../billing/subscriptionPricing'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { interpolate, plural, useI18n } from '../i18n'
 import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
@@ -59,7 +59,7 @@ function AccountBilling() {
   const status = useResource(loadStatus)
   const catalogue = useResource(loadCatalogue)
   const requestedPlanCode = purchasablePlanFromSearch(location.search)
-  const [currency, setCurrency] = useState<Currency>('chf')
+  const currency = SUBSCRIPTION_CURRENCY
   const [selectedPlanCode, setSelectedPlanCode] = useState<PlanCode>(
     () => requestedPlanCode ?? 'essential',
   )
@@ -69,7 +69,6 @@ function AccountBilling() {
   const busyRef = useRef(false)
   const mounted = useRef(true)
   const actionGeneration = useRef(0)
-  const currencyInitialised = useRef(false)
   const appliedPlanSearch = useRef(location.search)
   const accountId = me.account_id
 
@@ -91,22 +90,6 @@ function AccountBilling() {
       busyRef.current = false
     }
   }, [])
-
-  useEffect(() => {
-    if (currencyInitialised.current) return
-    const billedCurrency = status.data?.currency
-    if (billedCurrency === 'chf' || billedCurrency === 'eur') {
-      currencyInitialised.current = true
-      setCurrency(billedCurrency)
-      return
-    }
-    if (catalogue.data) {
-      currencyInitialised.current = true
-      setCurrency(catalogue.data.currencies.includes('chf')
-        ? 'chf'
-        : catalogue.data.currencies[0] ?? 'chf')
-    }
-  }, [catalogue.data, status.data])
 
   const displayablePlans = useMemo(
     () => catalogue.data?.plans.filter(
@@ -149,7 +132,7 @@ function AccountBilling() {
     if (
       authoritativeStatus?.billing_action !== 'choose_plan' ||
       !cataloguePlan?.purchasable ||
-      !cataloguePlan.monthly_price[currency]
+      !subscriptionPrice(cataloguePlan)
     ) return
 
     busyRef.current = true
@@ -253,7 +236,7 @@ function AccountBilling() {
                   ? t.reference.missingValue
                   : status.data.billing_action === 'choose_plan'
                     ? authoritativeSelectedPlan
-                      ? `${t.billing.plans[authoritativeSelectedPlan.plan_code]} · ${planPriceLabel(authoritativeSelectedPlan, currency, money, t)} ${t.billing.perMonth}`
+                      ? `${t.billing.plans[authoritativeSelectedPlan.plan_code]} · ${planPriceLabel(authoritativeSelectedPlan, money, t)} ${t.billing.perMonth}`
                       : t.reference.missingValue
                     : t.billing.plans[status.data.plan_code]}
             </h3>
@@ -341,31 +324,14 @@ function AccountBilling() {
                   >
                     {displayablePlans.map((plan) => (
                       <option value={plan.plan_code} key={plan.plan_code}>
-                        {t.billing.plans[plan.plan_code]} · {planPriceLabel(plan, currency, money, t)} {t.billing.perMonth}
+                        {t.billing.plans[plan.plan_code]} · {planPriceLabel(plan, money, t)} {t.billing.perMonth}
                         {plan.recommended ? ` · ${t.billing.recommended}` : ''}
                       </option>
                     ))}
                   </select>
-                  <fieldset>
-                    <legend>{t.billing.currency}</legend>
-                    <div className="billing-actions">
-                      {authoritativeCatalogue.currencies.map((code) => (
-                        <label key={code}>
-                          <input
-                            type="radio"
-                            name="kivou-currency"
-                            value={code}
-                            checked={currency === code}
-                            disabled={busyAction !== null}
-                            onChange={() => setCurrency(code)}
-                          />
-                          {code.toUpperCase()}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
+                  <p className="field-hint">{t.billing.currency} : EUR</p>
                   <p className="field-hint">{copy.planHint}</p>
-                  {authoritativeSelectedPlan?.purchasable && !authoritativeSelectedPlan.monthly_price[currency] ? (
+                  {authoritativeSelectedPlan?.purchasable && !subscriptionPrice(authoritativeSelectedPlan) ? (
                     <p>{t.reference.missingValue}</p>
                   ) : null}
                 </div>
@@ -419,7 +385,7 @@ function AccountBilling() {
                 <Button
                   type="button"
                   className="primary-action"
-                  disabled={busyAction !== null || !authoritativeSelectedPlan.monthly_price[currency]}
+                  disabled={busyAction !== null || !subscriptionPrice(authoritativeSelectedPlan)}
                   onClick={() => {
                     const planCode = authoritativeSelectedPlan.plan_code
                     if (isPurchasablePlan(planCode)) void startCheckout(planCode)
@@ -531,11 +497,10 @@ function cadenceKey(value: Entitlements['alert_cadence']): 'None' | 'Weekly' | '
 
 function planPriceLabel(
   plan: CataloguePlan,
-  currency: Currency,
   money: (minorUnits: number, currency: string) => string,
   t: ReturnType<typeof useI18n>['t'],
 ): string {
-  const price = plan.monthly_price[currency]
+  const price = subscriptionPrice(plan)
   if (price) return money(price.amount_minor_units, price.currency)
   if (!plan.purchasable && plan.plan_code === 'discovery') return t.billing.free
   return t.reference.missingValue

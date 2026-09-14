@@ -752,7 +752,7 @@ export const fr = {
         terminalNotice: 'La tentative précédente n’est plus active. Vous pouvez choisir une offre et recommencer.',
         openingPortal: 'Ouverture…',
         currency: 'Devise',
-        currencyLead: 'Choisissez la devise de facturation. Elle ne se déduit pas de votre langue.',
+        currencyLead: 'Tous les abonnements sont facturés en euros (EUR).',
         perMonth: '/ mois',
         free: 'Gratuit',
         recommended: 'Recommandé',

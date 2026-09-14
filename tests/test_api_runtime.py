@@ -560,7 +560,7 @@ def test_billing_is_unavailable_rather_than_broken_without_stripe(base_environme
     module = importlib.import_module(MODULE)
     app = module.build_application()
     client = TestClient(app, headers={"Origin": "https://staging.kivou.test"})
-    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
     assert response.status_code in {401, 503}
 
 

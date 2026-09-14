@@ -8,14 +8,13 @@ afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
 function Probe() { const location = useLocation(); return <output data-testid="route">{JSON.stringify({ path: location.pathname, search: location.search, state: location.state })}</output> }
 describe('server catalogue upgrade invitation', () => {
   it.each([
-    { locale: 'fr' as const, currency: 'chf' as const, essential: 4900, pro: 9900, labels: ['49 CHF', '99 CHF'] },
     { locale: 'fr' as const, currency: 'eur' as const, essential: 4900, pro: 9900, labels: ['49 €', '99 €'] },
-    { locale: 'en' as const, currency: 'chf' as const, essential: 4950, pro: 9975, labels: ['CHF 49.50', 'CHF 99.75'] },
     { locale: 'en' as const, currency: 'eur' as const, essential: 4950, pro: 9975, labels: ['€49.50', '€99.75'] },
   ])('renders catalogue minor units exactly once in $locale/$currency', async ({ locale, currency, essential, pro, labels }) => {
-    const catalogue = { ...CATALOGUE, currencies: [currency], plans: CATALOGUE.plans.map(plan => ({
+    const catalogue = { ...CATALOGUE, currencies: ['chf', currency], plans: CATALOGUE.plans.map(plan => ({
       ...plan,
       monthly_price: plan.plan_code === 'discovery' ? {} : {
+        chf: { currency: 'chf', amount_minor_units: 8888 },
         [currency]: { currency, amount_minor_units: plan.plan_code === 'essential' ? essential : pro },
       },
     })) }
@@ -27,6 +26,7 @@ describe('server catalogue upgrade invitation', () => {
       const section = heading.closest('section')!
       expect(within(section).getByText(text => text.replace(/[\u00a0\u202f]/g, ' ') === `${labels[index]} / ${locale === 'fr' ? 'mois' : 'month'}`)).toBeVisible()
     }
+    expect(document.body).not.toHaveTextContent('CHF')
     expect(callsTo('/billing/checkout')).toHaveLength(0)
     expect(callsTo('/billing/portal')).toHaveLength(0)
   })

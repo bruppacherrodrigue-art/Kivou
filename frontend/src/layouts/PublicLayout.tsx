@@ -20,7 +20,7 @@ export function Logo() {
   )
 }
 
-const nav = [['accueil', '/', 'Accueil'], ['produit', '/produit', 'Comment ça marche'], ['signal', '/exemple-de-signal', 'Exemple de signal'], ['tarifs', '/tarifs', 'Tarifs'], ['contact', '/contact', 'Contact']] as const
+const nav = [['accueil', '/', 'Accueil'], ['produit', '/produit', 'Comment ça marche'], ['tarifs', '/tarifs', 'Tarifs'], ['contact', '/contact', 'Contact']] as const
 
 export function SiteHeader({ active }: { active?: string }) {
   const { key } = useLocation()
@@ -42,14 +42,13 @@ export function SiteHeader({ active }: { active?: string }) {
 
 export function SiteFooter() {
   return (
-    <footer className="site-footer"><div className="footer-inner"><div className="footer-grid"><div className="footer-brand"><Logo /><p>Les marchés attribués deviennent des comptes à examiner, avec les faits et le calendrier sous les yeux.</p></div><nav className="footer-col" aria-label="Produit"><strong>Produit</strong><ul><li><ReferenceLink href="/produit">Comment ça marche</ReferenceLink></li><li><ReferenceLink href="/exemple-de-signal">Exemple de signal</ReferenceLink></li><li><ReferenceLink href="/tarifs">Tarifs</ReferenceLink></li></ul></nav><nav className="footer-col" aria-label="Compte"><strong>Compte</strong><ul><li><ReferenceLink href="/signup?plan=discovery">Créer un compte</ReferenceLink></li><li><ReferenceLink href="/login">Se connecter</ReferenceLink></li><li><ReferenceLink href="/contact">Nous contacter</ReferenceLink></li></ul></nav><nav className="footer-col" aria-label="Informations"><strong>Informations</strong><ul><li><ReferenceLink href="/informations-legales#mentions-legales">Mentions légales</ReferenceLink></li><li><ReferenceLink href="/informations-legales#confidentialite">Confidentialité</ReferenceLink></li><li><ReferenceLink href="/informations-legales#cgu">Conditions générales</ReferenceLink></li></ul></nav></div><div className="footer-bottom"><span>© 2026 Kivou. Tous droits réservés.</span><span>Sources officielles accessibles. Couverture européenne.</span></div></div></footer>
+    <footer className="site-footer"><div className="footer-inner"><div className="footer-grid"><div className="footer-brand"><Logo /><p>Les marchés attribués deviennent des comptes à examiner, avec les faits et le calendrier sous les yeux.</p></div><nav className="footer-col" aria-label="Produit"><strong>Produit</strong><ul><li><ReferenceLink href="/produit">Comment ça marche</ReferenceLink></li><li><ReferenceLink href="/tarifs">Tarifs</ReferenceLink></li></ul></nav><nav className="footer-col" aria-label="Compte"><strong>Compte</strong><ul><li><ReferenceLink href="/signup?plan=discovery">Créer un compte</ReferenceLink></li><li><ReferenceLink href="/login">Se connecter</ReferenceLink></li><li><ReferenceLink href="/contact">Nous contacter</ReferenceLink></li></ul></nav><nav className="footer-col" aria-label="Informations"><strong>Informations</strong><ul><li><ReferenceLink href="/informations-legales#mentions-legales">Mentions légales</ReferenceLink></li><li><ReferenceLink href="/informations-legales#confidentialite">Confidentialité</ReferenceLink></li><li><ReferenceLink href="/informations-legales#cgu">Conditions générales</ReferenceLink></li></ul></nav></div><div className="footer-bottom"><span>© 2026 Kivou. Tous droits réservés.</span><span>Sources officielles accessibles. Couverture européenne.</span></div></div></footer>
   )
 }
 
 function activePublicRoute(pathname: string) {
   if (pathname === '/') return 'accueil'
   if (pathname === '/produit') return 'produit'
-  if (pathname === '/exemple-de-signal') return 'signal'
   if (pathname === '/tarifs') return 'tarifs'
   if (pathname === '/contact') return 'contact'
   return undefined

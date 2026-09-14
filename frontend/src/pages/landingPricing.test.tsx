@@ -67,6 +67,8 @@ describe('tarifs publics exacts et autoritaires', () => {
     expect(grid.querySelectorAll('.price-card')).toHaveLength(3)
     const essential = screen.getByRole('heading', { level: 2, name: 'Essentiel' }).closest('article')!
     expect(essential.textContent).toMatch(/12[,.]34/)
+    expect(essential).toHaveTextContent('EUR')
+    expect(document.body).not.toHaveTextContent('CHF')
     expect(within(essential).getByRole('link', { name: 'Choisir Essentiel' })).toHaveAttribute('href', '/signup?plan=essential')
     expect(container.querySelector('.table-wrap table')).not.toBeNull()
   })

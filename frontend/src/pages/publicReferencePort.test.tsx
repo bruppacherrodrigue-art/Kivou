@@ -14,7 +14,6 @@ describe('port exact de la référence publique', () => {
       expect.stringContaining('KIVOU'),
       'Accueil',
       'Comment ça marche',
-      'Exemple de signal',
       'Tarifs',
       'Contact',
       'Se connecter',
@@ -26,7 +25,7 @@ describe('port exact de la référence publique', () => {
     view.unmount()
   })
 
-  it.each(['/produit', '/tarifs', '/exemple-de-signal', '/contact', '/informations-legales'])(
+  it.each(['/produit', '/tarifs', '/contact', '/informations-legales'])(
     'keeps the reference header and footer on %s',
     (route) => {
       mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
@@ -48,7 +47,7 @@ describe('port exact de la référence publique', () => {
     },
   )
 
-  it.each(['/', '/produit', '/tarifs', '/exemple-de-signal', '/contact', '/informations-legales'])(
+  it.each(['/', '/produit', '/tarifs', '/contact', '/informations-legales'])(
     'keeps the skip-link target programmatically focusable on %s',
     (route) => {
       mockApi({ 'GET /billing/plans': () => new Promise<never>(() => undefined) })
@@ -66,9 +65,9 @@ describe('port exact de la référence publique', () => {
         ...plan,
         monthly_price:
           plan.plan_code === 'essential'
-            ? { chf: { amount_minor_units: 5700, currency: 'chf' as const } }
+            ? { eur: { amount_minor_units: 5700, currency: 'eur' as const } }
             : plan.plan_code === 'pro'
-              ? { chf: { amount_minor_units: 11300, currency: 'chf' as const } }
+              ? { eur: { amount_minor_units: 11300, currency: 'eur' as const } }
               : plan.monthly_price,
       })),
     }
@@ -76,7 +75,7 @@ describe('port exact de la référence publique', () => {
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     await screen.findByText('57')
     const essential = screen.getByRole('heading', { name: 'Essentiel' }).closest('article')!
-    expect(within(essential).getByText('CHF')).toBeInTheDocument()
+    expect(within(essential).getByText('EUR')).toBeInTheDocument()
     expect(within(essential).getByText('57')).toBeInTheDocument()
     expect(within(essential).queryByText('49')).not.toBeInTheDocument()
     const pro = screen.getByRole('heading', { name: 'Pro' }).closest('article')!
@@ -94,7 +93,7 @@ describe('port exact de la référence publique', () => {
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     expect(await screen.findByRole('alert')).toHaveTextContent('tarifs')
     expect(document.querySelector('.pricing-grid')).not.toBeNull()
-    expect(screen.queryByText(/CHF 49|CHF 99/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/EUR 49|EUR 99/)).not.toBeInTheDocument()
   })
 
   it('uses the same catalogue authority in the home offer matrix', async () => {
@@ -103,14 +102,14 @@ describe('port exact de la référence publique', () => {
       plans: CATALOGUE.plans.map((plan) => ({
         ...plan,
         monthly_price: plan.plan_code === 'essential'
-          ? { chf: { amount_minor_units: 5700, currency: 'chf' as const } }
+          ? { eur: { amount_minor_units: 5700, currency: 'eur' as const } }
           : plan.monthly_price,
       })),
     }
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-    expect(await screen.findByText(/CHF\s+57/)).toBeInTheDocument()
-    expect(screen.queryByText('CHF 49')).not.toBeInTheDocument()
+    expect(await screen.findByText(/EUR\s+57/)).toBeInTheDocument()
+    expect(screen.queryByText('EUR 49')).not.toBeInTheDocument()
   })
 
   it('does not promise a weekly Discovery signal when the catalogue cadence is none', async () => {
@@ -136,11 +135,6 @@ describe('port exact de la référence publique', () => {
       route: '/produit',
       readyText: 'Le premier est accessible gratuitement, sans alerte récurrente.',
       expected: ['Le premier est accessible gratuitement'],
-    },
-    {
-      route: '/exemple-de-signal',
-      readyText: 'Le premier est accessible dès l’inscription, sans alerte récurrente.',
-      expected: ['Le premier est accessible dès l’inscription'],
     },
   ])(
     'accorde le quota Découverte au singulier sur $route',
@@ -244,17 +238,12 @@ describe('port exact de la référence publique', () => {
     product.unmount()
 
     mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
-    const signal = renderApp(<AppRoutes />, { route: '/exemple-de-signal', session: UNAUTHENTICATED })
-    expect(await screen.findByText('Les trois premiers sont accessibles dès l’inscription, sans alerte récurrente.')).toBeInTheDocument()
-    signal.unmount()
-
-    mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
     renderApp(<AppRoutes />, { route: '/tarifs', session: UNAUTHENTICATED })
     const finalCta = document.querySelector<HTMLElement>('.pricing-page .final-cta')!
     expect(await within(finalCta).findByText('Commencez sans carte bancaire, sans alerte récurrente.')).toBeInTheDocument()
   })
 
-  it.each(['/produit', '/exemple-de-signal'])(
+  it.each(['/produit'])(
     'keeps one status paragraph in the final CTA while %s pricing loads',
     (route) => {
       let release!: () => void
@@ -273,7 +262,7 @@ describe('port exact de la référence publique', () => {
     },
   )
 
-  it.each(['/produit', '/exemple-de-signal'])(
+  it.each(['/produit'])(
     'keeps one alert paragraph in the final CTA when %s pricing fails',
     async (route) => {
       mockApi({
@@ -290,7 +279,7 @@ describe('port exact de la référence publique', () => {
     },
   )
 
-  it.each(['/', '/produit', '/tarifs', '/exemple-de-signal'])(
+  it.each(['/', '/produit', '/tarifs'])(
     'retries the failed authoritative catalogue locally on %s',
     async (route) => {
       const user = userEvent.setup()

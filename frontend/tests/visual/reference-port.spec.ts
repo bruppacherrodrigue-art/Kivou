@@ -102,7 +102,7 @@ const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string
   'public-home': 'Repérez les entreprises qui viennent de gagner un marché public.',
   'public-product': 'Kivou suit ce qui se passe une fois le marché attribué.',
   'public-pricing': 'Choisissez la couverture adaptée à votre prospection.',
-  'public-signal': 'H. Hüther GmbH a remporté un marché de 5,22 M€ à Munich.',
+  'public-signal': 'Kivou suit ce qui se passe une fois le marché attribué.',
   'public-contact': 'Contact',
   'public-legal': 'Informations légales et contractuelles',
   'dashboard-login': 'Retrouver vos signaux',
@@ -173,6 +173,15 @@ async function waitForScenario(
   await page.waitForLoadState('networkidle')
   if (golden === 'public-pricing') {
     await expect(page.locator('.pricing-grid .price-card')).toHaveCount(3)
+    await expect(page.locator('.plan-price')).toHaveText(['Gratuit', /EUR\s*49\s*\/mois/, /EUR\s*99\s*\/mois/])
+    await expect(page.locator('.pricing-grid')).not.toContainText('CHF')
+  }
+  if (golden === 'public-signal') {
+    await expect(page).toHaveURL(/\/produit$/)
+    await expect(page.getByRole('heading', { level: 1 })).not.toContainText('H. Hüther')
+  }
+  if (scenario === 'public-pricing') {
+    await expect(page.locator('a[href="/exemple-de-signal"]')).toHaveCount(0)
   }
   if (golden === 'dashboard-targeting') {
     await expect(page.locator('.target-definition-card[role="status"]')).toHaveCount(0)
@@ -234,7 +243,11 @@ test('public menu open mobile', async ({ page }) => {
   await preparePage(page, 'public-pricing', 'public-home')
   await normalizePublicPricingText(page)
   await page.locator('summary[aria-label="Ouvrir le menu"]').click()
-  await expect(page.getByRole('navigation', { name: 'Navigation mobile' })).toBeVisible()
+  const navigation = page.getByRole('navigation', { name: 'Navigation mobile' })
+  await expect(navigation).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Exemple de signal' })).toHaveCount(0)
+  await expect(navigation.getByRole('link', { name: 'Comment ça marche' })).toHaveAttribute('href', '/produit')
+  await expect(navigation.getByRole('link', { name: 'Tarifs' })).toHaveAttribute('href', '/tarifs')
   const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
   expect(actual).toMatchSnapshot('public-menu-open-mobile.png', {
     maxDiffPixelRatio: 0.001,

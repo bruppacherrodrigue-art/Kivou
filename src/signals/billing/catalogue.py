@@ -15,9 +15,9 @@
     et un `Price` inconnu ne rend **aucun** droit payant. Jamais Pro « par
     défaut » : un défaut permissif est une faille qui attend son incident.
 
-Les montants sont des décisions commerciales, pas des conversions. 49 CHF **ou**
-49 EUR : le client suisse et le client français paient le même nombre, pas le
-même montant converti.
+Les offres commercialisées sont exclusivement en EUR. Les références CHF restent
+reconnues pour réconcilier les contrats et factures historiques, sans conversion
+ni modification automatique des abonnements existants.
 """
 
 from __future__ import annotations
@@ -36,7 +36,10 @@ PLAN_CODES: tuple[str, ...] = ("discovery", "essential", "pro")
 PURCHASABLE_PLANS: tuple[str, ...] = ("essential", "pro")
 
 Currency = Literal["chf", "eur"]
+# Registre historique : nécessaire aux webhooks et aux contrats existants.
 CURRENCIES: tuple[str, ...] = ("chf", "eur")
+# Seules ces devises sont proposées pour une nouvelle souscription.
+SALES_CURRENCIES: tuple[str, ...] = ("eur",)
 
 OfferCode = Literal["founding"]
 #: Une offre n'est pas un plan. `founding` donne les droits de `pro` ; l'exposer
@@ -252,6 +255,7 @@ def public_catalogue() -> tuple[dict[str, object], ...]:
                 "monthly_price": {
                     currency: {"amount_minor_units": amount, "currency": currency}
                     for currency, amount in sorted(prices.items())
+                    if currency in SALES_CURRENCIES
                 },
                 "entitlements": customer_safe_entitlements(plan),
             }

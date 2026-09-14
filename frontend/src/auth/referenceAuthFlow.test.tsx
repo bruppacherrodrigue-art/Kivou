@@ -240,7 +240,7 @@ describe('parcours d’entrée de la référence connectée', () => {
 
     expect(await screen.findByRole('heading', {
       level: 1,
-      name: 'Confirmez votre profil cible',
+      name: 'Quels marchés vous intéressent ?',
     })).toBeVisible()
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent('/app/confirm-profile?plan=discovery'),

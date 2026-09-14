@@ -98,7 +98,7 @@ def client(engine, stripe: FakeStripe, clock: Clock) -> TestClient:
     return client
 
 
-def start(client: TestClient, plan: str = "pro", currency: str = "chf"):
+def start(client: TestClient, plan: str = "pro", currency: str = "eur"):
     return client.post("/billing/checkout", json={"plan": plan, "currency": currency})
 
 
@@ -172,7 +172,7 @@ def test_apres_un_refus_le_compte_peut_repartir_immediatement(client, engine, st
     Ni attente, ni intervention manuelle en base — un autre plan, tout de suite.
     """
     always_reject(stripe)
-    assert start(client, "pro", "chf").status_code == 502
+    assert start(client, "pro", "eur").status_code == 502
 
     stripe.create_checkout_session = FakeStripe.create_checkout_session.__get__(stripe)
     retry = start(client, "essential", "eur")
@@ -240,7 +240,7 @@ def test_le_rejeu_du_meme_plan_reutilise_tentative_et_cle_d_idempotence(client, 
         return real(**kwargs)
 
     stripe.create_checkout_session = record
-    assert start(client, "pro", "chf").status_code == 200
+    assert start(client, "pro", "eur").status_code == 200
 
     second = attempt_of(engine, account_of(client))
     assert second.attempt_id == first.attempt_id

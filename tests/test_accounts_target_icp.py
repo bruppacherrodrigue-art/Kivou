@@ -122,6 +122,21 @@ def test_zone_and_cpv_choices_survive_translation_to_the_matching_profile() -> N
     assert translated.included_cpv_prefixes == ("45", "441")
 
 
+def test_whole_country_and_another_countrys_subdivision_are_both_preserved() -> None:
+    customer = TargetIcpInput.model_validate({
+        **COMPLETE_INPUT,
+        "territories": ["FR", "CH"],
+        "territory_subdivisions": ["CH-VD"],
+    })
+
+    translated = to_target_icp(customer, target_icp_id="icp-mixed-zones", label="France et Vaud")
+
+    assert [(zone.country, zone.subdivision_code) for zone in translated.territories] == [
+        ("CH", "CH-VD"),
+        ("FR", None),
+    ]
+
+
 # ─── §17 — appartenance ────────────────────────────────────────────────────────
 
 
@@ -244,6 +259,37 @@ def test_the_onboarding_state_follows_the_profiles(alice: TestClient):
 
     alice.patch(f"/target-icps/{draft['target_icp_id']}", json={"customer_input": COMPLETE_INPUT})
     assert alice.get("/me").json()["onboarding_status"] == "ready_for_signals"
+
+
+def test_a_new_confirmation_form_creates_an_active_profile_and_ready_session(alice: TestClient):
+    # The form supplies the selected offer and its explicit no-minimum default.
+    customer_input = {
+        "offer_summary": "Fourniture de bois pour les charpentiers",
+        "offers": ["materials_and_components"],
+        "secondary_offers": [],
+        "buyer_trades": [],
+        "secondary_buyer_trades": [],
+        "territories": ["FR"],
+        "territory_subdivisions": ["FR-38"],
+        "sector_cpv_prefixes": ["45"],
+        "minimum_contract_value": {"currency": "EUR", "minimum_amount": 0},
+    }
+    response = alice.post(
+        "/target-icps",
+        json={"label": "Travaux de construction", "customer_input": customer_input},
+    )
+
+    assert response.status_code == 201, response.text
+    profile = response.json()
+    assert profile["status"] == "active"
+    assert profile["missing_fields"] == []
+    assert profile["customer_input"]["offers"] == customer_input["offers"]
+    assert profile["customer_input"]["territory_subdivisions"] == ["FR-38"]
+    assert profile["customer_input"]["sector_cpv_prefixes"] == ["45"]
+    me = alice.get("/me").json()
+    assert me["onboarding_status"] == "ready_for_signals"
+    assert me["provisional_profile"] is False
+    assert alice.get("/dashboard").status_code == 200
 
 
 def test_ready_for_signals_says_nothing_about_payment_or_activation(alice: TestClient):
