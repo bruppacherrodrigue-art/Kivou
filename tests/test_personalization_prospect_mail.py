@@ -34,27 +34,19 @@ def test_renders_the_complete_arbonis_mail_from_the_single_catalog() -> None:
     mail = render_prospect_mail(arbonis_row())
 
     assert mail.subject == "PAUL BROCHIER vient de gagner un chantier charpente en Isère"
-    assert mail.text == (
-        "Bonjour Arnaud Lefebvre,\n\n"
-        "PAUL BROCHIER vient d'être retenu pour la charpente, l'isolation et la couverture "
-        "en Isère — 258 k€, attribué le 8 septembre.\n\n"
-        "Ils vont avoir besoin de bois et de charpente dans les prochaines semaines.\n\n"
-        "Si ça vous intéresse, le détail du marché est ici : "
-        "https://kivou.eu/a/kat1.signal-token\n\n"
-        "Bien à vous,\nRodrigue Bruppacher\nKivou\n\n"
-        "—\n"
-        "Vous recevez ce message parce que votre entreprise est référencée en charpente bois "
-        "en Isère. Source : registres publics et avis d'attribution officiel.\n"
-        "Ne plus recevoir : https://kivou.eu/unsubscribe/unsubscribe-token"
-    )
-    assert mail.word_count <= 90
+    assert mail.text.startswith("Bonjour Monsieur Lefebvre,")
+    assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
+    assert "Rodrigue / Kivou · kivou.eu" in mail.text
+    assert "P.S. : Un mot en retour suffit" in mail.text
+    assert "Kivou, Sion (Suisse)" in mail.text
+    assert mail.word_count <= 110
     assert mail.contract_status == "passed"
     assert mail.contract_failure is None
-    assert mail.html.count("href=") == 2
+    assert mail.html.count("href=") == 3
     assert mail.html.count('href="https://kivou.eu/a/kat1.signal-token"') == 1
     assert '>Voir le marché</a>' in mail.html
     assert '>https://kivou.eu/a/kat1.signal-token</a>' not in mail.html
-    assert "https://www.boamp.fr/avis/26A0076" not in mail.html
+    assert 'href="https://www.boamp.fr/avis/26A0076"' in mail.html
     assert mail.html.count('href="https://kivou.eu/unsubscribe/unsubscribe-token"') == 1
     assert '>Ne plus recevoir</a>' in mail.html
     assert '>https://kivou.eu/unsubscribe/unsubscribe-token</a>' not in mail.html
@@ -80,11 +72,11 @@ def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:
     assert mail.subject == "PAUL BROCHIER vient de gagner un chantier couverture à Grenoble"
     assert mail.text.startswith("Bonjour,\n\n")
     assert "— 1,2 M€, attribué le 8 septembre." in mail.text
-    assert "Ils vont chercher un couvreur-zingueur pour ce lot." in mail.text
+    assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
     assert "LOT 01" not in mail.subject
     assert "LOT 01" not in mail.text
     assert "26A0076" not in mail.subject
-    assert "26A0076" not in mail.text.split("\n\n—\n", maxsplit=1)[0]
+    assert "26A0076" in mail.text.split("\n\n—\n", maxsplit=1)[0]  # explicit source URL
     assert mail.contract_status == "passed"
     assert mail.contract_failure is None
 
@@ -150,7 +142,7 @@ def test_normalizes_compound_first_name_and_city_to_regular_case() -> None:
         )
     )
 
-    assert mail.text.startswith("Bonjour Jean-Pierre Dupont,")
+    assert mail.text.startswith("Bonjour Monsieur Dupont,")
     assert mail.subject.endswith("à Saint-Étienne")
     assert mail.contract_status == "passed"
 
@@ -158,7 +150,7 @@ def test_normalizes_compound_first_name_and_city_to_regular_case() -> None:
 def test_keeps_a_surname_particle_in_the_greeting() -> None:
     mail = render_prospect_mail(arbonis_row(director_name="ADIL EL MANSOURI"))
 
-    assert mail.text.startswith("Bonjour Adil El Mansouri,")
+    assert mail.text.startswith("Bonjour,\n\n")
     assert mail.contract_status == "passed"
 
 
@@ -173,3 +165,33 @@ def test_every_supplier_family_has_reviewed_mail_copy() -> None:
     source = Path("ops/config/prospect-mail.yaml").read_text(encoding="utf-8")
 
     assert all(f"  {family_key}:" in source for family_key in configured)
+
+
+def test_v2_contract_uses_civility_normalized_company_and_required_copy() -> None:
+    mail = render_prospect_mail(
+        arbonis_row(
+            company_name="DUBOURGEAT EN ABREGE DUBOURGEAT SAS (RCS LYON)",
+            director_name="JEAN DUPONT",
+            family_key="roofing",
+            signal_city="Grenoble",
+            company_city="Saint-Étienne",
+            distance_km=58,
+        )
+    )
+    assert mail.text.startswith("Bonjour Monsieur Dupont,")
+    assert "DUBOURGEAT (Dubourgeat)" in mail.text
+    assert "Sur ce type de lot, le titulaire sous-traite souvent" in mail.text
+    assert "Pourquoi vous" in mail.text
+    assert "Kivou repère les marchés publics attribués près de chez vous" in mail.text
+    assert "Rodrigue / Kivou · kivou.eu" in mail.text
+    assert "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire." in mail.text
+    assert "Kivou, Sion (Suisse)" in mail.text
+    assert "https://kivou.eu/a/kat1.signal-token" in mail.text
+    assert mail.word_count <= 110
+    assert mail.contract_status == "passed"
+
+
+def test_v2_unknown_civility_uses_plain_greeting() -> None:
+    mail = render_prospect_mail(arbonis_row(director_name="QZ DUPONT"))
+    assert mail.text.startswith("Bonjour,")
+    assert "Bonjour Xavier" not in mail.text
