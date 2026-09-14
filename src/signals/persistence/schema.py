@@ -1118,7 +1118,7 @@ prospect_target = sa.Table(
         "email_verification_status IN ('mx_verified', 'mx_failed')",
         name="ck_prospect_target_email_verification",
     ),
-    sa.CheckConstraint("mail_word_count BETWEEN 1 AND 90", name="ck_prospect_target_words"),
+    sa.CheckConstraint("mail_word_count BETWEEN 1 AND 110", name="ck_prospect_target_words"),
     sa.CheckConstraint(
         "(mail_contract_status = 'passed' AND mail_contract_failure IS NULL) OR "
         "(mail_contract_status = 'failed' AND mail_contract_failure IS NOT NULL)",
