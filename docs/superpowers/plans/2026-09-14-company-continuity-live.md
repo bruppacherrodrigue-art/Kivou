@@ -99,37 +99,58 @@ configuration, mirror ownership metadata/migration, CLI/systemd definitions,
 **Files:** `docs/reports/prospecting-v11/company-continuity-live.md`, bounded
 PostgreSQL rehearsal/QA tooling, migration and UI scenarios.
 
-- [ ] Run full backend suite, frontend tests/typecheck/lint, client and Founder
+- [x] Run full backend suite, frontend tests/typecheck/lint, client and Founder
   builds, visual tests, and fresh CI on the exact executable candidate.
-- [ ] Rehearse upgrades from staging and production heads on isolated PostgreSQL
+- [x] Rehearse upgrades from staging and production heads on isolated PostgreSQL
   copies. Verify notes, memberships, billing, grants and all private rows unchanged;
   exercise old-artifact rollback compatibility without destructive downgrade.
-- [ ] Review complete diff and all acceptance criteria independently. Resolve
+- [x] Review complete diff and all acceptance criteria independently. Resolve
   every material issue before approving activation.
 
 ### Task 6: Staging activation and catalogue correction
 
-- [ ] Verify target host/database/SHA, capture existing links/unit states and
+- [x] Verify target host/database/SHA, capture existing links/unit states and
   acquire existing worker locks as required; back up before migration.
-- [ ] Deploy exact tested SHA with existing `ops/bin/kivou-deploy.sh staging SHA`.
+- [x] Deploy exact tested SHA with existing `ops/bin/kivou-deploy.sh staging SHA`.
   No second deployment while an earlier one is still running.
-- [ ] Install/configure the reviewed narrow mirror, import shareable catalogue
+- [x] Install/configure the reviewed narrow mirror, import shareable catalogue
   and quarantine only manifested fixtures with recoverable backups.
-- [ ] Verify real BOAMP→dossier, directory-rich paid/discovery displays, catalogue
+- [x] Verify real BOAMP→dossier, directory-rich paid/discovery displays, catalogue
   counts, durable enrichment and automatic refresh. Do not send commercial mail,
   buy subscriptions or expose credentials during QA.
-- [ ] Confirm health, scheduler outcomes, no unexpected errors, cleanup of only
+  Evidence: live BOAMP/dossier/entitlements and mirror counts; local contracts
+  for durable jobs and refresh behavior. Staging provider execution stays off.
+- [x] Confirm health, scheduler outcomes, no unexpected errors, cleanup of only
   newly created QA artifacts and restoration of previous worker activity.
 
 ### Task 7: Production promotion and post-release proof
 
-- [ ] Confirm production baseline has not advanced unexpectedly; integrate any
+- [x] Confirm production baseline has not advanced unexpectedly; integrate any
   necessary new changes and repeat candidate verification rather than overwrite.
-- [ ] Retain a verified pre-migration backup and exact rollback artifact. Promote
+- [x] Retain a verified pre-migration backup and exact rollback artifact. Promote
   the exact reviewed candidate through the normal Git/main/CI workflow.
-- [ ] Deploy using `ops/bin/kivou-deploy.sh production SHA` with protected existing
+- [x] Deploy using `ops/bin/kivou-deploy.sh production SHA` with protected existing
   environment; do not broaden acquisition modes, provider budgets or mail volume.
-- [ ] Verify client/Founder artefacts, schema, catalogue, entitlements and three
+- [x] Verify client/Founder artefacts, schema, catalogue, entitlements and three
   V11 tabs, worker processing, billing routes and shallow health. Review errors.
-- [ ] Deliver production URL and exact SHA, test evidence and any remaining
+  Evidence: live production artefacts/health/catalogue and empty request-worker
+  run; authenticated entitlements/UI on staging and private contracts on the
+  exact production copy, not a live authenticated production session.
+- [x] Deliver production URL and exact SHA, test evidence and any remaining
   limitations honestly. Do not call the release complete before these checks.
+  Production URL: https://kivou.eu/app/today — executable SHA
+  `88f189196f80bb8f93566398b0d5fddc95a379ed`; evidence and limitations below.
+
+### Delivery evidence and explicit limits
+
+See `docs/reports/prospecting-v11/company-continuity-live.md`. Production serves
+`88f1891`; staging serves `cae05b3` with identical V11 code, the only later product
+delta preserving the upstream mail footer. Exact candidate CI, production-copy
+upgrade/rollback, live three-tier staging QA, public production artefacts and
+runtime checks passed. Authenticated production QA was not performed with the
+staging credentials; no account impersonation or reset. The production request
+worker and renderer are verified operational with an empty queue, not claimed
+as a completed real-provider enrichment; staging providers remain disabled.
+BOAMP coverage is explicitly partial:94/136facts, six complex notices reserved
+after bounded attempts, no forced identity alignment. All suspended timers are
+restored; catalogue mirror and production request/retention timers are active.

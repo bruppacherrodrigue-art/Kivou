@@ -2,9 +2,12 @@
 
 ## État
 
-Implémentation locale et revues indépendantes terminées. Validation intégrée et
-répétitions opérateur en cours. **Aucune activation staging ou production n'est
-encore revendiquée.** Le plan HTML approuvé reste inchangé ; le complément
+Implémentation, revues indépendantes, CI exacte et déploiement terminés.
+**Production sert `88f1891` ; staging sert `cae05b3`, au même produit V11.**
+Les écritures sont rouvertes et les tâches planifiées rétablies. La couverture
+BOAMP reste partielle sur six avis complexes, décrits en fin de rapport.
+Les sections chronologiques ci-dessous distinguent chaque
+preuve et chaque candidat. Le plan HTML approuvé reste inchangé ; le complément
 `docs/superpowers/plans/2026-09-14-company-continuity-live.md` suit cette livraison.
 
 ## Code et limites préservées
@@ -251,3 +254,142 @@ runtime ; le test shadow historique est aligné après échec reproduit.
 Vérification ciblée : 11 tests passent. Une nouvelle CI du candidat intégré
 reste nécessaire avant sa promotion production ; les preuves `cae05b3` restent
 attribuées à leur SHA exact.
+
+## Recette staging et promotion du candidat `88f1891`
+
+Staging sert effectivement `cae05b3`, schéma `0064_company_mail_merge`, API saine
+et garde d'écriture rouvert. Le bootstrap public a inséré874 entreprises et
+actualisé2 ; son replay est sans changement sur876 lignes. Les30 fixtures du
+manifeste ont été mises en quarantaine par `suppressed_at`, sans suppression ;
+replay sans changement. Le catalogue affiche877 lignes visibles,30 masquées,
+876 lignes suivies par le miroir. Le compte Essential de l'utilisateur a été
+contrôlé en lecture seule. La synchronisation périodique attend encore son
+activation au moment de cette section.
+
+Sauvegarde fraîche staging retenue :3 206 729 913 octets, SHA-256
+`45300c3cc71622af6dbba2223f4c4a1c0cb7340a44c84f04e5b8f13f410a6be8`.
+Les comptes QA sont des créations isolées en mode Stripe TEST, sans fournisseur
+ni e-mail. La recette principale réelle des trois plans réussit :50 requêtes
+par plan,31 mutations de nos propres données,7 conflits attendus et2 validations
+422 attendues. Notes2 000/2 001, CAS/tombstones, contacts manuels, suivi, quota
+inchangé, changement des deux profils Pro et captures1440/390/320 contrôlés.
+Le complément navigateur d'écriture réussit également : autosauvegarde,
+rechargement, effacement, conflit explicite et brouillon hors ligne Pro.
+Le garde confirme l'export et la neutralisation des trois comptes QA, la
+révocation des sessions et les profils désactivés ; aucune purge globale.
+
+Le contrôle strict additionnel demandait initialement un même signal débloqué
+sur les trois plans. Son échec vient de l'échantillon : le titre brut de l'avis
+RAZEL est vide, donc la règle normale Découverte ne l'offre pas. Aucun titre,
+date ou droit n'a été modifié pour forcer ce test. La seconde tentative de seed
+a refusé ce cas et sa transaction a été intégralement annulée. Une preuve SQL
+en lecture seule confirme zéro compte de ce run avant l'arrêt ciblé de son
+garde bloqué ; les cinq verrous sont libérés et les rapports d'échec conservés.
+La recette complémentaire distingue désormais la continuité payante et le
+signal verrouillé/Dossier masqué de la même entreprise en Découverte.
+
+La CI `34831911514` du candidat exact
+`88f189196f80bb8f93566398b0d5fddc95a379ed` est entièrement réussie à10:32 UTC :
+frontend, quatre shards backend et porte décisionnelle. Sa répétition production
+depuis `9c5d613` /0059 conserve11 716 lignes sur29 tables, les exports11comptes,
+876entreprises,1 851appels modèles et8budgets ; migration/replay0064 réussis.
+Le repli ancien runtime/candidat sur copie conserve10 034 lignes et réussit les
+huit contrats privés. Sauvegarde1 667 738 586octets, SHA-256
+`ece811513d9583f8e4b3e86cee22f0c885e19007932c48d0b36b2a5ac9014b90`.
+
+La PR251 est fusionnée dans `main` par `7305dd4` ; son arbre est strictement
+identique au candidat88 testé. Staging reste identifié `cae05b3` : l'unique delta
+produit vers88 conserve le pied de page mail amont, aucun delta V11/frontend,
+opérateur ou schéma. Pas de seconde répétition staging de plusieurs gigaoctets
+sur son disque limité uniquement pour ce changement de pied de page.
+
+À10:57 UTC, nginx production valide le fragment fermé : mutation de prospection
+503, accueil200, authentification non connectée401. Le drop-in API dédié charge
+le jeton catalogue, l'environnementPRODUCTION et le flag enrichissement encore
+faux ; `production.env`, la configuration acquisition et les budgets restent
+inchangés. Le déployeur stock `kivou-company-deploy-88f1891` est lancé à10:58 UTC.
+Les timers métier concernés sont temporairement arrêtés et leurs services drainés ;
+leur état initial et les configurations sont conservés pour restauration.
+
+## Production activée et contrôles après livraison
+
+Le déployeur stock a terminé avec code0 à11:01:51 UTC. Backend, client et
+Founder pointent sur `production-88f189196f80bb8f93566398b0d5fddc95a379ed` ;
+schéma réel0064, API et Founder actifs, readiness prête et `/healthz` FounderOK.
+Le HTML public charge les mêmes fichiers client que l'artefact installé :
+`index-BYgXrCmu.js` et `index-DjtWjRdL.css`. Les trois routes V11 et réglages
+répondent200 ; les frontières facturation/Founder sans authentification401.
+Une seule tentative de connexion production avec les identifiants staging
+n'a pas authentifié le compte : aucune réinitialisation ni impersonation.
+La recette authentifiée des trois offres a donc été faite sur staging, pas
+présentée comme une session client production ; les contrats privés production
+sont éprouvés sur la copie exacte décrite plus haut.
+
+La sauvegarde fraîche propre à cette bascule est retenue hors du cleanup du
+déployeur :1 668 096 957octets, permissions0600, SHA-256
+`03739f2638423d233cfd99502a66473be69e6fa8977c7b197eb3de277c002564`.
+L'archive de configuration avant bascule est privée et conservée. La sauvegarde
+hors hôte existante a réussi à03:23 UTC ; elle n'est pas confondue avec cette
+nouvelle sauvegarde locale. Aucun dump n'a été restauré sur la base vive.
+
+- Identité : preview puis application,59 alias exacts et8 sans identifiant
+  univoque ;73 sujets de comptes résolus et38 non résolus, aucun conflit privé
+  détecté. Les cas non résolus ne sont pas fusionnés par nom.
+- Enrichissement explicite : navigateur Chromium lancé avec les protections
+  du service, sans réseau ; worker requests-only code0, verrou réellement acquis,
+  file vide, coût0. Cela prouve le raccord, **pas un résultat fournisseur réel**.
+  Le timer60s est activé et le processus API chargé confirme flagtrue, publication
+  PRODUCTION et jeton dédié. Aucun débit de recherche nominative de recette.
+  Staging garde le flag et les workers fournisseurs désactivés, Serper absent.
+- Miroir : GET sans jeton404, POST405, lecture HTTPS authentifiée validée depuis
+  staging. Source877 entreprises ; premier import automatique1insertion et876
+  inchangées, replay877inchangées. Timer15min activé. Staging compte878 entreprises
+  visibles (dont sa ligne locale conservée),30 fixtures masquées et877 entrées
+  suivies par le miroir. Aucun contact privé ou secret fournisseur transféré.
+- Recette stricte finale :12 captures chargées, deux largeurs et trois plans,
+  mêmes valeurs/sources/dates en payant, même entreprise canonique masquée et
+  signal verrouillé en Découverte. Zéro mutation navigateur, fournisseur ou
+  requête hors périmètre. Les quatre captures principales ont été relues
+  visuellement. Le dernier ajustement du harnais ne réclame plus l'alias du
+  signal verrouillé, légitimement404 ; aucun droit produit n'a été modifié.
+  Régression RED puis15tests locaux relancés verts ; recette live ensuite verte.
+  Cleanup du garde confirmé :3exports,3comptes neutralisés, profils désactivés,
+  sessions révoquées, MainPID0. Les copies locales des quatre fichiers d'accès
+  ont été retirées ; aucune purge globale.
+- Retention : preview0éligible/0purgé, timer production activé. Tous les timers
+  métier suspendus ont retrouvé leur activité précédente. La restauration de
+  budget prévue le15septembre reste active. Empreintes de `production.env`,
+  `acquisition-production.json` et `api-attribution.env` strictement inchangées.
+- À11:09 UTC, garde ouvert publié atomiquement et nginx revalidé/rechargé.
+  La mutation sans corps de recette atteint de nouveau la validation API422,
+  au lieu du503 de maintenance ; aucune mutation client. Readiness après
+  réouverture prête, aucune entrée de journal prioritéerreur API/Founder depuis
+  l'activation dans la fenêtre contrôlée.
+
+Contrôle complémentaire après reprise :80 lignes API/Founder examinées,
+0HTTP5xx,0traceback et0marqueurERROR. Le miroir a aussi été déclenché par son
+timer à11:10 UTC, code0 et877lignes inchangées. La reprise simultanée du winner
+a rencontré le verrou partagé (code75) ; après contrôle de libération et reprise
+séquencée, son passage à11:16 UTC termine code0, file vide, coût0. Les deux
+timers d'enrichissement sont ensuite actifs ; ce rattrapage ne modifie ni leurs
+limites ni les budgets.
+
+## Réserve explicite : six avis BOAMP non complètement pris en charge
+
+La sélection initiale reste exactement28avis couvrant239 signaux courants.
+Les quatre passes bornées ont ajouté94faits sur136awards, depuis22avis ;
+six avis restent en réserve après au plus trois tentatives chacun,0pending et
+6terminal. `coverage_complete=false` est conservé, sans reset du curseur,
+élargissement de sélection ni faux rattachement.
+
+Le diagnostic indépendant des sources officielles retrouve42awards sur ces
+six avis :34faits seraient extractibles individuellement,8résultats sont rejetés.
+L'atomicité par avis écarte également ces34faits. Les limites ne sont pas une
+régression du delta88 : extracteur/backfill inchangés depuis476b22f et aucun
+fait production antérieur n'a été retiré. Les avis26-82975/26-88152 comportent
+quatre résultats multicontrats ;26-83102 un résultat à plusieurs offres/parties ;
+26-86748 un groupement à plusieurs SIRET par organisation. Les résultats rejetés
+de26-84973/26-85072 sont **non attribués**, sans contrat ni gagnant. Il s'agit donc
+de six attributions complexes et deux résultats non attribués, pas de huit lots
+ambigus. Leur prise en charge fine demande une évolution testée du parseur et
+du contrat de backfill ; elle n'a pas été improvisée dans la bascule.
