@@ -143,7 +143,7 @@ def test_assisted_preparation_builds_up_to_twenty_five_final_pending_targets(
 
     result = service.prepare(signal(), cycle_ref="cycle-1")
 
-    assert result.prepared == 23
+    assert result.prepared == 8
     assert result.status == "pending_review"
     with migrated_sqlite_engine.connect() as connection:
         rows = tuple(
@@ -151,7 +151,7 @@ def test_assisted_preparation_builds_up_to_twenty_five_final_pending_targets(
                 sa.select(prospect_target).order_by(prospect_target.c.company_employees.desc())
             ).mappings()
         )
-    assert len(rows) == 23
+    assert len(rows) == 8
     assert all(row["status"] == "pending_review" for row in rows)
     assert all(row["signal_department"] == "Allier" for row in rows)
     assert all(row["mail_contract_status"] == "passed" for row in rows)
@@ -216,8 +216,8 @@ def test_assisted_preparation_caps_daily_queue_at_twenty_five(migrated_sqlite_en
         cycle_ref="cycle-2",
     )
 
-    assert first.prepared == 25
-    assert second.prepared == 0
+    assert first.prepared == 8
+    assert second.prepared == 8
 
 
 def test_daily_preparation_cap_resets_at_zurich_midnight(
@@ -231,7 +231,7 @@ def test_daily_preparation_cap_resets_at_zurich_midnight(
         clock=lambda: clock[0],
     )
 
-    assert service.prepare(signal(), cycle_ref="cycle-before-midnight").prepared == 25
+    assert service.prepare(signal(), cycle_ref="cycle-before-midnight").prepared == 8
     clock[0] = dt.datetime(2026, 9, 13, 22, 30, tzinfo=dt.UTC)
     result = service.prepare(
         signal(
@@ -243,7 +243,7 @@ def test_daily_preparation_cap_resets_at_zurich_midnight(
         cycle_ref="cycle-after-midnight",
     )
 
-    assert result.prepared == 25
+    assert result.prepared == 8
 
 
 def test_assisted_preparation_never_uses_two_lots_of_same_notice_same_day(
@@ -357,3 +357,43 @@ def test_assisted_preparation_quarantines_placeholder_email(migrated_sqlite_engi
     assert directory["email_verification_status"] == "mx_failed"
     assert directory["reverification_required_at"].replace(tzinfo=dt.UTC) == NOW
     assert directory["reverification_reason"] == "placeholder_email"
+
+
+def test_assisted_preparation_caps_small_signal_at_five_targets(migrated_sqlite_engine) -> None:
+    seed_directory(migrated_sqlite_engine, 20, eligible_department_count=20)
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(signal(amount_minor_units=10_000_000), cycle_ref="cycle-small")
+    assert result.prepared == 5
+
+
+def test_assisted_preparation_excludes_holder_family(migrated_sqlite_engine) -> None:
+    seed_directory(migrated_sqlite_engine, 20, eligible_department_count=20)
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000002")
+            .values(family_confirmation_status="confirmed")
+        )
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(
+        signal(holder_siren="100000002", holder_family_required=True),
+        cycle_ref="cycle-holder-family",
+    )
+    assert result.prepared == 8
+    with migrated_sqlite_engine.connect() as connection:
+        families = set(connection.execute(sa.select(prospect_target.c.family_key)).scalars())
+    assert families == {"reinforcement_steel"}
+
+
+def test_assisted_preparation_suspends_when_holder_family_is_unknown(migrated_sqlite_engine) -> None:
+    seed_directory(migrated_sqlite_engine, 5, eligible_department_count=5)
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(
+        signal(holder_siren="999999999", holder_family_required=True),
+        cycle_ref="cycle-holder-unknown",
+    )
+    assert result.prepared == 0
+    assert result.reason == "HOLDER_FAMILY_ENRICHMENT_REQUIRED"

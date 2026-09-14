@@ -8,7 +8,7 @@ from typing import Protocol
 
 from signals.acquisition_runtime.contracts import RuntimeActionResult, RuntimeStageStatus
 from signals.acquisition_runtime.registry import AcquisitionActionContext
-from signals.acquisition_runtime.selection import resolved_holder_name_for_opportunity
+from signals.acquisition_runtime.selection import resolved_holder_for_opportunity
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.domain.award_dates import attribution_date
 from signals.domain.subdivisions import subdivision_label
@@ -34,7 +34,15 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
     amount = award.value
     place = award.place_of_performance
     title = str(award.title or award.description or "").strip()
-    holder = resolved_holder_name_for_opportunity(engine, opportunity_key)
+    official_holder = resolved_holder_for_opportunity(engine, opportunity_key)
+    holder = None if official_holder is None else official_holder.name
+    holder_siren = None
+    if official_holder is not None:
+        identifier = str(official_holder.identifier_value or "")
+        if official_holder.identifier_scheme and official_holder.identifier_scheme.casefold() == "siret":
+            identifier = identifier[:9]
+        if len(identifier) == 9 and identifier.isdigit():
+            holder_siren = identifier
     if holder is None:
         holder = next(
             (
@@ -79,6 +87,8 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
         ),
         procedure_key=seed.event.ref().key(),
         holder=holder,
+        holder_siren=holder_siren,
+        holder_family_required=True,
         subject=title[:998],
         amount_minor_units=int(
             (Decimal(amount.amount) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)

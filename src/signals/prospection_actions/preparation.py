@@ -12,8 +12,10 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.engine import Engine
 
+from signals.companies.schema import winner_enrichment_job
 from signals.domain.french_departments import DEPARTMENTS
 from signals.persistence.schema import (
+    materialized_signal,
     prospect_target,
     prospect_target_history,
     supplier_directory,
@@ -29,7 +31,10 @@ from signals.supplier_discovery.families import (
 
 DAILY_PENDING_CAP = 25
 DAILY_SIGNAL_CAP = 5
-CONTACT_COOLDOWN = dt.timedelta(days=90)
+CONTACT_COOLDOWN = dt.timedelta(days=30)
+SMALL_SIGNAL_LIMIT = 5
+LARGE_SIGNAL_LIMIT = 8
+SMALL_SIGNAL_MAX_MINOR_UNITS = 10_000_000
 
 
 class AssistedSignal(BaseModel):
@@ -39,6 +44,8 @@ class AssistedSignal(BaseModel):
     acquisition_opportunity_id: str = Field(min_length=1, max_length=64)
     procedure_key: str = Field(min_length=1, max_length=256)
     holder: str = Field(min_length=1, max_length=512)
+    holder_siren: str | None = Field(default=None, pattern=r"^\d{9}$")
+    holder_family_required: bool = False
     subject: str = Field(min_length=1, max_length=998)
     amount_minor_units: int = Field(ge=5_000_000)
     currency: str = Field(pattern=r"^(eur|chf)$")
@@ -110,6 +117,15 @@ class ProspectPreparationService:
             for family in families
         }
         departments = set(department_and_neighbours(signal.department))
+        department_order = {
+            department: index
+            for index, department in enumerate(department_and_neighbours(signal.department))
+        }
+        signal_limit = (
+            SMALL_SIGNAL_LIMIT
+            if signal.amount_minor_units <= SMALL_SIGNAL_MAX_MINOR_UNITS
+            else LARGE_SIGNAL_LIMIT
+        )
         with self._engine.begin() as connection:
             if connection.dialect.name == "postgresql":
                 connection.execute(
@@ -160,6 +176,49 @@ class ProspectPreparationService:
                     )
                 ).scalars()
             )
+            queued_sirens = set(
+                connection.execute(
+                    sa.select(prospect_target.c.siren).where(
+                        prospect_target.c.status.in_(("pending_review", "approved"))
+                    )
+                ).scalars()
+            )
+            holder_family_keys: set[str] = set()
+            if signal.holder_family_required:
+                holder_row = connection.execute(
+                    sa.select(
+                        supplier_directory.c.family_keys,
+                        supplier_directory.c.family_confirmation_status,
+                    ).where(supplier_directory.c.siren == signal.holder_siren)
+                ).first()
+                holder_family_keys = set(
+                    (holder_row[0] or ())
+                    if holder_row and holder_row[1] == "confirmed"
+                    else ()
+                )
+                if not holder_family_keys:
+                    # Do not silently target a supplier from the holder's own
+                    # trade while its enrichment is incomplete. Requeue the
+                    # corresponding winner job at the head of the worker queue.
+                    signal_keys = sa.select(materialized_signal.c.signal_key).where(
+                        materialized_signal.c.opportunity_key == signal.opportunity_key
+                    )
+                    connection.execute(
+                        sa.update(winner_enrichment_job)
+                        .where(winner_enrichment_job.c.signal_key.in_(signal_keys))
+                        .values(
+                            status="pending",
+                            error_code=None,
+                            claimed_by=None,
+                            queued_at=now,
+                            updated_at=now,
+                        )
+                    )
+                    return PreparationResult(
+                        prepared=0,
+                        status="pending_review",
+                        reason="HOLDER_FAMILY_ENRICHMENT_REQUIRED",
+                    )
             directory_rows = tuple(
                 dict(row)
                 for row in connection.execute(
@@ -196,6 +255,8 @@ class ProspectPreparationService:
                     continue
                 if row["siren"] in recently_contacted:
                     continue
+                if row["siren"] in queued_sirens:
+                    continue
                 matches = sorted(
                     (
                         key
@@ -208,19 +269,20 @@ class ProspectPreparationService:
                 family_key = next((key for key in matches if key not in review), None)
                 if family_key is None:
                     continue
-                duplicate = connection.scalar(
-                    sa.select(sa.literal(1))
-                    .where(
-                        prospect_target.c.opportunity_key == signal.opportunity_key,
-                        prospect_target.c.email_address == row["professional_email"],
-                    )
-                    .limit(1)
-                )
-                if duplicate:
+                if holder_family_keys and set(row.get("family_keys") or ()).intersection(
+                    holder_family_keys
+                ):
                     continue
                 eligible.append((row, family_key))
-                if len(eligible) >= remaining:
-                    break
+
+            eligible.sort(
+                key=lambda item: (
+                    0 if _director(item[0])[0] else 1,
+                    department_order.get(str(item[0]["department"]), len(department_order)),
+                    str(item[0]["siren"]),
+                )
+            )
+            eligible = eligible[: min(remaining, signal_limit)]
 
             target_ids: list[str] = []
             for directory, family_key in eligible:
@@ -303,7 +365,7 @@ class ProspectPreparationService:
             status="pending_review",
             target_ids=tuple(target_ids),
             directory_candidates=len(directory_rows),
-            enrichment_required=len(target_ids) < remaining,
+            enrichment_required=len(target_ids) < min(remaining, signal_limit),
         )
 
 
