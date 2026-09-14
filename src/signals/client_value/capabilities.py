@@ -53,11 +53,11 @@ _BANDS = {
 
 
 def company_capabilities(
-    entitlements: PlanEntitlements, *, lookup_available: bool
+    entitlements: PlanEntitlements, *, lookup_available: bool, enrichment_available: bool = False
 ) -> dict[str, bool]:
     return {
         "can_view_company_data": entitlements.is_paid,
-        "can_enrich_company": entitlements.is_paid,
+        "can_enrich_company": entitlements.is_paid and enrichment_available,
         "can_lookup_contact": entitlements.is_paid and lookup_available,
         "can_manage_personal_contact": True,
         "can_take_notes": True,

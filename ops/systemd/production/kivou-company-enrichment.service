@@ -1,0 +1,33 @@
+[Unit]
+Description=Kivou production — demandes explicites d'enrichissement entreprise
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/kivou/playwright
+ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 75 /srv/kivou/run/winner-enrichment-systemd.lock /srv/kivou/app/.venv/bin/python -m signals.company_research.winner_worker --requests-only --limit 5
+SuccessExitStatus=75
+TimeoutStartSec=20min
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-company-enrichment
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/srv/kivou/run

@@ -14,6 +14,7 @@ import type {
   CompanyListPage,
   CompanyContactResult,
   CompanyContactLookup,
+  CompanyDirectoryEnrichment,
   CompanyContactStatus,
   DirectoryCompanyProfile,
   DashboardResponse,
@@ -203,7 +204,7 @@ export const companies = {
     }),
 
   queueDirectoryEnrichment: (companyKey: string, options: RequestControl = {}) =>
-    request<{ queued: boolean; state: 'queued' | 'already_queued' | 'ready' }>(
+    request<CompanyDirectoryEnrichment & { queued: boolean }>(
       `/companies/${encodeURIComponent(companyKey)}/directory-enrichment`,
       { method: 'POST', ...options },
     ),

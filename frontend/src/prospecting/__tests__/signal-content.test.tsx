@@ -34,6 +34,14 @@ test('known holder contacts replace the missing-contact guide and company name i
   expect(screen.queryByText(/indisponible/i)).not.toBeInTheDocument()
 })
 
+test('duplicate source contacts share one action while distinct agencies retain their attribution', () => {
+  const contact = { organization_name: 'Agence Nice', organization_ref: 'ORG-1', identifiers: [{ scheme: 'SIRET', value: '56213603600885' }], source: 'boamp' as const, source_notice_id: '26-123', observed_at: '2026-09-13', email: 'agence@artisan.fr' }
+  renderApp(<HolderSummary name="Entreprise" contacts={[contact, { ...contact, source_notice_id: '26-124' }, { ...contact, organization_name: 'Agence Lyon', identifiers: [{ scheme: 'SIRET', value: '56213603600018' }] }]} />, { session: AUTHENTICATED })
+  expect(screen.getAllByRole('link', { name: 'agence@artisan.fr' })).toHaveLength(2)
+  expect(screen.getByText('Agence Nice')).toBeInTheDocument()
+  expect(screen.getByText('Agence Lyon')).toBeInTheDocument()
+})
+
 test('unknown holder guides the next action, and locked values are placeholders only', () => {
   const open = vi.fn()
   const { rerender } = renderApp(<HolderSummary name="GJG FONCIERE" href="/app/companies/cmp_2" onOpenCompany={open} />, { session: AUTHENTICATED })

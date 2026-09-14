@@ -12,6 +12,7 @@ import { TargetBar } from '../prospecting/components/TargetBar'
 import { UpgradeDialog } from '../prospecting/components/UpgradeDialog'
 import type { CheckoutReturnIntent } from '../billing/checkoutIntent'
 import { safeInternalReturn } from '../prospecting/routeState'
+import { useCatalogueRefresh } from '../prospecting/useCatalogueRefresh'
 import styles from '../prospecting/Prospecting.module.css'
 
 const PAGE_SIZE = 20
@@ -52,13 +53,18 @@ export function CompaniesPage({ directorySiren }: { directorySiren?: string }) {
   const prospectQuery: CompanyListQuery = { ...scope, view: 'prospection', q: canSearch ? q || null : null, contact_status: status ? [status] : null, sort: sort as 'recent' | 'amount', limit: PAGE_SIZE }
   const loadPage = (signal: AbortSignal, cursor?: string | null) => directoryMode
     ? companies.directorySearch({ ...directoryQuery, cursor }, { signal }) : companies.list({ ...prospectQuery, cursor }, { signal })
-  const resource = useProspectingResource<CompanyListPage | DirectorySearchPage>('companies-list', (signal) => loadPage(signal), { mode: directoryMode ? 'directory' : 'prospection', q, status, department, family, sort }, true, { scopeIndependent: directoryMode })
-  const directoryOptions = useProspectingResource('directory-options', (signal) => companies.directoryOptions({ signal }), {}, directoryMode, { scopeIndependent: true })
   const [more, setMore] = useState<{ key: string; items: CompanyTableItem[]; nextCursor: string | null; loading: boolean; error: boolean; seen: string[] }>({ key: '', items: [], nextCursor: null, loading: false, error: false, seen: [] })
+  const catalogueVersion = useCatalogueRefresh(directoryMode && !directorySiren
+    && (!companyKey || companyKey === 'directory') && !more.loading && more.items.length === 0)
+  const resource = useProspectingResource<CompanyListPage | DirectorySearchPage>('companies-list', (signal) => loadPage(signal), { mode: directoryMode ? 'directory' : 'prospection', q, status, department, family, sort, catalogueVersion }, true, { scopeIndependent: directoryMode })
+  const directoryOptions = useProspectingResource('directory-options', (signal) => companies.directoryOptions({ signal }), {}, directoryMode, { scopeIndependent: true })
   const moreController = useRef<AbortController | null>(null)
   const currentKey = useRef(resource.key)
   currentKey.current = resource.key
-  useEffect(() => () => { moreController.current?.abort(); moreController.current = null }, [resource.key])
+  useEffect(() => {
+    setMore({ key: '', items: [], nextCursor: null, loading: false, error: false, seen: [] })
+    return () => { moreController.current?.abort(); moreController.current = null }
+  }, [resource.key])
   const pagination = more.key === resource.key ? more : null
   const nextCursor = pagination ? pagination.nextCursor : resource.data?.page.next_cursor ?? null
   const rows = [...new Map([...(resource.data?.items ?? []), ...(pagination?.items ?? [])].map((item) => [item.company_key, item])).values()]

@@ -8,12 +8,12 @@ import pytest
 NGINX = Path(__file__).resolve().parents[1] / "ops" / "nginx"
 
 
-def test_staging_installs_the_write_guard_in_the_tls_server_only():
-    config = (NGINX / "kivou-staging.conf").read_text()
+@pytest.mark.parametrize("environment", ["staging", "production"])
+def test_environment_installs_the_write_guard_in_the_tls_server_only(environment):
+    config = (NGINX / f"kivou-{environment}.conf").read_text()
     directive = "include /etc/nginx/kivou-prospecting-writes.conf;"
     assert config.count(directive) == 1
     assert config.index(directive) > config.index("listen 443")
-    assert directive not in (NGINX / "kivou-production.conf").read_text()
 
 
 @pytest.mark.parametrize(

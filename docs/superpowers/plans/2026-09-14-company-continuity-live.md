@@ -22,17 +22,17 @@ Record exact commands/results and differences from this plan in the release repo
 `src/signals/persistence/migrations/versions/0061_company_live_merge.py`; migration
 tests currently asserting a single historical head.
 
-- [ ] Verify isolated worktree and clean tracked baseline. Run `.venv/bin/pytest
+- [x] Verify isolated worktree and clean tracked baseline. Run `.venv/bin/pytest
   -n 2 tests/test_company_directory_api.py tests/test_client_directory.py
   tests/test_winner_enrichment_api.py -q`; require no failures.
-- [ ] Run `git merge --no-commit --no-ff origin/main`. Preserve both sets of
+- [x] Run `git merge --no-commit --no-ff origin/main`. Preserve both sets of
   behavior when resolving conflicts; do not choose one branch wholesale.
-- [ ] List Alembic heads with `.venv/bin/alembic heads`. Preserve deployed
+- [x] List Alembic heads with `.venv/bin/alembic heads`. Preserve deployed
   `0058_model_call_budget` and `0060_boamp_notice_facts` revision identities.
-- [ ] Add a merge-only revision: `revision = "0061_company_live_merge"`,
+- [x] Add a merge-only revision: `revision = "0061_company_live_merge"`,
   `down_revision = ("0058_model_call_budget", "0060_boamp_notice_facts")`,
   with no-op `upgrade()`/`downgrade()`. Test upgrade from each deployed head.
-- [ ] Run migration and touched integration suites, inspect staged diff and
+- [x] Run migration and touched integration suites, inspect staged diff and
   commit the integration only after successful verification.
 
 ### Task 2: Shared source-attributed company contacts
@@ -43,13 +43,13 @@ under `src/signals/client_value/`, `src/signals/api/routes_companies.py`,
 `frontend/src/prospecting/components/{HolderSummary,SignalDetail,CompanyDossier}.tsx`,
 client response types, focused backend and frontend tests.
 
-- [ ] Write failing regressions for the observed BOAMP→company loss and supported
+- [x] Write failing regressions for the observed BOAMP→company loss and supported
   model/site evidence withheld by publication; verify RED against actual projections.
-- [ ] Publish a typed common list of public company contacts on both dossier
+- [x] Publish a typed common list of public company contacts on both dossier
   contracts, matching exact winner identity and preserving source/agency attribution.
-- [ ] Reuse that list in the existing signal summary and company dossier, without
+- [x] Reuse that list in the existing signal summary and company dossier, without
   adding a new panel. Deduplicate facts and keep buyer contacts excluded.
-- [ ] Test locked projections without raw values, suppression, multiple holders,
+- [x] Test locked projections without raw values, suppression, multiple holders,
   mismatched identity, aliases and private-contact separation; run focused suites.
 - [ ] Review specification compliance, then code quality, correct findings and commit.
 
@@ -61,16 +61,16 @@ new request migration/schema, enrichment store preservation logic,
 `frontend/src/prospecting/useCompanyEnrichment.ts`, dossier/summary status copy,
 queue/API/worker and React regression tests.
 
-- [ ] First specify/test durable request states and stable company identity. Tests
+- [x] First specify/test durable request states and stable company identity. Tests
   must fail when an existing incomplete directory returns false `ready`.
-- [ ] Queue explicit paid-account requests by company identity independently of
+- [x] Queue explicit paid-account requests by company identity independently of
   automatic winner recency/watermark filters. Deduplicate active jobs, enforce
   refresh intervals, limits and existing model budgets; never debit lookup quota.
-- [ ] Consume requests through the existing full provider pipeline. Record real
+- [x] Consume requests through the existing full provider pipeline. Record real
   outcomes/changed fields; do not clear known public facts on incomplete results.
-- [ ] Expose authoritative request state on dossier reads; resume status after
+- [x] Expose authoritative request state on dossier reads; resume status after
   reopening and keep polling separate from requesting. Handle no-change/failure.
-- [ ] Test retry/lease/concurrency, historical and directory-only companies,
+- [x] Test retry/lease/concurrency, historical and directory-only companies,
   budgets, close/reopen, no provider on GET, no lost contacts and no fake completion.
 - [ ] Review specification compliance then quality; commit verified changes.
 
@@ -81,16 +81,16 @@ queue/API/worker and React regression tests.
 configuration, mirror ownership metadata/migration, CLI/systemd definitions,
 `frontend/src/companies/CompaniesPage.tsx`, tests and deployment runbook.
 
-- [ ] RED tests define the explicit column allowlist, bounded snapshot schema,
+- [x] RED tests define the explicit column allowlist, bounded snapshot schema,
   authentication, staging-only destination and transactionality before implementation.
-- [ ] Add an authenticated, read-only production export with no private/client
+- [x] Add an authenticated, read-only production export with no private/client
   tables or raw model evidence. Import idempotently by SIREN into staging only;
   preserve locally owned rows/private data and propagate source withdrawals safely.
-- [ ] Add a periodic isolated staging mirror service using a dedicated publication
+- [x] Add a periodic isolated staging mirror service using a dedicated publication
   credential; fail closed on absent credentials or invalid/truncated snapshots.
-- [ ] Add visibility-aware catalogue refresh preserving filters and editing state;
+- [x] Add visibility-aware catalogue refresh preserving filters and editing state;
   demonstrate new row/count coherence with frontend tests.
-- [ ] Prepare an exact-target recoverable quarantine for the 30 audited fixtures;
+- [x] Prepare an exact-target recoverable quarantine for the 30 audited fixtures;
   independently review the manifest and backup before any live data mutation.
 - [ ] Review specification compliance then quality; commit verified changes.
 

@@ -184,6 +184,7 @@ def list_directory(
                     "tracked": exceptions.get(key, key) in tracked,
                     "capabilities": company_capabilities(
                         access.entitlements,
+                        enrichment_available=request.app.state.config.company_directory_enrichment_enabled,
                         lookup_available=request.app.state.company_contact_lookup_service
                         is not None,
                     ),

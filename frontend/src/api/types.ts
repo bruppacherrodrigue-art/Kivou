@@ -645,6 +645,20 @@ export interface CompanyOfficialIdentifier {
   value: string
 }
 
+export interface CompanyPublicContact {
+  organization_name: string
+  organization_ref: string
+  identifiers?: CompanyOfficialIdentifier[]
+  source: 'boamp'
+  source_notice_id?: string
+  source_url?: string
+  observed_at: string
+  phone?: string
+  email?: string
+  website?: string
+  contact_name?: string
+}
+
 export interface CompanyOfficialIdentity {
   name: string
   country: string | null
@@ -704,6 +718,9 @@ export interface PublicMarket {
 }
 
 export interface DirectoryCompanyProfile extends Partial<PrivateCompanyContext> {
+  public_contacts?: CompanyPublicContact[]
+  available_contact_fields?: Array<'phone' | 'email' | 'website'>
+  contacts_locked?: boolean
   company_key?: string
   plan_code?: PlanCode
   directory: DirectoryCompany
@@ -771,6 +788,9 @@ export interface CompanyRelatedSignal {
 }
 
 export interface CompanyProfile extends Partial<PrivateCompanyContext> {
+  public_contacts?: CompanyPublicContact[]
+  available_contact_fields?: Array<'phone' | 'email' | 'website'>
+  contacts_locked?: boolean
   company_key: string
   city: string | null
   official_identity: CompanyOfficialIdentity
@@ -883,6 +903,7 @@ export interface CompanyMembership {
 }
 
 export interface PrivateCompanyContext {
+  directory_enrichment?: CompanyDirectoryEnrichment | null
   canonical_company_key: string | null
   private_subject_key: string | null
   identity_resolution: 'unresolved' | 'resolved' | 'isolated'
@@ -891,6 +912,21 @@ export interface PrivateCompanyContext {
   manual_contact: ManualContactView
   membership: CompanyMembership
   capabilities: CompanyCapabilities
+}
+
+export interface CompanyDirectoryEnrichment {
+  state: 'locked' | 'identity_unavailable' | 'available' | 'queued' | 'running' | 'ready' | 'partial' | 'failed' | 'budget_wait'
+  can_refresh: boolean
+  job_id?: string | null
+  requested_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  observed_at?: string | null
+  retry_after?: string | null
+  missing_fields: Array<'website' | 'phone' | 'email'>
+  stale_fields?: Array<'website' | 'phone' | 'email'>
+  added_fields: Array<'website' | 'phone' | 'email'>
+  outcome?: 'enriched' | 'no_change' | null
 }
 
 /** Strict replacement DTO. Legacy surfaces remain temporarily source-compatible. */

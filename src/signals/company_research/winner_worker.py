@@ -21,6 +21,7 @@ from signals.companies.active_scope import active_account_signal_exists
 from signals.companies.enrichment import MAX_ENRICHMENT_ATTEMPTS, run_winner_enrichment_batch
 from signals.companies.france import FrenchOfficialCompanyClient
 from signals.companies.schema import winner_enrichment_job
+from signals.company_research.company_requests import run_company_enrichment_requests
 from signals.company_research.enrichment import (
     AnnuaireRawDirectorClient,
     CompanyEnrichmentInput,
@@ -192,9 +193,7 @@ def _siren_for_job(connection: sa.Connection, signal_key: str) -> str | None:
     return None
 
 
-def _mark_failed(
-    engine: sa.Engine, *, signal_key: str, now: dt.datetime, error_code: str
-) -> None:
+def _mark_failed(engine: sa.Engine, *, signal_key: str, now: dt.datetime, error_code: str) -> None:
     with engine.begin() as connection:
         connection.execute(
             sa.update(winner_enrichment_job)
@@ -337,7 +336,11 @@ def _aware_environment_instant(name: str) -> dt.datetime:
 
 def _run_locked(arguments: argparse.Namespace) -> int:
     try:
-        activated_at = _aware_environment_instant("KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT")
+        activated_at = (
+            None
+            if arguments.requests_only
+            else _aware_environment_instant("KIVOU_WINNER_ENRICHMENT_ACTIVATED_AT")
+        )
     except ValueError as error:
         print(f"status=CONFIGURATION_ERROR detail={error}", file=sys.stderr)
         return 2
@@ -347,12 +350,8 @@ def _run_locked(arguments: argparse.Namespace) -> int:
         return 2
     try:
         engine = create_database_engine()
-        client = httpx.Client(
-            timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True
-        )
-        collector = CompanyWebCollector(
-            serper_api_key=serper_key, client=client
-        )
+        client = httpx.Client(timeout=httpx.Timeout(60.0, connect=5.0), follow_redirects=True)
+        collector = CompanyWebCollector(serper_api_key=serper_key, client=client)
         identity_client = AnnuaireRawDirectorClient(client=client)
         batch_id = f"winner-enrichment-{uuid.uuid4()}"
         try:
@@ -361,22 +360,31 @@ def _run_locked(arguments: argparse.Namespace) -> int:
                 batch_id=batch_id,
                 client=client,
             )
-            result = run_winner_company_enrichment_batch(
-                engine,
-                now=dt.datetime.now(dt.UTC),
-                activated_at=activated_at,
-                worker_ref=batch_id[:64],
-                identity_source=identity_client.profile,
-                enrichment_service=CompanyEnrichmentService(
-                    directory=SupplierDirectoryStore(engine),
-                    collector=collector,
-                    provider=providers.judge,
-                    arbiter=providers.arbiter,
-                    mx_verifier=EmailMxVerifier().verify,
-                ),
-                limit=arguments.limit,
-                official_company_provider=FrenchOfficialCompanyClient(),
+            service = CompanyEnrichmentService(
+                directory=SupplierDirectoryStore(engine),
+                collector=collector,
+                provider=providers.judge,
+                arbiter=providers.arbiter,
+                mx_verifier=EmailMxVerifier().verify,
             )
+            shared = {
+                "now": dt.datetime.now(dt.UTC),
+                "worker_ref": batch_id[:64],
+                "identity_source": identity_client.profile,
+                "enrichment_service": service,
+                "limit": arguments.limit,
+            }
+            if arguments.requests_only:
+                result = run_company_enrichment_requests(
+                    engine, clock=lambda: dt.datetime.now(dt.UTC), **shared
+                )
+            else:
+                result = run_winner_company_enrichment_batch(
+                    engine,
+                    activated_at=activated_at,
+                    official_company_provider=FrenchOfficialCompanyClient(),
+                    **shared,
+                )
         finally:
             renderer_close = getattr(collector._renderer, "close", None)
             if callable(renderer_close):
@@ -408,8 +416,10 @@ def _run_locked(arguments: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m signals.company_research.winner_worker")
     parser.add_argument("--limit", type=int, default=25)
+    parser.add_argument("--requests-only", action="store_true")
     arguments = parser.parse_args(argv)
-    if not 1 <= arguments.limit <= MAX_WINNER_MODEL_BATCH:
+    maximum = 25 if arguments.requests_only else MAX_WINNER_MODEL_BATCH
+    if not 1 <= arguments.limit <= maximum:
         print("status=INVALID_ARGUMENTS", file=sys.stderr)
         return 2
     lock_path = os.environ.get(

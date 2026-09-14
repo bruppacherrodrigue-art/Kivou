@@ -1,11 +1,11 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { CompanyDossierResponse } from '../../api/types'
 import { AUTHENTICATED, DISCOVERY_STATUS, ICP, callsTo, mockApi, renderApp } from '../../test/harness'
 import { ProspectingProvider } from '../ProspectingProvider'
 import { CompanyDossier } from '../components/CompanyDossier'
 
-afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); sessionStorage.clear() })
 const dossier: CompanyDossierResponse = {
   company_key: 'addressed-alias', canonical_company_key: 'public-canonical', private_subject_key: 'isolated-private', identity_resolution: 'isolated',
   note: 'Contexte privé', note_revision: 3, note_updated_at: null,
@@ -30,6 +30,41 @@ function setup(profile = dossier, directorySiren?: string, extra = {}) {
 }
 
 describe('one server-backed company dossier', () => {
+  it('refreshes public enrichment without closing or erasing an in-progress private contact', async () => {
+    const available = { state: 'available' as const, can_refresh: true, added_fields: [], missing_fields: ['phone' as const] }
+    const profile = { ...dossier, capabilities: { ...dossier.capabilities, can_view_company_data: true, can_enrich_company: true }, directory: { ...dossier.directory!, fields_locked: false }, directory_enrichment: available }
+    let reads = 0
+    let requested = false
+    setup(profile, undefined, {
+      'POST /companies/addressed-alias/directory-enrichment': () => { requested = true; return { body: { ...available, state: 'queued', queued: true, job_id: 'job-1' } } },
+      'GET /companies/addressed-alias': () => { reads += 1; return { body: !requested ? profile : { ...profile, directory: { ...profile.directory, phone: '0144556677' }, directory_enrichment: { ...available, state: 'partial', outcome: 'enriched', added_fields: ['phone'], job_id: 'job-1' } } } },
+    })
+    await screen.findByRole('heading', { name: 'Entreprise test' })
+    const initialReads = reads
+    vi.useFakeTimers()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Compléter la fiche entreprise' })) })
+    fireEvent.click(screen.getByRole('button', { name: 'Ajouter un contact' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nom du contact' }), { target: { value: 'Mon brouillon privé' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Email professionnel' }), { target: { value: 'prive@example.com' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(screen.getByRole('textbox', { name: 'Nom du contact' })).toHaveValue('Mon brouillon privé')
+    expect(screen.getByRole('textbox', { name: 'Email professionnel' })).toHaveValue('prive@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Annuler' }))
+    expect(screen.getByRole('link', { name: '0144556677' })).toBeInTheDocument()
+    expect(reads).toBe(initialReads + 1)
+    expect(callsTo('/companies/addressed-alias/manual-contact', 'PUT')).toHaveLength(0)
+  })
+  it('shows the published holder contact with its BOAMP attribution in the dossier', async () => {
+    setup({ ...dossier, capabilities: { ...dossier.capabilities, can_view_company_data: true },
+      directory: { ...dossier.directory!, fields_locked: false },
+      public_contacts: [{ organization_name: 'Agence Toulouse', organization_ref: 'ORG-1', identifiers: [], source: 'boamp', source_notice_id: '26-123', source_url: 'https://www.boamp.fr/avis/26-123', observed_at: '2026-09-13T10:00:00Z', email: 'agence@example.com', phone: '0561000000' }],
+      contacts_locked: false, available_contact_fields: ['email', 'phone'],
+    } as CompanyDossierResponse)
+    expect(await screen.findByRole('link', { name: 'agence@example.com' })).toHaveAttribute('href', 'mailto:agence@example.com')
+    expect(screen.getByRole('link', { name: /BOAMP.*26-123/ })).toHaveAttribute('href', 'https://www.boamp.fr/avis/26-123')
+    expect(screen.getByText('Agence Toulouse')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ajouter un contact' })).toBeInTheDocument()
+  })
   it('attributes each public contact to its own evidence rather than the telephone source', async () => {
     setup({ ...dossier, capabilities: { ...dossier.capabilities, can_view_company_data: true },
       directory: { ...dossier.directory!, fields_locked: false, phone: '0144556677', phone_source: 'model', website_url: 'https://company.example.test/', website_source: 'registre', published_email: 'bonjour@example.test', published_email_source_url: 'https://company.example.test/contact' },
@@ -51,6 +86,15 @@ describe('one server-backed company dossier', () => {
     expect(callsTo('/companies/addressed-alias/prospection', 'PUT')).toHaveLength(0)
     expect(callsTo('/companies/addressed-alias/contact-lookup')).toHaveLength(0)
     expect(screen.getByRole('link', { name: /Marché public exact/ })).toHaveAttribute('href', 'https://www.boamp.fr/avis/123')
+  })
+
+  it('never renders locked public contact values or personal names from a stale payload', async () => {
+    setup({ ...dossier, public_contacts: [{ organization_name: 'Agence secrète', organization_ref: 'ORG-1', source: 'boamp', observed_at: '2026-09-13T10:00:00Z', email: 'hidden@artisan.fr', phone: '0561000000', contact_name: 'Nom confidentiel' }],
+      contacts_locked: true, available_contact_fields: ['email'] })
+    await screen.findByRole('heading', { name: 'Entreprise test' })
+    expect(screen.queryByText('hidden@artisan.fr')).not.toBeInTheDocument()
+    expect(screen.queryByText('Nom confidentiel')).not.toBeInTheDocument()
+    expect(screen.getByText('Email disponible dans la fiche enrichie')).toBeInTheDocument()
   })
 
   it('persists the private note with the requested alias and revision, then follows only on click', async () => {

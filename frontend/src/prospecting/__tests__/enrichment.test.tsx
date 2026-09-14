@@ -9,13 +9,20 @@ const context = vi.hoisted(() => ({ accountId: 'a', accessEpoch: 0, invalidate: 
 vi.mock('../ProspectingProvider', () => ({ useProspecting: () => context }))
 const lookup: CompanyContactLookup = { state: 'researching', remaining: 4, monthly_quota: 5, source: 'apollo', removal_path: '/contact' }
 const company = { company_key: 'alias', private_subject_key: 'private', capabilities: { can_view_company_data: true, can_enrich_company: true, can_lookup_contact: true, can_manage_personal_contact: true, can_take_notes: true, can_follow_company: true } }
+const queued = { state: 'queued' as const, job_id: 'job-1', can_refresh: false, added_fields: [], missing_fields: ['email' as const] }
+const dossier: CompanyDossierResponse = {
+  company_key: 'alias', private_subject_key: 'private', canonical_company_key: 'alias', identity_resolution: 'resolved',
+  note_revision: 0, note_updated_at: null, manual_contact: { contact: null, revision: 0, updated_at: null },
+  membership: { tracked: false, tracked_at: null, revision: 0, origin: null }, capabilities: company.capabilities,
+  directory: { siren: '123456789', name: 'Test company', source: 'registre', removal_path: '/contact' }, markets: [],
+}
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers() })
 
 describe('bounded explicit company enrichment', () => {
   it('reads the current dossier when directory enrichment is already ready, preserving fresh lookup results', async () => {
-    const post = vi.spyOn(companies, 'queueDirectoryEnrichment').mockResolvedValue({ queued: false, state: 'ready' })
-    const get = vi.spyOn(companies, 'dossier').mockResolvedValue({ private_subject_key: 'private', directory: { siren: '123456789' }, contact_lookup: { ...lookup, state: 'ready' } } as CompanyDossierResponse)
+    const post = vi.spyOn(companies, 'queueDirectoryEnrichment').mockResolvedValue({ ...queued, queued: false, state: 'ready' })
+    const get = vi.spyOn(companies, 'dossier').mockResolvedValue({ ...dossier, directory_enrichment: { ...queued, state: 'ready' }, contact_lookup: { ...lookup, state: 'ready' } })
     const { result } = renderHook(() => useCompanyEnrichment(company, { initialLookup: { ...lookup, state: 'ready' } }))
     await act(async () => { await result.current.startEnrichment() })
     expect(post).toHaveBeenCalledTimes(1)
@@ -29,6 +36,31 @@ describe('bounded explicit company enrichment', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
     expect(postLookup).not.toHaveBeenCalled()
     expect(postEnrich).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('keeps an existing directory pending until the durable job has finished', async () => {
+    vi.spyOn(companies, 'queueDirectoryEnrichment').mockResolvedValue({ ...queued, queued: true })
+    const get = vi.spyOn(companies, 'dossier').mockResolvedValue({ ...dossier, directory_enrichment: queued })
+    const { result } = renderHook(() => useCompanyEnrichment(company))
+    await act(async () => { await result.current.startEnrichment() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(result.current.state).toBe('polling')
+    expect(result.current.directoryEnrichment?.state).toBe('queued')
+    get.mockResolvedValue({ ...dossier, directory_enrichment: { ...queued, state: 'partial', outcome: 'no_change' } })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(result.current.directoryEnrichment?.outcome).toBe('no_change')
+  })
+
+  it('reopens a persisted job with reads only and keeps truthful waiting state beyond the poll window', async () => {
+    const post = vi.spyOn(companies, 'queueDirectoryEnrichment')
+    const get = vi.spyOn(companies, 'dossier').mockResolvedValue({ ...dossier, directory_enrichment: queued })
+    const { result, unmount } = renderHook(() => useCompanyEnrichment(company, { initialDirectoryEnrichment: queued }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(32000) })
+    expect(get).toHaveBeenCalledTimes(15)
+    expect(post).not.toHaveBeenCalled()
+    expect(result.current.state).toBe('waiting')
+    expect(result.current.directoryEnrichment?.state).toBe('queued')
     unmount()
   })
 

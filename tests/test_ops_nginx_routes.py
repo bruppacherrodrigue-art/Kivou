@@ -70,6 +70,7 @@ PRIVATE_ASGI_ROUTES = frozenset(
     {
         ("GET", "/openapi.json"),
         ("GET", "/internal/commercial-cockpit"),
+        ("GET", "/internal/company-catalogue"),
         ("GET", "/internal/acquisition-ops/health"),
         ("GET", "/internal/acquisition-ops/readiness"),
         ("GET", "/internal/acquisition-ops/incidents"),

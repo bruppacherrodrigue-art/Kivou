@@ -1,4 +1,4 @@
-import type { CompanyDossierResponse, Money, UnlockedFeedItem } from '../api/types'
+import type { CompanyDossierResponse, CompanyPublicContact, Money, UnlockedFeedItem } from '../api/types'
 
 export interface NoticeDuration {
   value: string
@@ -11,16 +11,7 @@ export interface NoticeDuration {
   notice_kind?: 'contract_notice' | 'contract_award_notice'
 }
 
-export interface NoticeContact {
-  organization_name: string
-  organization_ref: string
-  source: 'boamp'
-  observed_at: string
-  phone?: string
-  email?: string
-  website?: string
-  contact_name?: string
-}
+export type NoticeContact = CompanyPublicContact
 
 export interface NoticeFacts {
   source_system: string

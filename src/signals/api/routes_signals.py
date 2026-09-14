@@ -57,6 +57,7 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.client_value.company_contacts import suppressed_notice_sirens
 from signals.client_value.directory import local_circuit
 from signals.client_value.history import department_for_place, history_for_company
 from signals.client_value.notice_facts import load_award_notice_facts
@@ -637,7 +638,8 @@ def get_signal(
                 )
                 if persisted_facts is not None:
                     notice_facts = project_notice_facts(
-                        persisted_facts, entitlements=access.entitlements
+                        persisted_facts, entitlements=access.entitlements,
+                        suppressed_sirens=suppressed_notice_sirens(connection, (persisted_facts,)),
                     )
                 if signal_key in service.landing_signal_keys(
                     connection, account_id=session.account_id

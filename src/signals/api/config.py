@@ -54,6 +54,7 @@ ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
 GENERATED_FOR_YOU_ENABLED_ENV = "KIVOU_GENERATED_FOR_YOU_ENABLED"
 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV = "KIVOU_COMMERCIAL_START_DELAY_MONTHS_BY_CPV_JSON"
 APOLLO_API_KEY_ENV = "KIVOU_APOLLO_API_KEY"
+COMPANY_DIRECTORY_ENRICHMENT_ENABLED_ENV = "KIVOU_COMPANY_DIRECTORY_ENRICHMENT_ENABLED"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -208,6 +209,9 @@ class ApiConfig:
     # PR6b — secret du fournisseur utilisé uniquement par la recherche explicite
     # d'un décideur. Son absence laisse la route indisponible, sans appel réseau.
     apollo_api_key: str | None = dataclasses.field(default=None, repr=False)
+    # Enabled only after the bounded manual worker and its providers are operational.
+    company_directory_enrichment_enabled: bool = False
+    catalogue_publication_token: str | None = dataclasses.field(default=None, repr=False)
 
     @property
     def stripe_livemode(self) -> bool:
@@ -381,6 +385,10 @@ class ApiConfig:
                 COMMERCIAL_START_DELAY_MONTHS_BY_CPV_ENV
             ),
             apollo_api_key=os.environ.get(APOLLO_API_KEY_ENV) or None,
+            company_directory_enrichment_enabled=_flag(
+                COMPANY_DIRECTORY_ENRICHMENT_ENABLED_ENV, default=False,
+            ),
+            catalogue_publication_token=os.environ.get("KIVOU_CATALOGUE_PUBLICATION_TOKEN") or None,
         )
 
 

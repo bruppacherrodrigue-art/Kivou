@@ -266,6 +266,7 @@ class PrivateBaseline(dict):
 def capture_baseline(
     engine,
     *,
+    extra_tables=(),
     limit=None,
     temp_dir=None,
     max_disk_bytes=MAX_BASELINE_BYTES,
@@ -275,6 +276,14 @@ def capture_baseline(
     # The normal path reads every row and is bounded by buffers, row size and disk.
     require(
         limit is None or type(limit) is int and 1 <= limit <= MAX_ROWS, "baseline_limit_invalid"
+    )
+    require(
+        isinstance(extra_tables, (tuple, list, set, frozenset))
+        and all(
+            isinstance(name, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,62}", name)
+            for name in extra_tables
+        ),
+        "baseline_extra_tables_invalid",
     )
     baseline = PrivateBaseline(
         temp_dir=temp_dir, max_disk_bytes=max_disk_bytes, max_row_bytes=max_row_bytes
@@ -295,6 +304,9 @@ def capture_baseline(
             }
             while descendants := {name for name in names if references[name] & private} - private:
                 private.update(descendants)
+            # Optional shared preservation is additive, never a filter of private
+            # ownership. A historical branch may not yet contain these tables.
+            private.update(set(extra_tables) & set(names))
             for name in sorted(private):
                 table = sa.Table(name, metadata, autoload_with=connection)
                 keys = tuple(column.name for column in table.primary_key)

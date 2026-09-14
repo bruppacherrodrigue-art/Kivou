@@ -59,6 +59,7 @@ PRODUCT_EVENT_TYPES: tuple[str, ...] = (
     "signal_status_updated",
     "company_contact_updated",
     "company_note_updated",
+    "company_enrichment_requested",
     "alert_queued",
     "alert_sent",
     "alert_failed",

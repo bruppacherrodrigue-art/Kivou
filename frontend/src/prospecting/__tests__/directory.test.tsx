@@ -18,6 +18,48 @@ function setup(route: string, extra = {}) {
 }
 
 describe('one company table, two server lists', () => {
+  it('resumes first-page refresh after loading more and changing filters', async () => {
+    let calls = 0
+    setup('/app/companies/directory', {
+      'GET /companies/directory': () => {
+        calls += 1
+        if (calls === 1) return { body: { ...directoryPage, page: { ...directoryPage.page, next_cursor: 'page2', has_more: true } } }
+        if (calls === 2) return { body: { ...directoryPage, items: [{ ...row, company_key: 'second', name: 'Deuxième page' }] } }
+        return { body: calls === 3 ? directoryPage : {
+          ...directoryPage, items: [row, { ...row, company_key: 'new-key', name: 'Nouvelle entreprise enrichie' }],
+          counts: { total: 2, exact: true },
+        } }
+      },
+    })
+    await screen.findByRole('link', { name: 'Annuaire Entreprise' })
+    fireEvent.click(screen.getByRole('button', { name: 'Charger plus' }))
+    await screen.findByRole('link', { name: 'Deuxième page' })
+    fireEvent.change(screen.getByLabelText('Trier les résultats'), { target: { value: 'city' } })
+    await waitFor(() => expect(calls).toBe(3))
+    expect(screen.queryByRole('link', { name: 'Deuxième page' })).not.toBeInTheDocument()
+    fireEvent.focus(window)
+    await screen.findByRole('link', { name: 'Nouvelle entreprise enrichie' })
+    expect(screen.getByText('2 entreprises')).toBeInTheDocument()
+    expect(callsTo('/companies/directory', 'GET').at(-1)!.search.get('sort')).toBe('city')
+  })
+
+  it('refreshes new catalogue rows and the count on return without losing URL filters', async () => {
+    let calls = 0
+    setup('/app/companies/directory?department=31&sort=city', {
+      'GET /companies/directory': () => ({ body: ++calls === 1 ? directoryPage : {
+        ...directoryPage, items: [row, { ...row, company_key: 'new-key', name: 'Nouvelle entreprise enrichie' }],
+        counts: { total: 2, exact: true },
+      } }),
+    })
+    await screen.findByRole('link', { name: 'Annuaire Entreprise' })
+    fireEvent.focus(window)
+    await screen.findByRole('link', { name: 'Nouvelle entreprise enrichie' })
+    expect(screen.getByText('2 entreprises')).toBeInTheDocument()
+    const query = callsTo('/companies/directory', 'GET').at(-1)!.search
+    expect(query.get('department')).toBe('31')
+    expect(query.get('sort')).toBe('city')
+  })
+
   it('uses server labels for directory families and departments, sending only their codes', async () => {
     setup('/app/companies/directory')
     await screen.findByRole('link', { name: 'Annuaire Entreprise' })

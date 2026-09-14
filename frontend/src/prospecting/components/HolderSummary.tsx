@@ -1,14 +1,12 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ExternalLink, LockKeyhole } from 'lucide-react'
+import { ArrowRight, LockKeyhole } from 'lucide-react'
 import type { CompanyContactLookup, DirectoryCompany } from '../../api/types'
 import { useI18n } from '../../i18n'
 import { safeExternal } from '../adapters'
 import type { NoticeContact } from '../models'
+import { DirectoryContactFacts, PublicContactFacts, distinctPublicContacts, usableEmail, usablePhone } from './PublicContactFacts'
 import styles from '../Prospecting.module.css'
-
-const usablePhone = (value?: string) => value && /^\+?[\d\s().-]+$/.test(value) && value.replace(/\D/g, '').length >= 9 ? value : null
-const usableEmail = (value?: string) => value && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? value : null
 
 export function HolderSummary({ name, href, directory, contacts = [], lookup, lockedFields = [], loading = false,
   onOpenCompany, onUpgrade, onLookup, onEnrich, pending = false, feedback,
@@ -20,11 +18,11 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
 }) {
   const { locale, date, number } = useI18n()
   const fr = locale === 'fr'
-  const phone = usablePhone(directory?.phone) || usablePhone(lookup?.organization?.phone)
-  const email = usableEmail(directory?.published_email)
-  const website = safeExternal(directory?.website_url) || safeExternal(lookup?.organization?.website_url)
+  const phone = !directory?.fields_locked && (usablePhone(directory?.phone) || usablePhone(lookup?.organization?.phone))
+  const email = !directory?.fields_locked && usableEmail(directory?.published_email)
+  const website = !directory?.fields_locked && (safeExternal(directory?.website_url) || safeExternal(lookup?.organization?.website_url))
   const people = lookup?.state === 'ready' ? lookup.contacts?.filter((person) => person.email_status === 'verified' && usableEmail(person.email)) ?? [] : []
-  const sourceContacts = contacts.filter((contact) => usablePhone(contact.phone) || usableEmail(contact.email) || safeExternal(contact.website))
+  const sourceContacts = distinctPublicContacts(contacts)
   const hasData = !!(phone || email || website || sourceContacts.length || people.length)
   const available = [...new Set([...(directory?.fields_locked ? directory.available_fields ?? [] : []), ...lockedFields])]
   const workforce = directory?.workforce
@@ -32,11 +30,6 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
     ? `${number(workforce.minimum)}–${number(workforce.maximum)} ${fr ? 'salariés' : 'employees'}`
     : `${fr ? 'Environ' : 'About'} ${number(workforce.maximum)} ${fr ? 'salariés' : 'employees'}` : null
   const fieldLabel = (field: string) => ({ phone: fr ? 'téléphone' : 'phone', email: fr ? 'e-mail' : 'email', website: fr ? 'site internet' : 'website', workforce: fr ? 'effectif' : 'workforce', directors: fr ? 'dirigeants' : 'directors' })[field] ?? field
-  const contactRows = (values: { phone?: string | null; email?: string | null; website?: string | null; source?: string | null }) => <>
-    {values.phone && <><dt>{fr ? 'Téléphone' : 'Phone'}</dt><dd><a href={`tel:${values.phone.replace(/[^+\d]/g, '')}`}>{values.phone}</a></dd></>}
-    {values.email && <><dt>E-mail</dt><dd><a href={`mailto:${values.email}`}>{values.email}</a>{values.source && <small>{values.source}</small>}</dd></>}
-    {values.website && <><dt>{fr ? 'Site' : 'Website'}</dt><dd><a href={values.website} target="_blank" rel="noopener noreferrer">{new URL(values.website).hostname.replace(/^www\./, '')} <ExternalLink aria-hidden="true" /></a></dd></>}
-  </>
   return <section className={styles.holder} aria-label={fr ? 'Titulaire' : 'Award holder'}>
     <div className={styles.kicker}>{fr ? 'Titulaire' : 'Award holder'}</div>
     <div className={styles.holderHead}>
@@ -45,11 +38,8 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
     </div>
     {(directory?.naf_label || directory?.city || employees) && <p className={styles.holderSub}>{[directory?.naf_label, directory?.city, employees].filter(Boolean).join(' · ')}</p>}
     {loading && <p className={styles.muted} role="status">{fr ? 'Chargement des données entreprise…' : 'Loading company data…'}</p>}
-    {(phone || email || website) && <dl className={styles.contactFacts}>{contactRows({ phone, email, website, source: directory?.published_email_source_url ? (fr ? 'Publié sur le site de l’entreprise' : 'Published on the company website') : null })}</dl>}
-    {sourceContacts.map((contact, index) => <div key={`${contact.organization_ref}-${index}`}>
-      <p className={styles.holderSub}>{contact.organization_name} · BOAMP</p>
-      <dl className={styles.contactFacts}>{contactRows({ phone: usablePhone(contact.phone), email: usableEmail(contact.email), website: safeExternal(contact.website) })}</dl>
-    </div>)}
+    {(phone || email || website) && <DirectoryContactFacts directory={directory} lookup={lookup} />}
+    <PublicContactFacts contacts={sourceContacts} />
     {people.map((person) => <div key={person.email} className={styles.guide}><strong>{person.name}</strong><span className={styles.caption}>{person.title}</span><a className={styles.textButton} href={`mailto:${person.email}`}>{person.email}</a><small className={styles.caption}>{fr ? 'E-mail nominatif vérifié' : 'Verified personal business email'}</small></div>)}
     {available.length > 0 && <div className={styles.lockedData}>
       <div className={styles.lockedLines} aria-hidden="true">{available.map((field) => <span key={field} />)}</div>

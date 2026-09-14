@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ArrowRight, Bookmark, Check, ExternalLink, LockKeyhole } from 'lucide-react'
 import { ApiError } from '../../api/client'
@@ -13,6 +13,8 @@ import { useCompanyEnrichment } from '../useCompanyEnrichment'
 import { DetailFrame } from './DetailFrame'
 import { NotesField } from './NotesField'
 import { UserContactForm } from './UserContactForm'
+import { ContactFacts, DirectoryContactFacts, PublicContactFacts } from './PublicContactFacts'
+import { CompanyEnrichmentStatus } from './CompanyEnrichmentStatus'
 import styles from '../Prospecting.module.css'
 
 export function CompanyDossier({ companyKey, directorySiren, onClose, onUpgrade }: {
@@ -36,16 +38,17 @@ export function CompanyDossier({ companyKey, directorySiren, onClose, onUpgrade 
   </DetailFrame>
 }
 
-function LoadedCompanyDossier({ profile, addressedKey, onClose, onUpgrade }: {
+function LoadedCompanyDossier({ profile: initialProfile, addressedKey, onClose, onUpgrade }: {
   profile: CompanyDossierResponse; addressedKey: string; onClose: () => void; onUpgrade?: (addressedKey: string) => void
 }) {
   const { locale, shortDate, number } = useI18n()
   const fr = locale === 'fr'
   const location = useLocation()
   const { accountId, noteStore } = useProspecting()
-  const binding = { company_key: addressedKey, private_subject_key: profile.private_subject_key, capabilities: profile.capabilities }
+  const binding = { company_key: addressedKey, private_subject_key: initialProfile.private_subject_key, capabilities: initialProfile.capabilities }
   const actions = useCompanyActions(binding)
-  const enrichment = useCompanyEnrichment(binding, { initialLookup: profile.contact_lookup })
+  const enrichment = useCompanyEnrichment(binding, { initialLookup: initialProfile.contact_lookup, initialDirectoryEnrichment: initialProfile.directory_enrichment })
+  const profile = enrichment.dossier ?? initialProfile
   const [editingContact, setEditingContact] = useState(false)
   const name = dossierName(profile)
   const directory = profile.directory
@@ -58,14 +61,11 @@ function LoadedCompanyDossier({ profile, addressedKey, onClose, onUpgrade }: {
   const busy = actions.pending !== null
   // A rejected refresh may revoke previously shown Apollo data; never fall back to it.
   const lookup = enrichment.state === 'idle' ? profile.contact_lookup : enrichment.lookup
-  const emailSource = safeExternal(directory?.published_email_source_url)
-  const sourceLabel = (source?: string) => source === 'model' ? (fr ? 'Coordonnée identifiée · à vérifier' : 'Identified contact detail · verify before use')
-    : source === 'registre' ? (fr ? 'Registre national des entreprises' : 'National business register') : source
-  const observedSource = (source: ReactNode, observed?: string) => source || observed ? <>{source}{observed && <>{source ? ' · ' : ''}{fr ? 'Consulté le' : 'Observed on'} {shortDate(observed)}</>}</> : null
   const lookupBusy = enrichment.state === 'requesting' || enrichment.state === 'polling'
   const related = 'signals' in profile ? profile.signals : []
   const markets = 'markets' in profile ? profile.markets : []
   const available = [...new Set([
+    ...(profile.contacts_locked ? profile.available_contact_fields ?? [] : []),
     ...(directory?.fields_locked ? directory.available_fields ?? [] : []),
     ...(!profile.capabilities.can_view_company_data && 'available_fields' in profile ? profile.available_fields ?? [] : []),
   ])].filter((field) => ['phone', 'email', 'website', 'workforce', 'directors'].includes(field))
@@ -103,11 +103,9 @@ function LoadedCompanyDossier({ profile, addressedKey, onClose, onUpgrade }: {
           {onUpgrade ? <button className={styles.soft} onClick={() => onUpgrade(addressedKey)}><LockKeyhole aria-hidden="true" />{fr ? 'Débloquer la fiche' : 'Unlock company profile'}</button>
             : <Link className={styles.soft} to="/app/billing"><LockKeyhole aria-hidden="true" />{fr ? 'Débloquer la fiche' : 'Unlock company profile'}</Link>}
         </div>}
+        {profile.capabilities.can_view_company_data && !profile.contacts_locked && <PublicContactFacts contacts={profile.public_contacts ?? []} />}
         {publicData && <>
-          <ContactFacts email={directory?.published_email} phone={directory?.phone ?? lookup?.organization?.phone} website={directory?.website_url ?? lookup?.organization?.website_url ?? ('official_identity' in profile ? profile.official_identity.website_url : null)}
-            emailSource={observedSource(emailSource ? <a href={emailSource} target="_blank" rel="noopener noreferrer">{fr ? 'Publié sur le site de l’entreprise' : 'Published on the company website'}</a> : null, directory?.published_email_observed_at)}
-            phoneSource={observedSource(directory?.phone ? sourceLabel(directory.phone_source) : lookup?.organization?.phone ? 'Apollo' : null, directory?.phone_observed_at)}
-            websiteSource={observedSource(directory?.website_url ? sourceLabel(directory.website_source) : lookup?.organization?.website_url ? 'Apollo' : null, directory?.website_observed_at)} />
+          <DirectoryContactFacts directory={directory} lookup={lookup} officialWebsite={'official_identity' in profile ? profile.official_identity.website_url : null} />
           {lookup?.state === 'ready' && lookup.contacts?.filter((person) => person.email_status === 'verified').map((person) => <div className={styles.guide} key={person.email}><strong>{person.name}</strong><span className={styles.caption}>{person.title}</span><ContactFacts email={person.email} source={fr ? 'Email nominatif vérifié · Apollo' : 'Verified business email · Apollo'} /></div>)}
         </>}
         <div className={styles.guide}>
@@ -120,6 +118,8 @@ function LoadedCompanyDossier({ profile, addressedKey, onClose, onUpgrade }: {
         </div>
         {lookup && <p className={styles.caption}>{number(lookup.remaining)} {fr ? 'recherches de contacts restantes ce mois-ci' : 'contact searches remaining this month'}</p>}
         {lookupBusy && <p role="status" className={styles.muted}>{fr ? 'Recherche en cours…' : 'Researching…'}</p>}
+        <CompanyEnrichmentStatus enrichment={enrichment.directoryEnrichment} />
+        {enrichment.state === 'waiting' && <button className={styles.textButton} onClick={() => void enrichment.refresh()}>{fr ? 'Actualiser le résultat' : 'Refresh result'}</button>}
         {(enrichment.state === 'timeout' || enrichment.state === 'error') && <div className={styles.error} role="status"><p>{fr ? 'Le résultat n’est pas encore confirmé. Vous pouvez actualiser sans lancer une nouvelle recherche.' : 'The result is not yet confirmed. Refresh without starting another search.'}</p><button className={styles.button} onClick={() => void enrichment.refresh()}>{fr ? 'Actualiser le résultat' : 'Refresh result'}</button></div>}
         {lookup?.state === 'no_contact' && <p className={styles.muted}>{fr ? 'Aucun contact vérifié n’a été trouvé.' : 'No verified contact was found.'}</p>}
         {lookup?.state === 'quota_exhausted' && <p className={styles.muted}>{fr ? 'Votre quota de recherches est épuisé.' : 'Your search quota is exhausted.'}</p>}
@@ -160,18 +160,6 @@ function LoadedCompanyDossier({ profile, addressedKey, onClose, onUpgrade }: {
   </DetailFrame>
 }
 
-function ContactFacts({ email, phone, website, source, emailSource, phoneSource, websiteSource }: { email?: string | null; phone?: string | null; website?: string | null; source?: ReactNode; emailSource?: ReactNode; phoneSource?: ReactNode; websiteSource?: ReactNode }) {
-  const { locale } = useI18n()
-  const validEmail = email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null
-  const validPhone = phone && /^\+?[\d\s().-]+$/.test(phone) && phone.replace(/\D/g, '').length >= 9 ? phone : null
-  const href = safeExternal(website)
-  if (!validEmail && !validPhone && !href) return null
-  return <><dl className={styles.contactFacts}>
-    {validEmail && <><dt>Email</dt><dd><a href={`mailto:${validEmail}`}>{validEmail}</a>{(emailSource || source) && <small className={styles.caption}>{emailSource ?? source}</small>}</dd></>}
-    {validPhone && <><dt>{locale === 'fr' ? 'Téléphone' : 'Phone'}</dt><dd><a href={`tel:${validPhone.replace(/[^+\d]/g, '')}`}>{validPhone}</a>{(phoneSource || source) && <small className={styles.caption}>{phoneSource ?? source}</small>}</dd></>}
-    {href && <><dt>{locale === 'fr' ? 'Site identifié' : 'Website'}</dt><dd><a href={href} target="_blank" rel="noopener noreferrer">{new URL(href).hostname} <ExternalLink aria-hidden="true" /></a>{(websiteSource || source) && <small className={styles.caption}>{websiteSource ?? source}</small>}</dd></>}
-  </dl></>
-}
 function workforceLabel(workforce: NonNullable<DirectoryCompany['workforce']>, fr: boolean) {
   const unit = fr ? 'salariés' : 'employees'
   return workforce.precision === 'range' ? workforce.minimum === null

@@ -171,7 +171,7 @@ def test_discovery_cannot_queue_directory_enrichment(prepared, monkeypatch):
     calls = []
     monkeypatch.setattr(
         routes_companies,
-        "requeue_winner_enrichments",
+        "request_enrichment",
         lambda *args, **kwargs: calls.append(kwargs) or 1,
     )
     response = client.post(f"/companies/{key}/directory-enrichment")

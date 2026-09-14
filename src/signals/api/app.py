@@ -34,6 +34,7 @@ from signals.api.routes_account_data import router as account_data_router
 from signals.api.routes_attribution import router as attribution_router
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
+from signals.api.routes_catalogue_publication import router as catalogue_publication_router
 from signals.api.routes_companies import router as companies_router
 from signals.api.routes_company_directory import router as company_directory_router
 from signals.api.routes_dashboard import router as dashboard_router
@@ -158,6 +159,7 @@ def create_app(
     app.include_router(icp_router)
     app.include_router(signals_router)
     app.include_router(company_directory_router)
+    app.include_router(catalogue_publication_router)
     app.include_router(companies_router)
     app.include_router(dashboard_router)
     app.include_router(billing_router)

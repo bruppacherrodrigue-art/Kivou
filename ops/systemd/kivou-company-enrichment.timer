@@ -1,0 +1,11 @@
+[Unit]
+Description=Kivou staging — file d'enrichissement entreprise chaque minute
+
+[Timer]
+OnBootSec=60s
+OnUnitInactiveSec=60s
+AccuracySec=5s
+Unit=kivou-company-enrichment.service
+
+[Install]
+WantedBy=timers.target

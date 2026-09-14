@@ -10,6 +10,7 @@ import { useSignalActions } from '../useSignalActions'
 import { useCompanyEnrichment } from '../useCompanyEnrichment'
 import { DetailFrame } from './DetailFrame'
 import { HolderSummary } from './HolderSummary'
+import { CompanyEnrichmentStatus } from './CompanyEnrichmentStatus'
 import { SignalContent } from './SignalContent'
 import { NotesField } from './NotesField'
 import { UpgradeDialog } from './UpgradeDialog'
@@ -28,7 +29,8 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
   const item: ProspectingSignal | null = detail && !detail.locked ? detail : null
   const holder = useProspectingResource('signal-holder', (signal) => companies.dossier(item!.company_key!, { signal }), { companyKey: item?.company_key ?? null }, !!item?.company_key, { scopeIndependent: true })
   const actions = useSignalActions(item)
-  const enrichment = useCompanyEnrichment(holder.data, { initialLookup: holder.data?.contact_lookup })
+  const enrichment = useCompanyEnrichment(holder.data, { initialLookup: holder.data?.contact_lookup, initialDirectoryEnrichment: holder.data?.directory_enrichment })
+  const holderProfile = enrichment.dossier ?? holder.data
   const lookup = enrichment.state === 'idle' ? holder.data?.contact_lookup : enrichment.lookup
   const [upgrade, setUpgrade] = useState(false)
   const status = actions.status ?? item?.status ?? 'new'
@@ -37,6 +39,8 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
   const action = (next: 'new' | 'saved' | 'ignored' | 'contacted') => { void actions.setStatus(next).catch(() => {}) }
   const busy = enrichment.state === 'requesting' || enrichment.state === 'polling'
   const enrichFeedback = <>
+    <CompanyEnrichmentStatus enrichment={enrichment.directoryEnrichment} />
+    {enrichment.state === 'waiting' && <button className={styles.textButton} onClick={() => void enrichment.refresh()}>{fr ? 'Actualiser le résultat' : 'Refresh result'}</button>}
     {busy && <p className={styles.caption} role="status">{fr ? 'Recherche en cours…' : 'Research in progress…'}</p>}
     {(enrichment.state === 'timeout' || enrichment.state === 'error') && <p className={styles.error} role="alert">{fr ? 'La recherche prend plus de temps que prévu.' : 'The search is taking longer than expected.'} <button className={styles.textButton} onClick={() => void enrichment.refresh()}>{fr ? 'Vérifier le résultat' : 'Check result'}</button></p>}
     {lookup?.state === 'quota_exhausted' && <p className={styles.caption}>{fr ? 'Vos recherches sont utilisées pour cette période.' : 'Your searches have been used for this period.'}{lookup.next_reset_at && <> {fr ? 'Renouvellement le' : 'Renews on'} {date(lookup.next_reset_at)}</>}</p>}
@@ -53,11 +57,14 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
     {resource.error != null && <div className={styles.error} role="alert"><p>{fr ? 'Ce signal ne peut pas être ouvert pour le moment.' : 'This signal cannot be opened right now.'}</p><button className={styles.button} onClick={resource.reload}>{fr ? 'Réessayer' : 'Retry'}</button></div>}
     {detail?.locked && <section className={styles.empty}><h2>{fr ? 'Un marché pour votre prospection' : 'A contract for your prospecting'}</h2><p>{detail.headline}</p><button onClick={() => setUpgrade(true)} className={styles.primary}>{fr ? 'Voir mes possibilités d’accès' : 'View access options'}</button></section>}
     {item && <SignalContent item={item} holder={<HolderSummary name={item.company.name ?? (fr ? 'Titulaire du marché' : 'Contract holder')} href={companyHref}
-      directory={holder.data?.directory} loading={holder.loading && !!item.company_key} contacts={item.notice_facts?.contacts}
-      lockedFields={[...(item.notice_facts?.contacts_locked ? item.notice_facts.available_contact_fields : []), ...(holder.data && 'available_fields' in holder.data ? holder.data.available_fields ?? [] : [])]} lookup={lookup}
+      directory={holderProfile?.directory} loading={holder.loading && !!item.company_key} contacts={[
+        ...(item.notice_facts?.contacts_locked ? [] : item.notice_facts?.contacts ?? []),
+        ...(holderProfile?.capabilities.can_view_company_data && !holderProfile.contacts_locked ? holderProfile.public_contacts ?? [] : []),
+      ]}
+      lockedFields={[...(item.notice_facts?.contacts_locked ? item.notice_facts.available_contact_fields : []), ...(holderProfile?.contacts_locked ? holderProfile.available_contact_fields ?? [] : []), ...(!holderProfile?.capabilities.can_view_company_data && holderProfile && 'available_fields' in holderProfile ? holderProfile.available_fields ?? [] : [])]} lookup={lookup}
       onOpenCompany={companyHref ? () => navigate(companyHref) : undefined} onUpgrade={() => setUpgrade(true)}
-      onLookup={holder.data?.capabilities.can_lookup_contact ? () => { void enrichment.startLookup().catch(() => {}) } : undefined}
-      onEnrich={holder.data?.capabilities.can_enrich_company ? () => { void enrichment.startEnrichment().catch(() => {}) } : undefined} pending={busy} feedback={enrichFeedback} />}
+      onLookup={holderProfile?.capabilities.can_lookup_contact ? () => { void enrichment.startLookup().catch(() => {}) } : undefined}
+      onEnrich={holderProfile?.capabilities.can_enrich_company ? () => { void enrichment.startEnrichment().catch(() => {}) } : undefined} pending={busy} feedback={enrichFeedback} />}
       notes={<NotesField store={p.noteStore} identity={{ accountId: p.accountId, kind: 'signal', entityId: item.signal_id }} />} />}
     {actions.error != null && <p className={styles.error} role="alert">{actions.conflict ? (fr ? 'Le statut a changé dans une autre fenêtre.' : 'The status changed in another window.') : (fr ? 'Le statut n’a pas pu être enregistré.' : 'The status could not be saved.')} <button className={styles.textButton} onClick={actions.reload}>{fr ? 'Actualiser' : 'Refresh'}</button></p>}
     {upgrade && <UpgradeDialog onClose={() => setUpgrade(false)} intent={{ kind: 'signal', signalKey, ...(artifact ? { artifactId: artifact } : {}) }} />}

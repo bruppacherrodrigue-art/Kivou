@@ -21,6 +21,7 @@ from signals.billing.access import FeedAccess, feed_access
 from signals.card_intelligence.store import published_for_signals
 from signals.client_value import user_contacts
 from signals.client_value.capabilities import company_capabilities, project_directory
+from signals.client_value.company_contacts import company_public_contacts
 from signals.client_value.company_identity import (
     exact_french_siren,
     register_alias,
@@ -43,17 +44,20 @@ from signals.client_value.prospecting import company_membership, follow_company
 from signals.companies.contracts import (
     CompanyContactLookupView,
     CompanyCoverage,
+    CompanyDirectoryEnrichmentResponse,
     CompanyProfile,
     DirectoryCompanyProfileView,
 )
-from signals.companies.enrichment import (
-    requeue_winner_enrichments,
-    winner_enrichments_for_signals,
-)
+from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
 from signals.companies.schema import saas_company
 from signals.companies.service import company_profile_with_items
 from signals.companies.store import get_company_by_key
+from signals.company_research.company_requests import (
+    CompanyEnrichmentQueueFull,
+    enrichment_view,
+    request_enrichment,
+)
 from signals.engagement import analytics, feedback, notes
 from signals.engagement import company as company_engagement
 from signals.engagement.prospecting_schema import (
@@ -128,6 +132,14 @@ def _private_context(connection, *, subject, account_id, access, request):
         connection, account_id=account_id, company_key=private_key
     )
     return {
+        "directory_enrichment": (
+            enrichment_view(
+                connection,
+                siren=_directory_siren_for_company_key(subject.canonical_company_key)
+                if subject.resolution == "resolved" else None,
+                now=request_now(request),
+            ) if access.entitlements.is_paid else {"state": "locked", "can_refresh": False}
+        ),
         "canonical_company_key": subject.canonical_company_key,
         "private_subject_key": private_key,
         "identity_resolution": subject.resolution,
@@ -145,6 +157,11 @@ def _private_context(connection, *, subject, account_id, access, request):
         "capabilities": company_capabilities(
             access.entitlements,
             lookup_available=request.app.state.company_contact_lookup_service is not None,
+            enrichment_available=(
+                request.app.state.config.company_directory_enrichment_enabled
+                and subject.resolution == "resolved"
+                and _directory_siren_for_company_key(subject.canonical_company_key) is not None
+            ),
         ),
     }
 
@@ -665,6 +682,13 @@ def get_company(company_key: str, request: Request) -> CompanyProfile | Director
             include_public_contact=True,
         )
         directory = project_directory(directory, entitlements=access.entitlements)
+        public_contacts = company_public_contacts(
+            connection, company_key=company_key, entitlements=access.entitlements,
+            identifiers=profile.official_identity.identifiers,
+            award_keys={key for item in items for key in (
+                item.signal.materialization_award_key, item.display.from_award_key,
+            )},
+        )
         subject = _subject(
             connection,
             account_id=session.account_id,
@@ -692,6 +716,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile | Director
             )
         account_id = session.account_id
     update = {
+        **public_contacts,
         "city": place.get("locality"),
         "contact_status": contact.status if contact is not None else "to_contact",
         "contacted_at": contact.contacted_at if contact is not None else None,
@@ -753,6 +778,9 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
             raise api_error(404, "company_not_found", "entreprise introuvable")
         company_key = f"cmp_directory_{siren}"
         directory = project_directory(directory, entitlements=access.entitlements)
+        public_contacts = company_public_contacts(
+            connection, company_key=company_key, entitlements=access.entitlements,
+        )
         subject = _subject(
             connection, account_id=session.account_id, company_key=company_key, now=now
         )
@@ -784,6 +812,7 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
         )
         account_id = session.account_id
     result: dict[str, Any] = {
+        **public_contacts,
         "company_key": company_key,
         "plan_code": access.plan_code,
         "directory": directory,
@@ -870,6 +899,8 @@ def set_company_contact(
 
 @router.post(
     "/companies/{company_key}/directory-enrichment",
+    response_model=CompanyDirectoryEnrichmentResponse,
+    response_model_exclude_none=True,
 )
 def queue_company_directory_enrichment(company_key: str, request: Request) -> dict[str, Any]:
     """Queue the shared directory enrichment without calling Apollo here."""
@@ -879,46 +910,43 @@ def queue_company_directory_enrichment(company_key: str, request: Request) -> di
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         access = feed_access(connection, account_id=session.account_id, as_of=now.date())
-        _accessible_subject(connection, session, company_key, now)
+        subject = _accessible_subject(connection, session, company_key, now)
         if not access.entitlements.is_paid:
             raise api_error(
                 403, "company_enrichment_locked", "l’enrichissement nécessite une formule payante"
             )
-        directory_siren = _directory_siren_for_company_key(company_key)
-        if _has_directory_company(connection, directory_siren):
-            _require_directory_company(connection, directory_siren)
-            return {"queued": False, "state": "ready"}
-        profile, items, _access, _lang = _accessible_company(connection, session, company_key, now)
-        siren = _siren_for_profile(profile)
-        if (
-            siren is not None
-            and directory_company(
-                connection,
-                siren=siren,
-                legal_name=profile.official_identity.name,
-                department=None,
-                include_public_contact=False,
+        if not request.app.state.config.company_directory_enrichment_enabled:
+            raise api_error(
+                503, "company_enrichment_unavailable",
+                "l’enrichissement entreprise est temporairement indisponible",
             )
-            is not None
-        ):
-            return {"queued": False, "state": "ready"}
-        queued = requeue_winner_enrichments(
-            connection,
-            signal_keys=tuple(item.signal.signal_key for item in items),
-            now=now,
+        siren = (
+            _directory_siren_for_company_key(subject.canonical_company_key)
+            if subject.resolution == "resolved" else None
         )
+        if siren is None:
+            raise api_error(
+                409, "company_enrichment_identity_unavailable",
+                "un SIREN exact est nécessaire pour enrichir cette entreprise",
+            )
+        try:
+            result = request_enrichment(
+                connection, siren=siren, now=now, account_id=session.account_id,
+            )
+        except CompanyEnrichmentQueueFull as error:
+            raise api_error(
+                429, "company_enrichment_busy",
+                "des recherches sont déjà en attente, réessayez après leur traitement",
+            ) from error
         logger.info(
             "company_directory_enrichment_queued",
             extra={
                 "account_id": session.account_id,
                 "company_key": company_key,
-                "queued_signal_count": queued,
+                "queued": result["queued"],
             },
         )
-    return {
-        "queued": queued > 0,
-        "state": "queued" if queued > 0 else "already_queued",
-    }
+    return result
 
 
 @router.post(

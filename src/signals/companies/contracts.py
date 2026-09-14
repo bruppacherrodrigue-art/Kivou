@@ -85,6 +85,28 @@ class CompanyOfficialIdentifier(CompanyContract):
     value: ShortText
 
 
+class CompanyPublicContact(CompanyContract):
+    organization_name: ShortText
+    organization_ref: ShortText
+    identifiers: tuple[CompanyOfficialIdentifier, ...] = Field(default=(), max_length=16)
+    source: Literal["boamp"] = "boamp"
+    source_notice_id: ShortText
+    source_url: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    observed_at: dt.datetime
+    email: EmailStr | None = Field(default=None, exclude_if=lambda value: value is None)
+    phone: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+    website: Annotated[str, StringConstraints(max_length=2_048)] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    contact_name: ShortText | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    _safe_source = field_validator("source_url")(safe_https_url)
+    _safe_website = field_validator("website")(safe_https_url)
+    _aware_observation = field_validator("observed_at")(aware_datetime)
+
+
 class CompanyOfficialIdentity(CompanyContract):
     name: ShortText
     country: CountryCode | None = None
@@ -271,6 +293,28 @@ class CompanyMembershipView(CompanyContract):
     origin: str | None = None
 
 
+class CompanyDirectoryEnrichmentView(CompanyContract):
+    state: Literal[
+        "locked", "identity_unavailable", "available", "queued", "running",
+        "ready", "partial", "failed", "budget_wait",
+    ]
+    can_refresh: bool
+    job_id: ShortText | None = None
+    requested_at: dt.datetime | None = None
+    started_at: dt.datetime | None = None
+    finished_at: dt.datetime | None = None
+    observed_at: dt.datetime | None = None
+    retry_after: dt.datetime | None = None
+    missing_fields: tuple[Literal["website", "phone", "email"], ...] = ()
+    stale_fields: tuple[Literal["website", "phone", "email"], ...] = ()
+    added_fields: tuple[Literal["website", "phone", "email"], ...] = ()
+    outcome: Literal["enriched", "no_change"] | None = None
+
+
+class CompanyDirectoryEnrichmentResponse(CompanyDirectoryEnrichmentView):
+    queued: bool
+
+
 class PrivateCompanyContext(CompanyContract):
     canonical_company_key: CompanyKey | None = None
     private_subject_key: CompanyKey | None = None
@@ -280,6 +324,7 @@ class PrivateCompanyContext(CompanyContract):
     manual_contact: PersonalContactView = Field(default_factory=PersonalContactView)
     membership: CompanyMembershipView = Field(default_factory=CompanyMembershipView)
     capabilities: CompanyCapabilities = Field(default_factory=CompanyCapabilities)
+    directory_enrichment: CompanyDirectoryEnrichmentView | None = None
 
 
 class DirectoryCompanyView(CompanyContract):
@@ -406,6 +451,9 @@ class DirectoryPublicMarketView(CompanyContract):
 
 class DirectoryCompanyProfileView(PrivateCompanyContext):
     company_key: CompanyKey
+    public_contacts: tuple[CompanyPublicContact, ...] = Field(default=(), max_length=100)
+    available_contact_fields: tuple[Literal["phone", "email", "website"], ...] = ()
+    contacts_locked: bool = True
     plan_code: Literal["discovery", "essential", "pro"]
     directory: DirectoryCompanyView
     market_summary: CompanyMarketSummaryView | None = Field(
@@ -425,6 +473,9 @@ class DirectoryCompanyProfileView(PrivateCompanyContext):
 
 class CompanyProfile(PrivateCompanyContext):
     company_key: CompanyKey
+    public_contacts: tuple[CompanyPublicContact, ...] = Field(default=(), max_length=100)
+    available_contact_fields: tuple[Literal["phone", "email", "website"], ...] = ()
+    contacts_locked: bool = True
     city: ShortText | None = None
     official_identity: CompanyOfficialIdentity
     related_signals: tuple[CompanyRelatedSignal, ...] = Field(

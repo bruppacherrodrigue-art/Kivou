@@ -1590,6 +1590,36 @@ sudo systemctl stop kivou-winner-enrichment.service
 Le backfill récent n'utilise jamais ce watermark implicitement : il est lancé
 séparément sur une liste figée, après projection de coût et go opérateur.
 
+## Enrichissement entreprise demandé par un client
+
+Les unités `kivou-company-enrichment.service` et `.timer` consomment uniquement
+la file durable `company_directory_enrichment_job`. Elles exécutent le même
+worker avec `--requests-only --limit 5`, sans sélectionner de signaux automatiques
+ni contourner le watermark du worker des nouveaux titulaires. Le timer vérifie
+la file 60 secondes après la fin du passage précédent. Les verrous sont partagés
+avec le worker des nouveaux titulaires : une demande peut attendre la fin d'un
+lot déjà en cours, et l'interface continue alors d'afficher son état en attente.
+
+`KIVOU_COMPANY_DIRECTORY_ENRICHMENT_ENABLED` vaut `false` par défaut. Activer ce
+drapeau sur l'API seulement après installation et vérification du service, du
+timer, du navigateur Playwright déployé et des fournisseurs Serper/OpenRouter.
+Sans ce drapeau, le bouton est absent et le POST retourne 503 sans créer de job.
+Un retour arrière remet ce drapeau à `false` et arrête le timer ; il conserve la
+base et les demandes existantes. La migration 0062 refuse de supprimer la file.
+
+L'admission est atomique : au plus cinq demandes simultanées initiées par compte
+et cent demandes globalement en attente. Un même SIREN partage une demande entre
+ses alias et les comptes ; consulter une demande existante n'occupe pas de place
+supplémentaire. Une recherche terminée sans complément peut être relancée après
+une heure. Ces bornes techniques ne modifient ni les formules, ni le quota mensuel
+de recherche d'un décideur, ni les plafonds modèles configurés.
+
+Les appels réutilisent les routes budgétées `enrichment_judge` et
+`enrichment_arbiter`. L'épuisement d'un plafond suspend la demande jusqu'au
+prochain jour Europe/Zurich. Aucun contact Apollo n'est recherché par ce worker.
+Les données connues restent disponibles lorsqu'une nouvelle passe n'ajoute rien ;
+les liaisons Apollo ne sont invalidées que si l'identité de domaine change.
+
 ## Compte de recette client payant
 
 Le compte Essential ancien de trois mois est reconstruit de façon idempotente

@@ -4,14 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import EmailStr, TypeAdapter, ValidationError
-
 from signals.billing.catalogue import PlanEntitlements
-from signals.client_value.capabilities import usable_phone
+from signals.client_value.company_contacts import notice_contacts
 from signals.client_value.notice_facts import NoticeAwardFacts
-from signals.companies.contracts import safe_https_url
-
-_EMAIL = TypeAdapter(EmailStr)
 
 
 def _text(fact) -> str | None:
@@ -38,43 +33,12 @@ def _money(fact):
 
 
 def project_notice_facts(
-    facts: NoticeAwardFacts, *, entitlements: PlanEntitlements
+    facts: NoticeAwardFacts,
+    *,
+    entitlements: PlanEntitlements,
+    suppressed_sirens: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
-    contacts = []
-    for party in facts.winning_parties:
-        for holder in party.members:
-            email = None
-            website = None
-            try:
-                email = str(_EMAIL.validate_python(_text(holder.email))) if holder.email else None
-            except ValidationError:
-                pass
-            try:
-                website = safe_https_url(_text(holder.website))
-            except ValueError:
-                pass
-            phone = usable_phone(_text(holder.phone))
-            if not any((phone, email, website)):
-                continue
-            contact = {
-                "organization_name": holder.name.value,
-                "organization_ref": holder.organization_ref,
-                "source": "boamp",
-                "observed_at": facts.source.collected_at.isoformat(),
-            }
-            contact.update(
-                {
-                    key: value
-                    for key, value in {
-                        "phone": phone,
-                        "email": email,
-                        "website": website,
-                        "contact_name": _text(holder.contact_name),
-                    }.items()
-                    if value
-                }
-            )
-            contacts.append(contact)
+    contacts = notice_contacts(facts, suppressed_sirens=suppressed_sirens)
     available = [
         field
         for field in ("phone", "email", "website")

@@ -1,0 +1,22 @@
+[Unit]
+Description=Kivou production — expiration bornée des archives BOAMP
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+ExecStart=/srv/kivou/app/.venv/bin/python -m signals.client_value.notice_retention --execute --limit 1000
+TimeoutStartSec=5min
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
