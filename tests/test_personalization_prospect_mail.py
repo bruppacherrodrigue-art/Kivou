@@ -9,6 +9,7 @@ from signals.personalization.prospect_mail import (
     is_prospect_relevance_sentence,
     load_prospect_mail_catalog,
     prospect_relevance_sentence,
+    prospect_relevance_sentence_from_mail,
     render_prospect_mail,
     validate_prospect_mail,
 )
@@ -215,6 +216,10 @@ def test_v2_contract_uses_civility_normalized_company_and_required_copy() -> Non
     assert "https://www.boamp.fr/avis/26A0076" not in mail.text
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
+    assert prospect_relevance_sentence_from_mail(mail.text) == (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Saint-Étienne, à 58 km du chantier."
+    )
 
 
 def test_v2_unknown_civility_uses_plain_greeting() -> None:

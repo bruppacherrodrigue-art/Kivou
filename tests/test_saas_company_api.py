@@ -377,11 +377,18 @@ def test_holder_name_uses_the_mail_normalizer_across_customer_surfaces(app, engi
 
     detail = client.get(f"/signals/{signal_key}").json()
     companies = client.get("/companies").json()["items"]
+    abbreviated_search = client.get("/companies", params={"q": "CMCD"}).json()["items"]
+    legal_name_search = client.get(
+        "/companies",
+        params={"q": "CONSTRUCTION DE MAISONS ET CHARPENTES DU DAUPHINE"},
+    ).json()["items"]
     profile = client.get(f"/companies/{company_key}").json()
 
     assert detail["company"]["name"] == "CMCD"
     assert detail["winner_enrichment"]["official_name"] == "CMCD"
     assert companies[0]["name"] == "CMCD"
+    assert [row["name"] for row in abbreviated_search] == ["CMCD"]
+    assert [row["name"] for row in legal_name_search] == ["CMCD"]
     assert profile["official_identity"]["name"] == "CMCD"
     assert profile["signals"][0]["company"]["name"] == "CMCD"
 

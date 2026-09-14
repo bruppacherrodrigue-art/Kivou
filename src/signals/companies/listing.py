@@ -479,6 +479,7 @@ def list_companies(
         accumulators.setdefault(key, _Accumulator())
 
     identities: dict[str, sa.Row] = {}
+    raw_search_names: dict[str, set[str]] = {}
     if accumulators:
         rows = connection.execute(
             sa.select(
@@ -491,7 +492,10 @@ def list_companies(
                 )
             )
         ).all()
-        identities = {subject(row.company_key): row for row in rows}
+        for row in rows:
+            company_subject = subject(row.company_key)
+            identities[company_subject] = row
+            raw_search_names.setdefault(company_subject, set()).add(row.official_name)
     directory = (
         {
             f"cmp_directory_{row.siren}": row
@@ -514,6 +518,8 @@ def list_companies(
         if accumulators
         else {}
     )
+    for company_key, directory_identity in directory.items():
+        raw_search_names.setdefault(company_key, set()).add(directory_identity.legal_name)
 
     contacts = {}
     stored_contacts = contacts_by_company(connection, account_id=account_id)
@@ -554,7 +560,15 @@ def list_companies(
 
     if query:
         needle = normalize_text(query)
-        rows = [row for row in rows if needle in normalize_text(row.name)]
+        rows = [
+            row
+            for row in rows
+            if needle in normalize_text(row.name)
+            or any(
+                needle in normalize_text(raw_name)
+                for raw_name in raw_search_names.get(row.company_key, ())
+            )
+        ]
     if contacted_before is not None:
         rows = [
             row

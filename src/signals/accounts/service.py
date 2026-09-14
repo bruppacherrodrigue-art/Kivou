@@ -820,6 +820,7 @@ class LandingSignal:
     #: `landed_account_in_transaction` de reconnaître un rejeu du même jeton.
     opportunity_key: str | None
     signal_key: str | None
+    token_fingerprint: str | None
     created_at: dt.datetime
 
 
@@ -902,12 +903,14 @@ def record_landing_signal(
                 created_at=now,
             )
         )
-        return LandingSignal(account_id, opportunity_key, signal_key, now)
+        return LandingSignal(account_id, opportunity_key, signal_key, token_fingerprint, now)
     updates: dict[str, object] = {}
     if signal_key is not None and row.signal_key != signal_key:
         updates["signal_key"] = signal_key
     if qa and not row.qa:
         updates["qa"] = True
+    if token_fingerprint is not None and row.token_fingerprint is None:
+        updates["token_fingerprint"] = token_fingerprint
     if updates:
         connection.execute(
             sa.update(account_landing_signal)
@@ -918,10 +921,15 @@ def record_landing_signal(
             account_id,
             row.opportunity_key,
             signal_key or row.signal_key,
+            row.token_fingerprint or token_fingerprint,
             _aware(row.created_at),
         )
     return LandingSignal(
-        account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+        account_id,
+        row.opportunity_key,
+        row.signal_key,
+        row.token_fingerprint,
+        _aware(row.created_at),
     )
 
 
@@ -960,7 +968,11 @@ def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSign
     if row is None:
         return None
     return LandingSignal(
-        row.account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+        row.account_id,
+        row.opportunity_key,
+        row.signal_key,
+        row.token_fingerprint,
+        _aware(row.created_at),
     )
 
 

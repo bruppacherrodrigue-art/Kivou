@@ -275,6 +275,16 @@ def is_prospect_relevance_sentence(value: object) -> bool:
     )
 
 
+def prospect_relevance_sentence_from_mail(value: object) -> str | None:
+    """Read back the exact reviewed family sentence that was sent in a mail."""
+
+    for paragraph in re.split(r"\n\s*\n", str(value or "")):
+        sentence = " ".join(paragraph.split())
+        if is_prospect_relevance_sentence(sentence):
+            return sentence
+    return None
+
+
 def _amount(minor_units: int, currency: str) -> str:
     major = Decimal(minor_units) / Decimal(100)
     suffix = "€" if currency.casefold() == "eur" else currency.upper()
@@ -505,6 +515,7 @@ __all__ = [
     "normalize_director_name",
     "normalize_holder_name",
     "prospect_relevance_sentence",
+    "prospect_relevance_sentence_from_mail",
     "render_prospect_mail",
     "validate_prospect_mail",
 ]

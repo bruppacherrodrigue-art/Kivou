@@ -24,8 +24,9 @@ positionnement, des assemblages de catégories et des références techniques.
 - Le renderer de mail expose une fonction pure unique pour la phrase famille :
   fait général relu dans le catalogue, puis « et vous êtes {métier} à
   {ville} ».
-- Le mail appelle cette fonction ; l'atterrissage assisté l'appelle avec les
-  mêmes champs de `prospect_target` et fige le résultat sur le signal promis.
+- Le mail appelle cette fonction ; l'atterrissage retrouve la phrase exacte
+  déjà enregistrée dans `prospect_target.mail_text` par l'empreinte du jeton.
+  Cette liaison survit aux rematérialisations techniques du signal.
 - Le drawer du signal promis affiche cette phrase. En l'absence d'une phrase
   de mail fiable, il affiche uniquement le repli déterministe fondé sur les
   faits du marché.
@@ -62,7 +63,7 @@ projection client est normalisée.
 
 ## Cohorte d'atterrissage
 
-Le backend conserve la sélection stricte existante : le signal appât, puis au
+Le backend impose une sélection stricte : le signal appât, puis au
 plus deux procédures distinctes de la même famille commerciale et du même
 département. Il expose explicitement la taille attendue et la taille réellement
 matérialisée de cette cohorte.

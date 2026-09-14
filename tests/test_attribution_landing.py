@@ -32,6 +32,7 @@ from signals.conversion import qa_token
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement.schema import product_event
+from signals.ingestion.backfill import materialize_landing_opportunity_in_transaction
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_conversion_journey,
@@ -125,6 +126,62 @@ def family_bait_token(engine, service, token):
             connection, token.payload.member_ref
         )
     return service.keyring.issue(payload)
+
+
+def seed_landing_neighbours(
+    engine, neighbours: tuple[tuple[str, str, str, int], ...]
+) -> None:
+    """Persist candidate procedures beside the shared landing bait."""
+
+    with engine.begin() as connection:
+        source = dict(connection.execute(sa.select(source_event)).mappings().one())
+        award = dict(connection.execute(sa.select(contract_award)).mappings().one())
+        for suffix, title, cpv, age in neighbours:
+            event_key = f"manual:landing-neighbour-{suffix}:"
+            event = {
+                **source,
+                "event_key": event_key,
+                "source_system": "manual",
+                "source_notice_id": f"landing-neighbour-{suffix}",
+                "source_procedure_id": f"landing-procedure-{suffix}",
+                "published_at_raw": CLICKED_AT.date().isoformat(),
+                "published_on": CLICKED_AT.date(),
+            }
+            connection.execute(sa.insert(source_event).values(**event))
+            award_key = f"landing-award-{suffix}"
+            candidate = {
+                **award,
+                "award_key": award_key,
+                "event_key": event_key,
+                "title": title,
+                "cpv_main": cpv,
+                "award_date": CLICKED_AT.date() - dt.timedelta(days=age),
+                "awardee_parties": [
+                    {
+                        "name": f"Titulaire {suffix}",
+                        "members": [
+                            {
+                                "organization": {
+                                    "legal_name": f"Titulaire {suffix}",
+                                    "identifiers": [],
+                                    "country": "FR",
+                                    "address": None,
+                                    "website": None,
+                                },
+                                "role": "sole",
+                            }
+                        ],
+                    }
+                ],
+            }
+            connection.execute(sa.insert(contract_award).values(**candidate))
+            connection.execute(
+                sa.insert(opportunity_representation).values(
+                    award_key=award_key,
+                    opportunity_key=f"landing-opportunity-{suffix}",
+                    created_at=CLICKED_AT,
+                )
+            )
 
 
 def test_landing_opens_the_promised_signal_with_a_provisional_profile(tmp_path) -> None:
@@ -352,6 +409,43 @@ def test_assisted_landing_freezes_the_exact_mail_relevance_sentence(tmp_path) ->
     assert drawer.status_code == 200
     assert drawer.json()["commercial_context"]["reason"] == expected
 
+    # A later ingestion revision creates a new ordinary `for_you_sentence`.
+    # The mail promise must survive independently from that mutable revision.
+    with engine.begin() as connection:
+        account_id = only_account_id(engine)
+        profile_id = accounts.list_target_icps(
+            connection, account_id=account_id
+        )[0].target_icp_id
+        bait_awards = sa.select(opportunity_representation.c.award_key).where(
+            opportunity_representation.c.opportunity_key == token.payload.opportunity_key
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key.in_(bait_awards))
+            .values(description="Version publique enrichie après l'envoi du mail")
+        )
+        rematerialized_key = materialize_landing_opportunity_in_transaction(
+            connection,
+            target_icp_id=profile_id,
+            opportunity_key=token.payload.opportunity_key,
+            as_of=CLICKED_AT.date(),
+            materialized_at=CLICKED_AT + dt.timedelta(minutes=5),
+        )
+        current_fingerprint = connection.scalar(
+            sa.select(materialized_signal.c.content_fingerprint).where(
+                materialized_signal.c.signal_key == signal_key
+            )
+        )
+        current_sentence = connection.scalar(
+            sa.select(for_you_sentence.c.sentence).where(
+                for_you_sentence.c.signal_key == signal_key,
+                for_you_sentence.c.signal_fingerprint == current_fingerprint,
+            )
+        )
+    assert rematerialized_key == signal_key
+    assert current_sentence != expected
+    assert client.get(f"/signals/{signal_key}").json()["commercial_context"]["reason"] == expected
+
 
 def test_kat1_replay_repairs_a_legacy_generic_provisional_profile(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
@@ -390,60 +484,15 @@ def test_kat1_replay_repairs_a_legacy_generic_provisional_profile(tmp_path) -> N
 def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     token = family_bait_token(engine, service, token)
-    with engine.begin() as connection:
-        source = dict(connection.execute(sa.select(source_event)).mappings().one())
-        award = dict(connection.execute(sa.select(contract_award)).mappings().one())
-        neighbours = (
+    seed_landing_neighbours(
+        engine,
+        (
             ("sanitation", "Travaux d'assainissement et d'eau potable", "45231110", 1),
             ("roofing", "Réfection de la couverture et de la zinguerie", "45261210", 2),
-            ("insulation", "Travaux d'isolation thermique", "45320000", 3),
-        )
-        for suffix, title, cpv, age in neighbours:
-            event_key = f"manual:landing-neighbour-{suffix}:"
-            event = {
-                **source,
-                "event_key": event_key,
-                "source_system": "manual",
-                "source_notice_id": f"landing-neighbour-{suffix}",
-                "source_procedure_id": f"landing-procedure-{suffix}",
-                "published_at_raw": CLICKED_AT.date().isoformat(),
-                "published_on": CLICKED_AT.date(),
-            }
-            connection.execute(sa.insert(source_event).values(**event))
-            award_key = f"landing-award-{suffix}"
-            candidate = {
-                **award,
-                "award_key": award_key,
-                "event_key": event_key,
-                "title": title,
-                "cpv_main": cpv,
-                "award_date": CLICKED_AT.date() - dt.timedelta(days=age),
-                "awardee_parties": [
-                    {
-                        "name": f"Titulaire {suffix}",
-                        "members": [
-                            {
-                                "organization": {
-                                    "legal_name": f"Titulaire {suffix}",
-                                    "identifiers": [],
-                                    "country": "FR",
-                                    "address": None,
-                                    "website": None,
-                                },
-                                "role": "sole",
-                            }
-                        ],
-                    }
-                ],
-            }
-            connection.execute(sa.insert(contract_award).values(**candidate))
-            connection.execute(
-                sa.insert(opportunity_representation).values(
-                    award_key=award_key,
-                    opportunity_key=f"landing-opportunity-{suffix}",
-                    created_at=CLICKED_AT,
-                )
-            )
+            ("timber-one", "Réfection de la charpente bois de l'école", "45261100", 3),
+            ("timber-two", "Construction d'une ossature bois", "45261100", 4),
+        ),
+    )
     client = client_for(engine, service, now=CLICKED_AT)
 
     response = land(client, token.raw_token)
@@ -483,9 +532,84 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         )
     assert active_titles == {
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
-        "Réfection de la couverture et de la zinguerie",
-        "Travaux d'isolation thermique",
+        "Réfection de la charpente bois de l'école",
+        "Construction d'une ossature bois",
     }
+
+
+def test_landing_cohort_keeps_one_exact_neighbour_and_reports_the_shortfall(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("roofing-only", "Réfection complète de la couverture", "45261210", 1),
+            ("timber-only", "Réfection de la charpente bois", "45261100", 2),
+        ),
+    )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert len(body["items"]) == 2
+    assert body["landing_cohort"] == {
+        "signal_id": response.headers["location"].removeprefix("/app/signals/"),
+        "expected": 3,
+        "materialized": 2,
+    }
+    account_id = only_account_id(engine)
+    with engine.connect() as connection:
+        profile_id = accounts.list_target_icps(
+            connection, account_id=account_id
+        )[0].target_icp_id
+        active_titles = set(
+            connection.execute(
+                sa.select(contract_award.c.title)
+                .select_from(
+                    materialized_signal.join(
+                        contract_award,
+                        materialized_signal.c.materialization_award_key
+                        == contract_award.c.award_key,
+                    )
+                )
+                .where(
+                    materialized_signal.c.target_icp_id == profile_id,
+                    materialized_signal.c.invalidated_at.is_(None),
+                )
+            ).scalars()
+        )
+    assert active_titles == {
+        "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
+        "Réfection de la charpente bois",
+    }
+
+
+def test_landing_without_a_known_department_does_not_invent_neighbours(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, service, token)
+    with engine.begin() as connection:
+        bait_awards = sa.select(opportunity_representation.c.award_key).where(
+            opportunity_representation.c.opportunity_key == token.payload.opportunity_key
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key.in_(bait_awards))
+            .values(place_of_performance=None)
+        )
+    seed_landing_neighbours(
+        engine,
+        (("timber-zoned", "Réfection de la charpente bois", "45261100", 1),),
+    )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert len(body["items"]) == 1
+    assert body["landing_cohort"]["materialized"] == 1
 
 
 def test_a_replayed_link_returns_to_the_same_account_without_duplicating_it(tmp_path) -> None:

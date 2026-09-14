@@ -53,7 +53,10 @@ from signals.persistence.schema import (
     prospect_target,
 )
 from signals.personalization.for_you import client_safe_sentence
-from signals.personalization.prospect_mail import prospect_relevance_sentence
+from signals.personalization.prospect_mail import (
+    prospect_relevance_sentence,
+    prospect_relevance_sentence_from_mail,
+)
 from signals.supplier_discovery.families import load_supplier_family_catalog
 from signals.supplier_discovery.seed import (
     AcquisitionSeedNotFound,
@@ -163,6 +166,7 @@ def _mail_relevance_sentence(connection, *, member_ref: str) -> str | None:
                 prospect_target.c.family_key,
                 prospect_target.c.company_city,
                 prospect_target.c.signal_department,
+                prospect_target.c.mail_text,
             ).where(prospect_target.c.attribution_member_ref == member_ref)
         )
         .mappings()
@@ -170,6 +174,9 @@ def _mail_relevance_sentence(connection, *, member_ref: str) -> str | None:
     )
     if target is None:
         return None
+    sent = prospect_relevance_sentence_from_mail(target["mail_text"])
+    if sent is not None:
+        return sent
     try:
         return prospect_relevance_sentence(
             family_key=target["family_key"],
@@ -429,6 +436,7 @@ def _land(
             connection,
             target_icp_id=profiles[0].target_icp_id,
             opportunity_key=context.opportunity_key,
+            family_key=context.need_ref,
             as_of=now.date(),
             materialized_at=now,
         )

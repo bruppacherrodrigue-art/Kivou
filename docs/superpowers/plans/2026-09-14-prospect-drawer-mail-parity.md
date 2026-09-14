@@ -5,11 +5,12 @@
 > customer surface, and render an honest three-slot landing cohort.
 
 **Architecture:** Keep source facts untouched. Reuse the mail's pure family
-sentence renderer at landing time, freeze that sentence in the existing
-`for_you_sentence` record, and make the drawer choose only that trusted mail
-sentence or the deterministic factual fallback. Normalize company names only
-at customer-facing projection boundaries. Expose explicit landing-cohort
-metadata so React never guesses whether inventory is missing.
+sentence renderer and resolve the exact sent paragraph through the landing
+token fingerprint, independently from mutable signal revisions. Make the
+drawer choose only that trusted mail sentence or the deterministic factual
+fallback. Normalize company names only at customer-facing projection
+boundaries while retaining raw names for search. Expose explicit
+landing-cohort metadata so React never guesses whether inventory is missing.
 
 **Stack:** Python 3.12, FastAPI, SQLAlchemy Core, React 19, TypeScript, Vitest,
 Testing Library, Playwright CLI.
@@ -68,18 +69,18 @@ In `prospect_mail.py`, extract the current `family_sentence` construction into
 Keep normal case and optional distance behavior in this single function.
 
 In `routes_attribution.py`, resolve `prospect_target` first by
-`attribution_member_ref`, call the same renderer with its stored family and
-company location, and freeze the result in the promised signal's existing
-`for_you_sentence` row. Do not reuse the legacy acquisition artifact's generic
-`for_you_sentence`; if no current mail context exists, leave the drawer to its
-factual fallback.
+`attribution_member_ref` and recover the exact paragraph already rendered in
+`mail_text`. Keep the initial `for_you_sentence` aligned, while the drawer
+resolves the durable target again through the landing token fingerprint so a
+later rematerialization cannot erase the mail promise. If no current mail
+context exists, leave the drawer to its factual fallback.
 
 ### Step 3: Remove the legacy drawer generator
 
 Delete `commercial_context.py` and its tests. In signal detail, publish a
 minimal `commercial_context.reason` selected as follows:
 
-1. the safe frozen sentence for the exact landing appât;
+1. the safe sent sentence linked to the exact landing appât;
 2. otherwise the deterministic factual fallback already built by the feed
    view.
 
