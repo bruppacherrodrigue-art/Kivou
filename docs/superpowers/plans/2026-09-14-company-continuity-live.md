@@ -51,7 +51,7 @@ client response types, focused backend and frontend tests.
   adding a new panel. Deduplicate facts and keep buyer contacts excluded.
 - [x] Test locked projections without raw values, suppression, multiple holders,
   mismatched identity, aliases and private-contact separation; run focused suites.
-- [ ] Review specification compliance, then code quality, correct findings and commit.
+- [x] Review specification compliance, then code quality, correct findings and commit.
 
 ### Task 3: Durable, bounded real company enrichment
 
@@ -72,7 +72,7 @@ queue/API/worker and React regression tests.
   reopening and keep polling separate from requesting. Handle no-change/failure.
 - [x] Test retry/lease/concurrency, historical and directory-only companies,
   budgets, close/reopen, no provider on GET, no lost contacts and no fake completion.
-- [ ] Review specification compliance then quality; commit verified changes.
+- [x] Review specification compliance then quality; commit verified changes.
 
 ### Task 4: Controlled catalogue publication and fixture isolation
 
@@ -92,7 +92,7 @@ configuration, mirror ownership metadata/migration, CLI/systemd definitions,
   demonstrate new row/count coherence with frontend tests.
 - [x] Prepare an exact-target recoverable quarantine for the 30 audited fixtures;
   independently review the manifest and backup before any live data mutation.
-- [ ] Review specification compliance then quality; commit verified changes.
+- [x] Review specification compliance then quality; commit verified changes.
 
 ### Task 5: Integrated release verification
 

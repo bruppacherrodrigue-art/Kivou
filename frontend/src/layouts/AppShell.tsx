@@ -8,10 +8,11 @@ import {
   Settings,
   Target,
 } from 'lucide-react'
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, Outlet, matchRoutes, useLocation, useNavigate } from 'react-router-dom'
 import { dashboard } from '../api/endpoints'
 import type { DashboardResponse } from '../api/types'
 import { useCurrentUser, useSession } from '../auth/SessionProvider'
+import { planFromSearch, planSearch } from '../billing/planRoute'
 import { useI18n } from '../i18n'
 import { KivouBrand } from '../presentation/dashboard/KivouBrand'
 import { ProspectingProvider, useProspecting, useProspectingResource } from '../prospecting/ProspectingProvider'
@@ -55,10 +56,19 @@ const navigation = [
   { id: 'settings', icon: Settings, href: '/settings' },
 ] as const
 
+const prospectingRoutes = ['/app', '/app/dashboard/*', '/app/signals/*', '/app/companies/*']
+  .map((path) => ({ path }))
+
 export function AppShell() {
   const me = useCurrentUser()
+  const location = useLocation()
 
   if (me.onboarding_status !== 'ready_for_signals' && !me.provisional_profile) {
+    if (matchRoutes(prospectingRoutes, location)) {
+      const search = new URLSearchParams(location.search).has('plan')
+        ? planSearch(planFromSearch(location.search)) : ''
+      return <Navigate to={`/app/confirm-profile${search}`} replace />
+    }
     return <Outlet />
   }
 

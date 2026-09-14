@@ -93,3 +93,60 @@ La production possède une clé Serper configurée ; staging n'en expose pas dan
 ses fichiers d'environnement vérifiés. Le bouton d'enrichissement reste fermé par
 défaut jusqu'au raccordement et à la vérification effective du worker. Aucun
 budget, campagne, tarif ni volume d'envoi n'a été modifié par cette livraison.
+
+## Répétitions opérateur du 14 septembre
+
+Les releases **inactives** `staging-e79e8fb…` et `production-e79e8fb…` sont
+préparées, dépendances verrouillées installées. Les liens servis restent
+respectivement sur `7f2a208…` et `543793c…`. Les opérateurs sont des outils séparés
+du produit ; leurs chemins, SHA Git, racines physiques et bases jetables sont
+vérifiés explicitement. Revue SPEC puis qualité indépendante : CLEAR.
+
+- Copy-driver : **48 tests** indépendamment relancés ; accepte le port PostgreSQL
+  omis en le normalisant à5432, sans modifier les URL déployées. Les deux
+  préflights réels ont ensuite réussi.
+- Rollback : **22 tests**, nginx local réel compris, indépendamment relancés.
+- Copie production migrée/rejouée vers `0063_catalogue_mirror` : **11 824 lignes
+  sur29 tables préservées**, export des11 comptes inchangé ; inclut876 entreprises,
+  1 839 appels modèles et8 lignes de budgets partagées.
+- L'ancien artefact production `543793c…` a ensuite été réellement servi derrière
+  le garde fermé sur cette copie, puis remplacé par le candidat. Authentification,
+  lecture facturation, note de2 000 caractères, tombstones et reprise des écritures
+  CAS validés. Les processus privés sont arrêtés, aucun fournisseur appelé.
+- Sauvegarde production retenue,1 667 553 809 octets, SHA-256
+  `5495972b9a7254d08db6cc002f85988b88e3db63e81f96827a5b5a9eddd85bf8`.
+- Sauvegarde staging retenue,3 204 872 170 octets, SHA-256
+  `1f3a6f67a75427582da13921a1f23c05dbacca186d336ca5d5b2c61adfd69b5e` ;
+  restauration et contrôles staging encore en cours à cette rédaction.
+
+Rapports et dumps privés conservés sur chaque hôte sous
+`/var/tmp/kivou-company-copy.*`. Les captures de configuration sont protégées
+dans `/srv/kivou/rollbacks/company-live-e79e8fb`. Aucune copie ni sauvegarde n'a
+encore été supprimée. Après un arrêt forcé, exiger absence de connexions et OID
+inchangé avant toute suppression de la seule base jetable créée par l'opérateur.
+
+Le catalogue production a été validé en lecture seule :876 lignes publiables,
+1 350 515 octets, aucune donnée client dans cette projection. Le backfill BOAMP
+administratif reste nécessaire après activation pour les anciens signaux : la
+sélection courante sur30 jours comporte28 avis couvrant239 matérialisations.
+Utiliser l'outil existant, un manifeste exact et un curseur, par lots de25 ; pas
+de recherche au chargement d'une fiche ni de lancement global non borné.
+
+La revue globale a aussi reproduit le crash d'un compte incomplet accédant à une
+route V11 sans `ProspectingProvider`. Le correctif ciblé ramène ces routes à la
+confirmation du profil, conserve uniquement l'intention d'abonnement valide et
+laisse facturation/réglages accessibles. Le rapprochement utilise les règles du
+routeur, y compris les chemins avec majuscules ou segments encodés. Ses51
+régressions et102 tests adjacents passent ; les revues SPEC puis qualité sont
+terminées. La vérification intégrée du nouveau candidat reste requise.
+
+La CI `34825013511` sur `e79e8fb` a validé le frontend puis a été annulée avant
+la fin des quatre shards backend. Le journal expose uniquement
+`The operation was canceled` ; aucune cause d'annulation n'est attribuée sans
+preuve. Une nouvelle CI du candidat final remplace cette preuve incomplète.
+
+Relance finale après le correctif du routeur : **819 tests frontend /75 fichiers**,
+TypeScript, ESLint, builds client et Founder réussis. Ruff global et diffcheck
+réussis. La comparaison `git diff --quiet e79e8fb -- src ops pyproject.toml uv.lock`
+confirme que le backend, ses dépendances et les migrations des répétitions sont
+inchangés ; le delta produit final est uniquement la frontière de navigation.
