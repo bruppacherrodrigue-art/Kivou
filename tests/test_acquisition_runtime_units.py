@@ -27,7 +27,7 @@ def test_acquisition_service_is_one_bounded_shadow_orchestrator() -> None:
     assert (
         "ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 "
         "/run/kivou/acquisition.lock /srv/kivou/app/.venv/bin/python -m "
-        "signals.acquisition_runtime run-once"
+        "signals.acquisition_runtime prepare-queue"
     ) in service
     assert "RuntimeDirectory=kivou" in service
     assert "TimeoutStartSec=25min" in service

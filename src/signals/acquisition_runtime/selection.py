@@ -8,7 +8,7 @@ import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
-from signals.companies.official_cache import official_holders_for_opportunities
+from signals.companies.official_cache import OfficialHolder, official_holders_for_opportunities
 from signals.companies.schema import saas_company, winner_enrichment_job
 from signals.persistence.schema import (
     acquisition_runtime_cycle,
@@ -184,12 +184,17 @@ def unresolved_dynamic_holder_signal_keys(
         return tuple(str(row.signal_key) for row in connection.execute(statement))
 
 
-def resolved_holder_name_for_opportunity(engine: Engine, opportunity_key: str) -> str | None:
+def resolved_holder_for_opportunity(
+    engine: Engine, opportunity_key: str
+) -> OfficialHolder | None:
     """Read the official holder cache without altering the public source fact."""
     with engine.connect() as connection:
-        holder = official_holders_for_opportunities(connection, (opportunity_key,)).get(
-            opportunity_key
-        )
+        return official_holders_for_opportunities(connection, (opportunity_key,)).get(opportunity_key)
+
+
+def resolved_holder_name_for_opportunity(engine: Engine, opportunity_key: str) -> str | None:
+    """Backward-compatible holder name accessor."""
+    holder = resolved_holder_for_opportunity(engine, opportunity_key)
     return None if holder is None else holder.name
 
 
@@ -380,6 +385,7 @@ def select_production_opportunity_key(
 
 __all__ = [
     "MAX_DYNAMIC_HOLDER_ENRICHMENT",
+    "resolved_holder_for_opportunity",
     "resolved_holder_name_for_opportunity",
     "select_production_opportunity_key",
     "unresolved_dynamic_holder_signal_keys",
