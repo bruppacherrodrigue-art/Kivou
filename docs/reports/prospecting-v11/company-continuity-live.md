@@ -193,3 +193,27 @@ La seule base jetable staging a été supprimée après revalidation de son OID,
 absence de connexions et empreinte de sauvegarde. La sauvegarde de 3,2 Go et les
 rapports privés restent sur l'hôte. La copie production reste conservée. Aucun
 compte, entreprise ou schéma actif n'a été supprimé.
+
+## Dernière préparation opérationnelle
+
+La production a ensuite activé `2d4aa6d239aae713d204dd864cfa24403208278c`
+indépendamment de cette livraison : backend, client et Founder sont raccordés,
+schéma réel `0059_prospect_mail_word_limit_v2`. Ce runtime est déjà conservé par
+notre fusion ; les nouveaux opérateurs acceptent ce point de départ uniquement
+avec le sélecteur explicite `--expected-source-head`. Le défaut reste 0058 et
+refuse la nouvelle tête observée sans sélection ; staging reste limité à 0060.
+Les protections SHA, racine physique, URL et tête réellement restaurée restent
+inchangées. Une nouvelle sauvegarde et répétition production sont requises.
+
+La composition du nouvel alias catalogue nginx a révélé une directive
+`proxy_buffering off` dupliquée par son include partagé, également présent sur
+l'hôte. La directive locale redondante est retirée ; la valeur reste imposée par
+l'include. Régression reproduite puis corrigée avec nginx réel, contrôles
+syntaxiques et contrat d'alias exact. Vérification intégrateur combinée :
+**199 tests réussis**, nginx réel compris, sans skip ; revue nginx indépendante :
+37 tests réussis. Les opérateurs adaptés passent séparément 88 tests.
+
+Le compte utilisateur est connecté sur staging avec son abonnement Essential
+pour la future recette ; aucune note, contact, cible, facture ou recherche n'a
+été modifié par le navigateur. Le frontend de la CI `34828412795` sur `8095ccb`
+est réussi ; la CI du candidat incluant les derniers ajustements reste requise.

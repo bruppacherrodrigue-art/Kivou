@@ -19,6 +19,7 @@ SOURCE_SHA = "b" * 40
 NAME = f"kivou_v11_rehearsal_{SHA[:12]}_0123456789abcdef"
 SOURCE = "postgresql+psycopg://owner:p%40ss%3Aword@127.0.0.1:5432/kivou_staging"
 ADMIN = "postgresql://admin:admin-secret@127.0.0.1:5432/postgres"
+MAIL_HEAD = "0059_prospect_mail_word_limit_v2"
 
 
 def driver():
@@ -251,21 +252,22 @@ def test_main_invalid_config_is_closed_without_subprocess_or_database(monkeypatc
     assert "SECRET" not in output.out and output.err == ""
 
 
-def flow(monkeypatch, tmp_path, *, failure=None, keep=False):
+def flow(monkeypatch, tmp_path, *, failure=None, keep=False, environment="STAGING", head=None):
     module = driver()
     evidence = tmp_path / "evidence"
     evidence.mkdir(mode=0o700)
     database = Database()
-    source = module.parse_url(SOURCE, "kivou_staging")
+    source_name, default_head = module.SOURCES[environment]
+    source = module.parse_url(SOURCE.replace("kivou_staging", source_name), source_name)
     admin = module.parse_url(ADMIN, "postgres")
     config = SimpleNamespace(
-        environment="STAGING",
+        environment=environment,
         sha=SHA,
         source_sha=SOURCE_SHA,
         candidate=Path("/candidate"),
         source=source,
         admin=admin,
-        head="0060_boamp_notice_facts",
+        head=head or default_head,
         keep_copy=keep,
     )
     report = {"status": "running", "copy_database": NAME}
@@ -301,7 +303,7 @@ def flow(monkeypatch, tmp_path, *, failure=None, keep=False):
                     "status": "passed",
                     "sha": SHA,
                     "source_sha": SOURCE_SHA,
-                    "source_environment": "STAGING",
+                    "source_environment": config.environment,
                     "restored_head": config.head,
                     "candidate_head": "0063_catalogue_mirror",
                     "legacy_preserved": True,
@@ -317,6 +319,20 @@ def flow(monkeypatch, tmp_path, *, failure=None, keep=False):
     patch_global(monkeypatch, module, "run_child", run_child)
     patch_global(monkeypatch, module, "assert_source_unchanged", lambda _config: None)
     return module, config, evidence, database, report, calls
+
+
+def test_explicit_production_mail_head_reaches_copy_checker_and_aggregate(monkeypatch, tmp_path):
+    module, config, evidence, _database, report, calls = flow(
+        monkeypatch, tmp_path, environment="PRODUCTION", head=MAIL_HEAD
+    )
+    module.perform_copy(config, NAME, evidence, report)
+    checker_call = next(call for call in calls if call[0] == "checker")
+    argv = checker_call[1]
+    assert argv[argv.index("--expected-deployed-head") + 1] == MAIL_HEAD
+    assert argv[argv.index("--source-environment") + 1] == "PRODUCTION"
+    assert report["checks"]["restored_head"] == MAIL_HEAD
+    assert report["checks"]["source_sha"] == SOURCE_SHA
+    assert report["cleanup_status"] == "dropped"
 
 
 @pytest.mark.parametrize("failure", [None, "restore", "checker"])
@@ -440,11 +456,32 @@ def test_successful_leader_with_orphan_cannot_pass(monkeypatch, tmp_path):
         module.run_child(["test-child"], env={}, evidence=tmp_path, timeout=2)
 
 
-def test_preflight_default_never_creates_evidence_or_runs_copy(monkeypatch, capsys):
+@pytest.mark.parametrize(
+    "environment,selected,expected",
+    [
+        ("STAGING", None, "0060_boamp_notice_facts"),
+        ("PRODUCTION", None, "0058_model_call_budget"),
+        ("STAGING", "0060_boamp_notice_facts", "0060_boamp_notice_facts"),
+        ("PRODUCTION", "0058_model_call_budget", "0058_model_call_budget"),
+        ("PRODUCTION", MAIL_HEAD, MAIL_HEAD),
+    ],
+)
+def test_preflight_default_never_creates_evidence_or_runs_copy(
+    monkeypatch, capsys, environment, selected, expected
+):
     module = driver()
-    monkeypatch.setenv("KIVOU_DATABASE_URL", SOURCE)
+    source = SOURCE if environment == "STAGING" else SOURCE.replace("kivou_staging", "kivou")
+    monkeypatch.setenv("KIVOU_DATABASE_URL", source)
     monkeypatch.setenv("KIVOU_MIGRATION_ADMIN_URL", ADMIN)
-    patch_global(monkeypatch, module, "preflight", lambda _config: {"source_database_bytes": 4096})
+
+    def preflight(config):
+        assert config.head == expected
+        assert config.environment == environment
+        assert config.source_sha == SOURCE_SHA
+        assert config.source_root == Path(f"/srv/kivou/releases/staging-{SOURCE_SHA}")
+        return {"source_database_bytes": 4096}
+
+    patch_global(monkeypatch, module, "preflight", preflight)
     patch_global(monkeypatch, module, "perform_copy", lambda *_args: pytest.fail("must not mutate"))
     monkeypatch.setattr(
         module.tempfile, "mkdtemp", lambda **_kwargs: pytest.fail("must not create evidence")
@@ -453,7 +490,7 @@ def test_preflight_default_never_creates_evidence_or_runs_copy(monkeypatch, caps
         module.main(
             [
                 "--environment",
-                "STAGING",
+                environment,
                 "--sha",
                 SHA,
                 "--source-sha",
@@ -462,11 +499,68 @@ def test_preflight_default_never_creates_evidence_or_runs_copy(monkeypatch, caps
                 f"/srv/kivou/releases/staging-{SOURCE_SHA}",
                 "--candidate-root",
                 "/candidate",
+                *(["--expected-source-head", selected] if selected is not None else []),
             ]
         )
         == 0
     )
-    assert json.loads(capsys.readouterr().out)["status"] == "preflight_passed"
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "preflight_passed"
+    assert report["source_head"] == expected
+
+
+@pytest.mark.parametrize(
+    "environment,head",
+    [
+        ("STAGING", MAIL_HEAD),
+        ("STAGING", "0058_model_call_budget"),
+        ("PRODUCTION", "0060_boamp_notice_facts"),
+        ("PRODUCTION", "head"),
+        ("PRODUCTION", ""),
+    ],
+)
+def test_source_head_selector_rejects_wrong_environment_before_any_probe(
+    monkeypatch, capsys, environment, head
+):
+    module = driver()
+    patch_global(monkeypatch, module, "preflight", lambda _config: pytest.fail("must not probe"))
+    patch_global(monkeypatch, module, "connect", lambda _url: pytest.fail("must not connect"))
+    assert (
+        module.main(
+            [
+                "--environment",
+                environment,
+                "--sha",
+                SHA,
+                "--source-sha",
+                SOURCE_SHA,
+                "--source-root",
+                f"/srv/kivou/releases/production-{SOURCE_SHA}",
+                "--candidate-root",
+                "/candidate",
+                "--expected-source-head",
+                head,
+            ]
+        )
+        == 2
+    )
+    output = capsys.readouterr()
+    assert json.loads(output.out) == {
+        "status": "failed",
+        "code": "source_environment_head_mismatch",
+    }
+    assert output.err == ""
+
+
+def test_actual_new_source_head_requires_explicit_selection_not_the_old_default(monkeypatch):
+    module = driver()
+    database = Database("kivou", head=MAIL_HEAD)
+    patch_global(monkeypatch, module, "connect", lambda _url: database)
+    source = module.parse_url(SOURCE.replace("kivou_staging", "kivou"), "kivou")
+    with pytest.raises(module.DriverFailure, match="source_head_mismatch"):
+        module.inspect_source(source, module.SOURCES["PRODUCTION"][1])
+    assert module.inspect_source(source, MAIL_HEAD) == 4096
+    assert all(not text.startswith(("CREATE", "DROP", "UPDATE")) for text, _ in database.commands)
 
 
 def test_group_cleanup_reaps_terminated_leader_while_waiting_for_disappearance(

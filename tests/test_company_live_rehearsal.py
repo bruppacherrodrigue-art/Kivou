@@ -25,6 +25,7 @@ NAME = f"kivou_v11_rehearsal_{SHA[:12]}_1234567890abcdef"
 URL = f"postgresql+psycopg://review:secret@localhost/{NAME}"
 NOW = dt.datetime(2026, 9, 14, 10, tzinfo=dt.UTC)
 HEADS = {"STAGING": "0060_boamp_notice_facts", "PRODUCTION": "0058_model_call_budget"}
+MAIL_HEAD = "0059_prospect_mail_word_limit_v2"
 
 
 def load_checker():
@@ -83,7 +84,7 @@ def seeded(engine, head):
                 "updated_at": NOW,
             },
         )
-        if head == HEADS["PRODUCTION"]:
+        if head in (HEADS["PRODUCTION"], MAIL_HEAD):
             connection.execute(
                 table("model_daily_budget").insert(),
                 {
@@ -165,7 +166,7 @@ def seeded(engine, head):
             )
 
 
-@pytest.mark.parametrize("environment,head", HEADS.items())
+@pytest.mark.parametrize("environment,head", [*HEADS.items(), ("PRODUCTION", MAIL_HEAD)])
 def test_both_deployed_parents_preserve_private_shared_and_replayed_contracts(
     engine, tmp_path, environment, head
 ):
@@ -213,6 +214,8 @@ def test_live_database_names_are_rejected_before_connection(name):
         ("PRODUCTION", HEADS["STAGING"]),
         ("STAGING", HEADS["PRODUCTION"]),
         ("STAGING", "head"),
+        ("STAGING", MAIL_HEAD),
+        ("PRODUCTION", "head"),
     ],
 )
 def test_source_environment_requires_its_exact_verified_branch(environment, head):
@@ -243,6 +246,31 @@ def test_configuration_keeps_source_artifact_explicit_and_default_database_on_co
         checker.validate_configuration(
             URL, URL, NAME, SHA, "PRODUCTION", HEADS["PRODUCTION"], "short"
         )
+
+
+def test_configuration_accepts_only_explicit_new_production_mail_head():
+    checker = load_checker()
+    assert (
+        checker.validate_configuration(
+            URL, URL, NAME, SHA, "PRODUCTION", MAIL_HEAD, SOURCE_SHA
+        ).database
+        == NAME
+    )
+
+
+def test_allowed_production_head_does_not_adopt_a_different_restored_branch(engine, tmp_path):
+    checker = load_checker()
+    seeded(engine, HEADS["PRODUCTION"])
+    with pytest.raises(checker.checks.RehearsalFailure, match="restored_head_mismatch"):
+        checker.run_checks(
+            engine,
+            source_environment="PRODUCTION",
+            expected_deployed_head=MAIL_HEAD,
+            now=NOW,
+            temp_dir=tmp_path,
+        )
+    assert current_revision(engine) == HEADS["PRODUCTION"]
+    assert not list(tmp_path.glob("kivou-v11-baseline-*"))
 
 
 def test_wrong_or_multiple_restored_heads_fail_before_migration(engine, tmp_path):

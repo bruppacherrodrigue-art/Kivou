@@ -704,7 +704,6 @@ def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
         "if ($request_method != GET) { return 405; }",
         "limit_req zone=kivou_api burst=2 nodelay;",
         "proxy_pass http://127.0.0.1:KIVOU_API_PORT/internal/company-catalogue;",
-        "proxy_buffering off;",
         "include /etc/nginx/kivou-proxy-params.conf;",
         "}",
     )

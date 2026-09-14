@@ -32,7 +32,10 @@ SHARED_TABLES = (
     "notice_source_snapshot",
     "notice_award_facts",
 )
-DEPLOYED_HEADS = {"STAGING": "0060_boamp_notice_facts", "PRODUCTION": "0058_model_call_budget"}
+DEPLOYED_HEADS = {
+    "STAGING": ("0060_boamp_notice_facts",),
+    "PRODUCTION": ("0058_model_call_budget", "0059_prospect_mail_word_limit_v2"),
+}
 
 
 def validate_configuration(
@@ -41,7 +44,7 @@ def validate_configuration(
     target = checks.validate_target_config(target, default, name, sha)
     checks.require(
         source_environment in DEPLOYED_HEADS
-        and DEPLOYED_HEADS[source_environment] == expected_head,
+        and expected_head in DEPLOYED_HEADS[source_environment],
         "source_environment_head_mismatch",
     )
     checks.require(bool(re.fullmatch(r"[0-9a-f]{40}", source_sha)), "source_sha_invalid")
@@ -88,7 +91,7 @@ def run_checks(engine, *, source_environment, expected_deployed_head, now, temp_
     """The CLI verifies the actual database before this local checking workflow."""
     checks.require(
         source_environment in DEPLOYED_HEADS
-        and expected_deployed_head == DEPLOYED_HEADS[source_environment],
+        and expected_deployed_head in DEPLOYED_HEADS[source_environment],
         "source_environment_head_mismatch",
     )
     checks.require(now.tzinfo is not None and now.utcoffset() is not None, "clock_must_be_aware")

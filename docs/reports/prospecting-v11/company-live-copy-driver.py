@@ -31,6 +31,10 @@ SOURCES = {
     "STAGING": ("kivou_staging", "0060_boamp_notice_facts"),
     "PRODUCTION": ("kivou", "0058_model_call_budget"),
 }
+SOURCE_HEADS = {
+    "STAGING": ("0060_boamp_notice_facts",),
+    "PRODUCTION": ("0058_model_call_budget", "0059_prospect_mail_word_limit_v2"),
+}
 CHECKER = "docs/reports/prospecting-v11/company-live-rehearsal.py"
 BACKUP = "ops/bin/kivou-backup.sh"
 SHARED = {
@@ -514,6 +518,10 @@ def main(argv=None):
     parser.add_argument("--environment", choices=tuple(SOURCES), required=True)
     parser.add_argument("--sha", required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument(
+        "--expected-source-head",
+        help="Explicit verified head; default remains production 0058 or staging 0060.",
+    )
     parser.add_argument("--source-root", required=True)
     parser.add_argument("--candidate-root", required=True)
     parser.add_argument("--execute", action="store_true")
@@ -530,6 +538,9 @@ def main(argv=None):
             "sha_invalid",
         )
         database, head = SOURCES[args.environment]
+        if args.expected_source_head is not None:
+            head = args.expected_source_head
+        require(head in SOURCE_HEADS[args.environment], "source_environment_head_mismatch")
         config = SimpleNamespace(
             environment=args.environment,
             sha=args.sha,
