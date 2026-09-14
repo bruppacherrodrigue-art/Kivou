@@ -27,7 +27,7 @@ export function Product() {
               <p className="eyebrow">Comment ça marche</p>
               <h1>Kivou suit ce qui se passe une fois le marché attribué.</h1>
               <p className="lead">Vous décrivez ce que vous vendez. Kivou relève les marchés attribués qui correspondent, identifie le gagnant et rassemble les faits utiles pour décider si ce compte mérite une approche.</p>
-              <div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary">Configurer mon profil</PublicPlanLink><ReferenceLink className="btn secondary" href="/exemple-de-signal">Voir le résultat</ReferenceLink></div>
+              <div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary">Configurer mon profil</PublicPlanLink><ReferenceLink className="btn secondary" href="/produit#contenu-signal">Comprendre un signal</ReferenceLink></div>
             </div>
             <div className="glass pipeline-card">
               <p className="pipeline-label">Le parcours d’un signal</p>
@@ -73,7 +73,7 @@ export function Product() {
           </div>
         </section>
 
-        <section className="section compact">
+        <section className="section compact" id="contenu-signal" tabIndex={-1}>
           <div className="container">
             <header className="section-head">
               <p className="eyebrow">Un cas concret</p>
@@ -85,7 +85,7 @@ export function Product() {
               <div className="analysis-bridge"><span>Kivou analyse</span></div>
               <div className="fact-side analysis"><p className="panel-label">À examiner</p><h3>Des besoins possibles autour de l’agencement</h3><ul className="clean-list"><li>Produits bois et composants compatibles</li><li>Vitrage et éléments d’agencement</li><li>Calendrier commercial relié aux dates publiées</li><li>Source TED disponible pour contrôle</li></ul></div>
             </div>
-            <div className="center-link"><ReferenceLink className="btn secondary" href="/exemple-de-signal">Lire l’analyse complète</ReferenceLink></div>
+            <div className="center-link"><PublicPlanLink state={pricing} planCode="discovery" className="btn secondary">Découvrir mes signaux</PublicPlanLink></div>
           </div>
         </section>
 
@@ -104,7 +104,7 @@ export function Product() {
                 <p className="panel-label">Source associée</p>
                 <h3>TED 568562-2026</h3>
                 <p>L’avis officiel permet de contrôler le gagnant, le montant, l’objet et les dates. L’analyse commerciale apparaît séparément afin de ne pas confondre un fait publié avec un besoin possible.</p>
-                <ReferenceLink className="text-link" href="/exemple-de-signal">Voir les champs vérifiés</ReferenceLink>
+                <ReferenceLink className="text-link" href="/produit#contenu-signal">Revoir les faits publiés</ReferenceLink>
               </article>
             </div>
           </div>

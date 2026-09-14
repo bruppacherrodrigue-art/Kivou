@@ -6,7 +6,6 @@ import { RedirectIfAuthenticated, RequireAuth } from './auth/RequireAuth'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AppShell } from './layouts/AppShell'
 import { Landing } from './pages/Landing'
-import { PublicSignalDemo } from './pages/PublicSignalDemo'
 import { LegalInformation } from './pages/LegalInformation'
 import { Contact } from './pages/Contact'
 import { Product } from './pages/Product'
@@ -67,7 +66,7 @@ export function AppRoutes() {
           <Route index element={<Landing />} />
           <Route path="produit" element={<Product />} />
           <Route path="tarifs" element={<PublicPricing />} />
-          <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
+          <Route path="exemple-de-signal" element={<Navigate to="/produit" replace />} />
           <Route path="contact" element={<Contact />} />
           <Route path="informations-legales" element={<LegalInformation />} />
           <Route
@@ -97,9 +96,9 @@ export function AppRoutes() {
         <Route element={<DashboardSurface />}>
           <Route element={<RequireAuth />}>
             <Route path="checkout" element={<Checkout />} />
+            <Route path="app/confirm-profile" element={<ConfirmProfile />} />
 
             <Route path="app" element={<AppShell />}>
-              <Route path="confirm-profile" element={<ConfirmProfile />} />
               <Route index element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="signals" element={<SignalsFeed />} />

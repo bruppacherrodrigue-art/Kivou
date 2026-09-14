@@ -371,7 +371,13 @@ class MatchingEngine:
             for territory in icp.territories
             if territory.subdivision_code is not None
         }
-        if wanted_subdivisions:
+        whole_countries = {
+            territory.country
+            for territory in icp.territories
+            if territory.subdivision_code is None
+        }
+        matched = any(country in whole_countries for country in candidates)
+        if not matched and wanted_subdivisions:
             subdivision = place.subdivision_code if place is not None else None
             if subdivision is None:
                 return (
@@ -388,9 +394,6 @@ class MatchingEngine:
                 subdivision,
                 place.subdivision_scheme,
             ) in wanted_subdivisions
-        else:
-            wanted = {territory.country for territory in icp.territories}
-            matched = any(country in wanted for country in candidates)
         return (
             HardFilterResult(
                 name="geography",

@@ -86,7 +86,7 @@ export function PublicPricing() {
           </div>
         </section>
 
-        <div className="container"><section className="final-cta"><div className="final-cta-grid"><div><h2>{pricingFinalCopy(pricing, discovery).heading}</h2><p id={discovery ? undefined : 'pricing-discovery-status'}>{pricingFinalCopy(pricing, discovery).body}</p></div><div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary" ariaDescribedBy={discovery ? undefined : 'pricing-discovery-status'}>Commencer gratuitement</PublicPlanLink><ReferenceLink className="btn secondary" href="/exemple-de-signal">Voir un signal</ReferenceLink></div></div></section></div>
+        <div className="container"><section className="final-cta"><div className="final-cta-grid"><div><h2>{pricingFinalCopy(pricing, discovery).heading}</h2><p id={discovery ? undefined : 'pricing-discovery-status'}>{pricingFinalCopy(pricing, discovery).body}</p></div><div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary" ariaDescribedBy={discovery ? undefined : 'pricing-discovery-status'}>Commencer gratuitement</PublicPlanLink><ReferenceLink className="btn secondary" href="/produit">Comment ça marche</ReferenceLink></div></div></section></div>
       </main>
     </>
   )

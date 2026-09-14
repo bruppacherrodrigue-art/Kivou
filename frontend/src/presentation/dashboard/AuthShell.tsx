@@ -33,6 +33,7 @@ export function AuthShell({
   wide = false,
   showBrand = true,
   navigationDisabled = false,
+  className = '',
 }: {
   eyebrow: string
   title: string
@@ -41,6 +42,7 @@ export function AuthShell({
   wide?: boolean
   showBrand?: boolean
   navigationDisabled?: boolean
+  className?: string
 }) {
   const blockNavigation = (event: React.MouseEvent<HTMLAnchorElement>) => {
     if (navigationDisabled) event.preventDefault()
@@ -48,7 +50,7 @@ export function AuthShell({
 
   return (
     <main
-      className={`auth-page auth-shell${showBrand ? '' : ' auth-page-no-brand'}`}
+      className={`auth-page auth-shell${showBrand ? '' : ' auth-page-no-brand'} ${className}`}
       id="kivou-main"
     >
       {showBrand ? (

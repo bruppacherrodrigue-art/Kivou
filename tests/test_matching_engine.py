@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import datetime as dt
 
+import pytest
+
+from signals.accounts.icp_input import TargetIcpInput, to_target_icp
 from signals.domain import EventRef, Evidence, Location
 from signals.matching import (
     SCORE_POLICY_VERSION,
@@ -147,6 +150,28 @@ class TestHardFilters:
         )
         assert result.decision == "exclude"
 
+    @pytest.mark.parametrize(
+        ("country", "subdivision", "expected"),
+        [
+            ("FR", None, "show"),
+            ("FR", "FR-75", "show"),
+            ("CH", "CH-VD", "show"),
+            ("CH", "CH-GE", "exclude"),
+        ],
+    )
+    def test_a_whole_country_can_be_combined_with_another_countrys_subdivision(
+        self, country: str, subdivision: str | None, expected: str
+    ) -> None:
+        result = _match(
+            _cu(country=country, subdivision_code=subdivision),
+            _icp(territories=(
+                Territory(country="FR"),
+                Territory(country="CH", subdivision_code="CH-VD", subdivision_scheme="ISO-3166-2"),
+            )),
+        )
+
+        assert result.decision == expected
+
     def test_an_included_cpv_prefix_excludes_another_sector(self) -> None:
         result = _match(_cu(cpv="45210000"), _icp(included_cpv_prefixes=("44",)))
         assert result.decision == "exclude"
@@ -160,6 +185,27 @@ class TestHardFilters:
     def test_a_known_amount_below_the_threshold_excludes(self) -> None:
         result = _match(_cu(amount="80000.00 CHF"), _icp())
         assert result.decision == "exclude"
+
+    def test_the_confirm_profile_no_minimum_accepts_a_chf_award_without_conversion(self) -> None:
+        profile = to_target_icp(
+            TargetIcpInput.model_validate({
+                "offer_summary": "Location de matériel de chantier",
+                "offers": ["equipment_rental"],
+                "territories": ["CH"],
+                "sector_cpv_prefixes": ["45"],
+                "minimum_contract_value": {"currency": "EUR", "minimum_amount": 0},
+            }),
+            target_icp_id="icp-confirm-profile",
+            label="Travaux de construction",
+        )
+
+        result = _match(_cu(amount="2400000.00 CHF"), profile)
+
+        assert result.decision == "show"
+        value_filter = next(item for item in result.hard_filter_results if item.name == "value_threshold")
+        assert value_filter.passed
+        assert "2400000 CHF" in value_filter.detail
+        assert all(item.name != "value_currency" for item in result.hard_filter_results)
 
     def test_a_missing_amount_under_exclude_policy_is_reported(self) -> None:
         result = _match(_cu(amount=None), _icp(unknown_value_policy="exclude"))

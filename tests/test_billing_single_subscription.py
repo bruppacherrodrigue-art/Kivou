@@ -124,7 +124,7 @@ def rows(engine):
         return connection.execute(sa.select(billing_subscription)).all()
 
 
-def checkout(client: TestClient, plan: str = "pro", currency: str = "chf"):
+def checkout(client: TestClient, plan: str = "pro", currency: str = "eur"):
     return client.post("/billing/checkout", json={"plan": plan, "currency": currency})
 
 

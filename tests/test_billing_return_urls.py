@@ -161,7 +161,7 @@ def test_checkout_refuses_to_open_without_return_urls(engine):
     """
     client = _signed_up(_app(engine, urls={}))
 
-    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "billing_unavailable"
@@ -191,7 +191,7 @@ def test_reading_billing_state_still_works_without_return_urls(engine):
 def test_checkout_opens_once_the_return_urls_are_configured(engine):
     client = _signed_up(_app(engine, urls=BILLING_RETURN_URLS))
 
-    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "chf"})
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
 
     assert response.status_code == 200
     assert response.json()["checkout_url"].startswith("https://")

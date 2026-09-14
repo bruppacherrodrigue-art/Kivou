@@ -60,7 +60,7 @@ describe('billing_action — choose_plan', () => {
   it('propose la grille et le paiement', async () => {
     render(DISCOVERY_STATUS)
     expect(await selectPro()).toBeInTheDocument()
-    expect(screen.getByText('Devise')).toBeInTheDocument()
+    expect(screen.getByText('Devise : EUR')).toBeInTheDocument()
   })
 
   it('ne propose aucun portail', async () => {

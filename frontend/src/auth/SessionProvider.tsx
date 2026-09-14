@@ -21,7 +21,7 @@ interface SessionValue {
   state: SessionState
   /** Relit `/me`. Appelé après une connexion, une inscription, ou un changement
    *  susceptible d'avoir fait avancer l'onboarding. */
-  refresh: () => Promise<void>
+  refresh: () => Promise<Me | undefined>
   /** Remplace l'utilisateur courant sans aller-retour réseau — le corps de
    *  réponse de `/auth/login` et `/auth/signup` EST un `MeResponse`. */
   adopt: (me: Me) => void
@@ -96,7 +96,10 @@ export function SessionProvider({
     }
     // A read started before logout, revocation or adopting another account is
     // no longer authoritative for the current session, even if it returns 200.
-    if (mounted.current && sessionEpoch.current === epoch) setState({ status: 'authenticated', me })
+    if (mounted.current && sessionEpoch.current === epoch) {
+      setState({ status: 'authenticated', me })
+      return me
+    }
   }, [])
 
   const adopt = useCallback((me: Me) => {

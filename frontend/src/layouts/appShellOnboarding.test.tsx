@@ -73,7 +73,7 @@ it('normalizes invalid plan intent using the existing auth plan rules', async ()
 })
 
 it.each([
-  ['/app/confirm-profile?plan=pro', 'Confirmez votre profil cible'],
+  ['/app/confirm-profile?plan=pro', 'Quels marchés vous intéressent ?'],
   ['/app/billing?plan=essential', 'Abonnement'],
   ['/app/settings', 'Informations du compte'],
   ['/app/settings/profile', 'Compte'],
@@ -98,6 +98,6 @@ it.each([
   expect(screen.getByTestId('onboarding-location')).toHaveTextContent('/app/signals')
   expect(document.querySelector('.dashboard-provider')).toBeInTheDocument()
   expect(callsTo('/signals', 'GET').length).toBeGreaterThan(0)
-  expect(screen.queryByRole('heading', { name: 'Confirmez votre profil cible' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Quels marchés vous intéressent ?' })).not.toBeInTheDocument()
   expect(errors).not.toHaveBeenCalled()
 })

@@ -31,10 +31,10 @@ describe('contenu et agencement exacts de la référence publique', () => {
   it('relie les pages dédiées prévues par la source', async () => {
     mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
     renderApp(<AppRoutes />, { route: '/' })
-    expect(screen.getByRole('link', { name: 'Voir l’exemple complet' })).toHaveAttribute('href', '/exemple-de-signal')
+    expect(screen.getByRole('link', { name: 'Comprendre l’analyse' })).toHaveAttribute('href', '/produit')
     expect(screen.getByRole('link', { name: 'Voir la méthode' })).toHaveAttribute('href', '/produit')
     expect(screen.getByRole('link', { name: 'Comparer les offres' })).toHaveAttribute('href', '/tarifs')
-    await screen.findByText('CHF 49')
+    await screen.findByText('EUR 49')
   })
 
   it('rend la page produit complète dans les classes de la référence', async () => {

@@ -175,7 +175,7 @@ describe('passage autoritaire vers Stripe', () => {
         body: {
           checkout_url: 'https://checkout.stripe.test/cs_stale_pro',
           plan: 'pro',
-          currency: 'chf',
+          currency: 'eur',
         },
       })
       await response
@@ -196,7 +196,7 @@ describe('passage autoritaire vers Stripe', () => {
         body: {
           checkout_url: 'https://checkout.stripe.test/cs_reference',
           plan: 'pro',
-          currency: 'chf',
+          currency: 'eur',
         },
       },
     })
@@ -207,11 +207,13 @@ describe('passage autoritaire vers Stripe', () => {
     const catalogueNote = screen.getByRole('note')
     expect(catalogueNote).toHaveClass('prototype-notice')
     expect(catalogueNote).toHaveTextContent(/prix et les droits.*catalogue Kivou/i)
+    expect(document.body).toHaveTextContent('Devise : EUR')
+    expect(document.body).not.toHaveTextContent('CHF')
     expect(callsTo('/billing/checkout')).toHaveLength(0)
     await user.click(screen.getByRole('button', { name: 'Continuer vers Stripe' }))
 
     await waitFor(() => expect(callsTo('/billing/checkout')).toHaveLength(1))
-    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'pro', currency: 'chf' })
+    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'pro', currency: 'eur' })
     expect(recordedCalls.map((call) => `${call.method} ${call.url}`)).toEqual([
       'GET /billing/plans',
       'GET /billing/status',
@@ -234,7 +236,7 @@ describe('passage autoritaire vers Stripe', () => {
         body: {
           checkout_url: checkoutUrl,
           plan: 'pro',
-          currency: 'chf',
+          currency: 'eur',
         },
       },
     })
@@ -275,7 +277,7 @@ describe('passage autoritaire vers Stripe', () => {
         body: {
           checkout_url: 'https://checkout.stripe.test/cs_once',
           plan: 'pro',
-          currency: 'chf',
+          currency: 'eur',
         },
       })
       await response
@@ -309,7 +311,7 @@ describe('passage autoritaire vers Stripe', () => {
         body: {
           checkout_url: 'https://checkout.stripe.test/cs_late',
           plan: 'pro',
-          currency: 'chf',
+          currency: 'eur',
         },
       })
       await response

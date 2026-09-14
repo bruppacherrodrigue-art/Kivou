@@ -301,7 +301,7 @@ describe('connexion', () => {
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Confirmez votre profil cible' }),
+      await screen.findByRole('heading', { name: 'Quels marchés vous intéressent ?' }),
     ).toBeInTheDocument()
   })
 })

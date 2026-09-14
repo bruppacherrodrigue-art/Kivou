@@ -44,7 +44,7 @@ export function Landing() {
               <p className="lead">Kivou rassemble le marché remporté, les volumes publiés, les dates utiles et les besoins d’exécution à vérifier avant de contacter le gagnant.</p>
               <div className="button-row">
                 <PublicPlanLink state={pricing} planCode="discovery" className="btn primary" ariaDescribedBy={discoveryStatusId}>{landingDiscoveryCta(discovery)}</PublicPlanLink>
-                <ReferenceLink className="btn secondary" href="/exemple-de-signal">Examiner un signal complet</ReferenceLink>
+                <ReferenceLink className="btn secondary" href="/produit">Découvrir le fonctionnement</ReferenceLink>
               </div>
               <p
                 className="hero-facts"
@@ -62,7 +62,7 @@ export function Landing() {
               <div className="signal-value"><small>Marché attribué</small><strong>5,22 M€</strong></div>
               <p className="signal-title">Plus de 700 portes et huisseries, 5,5 km de plinthes et des travaux d’agencement à Munich.</p>
               <dl className="signal-meta"><div><dt>Début prévu</dt><dd>28 octobre 2026</dd></div><div><dt>Source</dt><dd>TED 568562-2026</dd></div></dl>
-              <ReferenceLink className="card-link" href="/exemple-de-signal">Consulter le signal complet</ReferenceLink>
+              <ReferenceLink className="card-link" href="/produit#contenu-signal">Comprendre ce signal</ReferenceLink>
             </article>
           </div>
         </section>
@@ -79,7 +79,7 @@ export function Landing() {
                 <h2 id="dashboard-title">Voici ce que vous voyez lorsqu’un signal remonte.</h2>
                 <p className="lead">Le gagnant, le marché, les volumes, le calendrier, les questions à vérifier et la source sont réunis dans la même vue.</p>
               </header>
-              <ReferenceLink className="text-link" href="/exemple-de-signal">Voir l’exemple complet</ReferenceLink>
+              <ReferenceLink className="text-link" href="/produit">Comprendre l’analyse</ReferenceLink>
             </div>
 
             <div className="glass dashboard-preview signal-path-preview" aria-label="Chemin de analyse d’un signal Kivou">

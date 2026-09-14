@@ -26,7 +26,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 PlanChoice = Literal["essential", "pro"]
-CurrencyChoice = Literal["chf", "eur"]
+CurrencyChoice = Literal["eur"]
 
 
 class PlanChangeRequest(BaseModel):
@@ -86,7 +86,7 @@ def list_plans() -> dict[str, Any]:
     return {
         "catalogue_version": catalogue.CATALOGUE_VERSION,
         "billing_interval": "month",
-        "currencies": list(catalogue.CURRENCIES),
+        "currencies": list(catalogue.SALES_CURRENCIES),
         "plans": list(catalogue.public_catalogue()),
     }
 

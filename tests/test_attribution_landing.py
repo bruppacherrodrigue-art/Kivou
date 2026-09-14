@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from test_conversion_attribution import NOW, prepared
@@ -677,7 +678,11 @@ def test_landing_confirmation_produces_a_non_empty_dashboard_and_complete_journa
         json={"label": "Paysage", "customer_input": customer_input},
     )
     assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["status"] == "active"
+    assert confirmed.json()["provisional"] is False
+    assert confirmed.json()["customer_input"] == customer_input
     assert client.get("/me").json()["onboarding_status"] == "ready_for_signals"
+    assert client.get("/me").json()["provisional_profile"] is False
     dashboard = client.get("/dashboard")
     assert dashboard.status_code == 200
     assert dashboard.json()["top3"]
@@ -689,6 +694,92 @@ def test_landing_confirmation_produces_a_non_empty_dashboard_and_complete_journa
     assert journal["confirmation_started_at"] is not None
     assert journal["profile_confirmed_at"] is not None
     assert journal["dashboard_ready_at"] is not None
+
+
+@pytest.mark.parametrize("incomplete_save", [False, True], ids=["rename", "incomplete-form"])
+def test_landing_requires_complete_customer_input_before_confirmation(
+    tmp_path, incomplete_save: bool
+) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    profile = client.get("/target-icps").json()[0]
+    payload = {"label": "Mon profil"}
+    if incomplete_save:
+        # The previous confirmation form erased these required matching fields.
+        payload["customer_input"] = {
+            **profile["customer_input"],
+            "offers": [],
+            "minimum_contract_value": None,
+        }
+
+    saved = client.patch(
+        f'/target-icps/{profile["target_icp_id"]}',
+        headers={"Origin": "https://testserver"},
+        json=payload,
+    )
+
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["status"] == ("draft" if incomplete_save else "active")
+    assert saved.json()["provisional"] is True
+    me = client.get("/me").json()
+    assert me["onboarding_status"] == "icp_incomplete"
+    assert me["provisional_profile"] is True
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(account_landing_signal.c.profile_confirmed_at)
+        ) is None
+
+    confirmed = client.patch(
+        f'/target-icps/{profile["target_icp_id"]}',
+        headers={"Origin": "https://testserver"},
+        json={"customer_input": profile["customer_input"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["status"] == "active"
+    assert confirmed.json()["provisional"] is False
+    assert client.get("/me").json()["onboarding_status"] == "ready_for_signals"
+    assert len(client.get("/target-icps").json()) == 1
+    # A repaired profile opens the dashboard even if rematching finds no signal.
+    assert client.get("/dashboard").status_code == 200
+
+
+@pytest.mark.parametrize(
+    "changed_filter",
+    [
+        {"sector_cpv_prefixes": ["72"]},
+        {"territory_subdivisions": ["FR-75"]},
+    ],
+    ids=["sector", "department"],
+)
+def test_confirmation_rematches_signals_after_a_sector_or_department_change(
+    tmp_path, changed_filter: dict
+) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    signal_key = response.headers["location"].rsplit("/", 1)[1]
+    profile = client.get("/target-icps").json()[0]
+
+    confirmed = client.patch(
+        f'/target-icps/{profile["target_icp_id"]}',
+        headers={"Origin": "https://testserver"},
+        json={"customer_input": {**profile["customer_input"], **changed_filter}},
+    )
+
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["matching_revision"] == profile["matching_revision"] + 1
+    assert confirmed.json()["status"] == "active"
+    assert client.get("/me").json()["onboarding_status"] == "ready_for_signals"
+    assert all(item["signal_id"] != signal_key for item in client.get("/dashboard").json()["top3"])
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(materialized_signal.c.invalidated_at).where(
+                materialized_signal.c.signal_key == signal_key
+            )
+        ) is not None
 
 
 def test_confirmation_drops_a_promised_signal_that_no_longer_matches(tmp_path) -> None:

@@ -163,7 +163,10 @@ def test_the_public_catalogue_marks_what_can_be_bought():
     assert entries["discovery"]["monthly_price"] == {}
     assert entries["pro"]["purchasable"] is True
     assert entries["pro"]["recommended"] is True
-    assert entries["pro"]["monthly_price"]["chf"]["amount_minor_units"] == 9900
+    assert entries["pro"]["monthly_price"] == {"eur": {"amount_minor_units": 9900, "currency": "eur"}}
+    assert catalogue.SALES_CURRENCIES == ("eur",)
+    # Historical Stripe prices must still resolve after removing them from sale.
+    assert catalogue.plan_for_lookup_key("kivou_pro_monthly_chf") == ("pro", "chf")
 
 
 def test_the_public_catalogue_describes_future_capabilities_without_promising_them():

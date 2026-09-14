@@ -602,19 +602,19 @@ details.technical p { margin-top: 12px; color: var(--muted); font-size: 12px; li
 .pricing-hero h1 { max-width: 900px; margin-inline: auto; font-size: clamp(43px, 6vw, 68px); }
 .pricing-hero .lead { max-width: 800px; margin: 20px auto 0; }
 .pricing-hero .hero-meta { justify-content: center; }
-.pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; align-items: stretch; padding-bottom: 74px; }
-.price-card { display: flex; min-width: 0; flex-direction: column; padding: 27px 22px 22px; }
+.pricing-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; align-items: stretch; padding-bottom: 74px; }
+.price-card { display: flex; flex: 1 1 280px; min-width: 0; max-width: 380px; flex-direction: column; padding: 27px 22px 22px; }
 .price-card.recommended { border-color: var(--green); }
 .price-band { position: absolute; top: 19px; right: 18px; padding: 6px 8px; border: 1px solid var(--iris-200); border-radius: 999px; background: var(--iris-100); color: var(--iris-700); font-size: 11px; font-weight: 800; letter-spacing: .04em; }
 .plan-name { font-size: 21px; font-weight: 800; }
 .price-card.recommended .plan-name { padding-right: 112px; }
 .plan-who { min-height: 64px; margin-top: 7px; color: var(--muted); font-size: 13px; line-height: 1.5; }
-.plan-price { display: flex; align-items: baseline; gap: 6px; margin-top: 16px; }
+.plan-price { display: flex; justify-content: center; align-items: baseline; gap: 6px; min-height: 59px; margin-top: 16px; text-align: center; }
 .plan-price small { color: var(--muted); font-size: 14px; font-weight: 750; }
 .plan-price strong { font-family: "Lora Variable", Lora, Georgia, serif; font-size: 45px; font-weight: 400; letter-spacing: -.04em; }
 .plan-price span { color: var(--muted); font-size: 13px; }
 .plan-price.free strong { font-size: 36px; }
-.plan-billing { min-height: 36px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.plan-billing { min-height: 36px; margin-top: 8px; color: var(--muted); font-size: 12px; text-align: center; }
 .price-card hr { width: 100%; margin: 17px 0; border: 0; border-top: 1px solid var(--line); }
 .plan-intro { margin-bottom: 8px; color: var(--green-2); font-size: 11px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
 .price-card > ul { display: grid; flex: 1; gap: 10px; list-style: none; }
@@ -634,6 +634,7 @@ details.technical p { margin-top: 12px; color: var(--muted); font-size: 12px; li
 .table-wrap table { width: 100%; min-width: 760px; border-collapse: collapse; background: rgba(255,255,255,.8); font-size: 13px; }
 .table-wrap caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .table-wrap th, .table-wrap td { padding: 15px 16px; border-bottom: 1px solid var(--line); text-align: left; }
+.pricing-page .table-wrap td, .pricing-page .table-wrap thead th:not(:first-child) { text-align: center; }
 .table-wrap th { background: #f7faf9; color: var(--green); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }
 .table-wrap tbody th { color: var(--ink-soft); font-size: 13px; font-weight: 750; letter-spacing: 0; text-transform: none; }
 .table-wrap .pro-col { box-shadow: inset 1px 0 var(--iris-200), inset -1px 0 var(--iris-200); }
@@ -644,7 +645,6 @@ details.technical p { margin-top: 12px; color: var(--muted); font-size: 12px; li
 
 @media (max-width: 1080px) {
   .mobile-menu { display: block; }
-  .pricing-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 820px) {
@@ -673,7 +673,8 @@ details.technical p { margin-top: 12px; color: var(--muted); font-size: 12px; li
   .signal-path-step { min-height: 0; gap: 18px; padding: 24px 22px; }
   .offer-matrix { padding-inline: 20px; }
   .compact-btn { display: none; }
-  .pricing-grid, .core-grid { grid-template-columns: 1fr; }
+  .core-grid { grid-template-columns: 1fr; }
+  .pricing-grid .price-card { flex-basis: 100%; max-width: 100%; }
   .plan-who, .plan-note { min-height: auto; }
   .pricing-core { padding: 28px 22px; }
   .contact-form-wrap { width: calc(100% - 28px); padding: 58px 0 70px; }

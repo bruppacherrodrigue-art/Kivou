@@ -78,7 +78,7 @@ describe('facturation exacte sous autorité backend', () => {
     expect(callsTo('/billing/checkout')).toHaveLength(0)
     await user.click(await screen.findByRole('button', { name: /choisir essentiel/i }))
     expect(exactBillingPanel()).not.toBeNull()
-    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'essential', currency: 'chf' })
+    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'essential', currency: 'eur' })
   })
 
   it.each([
@@ -106,7 +106,7 @@ describe('facturation exacte sous autorité backend', () => {
       const selector = await screen.findByLabelText('Offre')
       expect(selector).toHaveValue(planCode)
       await user.click(screen.getByRole('button', { name: new RegExp(`choisir ${planName}`, 'i') }))
-      expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: planCode, currency: 'chf' })
+      expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: planCode, currency: 'eur' })
     },
   )
 
@@ -238,17 +238,17 @@ describe('facturation exacte sous autorité backend', () => {
 
   it('ne présente jamais comme gratuit un prix absent dans la devise sélectionnée', async () => {
     const user = userEvent.setup()
-    const missingChf = {
+    const missingEur = {
       ...CATALOGUE,
       plans: CATALOGUE.plans.map((plan) =>
         plan.plan_code === 'essential'
-          ? { ...plan, monthly_price: { eur: plan.monthly_price.eur } }
+          ? { ...plan, monthly_price: { chf: plan.monthly_price.chf } }
           : plan,
       ),
     }
     mockApi({
       ...routes(DISCOVERY_STATUS),
-      'GET /billing/plans': { body: missingChf },
+      'GET /billing/plans': { body: missingEur },
     })
     renderApp(<AppRoutes />, { route: '/app/billing', session: AUTHENTICATED })
 
@@ -270,7 +270,7 @@ describe('facturation exacte sous autorité backend', () => {
         body: {
           checkout_url: 'http://checkout.stripe.test/session',
           plan: 'essential',
-          currency: 'chf',
+          currency: 'eur',
         },
       },
     })
@@ -291,7 +291,7 @@ describe('facturation exacte sous autorité backend', () => {
           body: {
             checkout_url: 'https://checkout.stripe.test/session',
             plan: 'essential',
-            currency: 'chf',
+            currency: 'eur',
           },
         })
       }),

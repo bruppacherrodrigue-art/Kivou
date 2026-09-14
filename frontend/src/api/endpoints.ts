@@ -19,7 +19,6 @@ import type {
   DirectoryCompanyProfile,
   DashboardResponse,
   CompanyNoteResult,
-  Currency,
   FeedPage,
   Freshness,
   Locale,
@@ -278,7 +277,7 @@ export const billing = {
 
   /** Le navigateur n'envoie QUE le plan et la devise. Aucun `price_id`, aucun
    *  coupon, aucun drapeau fondateur : le serveur choisit le prix. */
-  checkout: (payload: { plan: PurchasablePlan; currency: Currency }) =>
+  checkout: (payload: { plan: PurchasablePlan; currency: 'eur' }) =>
     request<CheckoutSession>('/billing/checkout', { method: 'POST', body: payload }),
 
   portal: () => request<{ portal_url: string }>('/billing/portal', { method: 'POST' }),

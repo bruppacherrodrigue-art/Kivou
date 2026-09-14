@@ -219,6 +219,9 @@ def to_target_icp(customer_input: TargetIcpInput, *, target_icp_id: str, label: 
         )
         if domain not in primary_trades
     )
+    subdivision_countries = {
+        code.split("-", 1)[0] for code in customer_input.territory_subdivisions
+    }
 
     return TargetICP(
         icp_id=target_icp_id,
@@ -239,15 +242,23 @@ def to_target_icp(customer_input: TargetIcpInput, *, target_icp_id: str, label: 
                 )
                 for code in customer_input.territory_subdivisions
             )
-            or tuple(Territory(country=country) for country in customer_input.territories)
+            + tuple(
+                Territory(country=country)
+                for country in customer_input.territories
+                if country not in subdivision_countries
+            )
         ),
         included_cpv_prefixes=customer_input.sector_cpv_prefixes,
         value_thresholds=(
-            ValueThreshold(
-                currency=threshold.currency,
-                minimum_amount=threshold.minimum_amount,
-                maximum_amount=threshold.maximum_amount,
-            ),
+            ()
+            if threshold.minimum_amount == 0 and threshold.maximum_amount is None
+            else (
+                ValueThreshold(
+                    currency=threshold.currency,
+                    minimum_amount=threshold.minimum_amount,
+                    maximum_amount=threshold.maximum_amount,
+                ),
+            )
         ),
         unknown_value_policy=UNKNOWN_VALUE_POLICY,
         maximum_signal_age_days=MAXIMUM_SIGNAL_AGE_DAYS,

@@ -574,6 +574,8 @@ def _matching_criteria(customer_input: TargetIcpInput) -> tuple[Any, ...]:
         tuple(sorted(set(customer_input.buyer_trades))),
         tuple(sorted(set(customer_input.secondary_buyer_trades))),
         tuple(sorted(set(customer_input.territories))),
+        tuple(sorted(set(customer_input.territory_subdivisions))),
+        tuple(sorted(set(customer_input.sector_cpv_prefixes))),
         None
         if threshold is None
         else (threshold.currency, threshold.minimum_amount, threshold.maximum_amount),
