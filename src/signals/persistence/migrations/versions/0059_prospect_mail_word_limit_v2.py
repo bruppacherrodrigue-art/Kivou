@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "0056_prospect_mail_word_limit_v2"
-down_revision = "0055_company_enrichment"
+revision = "0059_prospect_mail_word_limit_v2"
+down_revision = "0058_model_call_budget"
 branch_labels = None
 depends_on = None
 
