@@ -36,6 +36,11 @@ sont pas réécrites. La jonction0061 conserve0058_model_call_budget et0060_boam
 0062 ajoute les demandes durables,0063 les métadonnées du miroir. Les nouvelles
 migrations refusent un downgrade destructeur.
 
+Le contrôle suivant a constaté la production sur
+`543793c7df22adfa1ff96a09d91df854ff9f1cfa` (audit des SIREN dupliqués dans la
+file de prospection). Cette évolution est conservée par la fusion `b2dcea8`.
+La relance ciblage et contrats nginx/production a réussi **154 tests**.
+
 Revues SPEC et qualité distinctes : raccord des migrations, contacts, demandes
 durables et miroir. Les constats ont été reproduits avant correction : fraîcheur
 par champ, retraits source, normalisation Decimal, révocation Apollo, brouillons,
@@ -61,6 +66,16 @@ exécution sur `/tmp` et la CI exacte complètent la validation. L'intégration 
 dernier ciblage pendant cette première collecte a aussi rendu une assertion
 collectée obsolète ; le lot de ciblage frais a réussi76 tests. Le contrat nginx
 a été adapté explicitement à la production V11 et à son seul alias catalogue.
+
+La seconde suite backend, sur `/tmp`, s'est terminée avec **6 725 pass,
+65 skips, 1 xfail et 2 échecs** : l'ancienne assertion nginx collectée avant sa
+correction, et l'oubli du nouveau module dans l'allowlist des migrations
+exhaustives. Les lots frais correspondants passent (154 tests ci-dessus ;
+12 tests configuration/migration après reproduction RED et correction).
+La CI `34822774471` sur `c40bae9` a réussi le frontend et trois shards backend ;
+le quatrième a retrouvé uniquement cet oubli d'allowlist. Une CI complète du
+candidat corrigé reste requise ; ces résultats ne sont pas présentés comme une
+suite complète verte.
 
 ## Portes restantes avant activation
 
