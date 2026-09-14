@@ -23,6 +23,8 @@ from signals.acquisition_runtime.events import configure_acquisition_runtime_log
 from signals.acquisition_runtime.shadow_store import latest_shadow_mails
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.persistence.database import create_database_engine
+from signals.persistence.schema import prospect_target
+from signals.prospection_actions.day import prospection_day_bounds
 from signals.prospection_actions.stats import assisted_stats
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
@@ -61,6 +63,11 @@ def _parser() -> _SafeArgumentParser:
         action="store_true",
         help="manual staging-only gate; rejected in production",
     )
+    prepare_queue = commands.add_parser(
+        "prepare-queue",
+        help="prepare several assisted signals under one bounded queue cycle",
+    )
+    prepare_queue.add_argument("--max-signals", type=int, default=5)
     commands.add_parser(
         "check-dependencies",
         help="run fresh read-only production dependency probes",
@@ -185,6 +192,72 @@ def main(
             print("status=NOT_READY")
             return 1
         print(f"status=READY dependency_count={_EXPECTED_DEPENDENCY_COUNT}")
+        return 0
+
+    if arguments.command == "prepare-queue":
+        if not 1 <= arguments.max_signals <= 5:
+            print("status=INVALID_ARGUMENTS", file=sys.stderr)
+            return 2
+        run = execute or _default_execute
+        engine = create_database_engine()
+        before = 0
+        try:
+            day_start, day_end = prospection_day_bounds(dt.datetime.now(dt.UTC))
+            with engine.connect() as connection:
+                before = int(
+                    connection.scalar(
+                        sa.select(sa.func.count()).select_from(prospect_target).where(
+                            prospect_target.c.created_at >= day_start,
+                            prospect_target.c.created_at < day_end,
+                            prospect_target.c.status.in_(("pending_review", "approved")),
+                        )
+                    )
+                    or 0
+                )
+        except (OSError, sa.exc.SQLAlchemyError, ValueError):
+            print("status=QUEUE_UNAVAILABLE")
+            return 1
+        prepared_runs = 0
+        last_reason = None
+        for _ in range(arguments.max_signals):
+            try:
+                result = run(False)
+            except RuntimeExecutionConfigurationError as error:
+                last_reason = error.code
+                if error.code == "NO_ELIGIBLE_OPPORTUNITY":
+                    break
+                print("status=CONFIGURATION_INVALID", file=sys.stderr)
+                return 2
+            except (RuntimeError, ValueError):
+                print("status=CONFIGURATION_INVALID", file=sys.stderr)
+                return 2
+            except Exception:  # noqa: BLE001 - no provider/config detail crosses the CLI
+                print("status=RUNTIME_FAILED", file=sys.stderr)
+                return 1
+            prepared_runs += 1
+            last_reason = result.reason_code
+            try:
+                with engine.connect() as connection:
+                    current = int(
+                        connection.scalar(
+                            sa.select(sa.func.count()).select_from(prospect_target).where(
+                                prospect_target.c.created_at >= day_start,
+                                prospect_target.c.created_at < day_end,
+                                prospect_target.c.status.in_(("pending_review", "approved")),
+                            )
+                        )
+                        or 0
+                    )
+            except (OSError, sa.exc.SQLAlchemyError):
+                print("status=QUEUE_UNAVAILABLE")
+                return 1
+            if current >= 25 or current == before:
+                break
+            before = current
+        print(
+            f"status=QUEUE_PREPARED runs={prepared_runs} pending={before}"
+            + (f" reason={last_reason}" if last_reason else "")
+        )
         return 0
 
     assert arguments.command == "run-once"

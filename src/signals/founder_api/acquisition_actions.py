@@ -64,7 +64,7 @@ class FounderAcquisitionLauncher:
                 sys.executable,
                 "-m",
                 "signals.acquisition_runtime",
-                "run-once",
+                "prepare-queue",
             )
         )
         self._popen = popen
