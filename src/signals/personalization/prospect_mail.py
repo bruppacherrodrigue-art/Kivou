@@ -70,6 +70,10 @@ _BODY_TECHNICAL_PATTERN = re.compile(
 )
 _FOOTER_SEPARATOR = "\n\n—\n"
 _SURNAME_PARTICLES = frozenset({"al", "el", "de", "du", "des", "le", "la", "van", "von"})
+_FEMALE_FIRST_NAMES = frozenset({"anne", "claire", "camille", "charlotte", "chloe", "elise", "emilie", "eva", "julie", "laura", "lea", "louise", "marie", "marion", "margot", "martine", "monique", "nina", "pauline", "sophie", "valerie", "virginie"})
+_MALE_FIRST_NAMES = frozenset({"adrien", "alexandre", "alain", "arnaud", "benjamin", "bernard", "bruno", "christophe", "daniel", "david", "dominique", "françois", "franck", "gabriel", "georges", "guillaume", "henri", "hugo", "jacques", "jean", "jerome", "joseph", "julien", "laurent", "loic", "louis", "luc", "marc", "marcel", "martin", "mathieu", "michel", "nicolas", "olivier", "patrick", "paul", "philippe", "pierre", "remi", "renaud", "robert", "romain", "sebastien", "thomas", "victor", "yann", "xavier"})
+_LEGAL_FORMS = re.compile(r"\b(?:SASU?|SARL|EURL|SA|SCI|SNC|EI|EIRL|MICRO[- ]?ENTREPRISE|ASSOCIATION)\b", re.IGNORECASE)
+_REGISTRY_MENTION = re.compile(r"\s*\((?:RCS|SIREN|RM|registre)[^)]*\)", re.IGNORECASE)
 
 
 def _catalog_path() -> Path:
@@ -148,6 +152,29 @@ def normalize_director_name(value: object) -> str | None:
     return _normal_case(" ".join((parts[0], *surname)))
 
 
+def director_civility(value: object) -> str | None:
+    normalized = normalize_director_name(value)
+    if not normalized:
+        return None
+    first = _fold(normalized.split()[0]).split("-")[0]
+    if first in _FEMALE_FIRST_NAMES:
+        return "Madame"
+    if first in _MALE_FIRST_NAMES:
+        return "Monsieur"
+    return None
+
+
+def normalize_company_name(value: object) -> str:
+    raw = " ".join(str(value or "").replace("–", "-").split()).strip(" ,;:-")
+    raw = _REGISTRY_MENTION.sub("", raw)
+    abbreviated = re.split(r"\s+EN\s+ABREGE\s+", raw, maxsplit=1, flags=re.IGNORECASE)
+    if len(abbreviated) == 2:
+        sigle = re.sub(r"[^A-Za-z0-9À-ÖØ-öø-ÿ&.-]+", " ", abbreviated[0]).strip()
+        name = _normal_case(" ".join(_LEGAL_FORMS.sub(" ", abbreviated[1]).split()).strip(" ,;:-"))
+        return f"{sigle.upper()} ({name})" if sigle and name else (sigle.upper() or name)
+    return _normal_case(" ".join(_LEGAL_FORMS.sub(" ", raw).split()).strip(" ,;:-"))
+
+
 def _work_description(raw_subject: str, catalog: ProspectMailCatalog) -> str:
     folded = _fold(raw_subject)
     matches: list[tuple[int, str, str]] = []
@@ -216,6 +243,7 @@ def _render_html(
     signal_sentence: str,
     family_sentence: str,
     attribution_url: str,
+    signal_source_url: str,
     footer_reason: str,
     unsubscribe_url: str,
 ) -> str:
@@ -228,7 +256,9 @@ def _render_html(
                 "<p>Si ça vous intéresse, le détail du marché est ici : "
                 f"{_linked(attribution_url, 'Voir le marché')}</p>"
             ),
-            "<p>Bien à vous,<br>Rodrigue Bruppacher<br>Kivou</p>",
+            f"<p>Source du signal : {_linked(signal_source_url, signal_source_url)}</p>",
+            "<p>Un mot en retour suffit, je vous envoie le contact du titulaire.</p>",
+            "<p>Rodrigue / Kivou · kivou.eu</p>",
             (
                 f"<p>—<br>{html.escape(footer_reason)} Source : registres publics et avis "
                 "d'attribution officiel.<br>"
@@ -246,7 +276,10 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
     except KeyError as exc:
         raise ValueError(f"prospect mail family is unknown: {family_key}") from exc
     director_name = normalize_director_name(row.get("director_name"))
-    greeting = f"Bonjour {director_name}," if director_name else "Bonjour,"
+    civility = director_civility(director_name)
+    surname = " ".join(director_name.split()[1:]) if director_name else ""
+    greeting = f"Bonjour {civility} {surname}," if civility and surname else "Bonjour,"
+    company_name = normalize_company_name(row.get("company_name"))
     holder = str(row.get("signal_holder") or "").strip()
     city = _normal_case(str(row.get("signal_city") or "").strip()) or None
     department = str(row.get("signal_department") or "").strip()
@@ -268,24 +301,33 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
         f"attribué le {date}."
     )
     attribution_url = str(row["attribution_url"])
+    signal_url = str(row.get("signal_source_url") or attribution_url)
     unsubscribe_url = str(row["unsubscribe_url"])
-    footer_reason = (
-        "Vous recevez ce message parce que votre entreprise est référencée en "
-        f"{family.footer_label} en {department}."
+    target_city = _normal_case(str(row.get("company_city") or "").strip()) or None
+    distance = row.get("distance_km")
+    distance_text = f" à {distance} km du chantier" if distance not in (None, "") else ""
+    family_sentence = f"Sur ce type de lot, le titulaire sous-traite souvent {family.footer_label}."
+    why_you = (
+        f"Pourquoi vous : votre entreprise, {company_name or 'votre société'}, exerce le métier de "
+        f"{family.footer_label} à {target_city or department}{distance_text}."
     )
+    signature = "Rodrigue / Kivou · kivou.eu"
+    if row.get("rodrigue_phone"):
+        signature += f" · {str(row['rodrigue_phone']).strip()}"
     body = "\n\n".join(
         (
             greeting,
             signal_sentence,
-            family.sentence,
-            f"Si ça vous intéresse, le détail du marché est ici : {attribution_url}",
-            "Bien à vous,\nRodrigue Bruppacher\nKivou",
+            family_sentence,
+            why_you,
+            "Kivou repère les marchés publics attribués près de chez vous et vous dit qui les a gagnés.",
+            f"Détail du marché : {attribution_url}",
+            f"Source du signal : {signal_url}",
+            "P.S. : Un mot en retour suffit, je vous envoie le contact du titulaire.",
+            signature,
         )
     )
-    footer = (
-        f"{footer_reason} Source : registres publics et avis d'attribution officiel.\n"
-        f"Ne plus recevoir : {unsubscribe_url}"
-    )
+    footer = f"Kivou, Sion (Suisse)\nNe plus recevoir : {unsubscribe_url}"
     text = f"{body}{_FOOTER_SEPARATOR}{footer}"
     word_count = len(body.split())
     candidate = RenderedProspectMail(
@@ -294,9 +336,10 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
         html=_render_html(
             greeting=greeting,
             signal_sentence=signal_sentence,
-            family_sentence=family.sentence,
+            family_sentence=family_sentence,
             attribution_url=attribution_url,
-            footer_reason=footer_reason,
+            signal_source_url=signal_url,
+            footer_reason="Kivou, Sion (Suisse)",
             unsubscribe_url=unsubscribe_url,
         ),
         word_count=word_count,
@@ -338,14 +381,16 @@ def validate_prospect_mail(
         "L’" + "équipe Kivou",
         "Vous fournissez " + "ou réalisez",
     )
-    if _BODY_TECHNICAL_PATTERN.search(body) or any(
+    body_without_urls = _URL_PATTERN.sub("", body)
+    if _BODY_TECHNICAL_PATTERN.search(body_without_urls) or any(
         fragment.casefold() in body.casefold() for fragment in retired_fragments
     ):
         return "body_contains_forbidden_fragment"
     greeting = body.partition("\n\n")[0]
-    if director_name:
+    if director_name and director_civility(director_name):
+        surname = " ".join(director_name.split()[1:])
         if (
-            greeting != f"Bonjour {director_name},"
+            greeting != f"Bonjour {director_civility(director_name)} {surname},"
             or "(" in director_name
             or ")" in director_name
             or director_name != normalize_director_name(director_name)
@@ -353,17 +398,17 @@ def validate_prospect_mail(
             return "director_name_invalid"
     elif greeting != "Bonjour,":
         return "director_name_invalid"
-    if "\n\nBien à vous,\nRodrigue Bruppacher\nKivou" not in body:
+    if "Rodrigue / Kivou · kivou.eu" not in body or "P.S. : Un mot en retour suffit" not in body:
         return "signature_invalid"
     urls = _URL_PATTERN.findall(mail.text)
-    if len(urls) != 2:
+    if len(urls) != 3:
         return "url_count_invalid"
     if any(mail.html.count(f'href="{html.escape(url, quote=True)}"') != 1 for url in urls):
         return "html_link_count_invalid"
     if ">Voir le marché</a>" not in mail.html or ">Ne plus recevoir</a>" not in mail.html:
         return "html_link_label_invalid"
     actual_word_count = len(body.split())
-    if actual_word_count != mail.word_count or actual_word_count > 90:
+    if actual_word_count != mail.word_count or actual_word_count > 110:
         return "body_word_limit_exceeded"
     return None
 
@@ -375,7 +420,9 @@ __all__ = [
     "WorkTerm",
     "client_market_object",
     "client_work_description",
+    "director_civility",
     "load_prospect_mail_catalog",
+    "normalize_company_name",
     "normalize_director_name",
     "render_prospect_mail",
     "validate_prospect_mail",

@@ -306,6 +306,58 @@ class ProspectionActions:
             ),
         )
 
+    def regenerate_pending_mail_v2(self, *, actor: str = "mail-template-v2") -> int:
+        """Re-render every non-sent target once, retaining an audit snapshot."""
+
+        at = self._clock()
+        count = 0
+        with self._engine.begin() as connection:
+            rows = tuple(
+                connection.execute(
+                    sa.select(prospect_target)
+                    .where(prospect_target.c.status.in_(("pending_review", "approved")))
+                    .order_by(prospect_target.c.created_at, prospect_target.c.target_id)
+                    .with_for_update()
+                ).mappings()
+            )
+            for mapping in rows:
+                row = dict(mapping)
+                render_row = {**row}
+                location = str(row.get("signal_location") or "").strip()
+                department = str(row.get("signal_department") or "").strip()
+                render_row["signal_city"] = location if location and location != department else None
+                rendered = self._mail_renderer(render_row)
+                previous = {
+                    key: row.get(key)
+                    for key in ("mail_subject", "mail_text", "mail_html", "mail_word_count", "mail_contract_status", "mail_contract_failure")
+                }
+                values = {
+                    "mail_subject": rendered.subject,
+                    "mail_text": rendered.text,
+                    "mail_html": rendered.html,
+                    "mail_word_count": rendered.word_count,
+                    "mail_contract_status": rendered.contract_status,
+                    "mail_contract_failure": rendered.contract_failure,
+                    "version": int(row["version"]) + 1,
+                    "updated_at": at,
+                }
+                connection.execute(
+                    sa.update(prospect_target)
+                    .where(prospect_target.c.target_id == row["target_id"])
+                    .values(**values)
+                )
+                self._history(
+                    connection,
+                    row=row,
+                    event_type="mail_regenerated_v2",
+                    actor=actor,
+                    previous=previous,
+                    new={key: values[key] for key in ("mail_subject", "mail_word_count", "mail_contract_status", "mail_contract_failure")},
+                    at=at,
+                )
+                count += 1
+        return count
+
     @staticmethod
     def _locked_rows(
         connection: sa.Connection,
