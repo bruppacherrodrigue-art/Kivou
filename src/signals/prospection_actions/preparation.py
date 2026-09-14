@@ -132,6 +132,52 @@ class ProspectPreparationService:
                     sa.text("SELECT pg_advisory_xact_lock(hashtext(:scope))"),
                     {"scope": f"assisted-prospection:{day_start.date().isoformat()}"},
                 )
+            active_rows = tuple(
+                connection.execute(
+                    sa.select(
+                        prospect_target.c.target_id,
+                        prospect_target.c.siren,
+                        prospect_target.c.created_at,
+                        prospect_target.c.status,
+                    )
+                    .where(prospect_target.c.status.in_(("pending_review", "approved")))
+                    .order_by(prospect_target.c.siren, prospect_target.c.created_at, prospect_target.c.target_id)
+                ).mappings()
+            )
+            kept_sirens: set[str] = set()
+            for row in active_rows:
+                siren = str(row["siren"])
+                if siren not in kept_sirens:
+                    kept_sirens.add(siren)
+                    continue
+                target_id = str(row["target_id"])
+                connection.execute(
+                    sa.update(prospect_target)
+                    .where(prospect_target.c.target_id == target_id)
+                    .values(
+                        status="rejected",
+                        rejection_reason="other",
+                        rejection_comment="duplicate_siren_targeting_rule",
+                        rejected_at=now,
+                        rejected_by="acquisition-runtime",
+                        updated_at=now,
+                    )
+                )
+                connection.execute(
+                    sa.insert(prospect_target_history).values(
+                        history_id=_history_id(target_id, 2, "rejected-duplicate-siren"),
+                        target_id=target_id,
+                        event_type="rejected_duplicate_siren",
+                        actor="acquisition-runtime",
+                        previous_values={"status": row["status"]},
+                        new_values={
+                            "status": "rejected",
+                            "rejection_reason": "other",
+                            "rejection_comment": "duplicate_siren_targeting_rule",
+                        },
+                        created_at=now,
+                    )
+                )
             daily = tuple(
                 connection.execute(
                     sa.select(
@@ -141,6 +187,7 @@ class ProspectPreparationService:
                     ).where(
                         prospect_target.c.created_at >= day_start,
                         prospect_target.c.created_at < day_end,
+                        prospect_target.c.status.in_(("pending_review", "approved")),
                     )
                 )
             )
