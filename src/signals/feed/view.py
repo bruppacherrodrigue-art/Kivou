@@ -34,7 +34,7 @@ from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.ingestion.client_location import resolve_client_location
 from signals.personalization.for_you import ForYouInput, client_safe_sentence, fallback_sentence
-from signals.personalization.prospect_mail import client_market_object
+from signals.personalization.prospect_mail import client_market_object, normalize_holder_name
 from signals.recency.claim import claim_for_status
 
 #: PR2b §46 — les seuls rôles qui, PORTÉS PAR UN MEMBRE, disent que ce membre
@@ -128,7 +128,7 @@ def _company(item: FeedSignal) -> dict[str, Any]:
     scheme = display.identifier_scheme if display else signal.winner_identifier_scheme
     value = display.identifier_value if display else signal.winner_identifier_value
     return {
-        "name": display.name if display else None,
+        "name": normalize_holder_name(display.name) if display else None,
         "country": (display.country if display else None) or signal.winner_country,
         "identifier": None if value is None else {"scheme": scheme, "value": value},
     }
@@ -156,7 +156,9 @@ def _event(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         "date": date.isoformat() if date else None,
         "age_days": clock.age_days if clock else None,
         "headline": claim_for_status(
-            status, company=item.display.name if item.display else "", lang=lang
+            status,
+            company=normalize_holder_name(item.display.name) if item.display else "",
+            lang=lang,
         ),
         "why_now": feed_copy.WHY_NOW[status][lang],
         # CLOSEOUT §1 — le complément lit l'horloge d'ATTRIBUTION elle-même. Il

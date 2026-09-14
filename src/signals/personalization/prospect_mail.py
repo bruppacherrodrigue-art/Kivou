@@ -75,6 +75,7 @@ _FEMALE_FIRST_NAMES = frozenset({"alice", "anne", "claire", "camille", "charlott
 _MALE_FIRST_NAMES = frozenset({"adrien", "alexandre", "alain", "arnaud", "benjamin", "bernard", "bruno", "christophe", "daniel", "david", "dominique", "françois", "franck", "gabriel", "georges", "gregory", "guillaume", "henri", "hugo", "jacques", "jean", "jerome", "joseph", "julien", "laurent", "loic", "louis", "luc", "marc", "marcel", "martin", "mathieu", "michel", "nicolas", "olivier", "patrick", "paul", "philippe", "pierre", "remi", "renaud", "robert", "romain", "sebastien", "thomas", "victor", "yann", "xavier"})
 _LEGAL_FORMS = re.compile(r"\b(?:SASU?|SARL|EURL|SA|SCI|SNC|EI|EIRL|MICRO[- ]?ENTREPRISE|ASSOCIATION)\b", re.IGNORECASE)
 _REGISTRY_MENTION = re.compile(r"\s*\((?:RCS|SIREN|RM|registre)[^)]*\)", re.IGNORECASE)
+_PRESERVED_NAME_ACRONYMS = frozenset({"AG", "BV", "GMBH", "INC", "KG", "LLC", "NV", "PLC"})
 
 
 def _catalog_path() -> Path:
@@ -137,7 +138,10 @@ def _fold(value: str) -> str:
 
 
 def _normal_case(value: str) -> str:
-    return " ".join(part.title() for part in value.split())
+    return " ".join(
+        part.upper() if part.upper() in _PRESERVED_NAME_ACRONYMS else part.title()
+        for part in value.split()
+    )
 
 
 def normalize_director_name(value: object) -> str | None:
@@ -179,6 +183,8 @@ def normalize_company_name(value: object) -> str:
 
 def normalize_holder_name(value: object) -> str:
     raw = " ".join(str(value or "").split()).strip(" ,;:-")
+    if re.fullmatch(r"[A-Z][A-Z0-9&.-]{1,15}", raw):
+        return raw.upper()
     terminal_sigle = re.search(
         r"(?:\s[-–—]\s|\s+(?i:EN\s+ABREGE)\s+)([A-Z][A-Z0-9&.-]{1,15})$",
         raw,

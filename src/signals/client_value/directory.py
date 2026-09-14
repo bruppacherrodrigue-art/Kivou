@@ -15,6 +15,7 @@ from signals.companies.contracts import safe_https_url
 from signals.domain.french_departments import DEPARTMENTS
 from signals.feed.text import normalize_text
 from signals.persistence.schema import supplier_directory
+from signals.personalization.prospect_mail import normalize_holder_name
 from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
     SupplierFamily,
@@ -352,7 +353,7 @@ def local_circuit(
     for row, family in matches[:8]:
         item: dict[str, Any] = {
             "siren": row["siren"],
-            "name": row["legal_name"],
+            "name": normalize_holder_name(row["legal_name"]),
             "trade": family.label_fr,
             "href": f"/app/companies/directory/{row['siren']}",
             "source": "registre",

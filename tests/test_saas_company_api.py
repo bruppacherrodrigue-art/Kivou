@@ -357,6 +357,35 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert "contact_ref" not in response.text.lower()
 
 
+def test_holder_name_uses_the_mail_normalizer_across_customer_surfaces(app, engine) -> None:
+    client = _signup(app, email="company-name-parity@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    signal = client.get(f"/signals/{signal_key}").json()
+    company_key = signal["company_key"]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == company_key)
+            .values(
+                official_name=(
+                    "CONSTRUCTION DE MAISONS ET CHARPENTES DU DAUPHINE - CMCD"
+                ),
+                official_source="official_register",
+                official_identifiers=[{"scheme": "SIRET", "value": "33136472900020"}],
+            )
+        )
+
+    detail = client.get(f"/signals/{signal_key}").json()
+    companies = client.get("/companies").json()["items"]
+    profile = client.get(f"/companies/{company_key}").json()
+
+    assert detail["company"]["name"] == "CMCD"
+    assert detail["winner_enrichment"]["official_name"] == "CMCD"
+    assert companies[0]["name"] == "CMCD"
+    assert profile["official_identity"]["name"] == "CMCD"
+    assert profile["signals"][0]["company"]["name"] == "CMCD"
+
+
 def test_signal_and_company_expose_the_same_holder_market_history(app, engine) -> None:
     client = _signup(app, email="company-market-history@example.com")
     signal_key = _seed_unlocked(engine, client)
@@ -610,7 +639,7 @@ def test_signal_detail_exposes_the_local_circuit_for_the_target_profile(app, eng
     assert detail["local_circuit"] == [
         {
             "siren": "331364729",
-            "name": "Fournisseur local",
+                "name": "Fournisseur Local",
             "trade": "Béton prêt à l'emploi",
             "city": "Grenoble",
             "employees": 24,
@@ -638,7 +667,7 @@ def test_authenticated_directory_profile_has_a_closed_not_found_shape(app, engin
     missing = client.get("/companies/directory/000000000")
 
     assert profile.status_code == 200
-    assert profile.json()["directory"]["name"] == "SARL ALCIS TRANSPORTS"
+    assert profile.json()["directory"]["name"] == "Alcis Transports"
     assert profile.json()["markets"][0]["title"]
     assert profile.json()["markets"][0]["source"] == "public_awards"
     assert missing.status_code == 404

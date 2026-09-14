@@ -17,7 +17,7 @@ from signals.feed.french_departments import department_label, location_subdivisi
 from signals.feed.location import normalized_city
 from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.ingestion.client_location import resolve_client_location
-from signals.personalization.prospect_mail import client_market_object
+from signals.personalization.prospect_mail import client_market_object, normalize_holder_name
 
 _MAX_OBJECT_LENGTH = 180
 _MAX_HEADLINE_LENGTH = 220
@@ -127,7 +127,7 @@ def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     the frontend: the browser does not guess whether a signal is complete.
     """
 
-    company = item.display.name if item.display is not None else ""
+    company = normalize_holder_name(item.display.name) if item.display is not None else ""
     raw_object = _clean(item.signal.award.title)
     market_object = _clean(
         client_market_object(raw_object), limit=_MAX_OBJECT_LENGTH

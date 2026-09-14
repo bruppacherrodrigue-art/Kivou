@@ -58,6 +58,7 @@ from signals.feed.query import (
 from signals.feed.text import normalize_text
 from signals.persistence.repository import StoredSignal, signal_from_row
 from signals.persistence.schema import materialized_signal, supplier_directory
+from signals.personalization.prospect_mail import normalize_holder_name
 
 _SCAN_BATCH = 250
 
@@ -531,9 +532,11 @@ def list_companies(
         rows.append(
             CompanyRow(
                 company_key=company_key,
-                name=identity.official_name
-                if identity is not None
-                else directory_identity.legal_name,
+                name=normalize_holder_name(
+                    identity.official_name
+                    if identity is not None
+                    else directory_identity.legal_name
+                ),
                 city=acc.city
                 or (directory_identity.city if directory_identity is not None else None),
                 country=identity.official_country if identity is not None else "FR",

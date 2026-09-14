@@ -74,6 +74,7 @@ from signals.engagement.status import status_resolver, workflow_by_signal
 from signals.feed import query as feed_query
 from signals.feed.history import history_sort_key
 from signals.persistence.schema import materialized_signal, supplier_directory
+from signals.personalization.prospect_mail import normalize_holder_name
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -715,6 +716,15 @@ def get_company(company_key: str, request: Request) -> CompanyProfile | Director
                 }
             )
         account_id = session.account_id
+    profile = profile.model_copy(
+        update={
+            "official_identity": profile.official_identity.model_copy(
+                update={"name": normalize_holder_name(profile.official_identity.name)}
+            )
+        }
+    )
+    if directory is not None:
+        directory = {**directory, "name": normalize_holder_name(directory["name"])}
     update = {
         **public_contacts,
         "city": place.get("locality"),
@@ -811,6 +821,7 @@ def get_directory_company(siren: str, request: Request) -> DirectoryCompanyProfi
             as_of=now.date(),
         )
         account_id = session.account_id
+    directory = {**directory, "name": normalize_holder_name(directory["name"])}
     result: dict[str, Any] = {
         **public_contacts,
         "company_key": company_key,

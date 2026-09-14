@@ -23,6 +23,7 @@ from signals.companies.schema import saas_company
 from signals.engagement.prospecting_schema import company_subject_alias
 from signals.persistence.notice_schema import notice_award_facts
 from signals.persistence.schema import materialized_signal, supplier_directory
+from signals.personalization.prospect_mail import normalize_holder_name
 
 _EMAIL = TypeAdapter(EmailStr)
 MAX_CONTACT_AWARDS = 250
@@ -117,7 +118,11 @@ def notice_contacts(
                 )
             except ValidationError:
                 continue
-            result.append(contact.model_dump(mode="json"))
+            rendered = contact.model_dump(mode="json")
+            rendered["organization_name"] = normalize_holder_name(
+                rendered["organization_name"]
+            )
+            result.append(rendered)
     return result
 
 

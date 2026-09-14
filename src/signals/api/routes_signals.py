@@ -79,6 +79,7 @@ from signals.engagement.status import (
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
 from signals.personalization.for_you import client_safe_sentence
+from signals.personalization.prospect_mail import normalize_holder_name
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -746,7 +747,9 @@ def get_signal(
     if enrichment is not None:
         detail["winner_enrichment"] = enrichment.model_dump(mode="json")
         if enrichment.official_name is not None:
-            detail["company"]["name"] = enrichment.official_name
+            normalized_name = normalize_holder_name(enrichment.official_name)
+            detail["winner_enrichment"]["official_name"] = normalized_name
+            detail["company"]["name"] = normalized_name
     if holder_history is not None:
         detail["holder_history"] = holder_history
     if circuit:

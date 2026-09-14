@@ -21,6 +21,7 @@ from signals.engagement.prospecting_schema import (
     company_subject_alias,
 )
 from signals.persistence.schema import supplier_directory
+from signals.personalization.prospect_mail import normalize_holder_name
 from signals.supplier_discovery.families import load_supplier_family_catalog
 
 router = APIRouter()
@@ -172,12 +173,13 @@ def list_directory(
                 _company_view(row, matched_by_name=False, include_public_contact=True),
                 entitlements=access.entitlements,
             )
+            directory["name"] = normalize_holder_name(directory["name"])
             items.append(
                 {
                     "company_key": key,
                     "canonical_company_key": key,
                     "private_subject_key": exceptions.get(key, key),
-                    "name": row["legal_name"],
+                    "name": normalize_holder_name(row["legal_name"]),
                     "city": row["city"],
                     "country": "FR",
                     "directory": directory,
