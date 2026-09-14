@@ -150,3 +150,46 @@ TypeScript, ESLint, builds client et Founder réussis. Ruff global et diffcheck
 réussis. La comparaison `git diff --quiet e79e8fb -- src ops pyproject.toml uv.lock`
 confirme que le backend, ses dépendances et les migrations des répétitions sont
 inchangés ; le delta produit final est uniquement la frontière de navigation.
+
+## Intégration de la nouvelle branche mail de production
+
+Cette équivalence vaut pour `f374546`, pas pour les intégrations suivantes.
+La CI `34826773517` a échoué lors de la collecte : son checkout de fusion incluait
+les migrations mail arrivées entre-temps sur `main`. La collecte du candidat seul
+réussissait, y compris avec les 49 dépendances exactes de CI ; l'ajout des
+migrations amont reproduit les erreurs de têtes Alembic multiples. La collecte
+masquée par le filtre du script de sharding expliquait l'absence du détail dans
+le journal, pas une réussite des tests.
+
+La fusion `3ee4934` conserve intégralement `main` à `2d4aa6d`, dont le contrat
+mail de 110 mots. Une jonction additive `0064_company_mail_merge` est vérifiée
+avant la prochaine CI ; aucune révision historique n'est réécrite. Les preuves
+opérateur `e79e8fb` ci-dessus restent identifiées par leur SHA, sans les attribuer
+au nouveau candidat. Le déploiement devra répéter la migration PostgreSQL sur
+copie avec son SHA exact avant toute migration de la base active.
+
+La répétition staging `e79e8fb` est maintenant réussie : **284 545 lignes sur
+33 tables préservées**, export des 37 comptes inchangé, avec 33 entreprises,
+755 snapshots et 1 638 faits BOAMP. Le retour réel à l'ancien artefact `7f2a208`,
+derrière le garde fermé, puis au candidat a réussi : **282 438 lignes privées
+et catalogue contrôlées**, huit contrats privés, authentification, facturation,
+note de 2 000 caractères et reprise CAS. Aucun fournisseur appelé, aucune
+configuration ni lien actif modifié. Les processus de répétition sont arrêtés ;
+zéro connexion à la base jetable constatée avant sa suppression ciblée.
+
+Le manifeste BOAMP initial est conservé sur production dans le répertoire privé
+de l'opérateur : 28 événements exacts pour 239 signaux courants. Il a été établi
+en lecture seule ; aucun backfill, envoi commercial ou changement de quota n'a
+été exécuté.
+
+La jonction 0064 passe les revues SPEC et qualité distinctes. Collecte avec les
+dépendances CI : **6 856 tests**, sans erreur. Vérification intégrateur explicite
+avec `-o addopts=` : **17 tests** de migrations, configuration pytest et mail
+shadow, sans exclusion des suites lentes. Revue qualité : sept tests de migration
+indépendants. Les assertions mail historiques ont été raccordées au contrat amont
+110 mots, sans modifier son runtime ; Ruff global et diffcheck passent.
+
+La seule base jetable staging a été supprimée après revalidation de son OID,
+absence de connexions et empreinte de sauvegarde. La sauvegarde de 3,2 Go et les
+rapports privés restent sur l'hôte. La copie production reste conservée. Aucun
+compte, entreprise ou schéma actif n'a été supprimé.

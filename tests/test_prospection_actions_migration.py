@@ -31,7 +31,7 @@ def test_prospection_actions_schema_is_at_head(migrated_sqlite_engine) -> None:
         check["name"]: check["sqltext"]
         for check in inspector.get_check_constraints("prospect_target")
     }
-    assert "90" in checks["ck_prospect_target_words"]
+    assert checks["ck_prospect_target_words"] == "mail_word_count BETWEEN 1 AND 110"
     assert "mail_contract_status" in checks["ck_prospect_target_mail_contract"]
     assert "prospect_target_id" in {
         column["name"] for column in inspector.get_columns("acquisition_conversion_event")
