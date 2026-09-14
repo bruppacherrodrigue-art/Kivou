@@ -6,6 +6,7 @@ from pathlib import Path
 from signals.personalization.prospect_mail import (
     RenderedProspectMail,
     client_work_description,
+    is_prospect_relevance_sentence,
     load_prospect_mail_catalog,
     prospect_relevance_sentence,
     render_prospect_mail,
@@ -256,3 +257,13 @@ def test_corrected_v2_renders_alpes_zinguerie_contract() -> None:
     assert mail.html.count("href=") == 2
     assert mail.word_count <= 110
     assert mail.contract_status == "passed"
+
+
+def test_recognizes_only_a_sentence_from_the_reviewed_mail_catalogue() -> None:
+    sentence = prospect_relevance_sentence(
+        family_key="roofing",
+        company_city="SILLINGY",
+    )
+
+    assert is_prospect_relevance_sentence(sentence) is True
+    assert is_prospect_relevance_sentence("Votre offre peut intéresser ce titulaire.") is False

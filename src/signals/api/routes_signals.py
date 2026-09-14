@@ -79,7 +79,10 @@ from signals.engagement.status import (
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
 from signals.personalization.for_you import client_safe_sentence
-from signals.personalization.prospect_mail import normalize_holder_name
+from signals.personalization.prospect_mail import (
+    is_prospect_relevance_sentence,
+    normalize_holder_name,
+)
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -782,7 +785,7 @@ def get_signal(
             stored
             if landing_signal_key == signal_key
             and stored is not None
-            and stored.startswith("Sur ce type de lot, le titulaire sous-traite souvent ")
+            and is_prospect_relevance_sentence(stored)
             else None
         )
         location = detail["contract"].get("location") or {}

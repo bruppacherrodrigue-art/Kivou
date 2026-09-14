@@ -1,6 +1,6 @@
 # Parité mail–drawer du prospect — design validé
 
-Date : 2026-09-14  
+Date : 2026-09-14
 Statut : validé
 
 ## Objectif

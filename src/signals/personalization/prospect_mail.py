@@ -263,6 +263,18 @@ def prospect_relevance_sentence(
     )
 
 
+def is_prospect_relevance_sentence(value: object) -> bool:
+    """Recognize a sentence composed from the current reviewed mail catalogue."""
+
+    sentence = " ".join(str(value or "").split())
+    return sentence.endswith(".") and any(
+        sentence.startswith(
+            f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} à "
+        )
+        for family in load_prospect_mail_catalog().families.values()
+    )
+
+
 def _amount(minor_units: int, currency: str) -> str:
     major = Decimal(minor_units) / Decimal(100)
     suffix = "€" if currency.casefold() == "eur" else currency.upper()
@@ -487,6 +499,7 @@ __all__ = [
     "client_market_object",
     "client_work_description",
     "director_civility",
+    "is_prospect_relevance_sentence",
     "load_prospect_mail_catalog",
     "normalize_company_name",
     "normalize_director_name",
