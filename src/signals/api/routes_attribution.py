@@ -52,7 +52,7 @@ from signals.persistence.schema import (
     for_you_sentence,
     prospect_target,
 )
-from signals.personalization.for_you import client_safe_sentence
+from signals.personalization.for_you import POLICY_VERSION, client_safe_sentence
 from signals.personalization.prospect_mail import (
     prospect_relevance_sentence,
     prospect_relevance_sentence_from_mail,
@@ -458,15 +458,37 @@ def _land(
         else None
     )
     mail_sentence = client_safe_sentence(mail_sentence)
-    if signal_key is not None and mail_sentence:
+    landing_copy = (
+        connection.execute(
+            sa.select(
+                for_you_sentence.c.for_you_id,
+                for_you_sentence.c.fallback_sentence,
+            )
+            .where(
+                for_you_sentence.c.signal_key == signal_key,
+                for_you_sentence.c.policy_version == POLICY_VERSION,
+            )
+            .order_by(for_you_sentence.c.created_at.desc())
+            .limit(1)
+        )
+        .mappings()
+        .one_or_none()
+        if signal_key is not None
+        else None
+    )
+    visible_sentence = mail_sentence or client_safe_sentence(
+        landing_copy["fallback_sentence"] if landing_copy is not None else None
+    )
+    if landing_copy is not None and visible_sentence:
         # Le mail est déjà parti : sa phrase devient la valeur figée de cette
-        # paire afin que le drawer ne raconte jamais autre chose ensuite.
+        # paire. Sans cible mail persistée, le repli factuel est figé à la
+        # place afin que le drawer ne dépende jamais d'un second générateur.
         connection.execute(
             sa.update(for_you_sentence)
-            .where(for_you_sentence.c.signal_key == signal_key)
+            .where(for_you_sentence.c.for_you_id == landing_copy["for_you_id"])
             .values(
-                sentence=mail_sentence,
-                fallback_sentence=mail_sentence,
+                sentence=visible_sentence,
+                fallback_sentence=visible_sentence,
                 provenance="fallback",
                 state="completed",
                 validation_reason=None,
