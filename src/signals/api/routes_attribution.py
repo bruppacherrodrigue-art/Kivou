@@ -49,11 +49,11 @@ from signals.ingestion.backfill import (
     materialize_landing_feed_in_transaction,
 )
 from signals.persistence.schema import (
-    acquisition_campaign_member,
-    acquisition_personalization_artifact,
     for_you_sentence,
+    prospect_target,
 )
 from signals.personalization.for_you import client_safe_sentence
+from signals.personalization.prospect_mail import prospect_relevance_sentence
 from signals.supplier_discovery.families import load_supplier_family_catalog
 from signals.supplier_discovery.seed import (
     AcquisitionSeedNotFound,
@@ -156,19 +156,28 @@ def _redirect(url: str) -> RedirectResponse:
     return response
 
 
-def _mail_for_you_sentence(connection, *, member_ref: str) -> str | None:
-    snapshot = connection.scalar(
-        sa.select(acquisition_personalization_artifact.c.input_snapshot)
-        .select_from(
-            acquisition_campaign_member.join(
-                acquisition_personalization_artifact,
-                acquisition_campaign_member.c.personalization_artifact_id
-                == acquisition_personalization_artifact.c.personalization_artifact_id,
-            )
+def _mail_relevance_sentence(connection, *, member_ref: str) -> str | None:
+    target = (
+        connection.execute(
+            sa.select(
+                prospect_target.c.family_key,
+                prospect_target.c.company_city,
+                prospect_target.c.signal_department,
+            ).where(prospect_target.c.attribution_member_ref == member_ref)
         )
-        .where(acquisition_campaign_member.c.member_ref == member_ref)
+        .mappings()
+        .one_or_none()
     )
-    return snapshot.get("for_you_sentence") if isinstance(snapshot, dict) else None
+    if target is None:
+        return None
+    try:
+        return prospect_relevance_sentence(
+            family_key=target["family_key"],
+            company_city=target["company_city"],
+            department=target["signal_department"],
+        )
+    except ValueError:
+        return None
 
 
 @dataclass(frozen=True)
@@ -436,7 +445,7 @@ def _land(
             connection, account_id=account_id, opportunity_key=context.opportunity_key
         )
     mail_sentence = (
-        _mail_for_you_sentence(connection, member_ref=context.member_ref)
+        _mail_relevance_sentence(connection, member_ref=context.member_ref)
         if context.member_ref is not None
         else None
     )

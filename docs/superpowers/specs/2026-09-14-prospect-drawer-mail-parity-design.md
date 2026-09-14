@@ -16,8 +16,8 @@ Le mail assisté courant est rendu depuis `prospect_target`, mais
 `routes_attribution` ne cherche la phrase personnalisée que dans l'ancien
 artefact `acquisition_personalization_artifact`. L'absence de résultat fait
 retomber le drawer sur `api/commercial_context.py`, qui reconstruit une phrase
-à partir des catégories moteur. C'est la source de « une opportunité de
-positionner », des assemblages de catégories et des références techniques.
+à partir des catégories moteur. C'est la source de l'ancienne formulation de
+positionnement, des assemblages de catégories et des références techniques.
 
 ## Contrat de rédaction
 
@@ -32,9 +32,9 @@ positionner », des assemblages de catégories et des références techniques.
 - Le drawer ne fabrique plus de texte depuis les catégories moteur ou les
   offres du profil. Le module `api/commercial_context.py` est retiré.
 - Une phrase destinée au client ne contient jamais une référence de lot, un
-  code CPV, une clé moteur ni la chaîne « une opportunité de positionner ».
-- La vérification finale `rg "une opportunité de positionner"` doit retourner
-  zéro occurrence dans le dépôt suivi.
+  code CPV, une clé moteur ni l'ancienne formulation de positionnement.
+- La recherche finale de cette formulation historique doit retourner zéro
+  occurrence dans le dépôt suivi.
 
 ## Identité entreprise
 

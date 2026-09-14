@@ -226,6 +226,37 @@ def client_market_object(raw_subject: str | None) -> str:
     return cleaned
 
 
+def prospect_relevance_sentence(
+    *,
+    family_key: str,
+    company_city: object = None,
+    department: object = None,
+    distance_km: object = None,
+) -> str:
+    """Render the commercial sentence shared by the mail and its landing.
+
+    The family catalogue owns both the general fact and the customer's trade
+    wording.  Keeping their composition here prevents a client surface from
+    rebuilding it from internal need categories.
+    """
+
+    catalog = load_prospect_mail_catalog()
+    try:
+        family = catalog.families[family_key]
+    except KeyError as exc:
+        raise ValueError(f"prospect mail family is unknown: {family_key}") from exc
+    city = _normal_case(str(company_city or "").strip()) or None
+    department_name = _normal_case(str(department or "").strip()) or None
+    place = city or department_name
+    if place is None:
+        raise ValueError("prospect relevance place is unavailable")
+    distance_text = f", à {distance_km} km du chantier" if distance_km not in (None, "") else ""
+    return (
+        f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} "
+        f"à {place}{distance_text}."
+    )
+
+
 def _amount(minor_units: int, currency: str) -> str:
     major = Decimal(minor_units) / Decimal(100)
     suffix = "€" if currency.casefold() == "eur" else currency.upper()
@@ -318,12 +349,11 @@ def render_prospect_mail(row: dict[str, object]) -> RenderedProspectMail:
     )
     attribution_url = str(row["attribution_url"])
     unsubscribe_url = str(row["unsubscribe_url"])
-    target_city = _normal_case(str(row.get("company_city") or "").strip()) or None
-    distance = row.get("distance_km")
-    distance_text = f", à {distance} km du chantier" if distance not in (None, "") else ""
-    family_sentence = (
-        f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} "
-        f"à {target_city or department}{distance_text}."
+    family_sentence = prospect_relevance_sentence(
+        family_key=family_key,
+        company_city=row.get("company_city"),
+        department=department,
+        distance_km=row.get("distance_km"),
     )
     signature = "Rodrigue / Kivou · kivou.eu"
     if row.get("rodrigue_phone"):
@@ -455,6 +485,7 @@ __all__ = [
     "normalize_company_name",
     "normalize_director_name",
     "normalize_holder_name",
+    "prospect_relevance_sentence",
     "render_prospect_mail",
     "validate_prospect_mail",
 ]

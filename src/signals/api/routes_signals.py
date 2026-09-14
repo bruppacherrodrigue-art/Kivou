@@ -78,6 +78,7 @@ from signals.engagement.status import (
 )
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
+from signals.personalization.for_you import client_safe_sentence
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -571,8 +572,11 @@ def get_signal(
     holder_history = None
     notice_facts = None
     circuit = ()
+    landing_signal_key = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        landing_signal_key = landing.signal_key if landing is not None else None
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         service.reconcile_territory_plan_limits(
@@ -754,16 +758,20 @@ def get_signal(
     # A bookmarked signal from another target stays accessible, without
     # attaching the current profile's commercial rationale to it.
     if consultation.target_icp_id in (None, item.signal.target_icp_id):
-        from signals.api.commercial_context import commercial_context
-
-        context = commercial_context(
-            detail,
-            offers=consultation.offer_categories,
-            selected_offer=consultation.offer_category,
-            lang=lang,
+        stored = client_safe_sentence(item.for_you_sentence)
+        mail_reason = (
+            stored
+            if landing_signal_key == signal_key
+            and stored is not None
+            and stored.startswith("Sur ce type de lot, le titulaire sous-traite souvent ")
+            else None
         )
-        if context is not None:
-            detail["commercial_context"] = context
+        location = detail["contract"].get("location") or {}
+        detail["commercial_context"] = {
+            "reason": mail_reason or view.factual_relevance_sentence(item, lang=lang),
+            "offer_category": consultation.offer_category,
+            "zone_label": location.get("locality") or location.get("subdivision_label"),
+        }
     return detail
 
 

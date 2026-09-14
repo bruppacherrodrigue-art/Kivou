@@ -278,36 +278,7 @@ def _fit(
     else:
         key = "targeted_profile"
     rendered_reasons = tuple(reasons)
-    need_category = next(iter(signal.icp_matched_needs or ()), None)
-    if need_category is None:
-        need_category = next(
-            (need.get("category") for need in signal.plausible_needs or () if need.get("category")),
-            None,
-        )
-    resolved_location = resolve_client_location(
-        execution=signal.award.place_of_performance,
-        buyers=signal.event.procedure_buyers,
-    )
-    place = _location(
-        signal.award.client_location
-        or (resolved_location.location if resolved_location is not None else None)
-    )
-    location = None
-    if place:
-        location = place.get("locality") or place.get("subdivision_label")
-    deterministic_for_you = fallback_sentence(
-        ForYouInput(
-            title=client_market_object(signal.award.title or ""),
-            amount=(
-                f"{signal.award.amount} {signal.award.currency}"
-                if signal.award.amount is not None and signal.award.currency
-                else None
-            ),
-            location=location,
-            awarded_on=_iso(attribution_date(signal.award)),
-            cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
-        )
-    )
+    deterministic_for_you = factual_relevance_sentence(item, lang=lang)
     band = "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band)
     stored_sentence = client_safe_sentence(item.for_you_sentence)
     # `None` conserve le contrat historique des canaux e-mail, qui appellent
@@ -330,6 +301,36 @@ def _fit(
         "reasons": rendered_reasons,
         "for_you_sentence": generated_for_you or deterministic_for_you,
     }
+
+
+def factual_relevance_sentence(item: FeedSignal, *, lang: str) -> str:
+    """Build the drawer fallback from public market facts only."""
+
+    signal = item.signal
+    resolved_location = resolve_client_location(
+        execution=signal.award.place_of_performance,
+        buyers=signal.event.procedure_buyers,
+    )
+    place = _location(
+        signal.award.client_location
+        or (resolved_location.location if resolved_location is not None else None)
+    )
+    location = None
+    if place:
+        location = place.get("locality") or place.get("subdivision_label")
+    return fallback_sentence(
+        ForYouInput(
+            title=client_market_object(signal.award.title or ""),
+            amount=(
+                f"{signal.award.amount} {signal.award.currency}"
+                if signal.award.amount is not None and signal.award.currency
+                else None
+            ),
+            location=location,
+            awarded_on=_iso(attribution_date(signal.award)),
+            cpv_label=cpv_label(signal.award.cpv_main, lang=lang),
+        )
+    )
 
 
 def _analysis(

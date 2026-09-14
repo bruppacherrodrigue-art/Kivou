@@ -7,6 +7,7 @@ from signals.personalization.prospect_mail import (
     RenderedProspectMail,
     client_work_description,
     load_prospect_mail_catalog,
+    prospect_relevance_sentence,
     render_prospect_mail,
     validate_prospect_mail,
 )
@@ -57,6 +58,17 @@ def test_client_work_description_removes_the_lot_reference() -> None:
     assert client_work_description(
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE"
     ) == "la charpente, l'isolation et la couverture"
+
+
+def test_shared_relevance_sentence_is_the_exact_mail_family_sentence() -> None:
+    assert prospect_relevance_sentence(
+        family_key="roofing",
+        company_city="SILLINGY",
+        department="Savoie",
+    ) == (
+        "Sur ce type de lot, le titulaire sous-traite souvent la couverture et la "
+        "zinguerie, et vous êtes couvreur-zingueur à Sillingy."
+    )
 
 
 def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:

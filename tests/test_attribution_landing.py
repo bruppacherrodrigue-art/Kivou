@@ -11,10 +11,13 @@ Ce que ces tests tiennent, et qu'aucun autre ne tient :
 from __future__ import annotations
 
 import datetime as dt
+from urllib.parse import urlsplit
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from test_assisted_prospect_preparation import seed_directory
+from test_assisted_prospect_preparation import signal as assisted_signal
 from test_conversion_attribution import NOW, prepared
 
 from signals.accounts import service as accounts
@@ -33,10 +36,14 @@ from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_conversion_journey,
     contract_award,
+    for_you_sentence,
     materialized_signal,
     opportunity_representation,
+    prospect_target,
     source_event,
 )
+from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
+from signals.prospection_actions.preparation import ProspectPreparationService
 
 CLICKED_AT = NOW + dt.timedelta(hours=1)
 TOKEN_SECRET = b"synthetic-attribution-secret"
@@ -285,6 +292,60 @@ def test_kat1_qa_uses_the_same_landing_without_recording_a_campaign_click(
         assert connection.scalar(
             sa.select(sa.func.count()).select_from(acquisition_conversion_journey)
         ) == 0
+
+
+def test_assisted_landing_freezes_the_exact_mail_relevance_sentence(tmp_path) -> None:
+    engine, service, token, opportunity_id = prepared(tmp_path)
+    seed_directory(engine, 5)
+    keyring = AttributionTokenKeyring(
+        current_key_version="attribution-test-v1",
+        keys={"attribution-test-v1": TOKEN_SECRET},
+    )
+    preparation = ProspectPreparationService(
+        engine,
+        link_issuer=AttributionProspectLinkIssuer(
+            public_site_url="https://kivou.eu",
+            keyring=keyring,
+        ),
+        clock=lambda: NOW,
+    )
+    result = preparation.prepare(
+        assisted_signal(
+            opportunity_key=token.payload.opportunity_key,
+            acquisition_opportunity_id=opportunity_id,
+            procedure_key="assisted-mail-parity",
+            holder="CONSTRUCTION DE MAISONS ET CHARPENTES DU DAUPHINE - CMCD",
+            decision_date=NOW.date(),
+            families=(("ready_mix_concrete", "Béton prêt à l'emploi"),),
+        ),
+        cycle_ref="assisted-mail-parity",
+    )
+    assert result.prepared == 1
+    with engine.connect() as connection:
+        target = connection.execute(sa.select(prospect_target)).mappings().one()
+    expected = (
+        "Sur ce type de lot, le titulaire sous-traite souvent le béton prêt à "
+        "l'emploi, et vous êtes fournisseur de béton prêt à l'emploi à Moulins."
+    )
+    assert expected in target["mail_text"]
+    raw_token = urlsplit(target["attribution_url"]).path.removeprefix("/a/")
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = client.get(f"/a/{raw_token}?qa=true", follow_redirects=False)
+    pin_session_cookie(client, response)
+
+    assert response.status_code == 303
+    signal_key = response.headers["location"].removeprefix("/app/signals/")
+    with engine.connect() as connection:
+        stored = connection.scalar(
+            sa.select(for_you_sentence.c.sentence).where(
+                for_you_sentence.c.signal_key == signal_key
+            )
+        )
+    assert stored == expected
+    drawer = client.get(f"/signals/{signal_key}")
+    assert drawer.status_code == 200
+    assert drawer.json()["commercial_context"]["reason"] == expected
 
 
 def test_kat1_replay_repairs_a_legacy_generic_provisional_profile(tmp_path) -> None:

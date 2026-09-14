@@ -103,7 +103,7 @@ Expected: GREEN.
 Run:
 
 ```bash
-rg -n "une opportunité de positionner" . --glob '!frontend/node_modules/**' --glob '!.git/**'
+rg -n "une opportunité de positi[o]nner" . --glob '!frontend/node_modules/**' --glob '!.git/**'
 ```
 
 Expected: exit 1 and no output.
@@ -246,7 +246,7 @@ cd frontend && npm run typecheck && npm run lint && npm run build
 ```
 
 ```bash
-rg -n "une opportunité de positionner" . --glob '!frontend/node_modules/**' --glob '!.git/**'
+rg -n "une opportunité de positi[o]nner" . --glob '!frontend/node_modules/**' --glob '!.git/**'
 ```
 
 Review `git diff --check` and the complete branch diff. Do not run unrelated
@@ -263,7 +263,7 @@ opportunity without printing it. Use the Playwright CLI wrapper to:
 
 1. open the QA landing URL and follow the redirect;
 2. assert the drawer heading and `Pourquoi ça vous concerne` are visible;
-3. assert the page and reason exclude `une opportunité de positionner`, lot
+3. assert the page and reason exclude the retired positioning copy, lot
    references, CPV labels and engine keys;
 4. assert `Attribué le`, normal-case city + department, and `Avis publié le`
    when those facts exist;
