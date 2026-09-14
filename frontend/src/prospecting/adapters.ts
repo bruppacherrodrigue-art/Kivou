@@ -37,9 +37,9 @@ export function signalTitle(item: ProspectingSignal): string {
 
 export function signalClock(item: ProspectingSignal, locale: Locale): { label: string; value: string | null } {
   const dates = item.contract.dates
-  if (item.notice_facts?.publication_date) return { label: locale === 'fr' ? 'BOAMP publié le' : 'BOAMP published on', value: item.notice_facts.publication_date }
   if (dates.award) return { label: locale === 'fr' ? 'Attribué le' : 'Awarded on', value: dates.award }
   if (dates.contract_notification) return { label: locale === 'fr' ? 'Notifié le' : 'Notified on', value: dates.contract_notification }
+  if (item.notice_facts?.publication_date) return { label: locale === 'fr' ? 'Avis publié le' : 'Notice published on', value: item.notice_facts.publication_date }
   return { label: locale === 'fr' ? 'Publié le' : 'Published on', value: dates.publication }
 }
 

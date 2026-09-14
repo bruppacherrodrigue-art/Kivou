@@ -195,6 +195,11 @@ def test_the_landing_session_really_opens_the_product(tmp_path) -> None:
     assert feed.status_code == 200
     assert feed.json()["provisional_profile"] is True
     assert [item["signal_id"] for item in feed.json()["items"]]
+    assert feed.json()["landing_cohort"] == {
+        "signal_id": response.headers["location"].removeprefix("/app/signals/"),
+        "expected": 3,
+        "materialized": 1,
+    }
 
 
 def test_kqa1_and_kat1_share_the_provisional_product_landing(tmp_path) -> None:
@@ -446,6 +451,11 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
     body = client.get("/signals", params={"view": "history", "limit": 20}).json()
 
     assert len(body["items"]) == 3
+    assert body["landing_cohort"] == {
+        "signal_id": response.headers["location"].removeprefix("/app/signals/"),
+        "expected": 3,
+        "materialized": 3,
+    }
     assert response.headers["location"].removeprefix("/app/signals/") in {
         item["signal_id"] for item in body["items"]
     }

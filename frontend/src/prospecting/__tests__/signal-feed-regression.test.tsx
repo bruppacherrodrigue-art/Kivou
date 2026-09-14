@@ -60,6 +60,24 @@ test('count truncation is visibly qualified independently of next-page availabil
   expect(screen.queryByRole('button', { name: 'Page suivante' })).not.toBeInTheDocument()
 })
 
+test('an incomplete provisional landing keeps real signals and adds one waiting row', async () => {
+  mockApi({ ...BASE, 'GET /signals': { body: feedPage([SIGNAL], { provisional_profile: true, landing_cohort: { signal_id: SIGNAL.signal_id, expected: 3, materialized: 1 } }) } })
+  renderFeed(`/app/signals/${SIGNAL.signal_id}?target_icp_id=icp_1`)
+
+  expect(await screen.findByText('Vos prochains signaux arriveront ici')).toBeInTheDocument()
+  expect(screen.getAllByText('Vos prochains signaux arriveront ici')).toHaveLength(1)
+  expect(screen.getAllByRole('article')).toHaveLength(1)
+})
+
+test('a complete provisional landing has no waiting row', async () => {
+  const items = [SIGNAL, item({ signal_id: 'second' }), item({ signal_id: 'third' })]
+  mockApi({ ...BASE, 'GET /signals': { body: feedPage(items, { provisional_profile: true, landing_cohort: { signal_id: SIGNAL.signal_id, expected: 3, materialized: 3 } }) } })
+  renderFeed()
+
+  expect(await screen.findAllByRole('article')).toHaveLength(3)
+  expect(screen.queryByText('Vos prochains signaux arriveront ici')).not.toBeInTheDocument()
+})
+
 test('a list failure is announced and retried explicitly', async () => {
   let failed = true
   mockApi({ ...BASE, 'GET /signals': () => failed ? { status: 500, body: { detail: 'unavailable' } } : { body: feedPage([SIGNAL]) } })

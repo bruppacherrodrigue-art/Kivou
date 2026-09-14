@@ -823,6 +823,18 @@ class LandingSignal:
     created_at: dt.datetime
 
 
+@dataclasses.dataclass(frozen=True)
+class LandingCohort:
+    """The promised signal and the active inventory prepared beside it."""
+
+    signal_key: str | None
+    expected: int
+    materialized: int
+
+
+LANDING_COHORT_SIZE = 3
+
+
 def resolve_landing_signal_key(
     connection: sa.Connection, *, account_id: str, opportunity_key: str
 ) -> str | None:
@@ -979,9 +991,22 @@ def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozen
             materialized_signal.c.materialized_at.desc(),
             materialized_signal.c.signal_key,
         )
-        .limit(3)
+        .limit(LANDING_COHORT_SIZE)
     ).scalars()
     return frozenset(related)
+
+
+def landing_cohort(connection: sa.Connection, *, account_id: str) -> LandingCohort | None:
+    """Describe the real landing inventory without synthesizing feed rows."""
+
+    landing = landing_signal(connection, account_id=account_id)
+    if landing is None:
+        return None
+    return LandingCohort(
+        signal_key=landing.signal_key,
+        expected=LANDING_COHORT_SIZE,
+        materialized=len(landing_signal_keys(connection, account_id=account_id)),
+    )
 
 
 def account_ids_with_landing_signal(connection: sa.Connection) -> frozenset[str]:

@@ -213,6 +213,11 @@ def list_signals(
         provisional_profile = service.is_provisional_profile(
             connection, account_id=session.account_id
         )
+        landing_cohort = (
+            service.landing_cohort(connection, account_id=session.account_id)
+            if provisional_profile
+            else None
+        )
         # A landing keeps its promised signal even when the message is opened
         # after the ordinary 30-day list window. Selection still uses the
         # attribution/notification date; this only renders the fixed cohort.
@@ -454,6 +459,17 @@ def list_signals(
         "language": lang,
         "plan_code": access.plan_code,
         "provisional_profile": provisional_profile,
+        **(
+            {
+                "landing_cohort": {
+                    "signal_id": landing_cohort.signal_key,
+                    "expected": landing_cohort.expected,
+                    "materialized": landing_cohort.materialized,
+                }
+            }
+            if landing_cohort is not None
+            else {}
+        ),
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
         "policy": {

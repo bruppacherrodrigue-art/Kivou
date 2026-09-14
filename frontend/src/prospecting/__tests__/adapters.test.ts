@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest'
 import { formatAmount, durationLabel, safeExternal, signalClock, signalPlace, signalTitle } from '../adapters'
 import { UNLOCKED_ITEM } from '../../test/harness'
+import type { ProspectingSignal } from '../models'
 
 test('formats exact decimal amounts without a binary floating point conversion', () => {
   expect(formatAmount({ value: '9007199254740993.1234', currency: 'EUR' }, 'fr')).toBe('9\u00a0007\u00a0199\u00a0254\u00a0740\u00a0993,1234\u00a0€')
@@ -35,12 +36,14 @@ test('omits missing or invalid money instead of guessing a currency or showing N
 
 test('uses readable locality and subdivision names without leaking a subdivision code', () => {
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'DRAGUIGNAN', subdivision_label: 'VAR', subdivision_code: 'FR-83', postal_code: null } } })).toBe('Draguignan (Var)')
+  expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'SAINT-ONDRAS', subdivision_label: 'ISÈRE', subdivision_code: 'FR-38', postal_code: null } } })).toBe('Saint-Ondras (Isère)')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: null, locality: null, subdivision_label: null, subdivision_code: 'FR-83', postal_code: null } } })).toBeNull()
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: null } })).toBeNull()
 })
 
 test('keeps each fallback date accurately qualified and omits a missing date', () => {
   expect(signalClock(UNLOCKED_ITEM, 'fr')).toEqual({ label: 'Attribué le', value: '2026-08-04' })
+  expect(signalClock({ ...UNLOCKED_ITEM, notice_facts: { publication_date: '2026-09-12' } } as ProspectingSignal, 'fr')).toEqual({ label: 'Attribué le', value: '2026-08-04' })
   expect(signalClock({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: '2026-08-06', publication: null } } }, 'fr')).toEqual({ label: 'Notifié le', value: '2026-08-06' })
   expect(signalClock({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: null, publication: null } } }, 'fr').value).toBeNull()
 })
