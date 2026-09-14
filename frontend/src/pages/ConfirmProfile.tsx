@@ -44,6 +44,7 @@ export function ConfirmProfile() {
   // profile to a draft. Resume it instead of creating a duplicate.
   const profile = profiles.data?.find((item) => item.provisional)
     ?? profiles.data?.find((item) => item.status === 'draft')
+    ?? profiles.data?.[0]
   const [zones, setZones] = useState<string[]>([])
   const [sector, setSector] = useState('')
   const [offer, setOffer] = useState('')
@@ -58,7 +59,11 @@ export function ConfirmProfile() {
   useEffect(() => {
     if (!profile || hydratedProfile === profile.target_icp_id) return
     const input = profile.customer_input
-    setZones(input.territory_subdivisions?.length ? input.territory_subdivisions : input.territories)
+    const subdivisions = input.territory_subdivisions ?? []
+    setZones([
+      ...subdivisions,
+      ...input.territories.filter((country) => !subdivisions.some((zone) => zone.startsWith(`${country}-`))),
+    ])
     setSector(input.sector_cpv_prefixes?.[0] ?? '')
     setOffer(input.offer_summary)
     setOffers(input.offers)

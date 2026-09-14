@@ -163,3 +163,13 @@ it('permet de compléter un ancien brouillon ayant seulement des corps de métie
   await userEvent.click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
   await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/signals'))
 })
+
+it('préserve un pays entier associé à une subdivision d’un autre pays', async () => {
+  const mixed = { ...PROFILE, customer_input: { ...PROFILE.customer_input, territories: ['FR', 'CH'], territory_subdivisions: ['CH-VD'] } }
+  setup([mixed], { [`PATCH /target-icps/${PROFILE.target_icp_id}`]: { body: { ...mixed, status: 'active' } } })
+  expect(await screen.findByRole('button', { name: 'Retirer France entière' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Retirer CH-VD' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
+  await waitFor(() => expect(callsTo(`/target-icps/${PROFILE.target_icp_id}`, 'PATCH')).toHaveLength(1))
+  expect(callsTo(`/target-icps/${PROFILE.target_icp_id}`, 'PATCH')[0].body).toMatchObject({ customer_input: { territories: ['CH', 'FR'], territory_subdivisions: ['CH-VD'] } })
+})

@@ -137,6 +137,34 @@ def test_whole_country_and_another_countrys_subdivision_are_both_preserved() -> 
     ]
 
 
+@pytest.mark.parametrize(
+    ("minimum", "maximum"),
+    [(0, None), (1000, None), (0, 50000)],
+)
+def test_only_an_unbounded_zero_minimum_removes_the_engine_value_constraint(
+    minimum: float, maximum: float | None
+) -> None:
+    customer = TargetIcpInput.model_validate({
+        **COMPLETE_INPUT,
+        "minimum_contract_value": {
+            "currency": "EUR",
+            "minimum_amount": minimum,
+            "maximum_amount": maximum,
+        },
+    })
+
+    translated = to_target_icp(customer, target_icp_id="icp-amounts", label="Montants")
+
+    if minimum == 0 and maximum is None:
+        assert translated.value_thresholds == ()
+    else:
+        assert len(translated.value_thresholds) == 1
+        threshold = translated.value_thresholds[0]
+        assert threshold.currency == "EUR"
+        assert threshold.minimum_amount == minimum
+        assert threshold.maximum_amount == maximum
+
+
 # ─── §17 — appartenance ────────────────────────────────────────────────────────
 
 

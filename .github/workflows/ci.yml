@@ -126,6 +126,14 @@ jobs:
             frontend/playwright-report
           if-no-files-found: ignore
           retention-days: 7
+      - name: Conserver les aperçus tarifs et confirmation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: kivou-interface-preview
+          path: frontend/test-results/profile-confirmation-*/attachments/*.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build
         run: npm run build
       - name: Build Founder Console

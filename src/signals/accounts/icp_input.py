@@ -250,11 +250,15 @@ def to_target_icp(customer_input: TargetIcpInput, *, target_icp_id: str, label: 
         ),
         included_cpv_prefixes=customer_input.sector_cpv_prefixes,
         value_thresholds=(
-            ValueThreshold(
-                currency=threshold.currency,
-                minimum_amount=threshold.minimum_amount,
-                maximum_amount=threshold.maximum_amount,
-            ),
+            ()
+            if threshold.minimum_amount == 0 and threshold.maximum_amount is None
+            else (
+                ValueThreshold(
+                    currency=threshold.currency,
+                    minimum_amount=threshold.minimum_amount,
+                    maximum_amount=threshold.maximum_amount,
+                ),
+            )
         ),
         unknown_value_policy=UNKNOWN_VALUE_POLICY,
         maximum_signal_age_days=MAXIMUM_SIGNAL_AGE_DAYS,
