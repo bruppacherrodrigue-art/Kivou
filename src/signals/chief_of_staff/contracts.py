@@ -142,12 +142,12 @@ class ChiefOfStaffFact(ChiefOfStaffModel):
             raise ValueError("unknown facts cannot carry a value")
         if self.data_status == "KNOWN" and self.value is None:
             raise ValueError("known facts require a value")
-        if self.unit == "MINOR_UNITS":
+        if self.unit == "MINOR_UNITS" and self.data_status in {"KNOWN", "STALE"}:
             if isinstance(self.value, bool) or not isinstance(self.value, int):
                 raise ValueError("money facts require integer minor units")
             if self.currency is None:
                 raise ValueError("money facts require an explicit currency")
-        elif self.currency is not None:
+        elif self.unit != "MINOR_UNITS" and self.currency is not None:
             raise ValueError("currency is allowed only for money facts")
         return self
 
@@ -181,6 +181,7 @@ class ChiefOfStaffContext(ChiefOfStaffModel):
     period_start: dt.datetime
     period_end: dt.datetime
     business_memory_version: Literal["business-memory-v1"]
+    business_memory: tuple[BusinessDecision, ...] = Field(min_length=1, max_length=100)
     profile_version: Literal["1.0.0"]
     facts: tuple[ChiefOfStaffFact, ...] = Field(max_length=200)
     active_gates: tuple[ActiveGate, ...] = Field(max_length=50)

@@ -44,6 +44,17 @@ def context(**changes: object) -> ChiefOfStaffContext:
         "period_start": NOW - dt.timedelta(days=1),
         "period_end": NOW,
         "business_memory_version": "business-memory-v1",
+        "business_memory": (
+            BusinessDecision(
+                decision_key="governance.kivou_truth",
+                category="GOVERNANCE",
+                statement="Kivou conserve la vérité.",
+                status="ACTIVE",
+                effective_from=dt.date(2026, 9, 15),
+                version="1.0.0",
+                source_ref="docs/adr/2026-09-15-hermes-chief-of-staff.md",
+            ),
+        ),
         "profile_version": "1.0.0",
         "facts": (fact(period_start=NOW - dt.timedelta(days=1)),),
         "active_gates": (),
