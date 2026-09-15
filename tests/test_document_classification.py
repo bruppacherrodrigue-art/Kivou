@@ -686,6 +686,7 @@ class TestProviderBoundary:
             root / "model_runtime" / "config.py",
             root / "supervisor" / "hermes.py",
             root / "supervisor" / "hermes_bridge.py",
+            root / "chief_of_staff" / "hermes.py",
             root / "acquisition_connectivity" / "config.py",
             root / "acquisition_connectivity" / "contracts.py",
             root / "acquisition_connectivity" / "cli.py",

@@ -1,0 +1,59 @@
+{
+  "fixture_version": "chief-of-staff-demo-v1",
+  "generated_at": "2026-09-15T05:30:00Z",
+  "period_start": "2026-09-14T00:00:00+02:00",
+  "period_end": "2026-09-15T00:00:00+02:00",
+  "facts": [
+    {
+      "fact_ref": "fact:business:mrr:chf:demo",
+      "domain": "BUSINESS",
+      "metric_key": "weekly_mrr_minor_units",
+      "value": 12345,
+      "unit": "MINOR_UNITS",
+      "currency": "CHF",
+      "period_start": "2026-09-07T22:00:00Z",
+      "period_end": "2026-09-14T22:00:00Z",
+      "captured_at": "2026-09-15T05:30:00Z",
+      "source_contract": "WeeklyCommercialCockpit",
+      "source_version": "weekly-commercial-cockpit-v1:PROXY_SENT_MINUS_BOUNCE_V1",
+      "data_status": "KNOWN"
+    },
+    {
+      "fact_ref": "fact:data:m2:demo",
+      "domain": "DATA",
+      "metric_key": "retained_m2_mrr_minor_units",
+      "value": null,
+      "unit": "MINOR_UNITS",
+      "currency": null,
+      "period_start": "2026-09-07T22:00:00Z",
+      "period_end": "2026-09-14T22:00:00Z",
+      "captured_at": "2026-09-15T05:30:00Z",
+      "source_contract": "WedgeM2Efficiency",
+      "source_version": "weekly-commercial-cockpit-v1",
+      "data_status": "INSUFFICIENT_EVIDENCE"
+    },
+    {
+      "fact_ref": "fact:operations:health:demo",
+      "domain": "OPERATIONS",
+      "metric_key": "status",
+      "value": "DEGRADED",
+      "unit": "STATUS",
+      "currency": null,
+      "period_start": "2026-09-15T05:29:59.999999Z",
+      "period_end": "2026-09-15T05:30:00Z",
+      "captured_at": "2026-09-15T05:30:00Z",
+      "source_contract": "AcquisitionOperationalHealth",
+      "source_version": "acquisition-operational-health-v1",
+      "data_status": "KNOWN"
+    }
+  ],
+  "readiness": {
+    "h_a_runtime": "READY",
+    "h_b_state": "READY",
+    "h_c_policy": "READY",
+    "h_d_shadow": "READY",
+    "h_e_capped": "NOT_READY",
+    "h_f_closed_loop": "READY",
+    "h_g_precision": "INSUFFICIENT_EVIDENCE"
+  }
+}

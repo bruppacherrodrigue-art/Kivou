@@ -99,6 +99,8 @@ print(json.dumps({
         "MCP_CONFIG": "/developer/mcp.json",
         "HERMES_HOME": "/developer/.hermes",
         "OPENAI_API_KEY": "developer-provider-secret",
+        "KIVOU_MODEL_HERMES": "model/acquisition",
+        "KIVOU_MODEL_CHIEF_OF_STAFF": "model/chief",
     }.items():
         monkeypatch.setenv(name, value)
 
@@ -115,6 +117,8 @@ print(json.dumps({
         "LC_ALL": "C.UTF-8",
         "PYTHONUTF8": "1",
         "PYTHONUNBUFFERED": "1",
+        "KIVOU_MODEL_HERMES": "model/acquisition",
+        "KIVOU_MODEL_CHIEF_OF_STAFF": "model/chief",
     }
 
 

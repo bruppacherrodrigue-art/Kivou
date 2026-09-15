@@ -12,8 +12,16 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
 
+from signals.chief_of_staff.contracts import Cadence
+from signals.chief_of_staff.store import ChiefOfStaffReportStore
 from signals.founder_api.access import FounderIdentityDependency
 from signals.founder_api.acquisition_actions import FounderAcquisitionLauncher
+from signals.founder_api.chief_of_staff import (
+    FounderChiefOfStaffHistory,
+    FounderChiefOfStaffLatest,
+    project_history,
+    project_latest,
+)
 from signals.founder_api.commercial_tunnel import FounderTunnelPeriod
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
@@ -35,6 +43,7 @@ def create_founder_app(
     read_service: FounderReadService | None = None,
     prospection_actions: ProspectionActions | None = None,
     acquisition_launcher: FounderAcquisitionLauncher | None = None,
+    chief_of_staff_store: ChiefOfStaffReportStore | None = None,
 ) -> FastAPI:
     """Build the isolated Founder API with an optional least-privilege action service."""
 
@@ -50,6 +59,7 @@ def create_founder_app(
     app.state.read_service = read_service
     app.state.prospection_actions = prospection_actions
     app.state.acquisition_launcher = acquisition_launcher
+    app.state.chief_of_staff_store = chief_of_staff_store
     if prospection_actions is not None:
         app.include_router(
             build_prospection_actions_router(
@@ -117,6 +127,47 @@ def create_founder_app(
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="les read models Founder sont indisponibles",
+            ) from error
+
+    @app.get("/api/founder/chief-of-staff/latest")
+    def founder_chief_of_staff_latest(
+        identity: FounderIdentityDependency,
+        cadence: Cadence | None = None,
+    ) -> FounderChiefOfStaffLatest:
+        del identity
+        store: ChiefOfStaffReportStore | None = app.state.chief_of_staff_store
+        if store is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les rapports Chief of Staff ne sont pas configurés",
+            )
+        try:
+            return project_latest(store.latest(cadence=cadence), now=now())
+        except (SQLAlchemyError, RuntimeError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les rapports Chief of Staff sont indisponibles",
+            ) from error
+
+    @app.get("/api/founder/chief-of-staff/history")
+    def founder_chief_of_staff_history(
+        identity: FounderIdentityDependency,
+        cadence: Cadence | None = None,
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+    ) -> FounderChiefOfStaffHistory:
+        del identity
+        store: ChiefOfStaffReportStore | None = app.state.chief_of_staff_store
+        if store is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les rapports Chief of Staff ne sont pas configurés",
+            )
+        try:
+            return project_history(store.history(cadence=cadence, limit=limit), now=now())
+        except (SQLAlchemyError, RuntimeError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="l'historique Chief of Staff est indisponible",
             ) from error
 
     @app.get("/api/founder/procedure-document-reviews")

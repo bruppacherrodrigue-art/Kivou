@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import {
+  loadFounderChiefOfStaff,
   loadFounderOverview,
   loadFounderProspection,
   loadFounderSession,
   loadFounderSystem,
 } from './api'
 import { AcquisitionStatus } from './AcquisitionStatus'
+import { HermesBrief } from './HermesBrief'
 import { ProspectionPage } from './ProspectionPage'
 import type {
   AttentionItem,
   FounderOverview,
+  FounderChiefOfStaffView,
   FounderProspection,
   FounderProspectionFilters,
   FounderSession,
@@ -24,6 +27,7 @@ type TodaySnapshot = {
   page: 'today'
   session: FounderSession
   overview: FounderOverview
+  chiefOfStaff: FounderChiefOfStaffView
 }
 
 type ProspectionSnapshot = {
@@ -104,11 +108,12 @@ export function FounderApp() {
         ])
         return { page: 'prospection', session, prospection } satisfies ProspectionSnapshot
       }
-      const [session, overview] = await Promise.all([
+      const [session, overview, chiefOfStaff] = await Promise.all([
         loadFounderSession(controller.signal),
         loadFounderOverview(weekOffset, period, controller.signal),
+        loadFounderChiefOfStaff(controller.signal),
       ])
-      return { page: 'today', session, overview } satisfies TodaySnapshot
+      return { page: 'today', session, overview, chiefOfStaff } satisfies TodaySnapshot
     }
     void readSnapshot()
       .then((nextSnapshot) => {
@@ -287,6 +292,7 @@ function Console({
       </section>
 
       <AttentionSection items={overview.attention} />
+      <HermesBrief view={snapshot.chiefOfStaff} refreshing={refreshing} />
       <CommercialTunnelSection
         overview={overview}
         weekOffset={weekOffset}

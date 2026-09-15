@@ -550,6 +550,41 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .control-code-list { display: flex; flex-wrap: wrap; gap: 7px; margin: 14px 0 0; padding: 0; list-style: none; }
 .control-code-list li { padding: 5px 8px; border: 1px solid rgba(148, 163, 184, 0.11); border-radius: 7px; color: #91a5b2; background: rgba(7, 16, 25, 0.46); font-size: 11px; }
 
+.hermes-brief-card { margin-top: 24px; }
+.hermes-brief-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.hermes-brief-head > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.hermes-brief-head > p { margin: 2px 0 0; color: #718493; font-size: 12px; text-align: right; }
+.hermes-status, .hermes-stale {
+  display: inline-flex;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.hermes-status--healthy { color: #bbf7d0; background: rgba(22, 163, 74, 0.12); }
+.hermes-status--watch { color: #fde68a; background: rgba(202, 138, 4, 0.12); }
+.hermes-status--critical { color: #fecaca; background: rgba(220, 38, 38, 0.14); }
+.hermes-status--unknown { color: #cbd5e1; background: rgba(100, 116, 139, 0.16); }
+.hermes-stale { color: #fdba74; background: rgba(234, 88, 12, 0.12); }
+.hermes-summary { max-width: 760px; margin: 24px 0 0; color: #e7eff4; font-size: 18px; line-height: 1.55; }
+.hermes-brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 32px; }
+.hermes-brief-list { min-width: 0; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.12); }
+.hermes-brief-list h3 { margin: 0; color: #b8cad5; font-size: 13px; letter-spacing: 0.02em; }
+.hermes-brief-list ol { display: grid; gap: 16px; margin: 16px 0 0; padding: 0; list-style: none; }
+.hermes-brief-list li > strong { color: #e7eff4; font-size: 14px; line-height: 1.45; }
+.hermes-brief-list li > p, .hermes-list-empty { margin: 6px 0 0; color: #8296a4; font-size: 13px; line-height: 1.5; }
+.hermes-brief-list .control-code-list { margin-top: 8px; }
+.hermes-evidence { margin-top: 32px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.12); }
+.hermes-evidence summary { color: #bae6fd; cursor: pointer; font-size: 13px; font-weight: 650; }
+.hermes-evidence ul { display: grid; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
+.hermes-evidence li { display: grid; gap: 4px; min-width: 0; }
+.hermes-evidence code { overflow: hidden; color: #9fb1bd; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.hermes-evidence li span, .hermes-evidence > p { margin: 0; color: #718493; font-size: 12px; }
+.hermes-brief-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 24px; color: #627785; font-size: 11px; }
+.hermes-brief-state--unavailable > span { color: #fecaca; background: rgba(220, 38, 38, 0.14); }
+
 .control-status {
   display: inline-flex;
   align-items: center;
@@ -1019,6 +1054,9 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .control-runtime { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .control-metric-grid, .control-metric-grid-quality { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .control-attention-head { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .hermes-brief-head { flex-direction: column; gap: 12px; }
+  .hermes-brief-head > p { text-align: left; }
+  .hermes-brief-grid { grid-template-columns: 1fr; }
   .prospection-hero { grid-template-columns: 1fr; padding: 26px; }
   .prospection-section-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
   .prospection-section-heading > span { max-width: none; text-align: left; }

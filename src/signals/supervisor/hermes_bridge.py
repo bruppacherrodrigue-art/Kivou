@@ -27,8 +27,11 @@ OPENROUTER_PROVIDER_ROUTING = {
 }
 
 
-def _configured_model() -> str:
-    return os.environ.get("KIVOU_MODEL_HERMES", OPENROUTER_MODEL).strip()
+def _configured_model(operation: str = "plan") -> str:
+    variable = (
+        "KIVOU_MODEL_CHIEF_OF_STAFF" if operation == "report" else "KIVOU_MODEL_HERMES"
+    )
+    return os.environ.get(variable, OPENROUTER_MODEL).strip()
 
 
 def _closed_provider_failure(exc: Exception) -> dict[str, Any] | None:
@@ -134,11 +137,12 @@ def _official_oneshot(
     model: str,
     provider_routing: Mapping[str, Any],
     response_schema: Mapping[str, Any],
+    schema_name: str = "kivou_supervisor_plan",
 ) -> dict[str, Any]:
     """Make one exact OpenRouter call through Hermes' zero-retry client helper."""
     if (
         provider != OPENROUTER_PROVIDER
-        or model != _configured_model()
+        or model not in {_configured_model("plan"), _configured_model("report")}
         or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
     ):
         raise BridgeRequestError("the frozen OpenRouter route is required")
@@ -170,7 +174,7 @@ def _official_oneshot(
             response_format={
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "kivou_supervisor_plan",
+                    "name": schema_name,
                     "strict": True,
                     "schema": response_schema,
                 },
@@ -263,7 +267,7 @@ def handle_request(
         if set(request) != {"operation"}:
             raise BridgeRequestError("health request contains unknown fields")
         return {"ok": True, **_validated_metadata(metadata_loader)}
-    if operation != "plan":
+    if operation not in {"plan", "report"}:
         raise BridgeRequestError("unknown bridge operation")
 
     required = {
@@ -291,7 +295,7 @@ def handle_request(
         raise BridgeRequestError("context_json is required")
     metadata = _validated_metadata(metadata_loader)
     load_profile_environment()
-    if provider != OPENROUTER_PROVIDER or model != _configured_model():
+    if provider != OPENROUTER_PROVIDER or model != _configured_model(str(operation)):
         raise BridgeRequestError("the exact OpenRouter model is required")
     if (
         not isinstance(provider_routing, Mapping)
@@ -306,15 +310,20 @@ def handle_request(
     )
 
     invoke = oneshot or _official_oneshot
+    invocation = {
+        "instructions": instructions,
+        "user_input": context_json,
+        "max_tokens": max_tokens,
+        "timeout": timeout,
+        "provider": provider,
+        "model": model,
+        "provider_routing": provider_routing,
+        "response_schema": response_schema,
+    }
+    if operation == "report":
+        invocation["schema_name"] = "kivou_chief_of_staff_report"
     route = invoke(
-        instructions=instructions,
-        user_input=context_json,
-        max_tokens=max_tokens,
-        timeout=timeout,
-        provider=provider,
-        model=model,
-        provider_routing=provider_routing,
-        response_schema=response_schema,
+        **invocation,
     )
     expected_route_fields = {
         "response",
@@ -330,7 +339,7 @@ def handle_request(
     if (
         not isinstance(response, str)
         or route["provider"] != OPENROUTER_PROVIDER
-        or route["model"] != _configured_model()
+        or route["model"] != _configured_model(str(operation))
         or route["automatic_retries"] != 0
         or route["fallbacks"] is not False
     ):
