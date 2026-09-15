@@ -147,9 +147,12 @@ class ChiefOfStaffReportStore:
     @staticmethod
     def _record(row: sa.RowMapping) -> StoredChiefOfStaffReport:
         payload = json.dumps(row["validated_report"], ensure_ascii=False)
+        captured_at = row["captured_at"]
+        if captured_at.tzinfo is None:
+            captured_at = captured_at.replace(tzinfo=dt.UTC)
         return StoredChiefOfStaffReport(
             report=ChiefOfStaffReport.model_validate_json(payload),
-            captured_at=row["captured_at"],
+            captured_at=captured_at,
             business_memory_version=str(row["business_memory_version"]),
             profile_version=str(row["profile_version"]),
             supervisor_version=str(row["supervisor_version"]),
