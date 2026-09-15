@@ -9,8 +9,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from fastapi.testclient import TestClient
-
 from signals.chief_of_staff.business_memory import load_business_memory
 from signals.chief_of_staff.context import build_context, context_fingerprint
 from signals.chief_of_staff.contracts import (
@@ -23,7 +21,6 @@ from signals.chief_of_staff.contracts import (
 )
 from signals.chief_of_staff.store import ChiefOfStaffReportStore
 from signals.chief_of_staff.validation import validate_report
-from signals.founder_api.access import FOUNDER_USER_HEADER, ORIGIN_SECRET_HEADER
 from signals.founder_api.app import create_founder_app
 from signals.founder_api.config import FounderApiConfig
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -142,6 +139,16 @@ def _simulated_report(context) -> ChiefOfStaffReport:
     )
 
 
+def _read_founder_api(app) -> dict[str, Any]:
+    route = next(
+        route
+        for route in app.routes
+        if getattr(route, "path", None) == "/api/founder/chief-of-staff/latest"
+    )
+    projection = route.endpoint(identity=None, cadence=None)
+    return projection.model_dump(mode="json")
+
+
 def run_demo(output: Path) -> dict[str, Any]:
     fixture = json.loads(DEMO_FIXTURE.read_text(encoding="utf-8"))
     facts = tuple(
@@ -181,13 +188,7 @@ def run_demo(output: Path) -> dict[str, Any]:
         now_override=lambda: context.generated_at,
         chief_of_staff_store=store,
     )
-    with TestClient(app) as client:
-        response = client.get(
-            "/api/founder/chief-of-staff/latest",
-            headers={FOUNDER_USER_HEADER: "rodrigue", ORIGIN_SECRET_HEADER: secret},
-        )
-    response.raise_for_status()
-    payload = response.json()
+    payload = _read_founder_api(app)
     engine.dispose()
     return {
         "fixture_version": fixture["fixture_version"],
