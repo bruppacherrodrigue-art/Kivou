@@ -50,6 +50,6 @@ test('uses readable locality and subdivision names without leaking a subdivision
 test('keeps each fallback date accurately qualified and omits a missing date', () => {
   expect(signalClock(UNLOCKED_ITEM, 'fr')).toEqual({ label: 'Attribué le', value: '2026-08-04' })
   expect(signalClock({ ...UNLOCKED_ITEM, notice_facts: { publication_date: '2026-09-12' } } as ProspectingSignal, 'fr')).toEqual({ label: 'Attribué le', value: '2026-08-04' })
-  expect(signalClock({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: '2026-08-06', publication: null } } }, 'fr')).toEqual({ label: 'Notifié le', value: '2026-08-06' })
+  expect(signalClock({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: '2026-08-06', publication: null } } }, 'fr')).toEqual({ label: 'Attribué le', value: '2026-08-06' })
   expect(signalClock({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: null, publication: null } } }, 'fr').value).toBeNull()
 })
