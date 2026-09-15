@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any
 
 from pydantic import ValidationError
@@ -13,6 +16,9 @@ from signals.chief_of_staff.profiles import (
     CHIEF_OF_STAFF_PROFILE_VERSION,
     load_chief_of_staff_profile,
 )
+from signals.model_runtime.budget import ModelBudgetStore
+from signals.model_runtime.config import ModelRoute
+from signals.model_runtime.openrouter import estimate_reservation
 from signals.supervisor.hermes import (
     BRIDGE_PROTOCOL_VERSION,
     CLOSED_PROVIDER_ERROR_CODES,
@@ -37,6 +43,11 @@ class ChiefOfStaffHermesResult:
     report: ChiefOfStaffReport
     model: str
     usage: dict[str, object] | None = None
+    call_id: str | None = None
+    reserved_usd: Decimal | None = None
+    actual_usd: Decimal | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 
 class ChiefOfStaffHermesAdapter:
@@ -47,11 +58,17 @@ class ChiefOfStaffHermesAdapter:
         transport: HermesTransport | None = None,
         pin: HermesPin | None = None,
         model: str = OPENROUTER_MODEL,
+        model_route: ModelRoute | None = None,
+        budget_store: ModelBudgetStore | None = None,
+        batch_id: str | None = None,
     ) -> None:
         self.settings = settings
         self.transport = transport or SubprocessHermesTransport(settings)
         self.pin = pin or load_hermes_pin()
-        self.model = model
+        self.model_route = model_route
+        self.budget_store = budget_store
+        self.batch_id = batch_id
+        self.model = model_route.model if model_route is not None else model
 
     def _metadata(self, response: dict[str, Any]) -> None:
         if response.get("ok") is not True:
@@ -92,11 +109,11 @@ class ChiefOfStaffHermesAdapter:
         self.settings.require_configured()
         original_schema = ChiefOfStaffReport.model_json_schema()
         instructions = self._instructions(original_schema)
-        response = self.transport.invoke(
-            {
+        context_json = context.model_dump_json()
+        request = {
                 "operation": "report",
                 "instructions": instructions,
-                "context_json": context.model_dump_json(),
+                "context_json": context_json,
                 "max_tokens": self.settings.limits.max_output_tokens,
                 "timeout_seconds": self.settings.limits.invocation_timeout_seconds,
                 "provider": OPENROUTER_PROVIDER,
@@ -104,8 +121,53 @@ class ChiefOfStaffHermesAdapter:
                 "provider_routing": OPENROUTER_PROVIDER_ROUTING,
                 "response_schema": transform_provider_schema(original_schema),
             }
-        )
-        self._metadata(response)
+        call_id: str | None = None
+        reserved_usd: Decimal | None = None
+        if self.model_route is not None and self.budget_store is not None:
+            call_id = str(uuid.uuid4())
+            reserved_usd = estimate_reservation(
+                self.model_route,
+                messages=(
+                    {"role": "system", "content": instructions},
+                    {"role": "user", "content": context_json},
+                ),
+                max_tokens=self.settings.limits.max_output_tokens,
+            )
+            self.budget_store.reserve(
+                route=self.model_route,
+                estimated_usd=reserved_usd,
+                call_id=call_id,
+                batch_id=self.batch_id,
+            )
+        try:
+            response = self.transport.invoke(request)
+            self._metadata(response)
+        except Exception:
+            if call_id is not None and self.budget_store is not None:
+                self.budget_store.fail(call_id=call_id, error_code="CHIEF_OF_STAFF_TRANSPORT")
+            raise
+        actual_usd: Decimal | None = None
+        input_tokens: int | None = None
+        output_tokens: int | None = None
+        usage = response.get("usage")
+        if call_id is not None and self.budget_store is not None:
+            try:
+                if not isinstance(usage, Mapping):
+                    raise TypeError
+                input_tokens = int(usage["input_tokens"])
+                output_tokens = int(usage["output_tokens"])
+                actual_usd = Decimal(str(usage["cost_usd"]))
+                if input_tokens < 0 or output_tokens < 0 or not actual_usd.is_finite():
+                    raise ValueError
+            except (KeyError, TypeError, ValueError) as exc:
+                self.budget_store.fail(call_id=call_id, error_code="CHIEF_OF_STAFF_USAGE_MISSING")
+                raise SupervisorValidationError("Hermes usage is missing") from exc
+            self.budget_store.succeed(
+                call_id=call_id,
+                actual_usd=actual_usd,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
         raw = response.get("response")
         if not isinstance(raw, str):
             raise SupervisorValidationError("Hermes response is missing a structured report")
@@ -125,11 +187,15 @@ class ChiefOfStaffHermesAdapter:
             raise SupervisorValidationError("Hermes supervisor version is invalid")
         if report.profile_version != CHIEF_OF_STAFF_PROFILE_VERSION:
             raise SupervisorValidationError("Hermes profile version is invalid")
-        usage = response.get("usage")
         return ChiefOfStaffHermesResult(
             report=report,
             model=self.model,
-            usage=(dict(usage) if isinstance(usage, dict) else None),
+            usage=(dict(usage) if isinstance(usage, Mapping) else None),
+            call_id=call_id,
+            reserved_usd=reserved_usd,
+            actual_usd=actual_usd,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         )
 
 

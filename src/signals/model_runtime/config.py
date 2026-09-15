@@ -15,6 +15,7 @@ ModelUsage = Literal[
     "hermes",
     "document_classifier",
 ]
+ChiefOfStaffModelUsage = Literal["chief_of_staff"]
 
 MODEL_USAGES: tuple[ModelUsage, ...] = (
     "enrichment_judge",
@@ -64,7 +65,7 @@ def reservation_environment_name(usage: ModelUsage, direction: str) -> str:
 
 @dataclass(frozen=True)
 class ModelRoute:
-    usage: ModelUsage
+    usage: ModelUsage | ChiefOfStaffModelUsage
     model: str
     daily_budget_usd: Decimal
     reserve_input_usd_per_million: Decimal = Decimal("6")
@@ -155,6 +156,7 @@ def routes_from_environment(
 __all__ = [
     "MODEL_TIMEZONE",
     "MODEL_USAGES",
+    "ChiefOfStaffModelUsage",
     "ModelRoute",
     "ModelRouteSnapshot",
     "ModelUsage",
