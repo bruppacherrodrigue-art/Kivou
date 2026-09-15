@@ -257,7 +257,7 @@ class ChiefOfStaffReport(ChiefOfStaffModel):
     priorities: tuple[ChiefOfStaffPriority, ...] = Field(max_length=3)
     decision_requests: tuple[ChiefOfStaffDecisionRequest, ...] = Field(max_length=5)
     unknowns: tuple[ChiefOfStaffUnknown, ...] = Field(max_length=20)
-    source_refs: tuple[StableRef, ...] = Field(min_length=1, max_length=100)
+    source_refs: tuple[StableRef, ...] = Field(max_length=100)
     confidence: Decimal = Field(ge=0, le=1)
     supervisor_version: StableRef
     profile_version: Literal["1.0.0"]

@@ -62,7 +62,7 @@ def validate_report(
     context: ChiefOfStaffContext,
     pin: HermesPin | None = None,
     max_output_bytes: int = 131_072,
-) -> None:
+) -> ChiefOfStaffReport:
     expected_pin = pin or load_hermes_pin()
     if report.context_fingerprint != context_fingerprint(context):
         raise ReportValidationError("context fingerprint mismatch")
@@ -111,6 +111,7 @@ def validate_report(
             raise ReportValidationError("report attempts to expand its scope")
     if len(report.model_dump_json().encode("utf-8")) > max_output_bytes:
         raise ReportValidationError("report output size exceeds limit")
+    return report
 
 
 __all__ = ["ReportValidationError", "validate_report"]
