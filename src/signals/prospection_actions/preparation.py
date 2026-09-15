@@ -255,9 +255,12 @@ class ProspectPreparationService:
                         .where(winner_enrichment_job.c.signal_key.in_(signal_keys))
                         .values(
                             status="pending",
+                            attempt_count=0,
                             error_code=None,
                             claimed_by=None,
                             queued_at=now,
+                            started_at=None,
+                            finished_at=None,
                             updated_at=now,
                         )
                     )

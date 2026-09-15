@@ -182,6 +182,29 @@ def test_create_binds_identity_without_assuming_full_response_config() -> None:
     assert campaign.normalized_config is None
 
 
+def test_assisted_campaign_uses_provider_timezone_and_required_zero_delay() -> None:
+    observed: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        observed.append(request)
+        return httpx.Response(
+            200,
+            json={"id": "provider-campaign-1", "name": "Kivou assisted test", "status": 0},
+        )
+
+    _provider(handler).create_assisted_campaign(
+        name="Kivou assisted test",
+        provider_account_id="sender@example.invalid",
+        execution_date=dt.date(2026, 9, 15),
+    )
+
+    body = json.loads(observed[0].content)
+    schedule = body["campaign_schedule"]["schedules"][0]
+    step = body["sequences"][0]["steps"][0]
+    assert schedule["timezone"] == "Europe/Belgrade"
+    assert step["delay"] == 0
+
+
 def test_get_campaign_requires_full_normalizable_readback() -> None:
     response = OFFICIAL_FIXTURE["campaign_patch_response"]
 

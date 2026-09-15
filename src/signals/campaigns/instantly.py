@@ -719,7 +719,9 @@ class HttpInstantlyProvider:
                         "name": "Kivou assisted daily window",
                         "timing": {"from": "08:00", "to": "18:00"},
                         "days": _expected_weekdays(execution_date, execution_date),
-                        "timezone": "Europe/Paris",
+                        # Instantly V2 currently omits Zurich, Berlin, Rome and
+                        # Madrid. Belgrade is the closest accepted CET/CEST zone.
+                        "timezone": "Europe/Belgrade",
                     }
                 ],
             },
@@ -728,6 +730,8 @@ class HttpInstantlyProvider:
                     "steps": [
                         {
                             "type": "email",
+                            # V2 requires delay even for a one-step sequence.
+                            "delay": 0,
                             "variants": [
                                 {
                                     "subject": "{{kivou_subject}}",

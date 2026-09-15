@@ -5,8 +5,10 @@ import hashlib
 
 import pytest
 import sqlalchemy as sa
+from feed_helpers import make_account, make_icp, materialize_simap
 from pydantic import ValidationError
 
+from signals.companies.schema import winner_enrichment_job
 from signals.persistence.schema import prospect_target, supplier_directory
 from signals.personalization.prospect_mail import RenderedProspectMail
 from signals.prospection_actions.preparation import (
@@ -397,3 +399,48 @@ def test_assisted_preparation_suspends_when_holder_family_is_unknown(migrated_sq
     )
     assert result.prepared == 0
     assert result.reason == "HOLDER_FAMILY_ENRICHMENT_REQUIRED"
+
+
+def test_holder_family_requeue_resets_a_partial_winner_job(migrated_sqlite_engine) -> None:
+    seed_directory(migrated_sqlite_engine, 5, eligible_department_count=5)
+    with migrated_sqlite_engine.begin() as connection:
+        account_id = make_account(connection, "holder-requeue@example.test", "Holder requeue")
+        icp_id = make_icp(connection, account_id)
+        materialized = materialize_simap(connection, "33112-02", target_icp_id=icp_id)
+        connection.execute(
+            sa.update(winner_enrichment_job)
+            .where(winner_enrichment_job.c.signal_key == materialized.signal_key)
+            .values(
+                identity_fingerprint="f" * 64,
+                status="partial",
+                attempt_count=1,
+                claimed_by="winner-worker",
+                started_at=NOW - dt.timedelta(hours=1),
+                finished_at=NOW - dt.timedelta(minutes=30),
+                updated_at=NOW - dt.timedelta(minutes=30),
+            )
+        )
+
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(
+        signal(
+            opportunity_key=materialized.opportunity_key,
+            holder_siren="999999999",
+            holder_family_required=True,
+        ),
+        cycle_ref="cycle-holder-requeue",
+    )
+
+    assert result.reason == "HOLDER_FAMILY_ENRICHMENT_REQUIRED"
+    with migrated_sqlite_engine.connect() as connection:
+        job = connection.execute(
+            sa.select(winner_enrichment_job).where(
+                winner_enrichment_job.c.signal_key == materialized.signal_key
+            )
+        ).one()
+    assert job.status == "pending"
+    assert job.attempt_count == 0
+    assert job.claimed_by is None
+    assert job.started_at is None
+    assert job.finished_at is None
