@@ -76,6 +76,7 @@ def report(**changes: object) -> ChiefOfStaffReport:
         "created_at": NOW,
         "executive_status": "WATCH",
         "executive_summary": "Une attention humaine est requise.",
+        "reason_codes": ("FOUNDER_REVIEW",),
         "observations": (),
         "priorities": (),
         "decision_requests": (),

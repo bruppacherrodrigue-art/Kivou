@@ -252,6 +252,7 @@ class ChiefOfStaffReport(ChiefOfStaffModel):
     created_at: dt.datetime
     executive_status: Literal["HEALTHY", "WATCH", "CRITICAL", "UNKNOWN"]
     executive_summary: ShortText
+    reason_codes: tuple[ReasonCode, ...] = Field(min_length=1, max_length=20)
     observations: tuple[ChiefOfStaffObservation, ...] = Field(max_length=20)
     priorities: tuple[ChiefOfStaffPriority, ...] = Field(max_length=3)
     decision_requests: tuple[ChiefOfStaffDecisionRequest, ...] = Field(max_length=5)

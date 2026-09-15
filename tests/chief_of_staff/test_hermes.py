@@ -90,6 +90,7 @@ def valid_report() -> str:
             "created_at": NOW.isoformat(),
             "executive_status": "WATCH",
             "executive_summary": "Une attention humaine est requise.",
+            "reason_codes": ["FOUNDER_REVIEW"],
             "observations": [],
             "priorities": [],
             "decision_requests": [],
