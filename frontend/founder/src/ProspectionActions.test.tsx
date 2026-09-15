@@ -582,6 +582,59 @@ describe('actions de prospection', () => {
     expect(await screen.findByText('5 cibles envoyées.')).toBeInTheDocument()
   })
 
+  it('sépare les boîtes grand public et ne transmet que les domaines professionnels', async () => {
+    const user = userEvent.setup()
+    const professional = target(1, 'approved')
+    const gmail = {
+      ...target(2, 'approved'),
+      email: { ...TARGET.email, address: 'artisan@gmail.com' },
+    }
+    const orange = {
+      ...target(3, 'approved'),
+      email: { ...TARGET.email, address: 'artisan@orange.fr' },
+    }
+    const approved = [professional, gmail, orange]
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) {
+        return { ok: true, status: 200, json: async () => list([]) }
+      }
+      if (url.includes('/list?status=approved')) {
+        return { ok: true, status: 200, json: async () => list(approved) }
+      }
+      if (url.endsWith('/send')) {
+        const body = JSON.parse(String(init?.body))
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            version: 'founder-prospection-actions-v1',
+            request_id: body.request_id,
+            results: [{ target_id: professional.target_id, status: 'sent', instantly_id: 'lead-pro' }],
+            daily_sent_count: 1,
+            daily_remaining: 24,
+          }),
+        }
+      }
+      throw new Error(`requête inattendue: ${url} ${init?.method ?? 'GET'}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+
+    expect(await screen.findByText('2 boîtes grand public en attente')).toBeInTheDocument()
+    expect(screen.getByText('3 cibles validées · 1 éligible · 2 en attente')).toBeInTheDocument()
+    const sendButton = screen.getByRole('button', { name: 'Envoyer la cible professionnelle' })
+    await user.click(sendButton)
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+
+    const sendCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/send'))
+    expect(JSON.parse(String(sendCall?.[1]?.body)).targets).toEqual([{
+      target_id: professional.target_id,
+      expected_version: professional.version,
+    }])
+  })
+
   it('recharge la version serveur et change de request_id après un échec fournisseur terminal', async () => {
     const user = userEvent.setup()
     const approved = target(1, 'approved')

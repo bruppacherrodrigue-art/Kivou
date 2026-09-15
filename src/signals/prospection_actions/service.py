@@ -39,7 +39,10 @@ from signals.prospection_actions.contracts import (
     RejectionReason,
     SignalSnapshot,
 )
-from signals.supplier_directory.email_quality import is_placeholder_email
+from signals.supplier_directory.email_quality import (
+    is_consumer_mailbox,
+    is_placeholder_email,
+)
 
 
 class EmailVerifier(Protocol):
@@ -886,6 +889,13 @@ class ProspectionActions:
                     raise ProspectionActionError(
                         "PLACEHOLDER_EMAIL",
                         "l'adresse est une valeur de démonstration",
+                        target_ids=(target_id,),
+                        status_code=422,
+                    )
+                if is_consumer_mailbox(row["email_address"]):
+                    raise ProspectionActionError(
+                        "CONSUMER_MAILBOX_HELD",
+                        "les boîtes grand public restent en attente",
                         target_ids=(target_id,),
                         status_code=422,
                     )

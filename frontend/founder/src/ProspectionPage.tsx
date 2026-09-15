@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { AcquisitionStatus, cycleResultLabel } from './AcquisitionStatus'
 import {
   approveFounderProspect,
@@ -44,6 +44,34 @@ const FAMILY_LABELS: Record<string, string> = {
   timber_carpentry: 'Bois et charpente',
   roofing: 'Couverture et zinguerie',
   insulation: 'Isolation',
+}
+
+const CONSUMER_MAILBOX_DOMAINS = new Set([
+  'free.fr',
+  'gmail.com',
+  'googlemail.com',
+  'hotmail.com',
+  'hotmail.fr',
+  'icloud.com',
+  'laposte.net',
+  'live.com',
+  'live.fr',
+  'mac.com',
+  'me.com',
+  'msn.com',
+  'orange.fr',
+  'outlook.com',
+  'outlook.fr',
+  'proton.me',
+  'protonmail.com',
+  'wanadoo.fr',
+  'yahoo.com',
+  'yahoo.fr',
+])
+
+function isConsumerMailbox(address: string): boolean {
+  const separator = address.lastIndexOf('@')
+  return separator >= 0 && CONSUMER_MAILBOX_DOMAINS.has(address.slice(separator + 1).trim().toLowerCase())
 }
 
 const DIRECTORY_STATUS_LABELS: Record<FounderDirectoryStatus, string> = {
@@ -656,12 +684,26 @@ function QueueSection({
       })
     }
   }
-  const approvedCount = items.filter((item) => item.status === 'approved').length
-  const sendBatchCount = Math.min(approvedCount, 25)
+  const approvedItems = items.filter((item) => item.status === 'approved')
+  const approvedCount = approvedItems.length
+  const heldApprovedCount = approvedItems.filter((item) => isConsumerMailbox(item.email.address)).length
+  const eligibleApprovedCount = approvedCount - heldApprovedCount
+  const sendBatchCount = Math.min(eligibleApprovedCount, 25)
   const remainingQueueCount = queuePages.pending_review.remaining + queuePages.approved.remaining
-  const visibleItems = items.filter((item) => item.status === 'pending_review' || item.status === 'approved')
+  const visibleItems = items.filter((item) => (
+    (item.status === 'pending_review' || item.status === 'approved')
+    && !isConsumerMailbox(item.email.address)
+  ))
+  const heldItems = items.filter((item) => (
+    (item.status === 'pending_review' || item.status === 'approved')
+    && isConsumerMailbox(item.email.address)
+  ))
+  const orderedVisibleItems = [...visibleItems, ...heldItems]
+  const firstHeldTargetId = heldItems[0]?.target_id
   const sendApproved = async () => {
-    const approved = items.filter((item) => item.status === 'approved').slice(0, 25)
+    const approved = items.filter((item) => (
+      item.status === 'approved' && !isConsumerMailbox(item.email.address)
+    )).slice(0, 25)
     if (approved.length === 0 || sendState === 'sending') return
     const fingerprint = approved
       .map((item) => `${item.target_id}:${item.version}`)
@@ -772,7 +814,7 @@ function QueueSection({
           <div className="prospection-compact-empty">
             <strong>Chargement de la file…</strong>
           </div>
-        ) : visibleItems.length === 0 ? (
+        ) : orderedVisibleItems.length === 0 ? (
           <div className="prospection-compact-empty">
             <strong>Aucune cible en attente de revue.</strong>
             <span>La Session A n’a encore préparé aucune cible.</span>
@@ -792,11 +834,14 @@ function QueueSection({
                 </tr>
               </thead>
               <tbody>
-                {visibleItems.map((item) => (
-                  <tr
-                    key={item.target_id}
-                    className={item.status === 'approved' ? 'prospection-row-approved' : undefined}
-                  >
+                {orderedVisibleItems.map((item) => (
+                  <Fragment key={item.target_id}>
+                    {item.target_id === firstHeldTargetId ? (
+                      <tr className="prospection-mailbox-hold-divider">
+                        <th colSpan={7}>{heldItems.length} boîte{heldItems.length === 1 ? '' : 's'} grand public en attente</th>
+                      </tr>
+                    ) : null}
+                    <tr className={item.status === 'approved' ? 'prospection-row-approved' : undefined}>
                     <td>
                       <strong className="prospection-primary-cell">{item.company.name}</strong>
                       <small>{item.company.city} · {formatCount(item.company.employees)} salariés</small>
@@ -850,14 +895,19 @@ function QueueSection({
                         </button>
                       </div>
                     </td>
-                  </tr>
+                    </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
           </div>
         )}
         <footer className="prospection-queue-footer">
-          <span>{approvedCount === 1 ? '1 cible validée' : `${formatCount(approvedCount)} cibles validées`}</span>
+          <span>
+            {heldApprovedCount > 0
+              ? `${formatCount(approvedCount)} cibles validées · ${formatCount(eligibleApprovedCount)} éligible${eligibleApprovedCount === 1 ? '' : 's'} · ${formatCount(heldApprovedCount)} en attente`
+              : approvedCount === 1 ? '1 cible validée' : `${formatCount(approvedCount)} cibles validées`}
+          </span>
           <div className="prospection-queue-footer-actions">
             {remainingQueueCount > 0 ? (
               <button type="button" disabled={loadingMore} onClick={() => void loadMore()}>
@@ -870,10 +920,10 @@ function QueueSection({
               type="button"
               className="prospection-action-primary"
               disabled={sendBatchCount === 0 || sendState === 'sending' || killSwitchActive}
-              aria-label={sendBatchLabel(approvedCount)}
+              aria-label={sendBatchLabel(eligibleApprovedCount, heldApprovedCount)}
               onClick={() => setSendConfirmationOpen(true)}
             >
-              {sendBatchLabel(approvedCount)}
+              {sendBatchLabel(eligibleApprovedCount, heldApprovedCount)}
             </button>
           </div>
         </footer>
@@ -916,7 +966,10 @@ function QueueSection({
   )
 }
 
-function sendBatchLabel(approvedCount: number): string {
+function sendBatchLabel(approvedCount: number, heldCount = 0): string {
+  if (heldCount > 0 && approvedCount === 1) return 'Envoyer la cible professionnelle'
+  if (heldCount > 0 && approvedCount > 25) return 'Envoyer les 25 premières cibles professionnelles'
+  if (heldCount > 0) return `Envoyer les ${approvedCount} cibles professionnelles`
   if (approvedCount === 1) return 'Envoyer la cible validée'
   if (approvedCount > 25) return 'Envoyer les 25 premières cibles validées'
   return `Envoyer les ${approvedCount} cibles validées`

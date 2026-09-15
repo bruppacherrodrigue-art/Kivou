@@ -867,6 +867,12 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .prospection-queue-table table { min-width: 1320px; }
 .prospection-row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .prospection-row-approved { background: rgba(16, 185, 129, 0.045); }
+.prospection-mailbox-hold-divider th {
+  border-top: 1px solid rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+  background: rgba(161, 98, 7, 0.1);
+  text-align: left;
+}
 .prospection-mail-button { white-space: nowrap; }
 .prospection-action-primary { padding: 8px 12px !important; color: #d1fae5 !important; background: rgba(5, 150, 105, 0.2) !important; }
 .prospection-action-danger { border-color: rgba(248, 113, 113, 0.25) !important; color: #fecaca !important; background: rgba(153, 27, 27, 0.12) !important; }

@@ -156,6 +156,48 @@ def test_send_refuses_a_stale_placeholder_email_even_when_approved(sending) -> N
     assert provider.calls == []
 
 
+@pytest.mark.parametrize(
+    "email",
+    (
+        "certa.toiture@gmail.com",
+        "vaganay.sas@orange.fr",
+        "horn.william@wanadoo.fr",
+        "artisan@free.fr",
+        "artisan@hotmail.com",
+    ),
+)
+def test_send_holds_consumer_mailboxes_before_provider(sending, email: str) -> None:
+    actions, provider, engine, _tmp = sending
+    approve(actions)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == TARGET_ID)
+            .values(email_address=email)
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "123456789")
+            .values(professional_email=email)
+        )
+
+    with pytest.raises(ProspectionActionError) as caught:
+        actions.send(command(), actor="rodrigue@kivou.eu")
+
+    assert caught.value.code == "CONSUMER_MAILBOX_HELD"
+    assert caught.value.status_code == 422
+    assert caught.value.target_ids == (TARGET_ID,)
+    assert provider.calls == []
+    with engine.connect() as connection:
+        target = connection.execute(sa.select(prospect_target)).mappings().one()
+        request_count = connection.scalar(
+            sa.select(sa.func.count()).select_from(prospect_send_request)
+        )
+    assert target["status"] == "approved"
+    assert target["send_request_id"] is None
+    assert request_count == 0
+
+
 def test_send_refuses_approved_mail_that_failed_the_render_contract(sending) -> None:
     actions, provider, engine, _tmp = sending
     approve(actions)
