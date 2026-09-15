@@ -1,13 +1,35 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
 from signals.chief_of_staff.config import (
+    BUDGET_ENV,
+    INPUT_RESERVE_ENV,
+    MODEL_ENV,
+    OUTPUT_RESERVE_ENV,
     ChiefOfStaffConfigurationState,
     chief_of_staff_config_from_environment,
 )
+
+
+def test_tracked_environment_examples_keep_chief_of_staff_disabled() -> None:
+    for path in (".env.example", "ops/examples/chief-of-staff.env.example"):
+        values = {
+            name: value
+            for line in Path(path).read_text(encoding="utf-8").splitlines()
+            if line and not line.startswith("#") and "=" in line
+            for name, value in (line.split("=", 1),)
+            if "CHIEF_OF_STAFF" in name
+        }
+        assert values == {
+            MODEL_ENV: "",
+            BUDGET_ENV: "",
+            INPUT_RESERVE_ENV: "",
+            OUTPUT_RESERVE_ENV: "",
+        }
 
 COMPLETE = {
     "KIVOU_MODEL_CHIEF_OF_STAFF": "anthropic/claude-sonnet-4.6",
@@ -43,4 +65,3 @@ def test_partial_or_invalid_configuration_fails_closed() -> None:
         chief_of_staff_config_from_environment(
             {**COMPLETE, "KIVOU_MODEL_BUDGET_CHIEF_OF_STAFF_USD": "NaN"}
         )
-
