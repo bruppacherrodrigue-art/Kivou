@@ -53,6 +53,7 @@ def upgrade() -> None:
         sa.Column("supervisor_version", sa.String(64), nullable=False),
         sa.Column("model_route", sa.String(256), nullable=False),
         sa.Column("validated_report", sa.JSON, nullable=False),
+        sa.Column("evidence_facts", sa.JSON, nullable=False),
         sa.Column("usage_metadata", sa.JSON, nullable=False),
         sa.Column("estimated_cost", sa.Numeric(14, 8), nullable=False),
         sa.Column("actual_cost", sa.Numeric(14, 8)),

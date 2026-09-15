@@ -35,6 +35,9 @@ def test_store_is_append_only_idempotent_by_semantic_context(migrated_sqlite_eng
     assert inserted is True
     assert replay_inserted is False
     assert replay.report.report_ref == first.report.report_ref
+    assert tuple(fact.fact_ref for fact in first.evidence_facts) == (
+        "fact:operations:health:abc",
+    )
     assert store.history(limit=20) == (first,)
 
 
@@ -89,4 +92,3 @@ def test_history_limit_is_bounded(migrated_sqlite_engine) -> None:
             assert "between 1 and 50" in str(error)
         else:  # pragma: no cover - assertion clarity
             raise AssertionError("invalid history limit accepted")
-

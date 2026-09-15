@@ -52,6 +52,7 @@ def test_latest_is_authenticated_versioned_and_contains_no_raw_provider_data(
     assert payload["version"] == "founder-chief-of-staff-latest-v1"
     assert payload["state"] == "AVAILABLE"
     assert payload["report"]["report_ref"] == "report:daily:2026-09-15"
+    assert payload["facts"][0]["fact_ref"] == "fact:operations:health:abc"
     assert payload["model_route"] == "openrouter/fixture"
     assert payload["usage_metadata"] == {"input_tokens": 10, "output_tokens": 5}
     assert "prompt" not in response.text.lower()
@@ -74,6 +75,7 @@ def test_latest_without_report_is_a_normal_empty_state(migrated_sqlite_engine) -
         "state": "EMPTY",
         "stale": False,
         "report": None,
+        "facts": [],
         "captured_at": None,
         "model_route": None,
         "usage_metadata": {},

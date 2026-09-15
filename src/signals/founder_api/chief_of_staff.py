@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import Field, field_validator
 
-from signals.chief_of_staff.contracts import ChiefOfStaffReport
+from signals.chief_of_staff.contracts import ChiefOfStaffFact, ChiefOfStaffReport
 from signals.chief_of_staff.store import StoredChiefOfStaffReport
 from signals.founder_api.contracts import FounderContract
 
@@ -18,6 +18,7 @@ HISTORY_VERSION = "founder-chief-of-staff-history-v1"
 
 class FounderChiefOfStaffItem(FounderContract):
     report: ChiefOfStaffReport
+    facts: tuple[ChiefOfStaffFact, ...]
     captured_at: dt.datetime
     stale: bool
     model_route: str
@@ -35,6 +36,7 @@ class FounderChiefOfStaffLatest(FounderContract):
     state: Literal["AVAILABLE", "EMPTY"]
     stale: bool
     report: ChiefOfStaffReport | None
+    facts: tuple[ChiefOfStaffFact, ...]
     captured_at: dt.datetime | None
     model_route: str | None
     usage_metadata: dict[str, Any]
@@ -62,6 +64,7 @@ def project_item(
 ) -> FounderChiefOfStaffItem:
     return FounderChiefOfStaffItem(
         report=record.report,
+        facts=record.evidence_facts,
         captured_at=record.captured_at,
         stale=_stale(record, now=now),
         model_route=record.model_route,
@@ -79,6 +82,7 @@ def project_latest(
             state="EMPTY",
             stale=False,
             report=None,
+            facts=(),
             captured_at=None,
             model_route=None,
             usage_metadata={},
@@ -90,6 +94,7 @@ def project_latest(
         state="AVAILABLE",
         stale=item.stale,
         report=item.report,
+        facts=item.facts,
         captured_at=item.captured_at,
         model_route=item.model_route,
         usage_metadata=item.usage_metadata,

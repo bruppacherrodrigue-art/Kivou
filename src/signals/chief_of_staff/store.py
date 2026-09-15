@@ -12,13 +12,19 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql, sqlite
 
 from signals.chief_of_staff.context import context_fingerprint
-from signals.chief_of_staff.contracts import Cadence, ChiefOfStaffContext, ChiefOfStaffReport
+from signals.chief_of_staff.contracts import (
+    Cadence,
+    ChiefOfStaffContext,
+    ChiefOfStaffFact,
+    ChiefOfStaffReport,
+)
 from signals.persistence.schema import chief_of_staff_report
 
 
 @dataclass(frozen=True)
 class StoredChiefOfStaffReport:
     report: ChiefOfStaffReport
+    evidence_facts: tuple[ChiefOfStaffFact, ...]
     captured_at: dt.datetime
     business_memory_version: str
     profile_version: str
@@ -51,6 +57,21 @@ class ChiefOfStaffReportStore:
         if estimated_cost < 0 or (actual_cost is not None and actual_cost < 0):
             raise ValueError("model costs must be non-negative")
         fingerprint = context_fingerprint(context)
+        cited_refs = set(report.source_refs)
+        cited_refs.update(
+            ref
+            for collection in (
+                report.observations,
+                report.priorities,
+                report.decision_requests,
+                report.unknowns,
+            )
+            for item in collection
+            for ref in item.fact_refs
+        )
+        evidence_facts = tuple(
+            fact for fact in context.facts if fact.fact_ref in cited_refs
+        )
         values = {
             "report_ref": report.report_ref,
             "report_version": report.report_version,
@@ -65,6 +86,7 @@ class ChiefOfStaffReportStore:
             "supervisor_version": report.supervisor_version,
             "model_route": model_route,
             "validated_report": report.model_dump(mode="json"),
+            "evidence_facts": [fact.model_dump(mode="json") for fact in evidence_facts],
             "usage_metadata": usage_metadata,
             "estimated_cost": estimated_cost,
             "actual_cost": actual_cost,
@@ -152,6 +174,12 @@ class ChiefOfStaffReportStore:
             captured_at = captured_at.replace(tzinfo=dt.UTC)
         return StoredChiefOfStaffReport(
             report=ChiefOfStaffReport.model_validate_json(payload),
+            evidence_facts=tuple(
+                ChiefOfStaffFact.model_validate_json(
+                    json.dumps(item, ensure_ascii=False)
+                )
+                for item in row["evidence_facts"]
+            ),
             captured_at=captured_at,
             business_memory_version=str(row["business_memory_version"]),
             profile_version=str(row["profile_version"]),

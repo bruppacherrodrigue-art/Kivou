@@ -37,6 +37,7 @@ def test_migration_creates_append_only_report_shape_and_indexes(
         "supervisor_version",
         "model_route",
         "validated_report",
+        "evidence_facts",
         "usage_metadata",
         "estimated_cost",
         "actual_cost",
