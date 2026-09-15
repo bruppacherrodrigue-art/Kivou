@@ -22,7 +22,7 @@ export function SignalContent({ item, holder, notes }: { item: ProspectingSignal
   const why = item.commercial_context?.reason
   return <>
     <h2 className={styles.detailTitle}>{signalTitle(item)}</h2>
-    <p className={styles.detailMeta}>{[formatAmount(facts?.awarded_amount ?? item.contract.amount, locale), signalPlace(item)].filter(Boolean).join(' · ')}</p>
+    <p className={styles.detailMeta}>{[formatAmount(facts?.awarded_amount ?? item.contract.amount, locale, true), signalPlace(item, locale)].filter(Boolean).join(' · ')}</p>
     {holder}
     {why && <section className={styles.detailSection}><h3>{fr ? 'Pourquoi ça vous concerne' : 'Why this matters to you'}</h3><p>{why}</p></section>}
     {(facts?.publication_date || durations.length > 0 || calendar?.renewals != null) && <section className={styles.detailSection}>

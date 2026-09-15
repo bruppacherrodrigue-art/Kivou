@@ -61,6 +61,21 @@ it('préserve les critères obligatoires et ouvre les signaux après confirmatio
   expect(callsTo('/target-icps')).toHaveLength(0)
 })
 
+it('enchaîne sur la création du mot de passe pour un accès temporaire', async () => {
+  const readyTemporary = {
+    ...ME,
+    temporary_access: true,
+    claim_email: 'prospect@example.test',
+  }
+  setup([PROFILE], {
+    [`PATCH /target-icps/${PROFILE.target_icp_id}`]: { body: { ...PROFILE, status: 'active', provisional: false } },
+    'GET /me': { body: readyTemporary },
+  })
+  await userEvent.click(await screen.findByRole('button', { name: 'Recevoir mes signaux' }))
+  await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/create-access'))
+  expect(screen.getByLabelText('Adresse e-mail professionnelle')).toHaveValue('prospect@example.test')
+})
+
 it('crée un profil exploitable avec un type d’offre explicitement choisi et sans seuil de montant', async () => {
   setup([], { 'POST /target-icps': { body: { ...ICP, status: 'active' } } })
   await userEvent.selectOptions(await screen.findByLabelText('Zone'), 'FR-38')

@@ -114,7 +114,10 @@ export function ConfirmProfile() {
         setErrors({ general: 'Votre profil est enregistré. Son activation n’a pas abouti ; réessayez pour continuer.' })
         return
       }
-      navigate(destination, { replace: true, state: { firstSignals: true } })
+      navigate(me.temporary_access ? '/app/create-access' : destination, {
+        replace: true,
+        state: me.temporary_access ? { returnTo: destination } : { firstSignals: true },
+      })
     } catch (error) {
       setErrors({ general: error instanceof ApiError && error.code === 'territory_limit_exceeded'
         ? 'Votre offre ne permet pas de couvrir ces pays ensemble. Sélectionnez des zones dans un seul pays pour continuer.'
@@ -128,7 +131,11 @@ export function ConfirmProfile() {
   }
 
   if (session.status === 'authenticated' && session.me.onboarding_status === 'ready_for_signals') {
-    return <Navigate to={destination} replace />
+    return <Navigate
+      to={session.me.temporary_access ? '/app/create-access' : destination}
+      replace
+      state={session.me.temporary_access ? { returnTo: destination } : undefined}
+    />
   }
 
   return (

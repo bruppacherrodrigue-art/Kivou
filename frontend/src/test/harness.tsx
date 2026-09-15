@@ -124,6 +124,8 @@ export const ME: Me = {
   locale: 'fr',
   onboarding_status: 'ready_for_signals',
   provisional_profile: false,
+  temporary_access: false,
+  claim_email: null,
   capabilities: { commercial_cockpit: false },
 }
 

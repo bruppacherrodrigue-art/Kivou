@@ -8,6 +8,11 @@ test('formats exact decimal amounts without a binary floating point conversion',
   expect(formatAmount(null, 'fr')).toBeNull()
 })
 
+test('rounds signal amounts to one useful commercial decimal', () => {
+  expect(formatAmount({ value: '53500', currency: 'EUR' }, 'fr', true)).toBe('53,5\u00a0k€')
+  expect(formatAmount({ value: '1492999', currency: 'EUR' }, 'fr', true)).toBe('1,5\u00a0M€')
+})
+
 test('does not invent a start from a duration or rename publication as attribution', () => {
   expect(durationLabel({ value: '18', unit: 'MONTH', scope: 'works', period_kind: 'unspecified', source_path: '/duration' }, 'fr')).toBe('18 mois')
   expect(signalClock({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: null, publication: '2026-09-12' } } }, 'fr')).toEqual({ label: 'Publié le', value: '2026-09-12' })
@@ -38,6 +43,7 @@ test('uses readable locality and subdivision names without leaking a subdivision
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'DRAGUIGNAN', subdivision_label: 'VAR', subdivision_code: 'FR-83', postal_code: null } } })).toBe('Draguignan (Var)')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'SAINT-ONDRAS', subdivision_label: 'ISÈRE', subdivision_code: 'FR-38', postal_code: null } } })).toBe('Saint-Ondras (Isère)')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: null, locality: null, subdivision_label: null, subdivision_code: 'FR-83', postal_code: null } } })).toBeNull()
+  expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: null, subdivision_label: 'SAVOIE', subdivision_code: 'FR-73', postal_code: null } } })).toBe('en Savoie')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: null } })).toBeNull()
 })
 

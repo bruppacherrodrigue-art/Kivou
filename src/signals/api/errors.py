@@ -19,6 +19,7 @@ from fastapi import HTTPException
 
 ERROR_CODES: tuple[str, ...] = (
     "email_already_used",
+    "landing_access_unavailable",
     "invalid_credentials",
     "unsupported_locale",
     "invalid_reset_token",

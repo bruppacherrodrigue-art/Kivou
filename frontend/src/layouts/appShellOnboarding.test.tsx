@@ -101,3 +101,17 @@ it.each([
   expect(screen.queryByRole('heading', { name: 'Quels marchés vous intéressent ?' })).not.toBeInTheDocument()
   expect(errors).not.toHaveBeenCalled()
 })
+
+it('keeps account creation visible in the app banner and account menu', async () => {
+  const errors = renderRoute('/app/signals', {
+    ...ME,
+    account_display_name: 'Compte à confirmer',
+    email: 'landing+abc@landing.kivou.invalid',
+    temporary_access: true,
+    claim_email: 'prospect@example.test',
+  })
+  expect(await screen.findByText('Votre accès est temporaire. Créez votre mot de passe pour retrouver vos signaux')).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Créer mon accès' })).toHaveAttribute('href', '/app/create-access')
+  expect(document.querySelector('.sidebar-account-link')).toHaveAttribute('href', '/app/create-access')
+  expect(errors).not.toHaveBeenCalled()
+})

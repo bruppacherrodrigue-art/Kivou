@@ -71,10 +71,6 @@ FEED_PATH = "/app/signals"
 #: Là où repart un lien invalide ou périmé : l'inscription ordinaire, prévenue.
 EXPIRED_PATH = "/signup?attribution=expired"
 
-#: Domaine réservé (RFC 2606) : rien n'y est délivrable, donc aucun message ne
-#: partira jamais vers cette adresse par accident.
-LANDING_EMAIL_DOMAIN = "landing.kivou.invalid"
-
 #: Le nom affiché tant que le client n'a pas confirmé le sien.
 LANDING_COMPANY_NAME = "Compte à confirmer"
 
@@ -93,7 +89,7 @@ PROVISIONAL_OFFERS = (
 
 
 def _landing_email(token_fingerprint: str) -> str:
-    return f"landing+{token_fingerprint[:12]}@{LANDING_EMAIL_DOMAIN}"
+    return f"landing+{token_fingerprint[:12]}@{accounts.TEMPORARY_EMAIL_DOMAIN}"
 
 
 def _draft_icp_input(
@@ -362,7 +358,7 @@ def _land(
             connection,
             email=email,
             # Jamais rendu, jamais journalisé : le compte s'ouvre par le lien,
-            # et se réclame plus tard par une réinitialisation de mot de passe.
+            # et se réclame plus tard sur l'écran de création d'accès.
             password=secrets.token_urlsafe(32),
             company_name=LANDING_COMPANY_NAME,
             locale="fr",

@@ -40,6 +40,7 @@ from fastapi import FastAPI
 from sqlalchemy.engine import Engine
 
 from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
+from signals.accounts.welcome_delivery import SmtpWelcomeDelivery
 from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
@@ -75,6 +76,7 @@ def build_application() -> FastAPI:
         config,
         stripe_gateway=_stripe_gateway(config),
         password_reset_delivery=_password_reset_delivery(config),
+        welcome_delivery=_welcome_delivery(config),
         instantly_webhook_service=(
             build_instantly_webhook_service(engine, webhook_configuration)
             if webhook_configuration is not None
@@ -175,6 +177,27 @@ def _password_reset_delivery(config: ApiConfig) -> SmtpPasswordResetDelivery | N
         site_url=config.public_site_url or "",
         ttl=config.password_reset_ttl,
     )
+
+
+def _welcome_delivery(config: ApiConfig) -> SmtpWelcomeDelivery | None:
+    """Build the one-time account welcome delivery on the configured SMTP transport."""
+
+    if not config.password_reset_email_configured:
+        return None
+    gateway = SmtpAlertGateway(
+        SmtpConfiguration(
+            host=config.smtp_host or "",
+            port=config.smtp_port,
+            username=config.smtp_username,
+            password=config.smtp_password,
+            from_email=config.smtp_from_email or "",
+            from_name=config.smtp_from_name,
+            tls_mode=config.smtp_tls_mode,
+            timeout_seconds=config.smtp_timeout_seconds,
+            reply_to_email=config.smtp_reply_to_email,
+        )
+    )
+    return SmtpWelcomeDelivery(gateway, site_url=config.public_site_url or "")
 
 
 def __getattr__(name: str) -> FastAPI:

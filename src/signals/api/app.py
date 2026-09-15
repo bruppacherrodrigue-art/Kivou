@@ -79,12 +79,18 @@ class _NullDelivery:
         return None
 
 
+class _NullWelcomeDelivery:
+    def deliver(self, **_: object) -> None:
+        return None
+
+
 def create_app(
     engine: sa.Engine,
     config: ApiConfig | None = None,
     *,
     now_override: Callable[[], dt.datetime] | None = None,
     password_reset_delivery: object | None = None,
+    welcome_delivery: object | None = None,
     stripe_gateway: object | None = None,
     instantly_webhook_service: object | None = None,
     conversion_attribution_service: object | None = None,
@@ -109,6 +115,7 @@ def create_app(
     # Aucun fournisseur n'est intégré : par défaut, le jeton n'est remis à
     # personne, ce qui vaut mieux qu'un envoi silencieusement raté.
     app.state.password_reset_delivery = password_reset_delivery or _NullDelivery()
+    app.state.welcome_delivery = welcome_delivery or _NullWelcomeDelivery()
     # SPEC-013 — la passerelle Stripe est injectée. Absente, les points d'entrée
     # de facturation répondent 503 : mieux vaut un service annoncé indisponible
     # qu'une application qui démarre en croyant pouvoir encaisser.

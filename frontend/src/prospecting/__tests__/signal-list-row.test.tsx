@@ -11,7 +11,7 @@ async function ready() { await waitFor(() => expect(screen.getByTestId('scope-re
 
 // V11 replaces table/compact/flag layouts, but keeps the underlying facts,
 // server status, accessible opening and no-invented-data guarantees.
-test('separates title, holder, place, exact amount and dated status without truncating the title', async () => {
+test('separates title, holder, place, rounded amount and dated status without truncating the title', async () => {
   mockApi(BASE)
   const title = 'Collège de Levens, lot 2 : gros œuvre, charpente bois, façades et génie civil'
   renderSignal(<SignalListRow item={item({ factual_display: { ...SIGNAL.factual_display, object_short: title } })} onOpen={vi.fn()} />)
@@ -20,7 +20,7 @@ test('separates title, holder, place, exact amount and dated status without trun
   expect(within(row).getByRole('button', { name: `Ouvrir : ${title}` })).toHaveTextContent(title)
   expect(within(row).getByText(SIGNAL.company.name!)).toBeInTheDocument()
   expect(row).toHaveTextContent('Villeneuve')
-  expect(row).toHaveTextContent('1 240 000 €')
+  expect(row).toHaveTextContent('1,2 M€')
   expect(row).toHaveTextContent('4 août')
   expect(within(row).queryByLabelText(/Correspondance \d/)).not.toBeInTheDocument()
 })
@@ -37,7 +37,7 @@ test('translates status into English without deriving it from the fit label', as
   renderSignal(<SignalListRow item={item({ status: 'saved', analysis: { ...SIGNAL.analysis, fit: { ...SIGNAL.analysis.fit, label: 'Custom API fit label' } } })} onOpen={vi.fn()} />, 'en')
   await ready()
   expect(screen.getByText('Saved')).toHaveAttribute('data-status', 'saved')
-  expect(screen.getByText('Custom API fit label')).toBeInTheDocument()
+  expect(screen.queryByText('Custom API fit label')).not.toBeInTheDocument()
 })
 
 test.each(['click', 'keyboard'])('opens exactly once with %s on the accessible title', async (method) => {

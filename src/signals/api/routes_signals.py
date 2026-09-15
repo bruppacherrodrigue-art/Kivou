@@ -83,7 +83,6 @@ from signals.feed.history import InvalidHistoryCursor
 from signals.persistence.schema import prospect_target
 from signals.personalization.for_you import client_safe_sentence
 from signals.personalization.prospect_mail import (
-    is_prospect_relevance_sentence,
     prospect_relevance_sentence,
     prospect_relevance_sentence_from_mail,
 )
@@ -827,7 +826,6 @@ def get_signal(
             landing_mail_reason
             if landing_signal_key == signal_key
             and landing_mail_reason is not None
-            and is_prospect_relevance_sentence(landing_mail_reason)
             else None
         )
         location = detail["contract"].get("location") or {}

@@ -50,7 +50,7 @@ CLICKED_AT = NOW + dt.timedelta(hours=1)
 TOKEN_SECRET = b"synthetic-attribution-secret"
 
 
-def client_for(engine, service, *, now: dt.datetime) -> TestClient:
+def client_for(engine, service, *, now: dt.datetime, welcome_delivery=None) -> TestClient:
     return TestClient(
         create_app(
             engine,
@@ -61,6 +61,7 @@ def client_for(engine, service, *, now: dt.datetime) -> TestClient:
             ),
             now_override=lambda: now,
             conversion_attribution_service=service,
+            welcome_delivery=welcome_delivery,
         ),
         base_url="https://testserver",
     )
@@ -494,6 +495,97 @@ def test_assisted_landing_freezes_the_exact_mail_relevance_sentence(tmp_path) ->
     assert rematerialized_key == signal_key
     assert current_sentence != expected
     assert client.get(f"/signals/{signal_key}").json()["commercial_context"]["reason"] == expected
+
+
+def test_assisted_prospect_can_create_a_durable_access_and_receives_one_welcome(
+    tmp_path,
+) -> None:
+    engine, attribution, token, opportunity_id = prepared(tmp_path)
+    seed_directory(engine, 5)
+    preparation = ProspectPreparationService(
+        engine,
+        link_issuer=AttributionProspectLinkIssuer(
+            public_site_url="https://kivou.eu",
+            keyring=AttributionTokenKeyring(
+                current_key_version="attribution-test-v1",
+                keys={"attribution-test-v1": TOKEN_SECRET},
+            ),
+        ),
+        clock=lambda: NOW,
+    )
+    assert preparation.prepare(
+        assisted_signal(
+            opportunity_key=token.payload.opportunity_key,
+            acquisition_opportunity_id=opportunity_id,
+            procedure_key="claim-access",
+            holder="CONSTRUCTION DE MAISONS ET CHARPENTES DU DAUPHINE - CMCD",
+            decision_date=NOW.date(),
+            families=(("ready_mix_concrete", "Béton prêt à l'emploi"),),
+        ),
+        cycle_ref="claim-access",
+    ).prepared == 1
+    with engine.connect() as connection:
+        target = connection.execute(sa.select(prospect_target)).mappings().one()
+
+    class WelcomeSpy:
+        def __init__(self) -> None:
+            self.deliveries: list[dict[str, object]] = []
+
+        def deliver(self, **values) -> None:
+            self.deliveries.append(values)
+
+    welcome = WelcomeSpy()
+    raw_token = urlsplit(target["attribution_url"]).path.removeprefix("/a/")
+    client = client_for(
+        engine,
+        attribution,
+        now=CLICKED_AT,
+        welcome_delivery=welcome,
+    )
+    landed = client.get(f"/a/{raw_token}?qa=true", follow_redirects=False)
+    pin_session_cookie(client, landed)
+
+    before = client.get("/me").json()
+    assert before["temporary_access"] is True
+    assert before["claim_email"] == target["email_address"]
+
+    claimed = client.post(
+        "/auth/claim-access",
+        headers={"Origin": "https://testserver"},
+        json={"password": "une-phrase-secrete"},
+    )
+    assert claimed.status_code == 200, claimed.text
+    assert claimed.json()["temporary_access"] is False
+    assert claimed.json()["claim_email"] is None
+    assert claimed.json()["email"] == target["email_address"]
+    assert claimed.json()["account_display_name"] == target["company_name"]
+    assert welcome.deliveries == [
+        {
+            "email": target["email_address"],
+            "locale": "fr",
+            "signal_key": landed.headers["location"].removeprefix("/app/signals/"),
+            "signal_holder": target["signal_holder"],
+            "signal_subject": target["signal_subject"],
+            "signal_location": target["signal_location"],
+            "unsubscribe_url": target["unsubscribe_url"],
+        }
+    ]
+
+    replay = client.post(
+        "/auth/claim-access",
+        headers={"Origin": "https://testserver"},
+        json={"password": "une-autre-phrase-secrete"},
+    )
+    assert replay.status_code == 200
+    assert len(welcome.deliveries) == 1
+
+    other = client_for(engine, attribution, now=CLICKED_AT)
+    login = other.post(
+        "/auth/login",
+        headers={"Origin": "https://testserver"},
+        json={"email": target["email_address"], "password": "une-phrase-secrete"},
+    )
+    assert login.status_code == 200
 
 
 def test_kat1_replay_repairs_a_legacy_generic_provisional_profile(tmp_path) -> None:

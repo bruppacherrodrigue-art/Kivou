@@ -134,6 +134,8 @@ export interface Me {
   locale: string
   onboarding_status: OnboardingStatus
   provisional_profile: boolean
+  temporary_access: boolean
+  claim_email: string | null
   capabilities: {
     commercial_cockpit: boolean
   }

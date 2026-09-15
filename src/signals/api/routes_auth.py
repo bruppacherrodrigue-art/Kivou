@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from signals.accounts import service
 from signals.accounts.passwords import MINIMUM_PASSWORD_LENGTH, WeakPassword
 from signals.accounts.reset_delivery import DeferredDelivery
+from signals.accounts.welcome_delivery import DeferredWelcomeDelivery
 from signals.api.config import ATTRIBUTION_COOKIE_NAME, SESSION_COOKIE_NAME
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
@@ -58,6 +59,12 @@ class PasswordResetConfirm(BaseModel):
     new_password: Password
 
 
+class ClaimAccessRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: Password
+
+
 class InternalCapabilities(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -74,6 +81,8 @@ class MeResponse(BaseModel):
     locale: str
     onboarding_status: str
     provisional_profile: bool
+    temporary_access: bool
+    claim_email: str | None
     capabilities: InternalCapabilities
 
 
@@ -188,6 +197,57 @@ def logout(request: Request, response: Response) -> Response:
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     response.status_code = 204
     return response
+
+
+@router.post("/auth/claim-access")
+def claim_access(
+    payload: ClaimAccessRequest,
+    request: Request,
+    background: BackgroundTasks,
+) -> MeResponse:
+    """Turn the authenticated magic-link session into a durable login."""
+
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    deferred = DeferredWelcomeDelivery(request.app.state.welcome_delivery)
+    try:
+        with request.app.state.engine.begin() as connection:
+            session = current_session(request, connection, now)
+            claimed = service.claim_landing_access(
+                connection,
+                user_id=session.user_id,
+                password=payload.password,
+                now=now,
+            )
+            user = service.current_user(connection, user_id=session.user_id)
+            if claimed is not None:
+                deferred.deliver(
+                    email=claimed.email,
+                    locale=claimed.locale,
+                    signal_key=claimed.signal_key,
+                    signal_holder=claimed.signal_holder,
+                    signal_subject=claimed.signal_subject,
+                    signal_location=claimed.signal_location,
+                    unsubscribe_url=claimed.unsubscribe_url,
+                )
+    except service.EmailAlreadyUsed as error:
+        raise api_error(
+            409,
+            error.code,
+            "un compte utilise déjà cette adresse ; connectez-vous ou réinitialisez son mot de passe",
+        ) from error
+    except service.LandingAccessUnavailable as error:
+        raise api_error(
+            409,
+            error.code,
+            "l’adresse de ce prospect n’est plus disponible",
+        ) from error
+    except WeakPassword as error:
+        raise api_error(422, "invalid_input", str(error)) from error
+
+    background.add_task(deferred.flush)
+    return _me_response(user, request)
 
 
 @router.get("/me")

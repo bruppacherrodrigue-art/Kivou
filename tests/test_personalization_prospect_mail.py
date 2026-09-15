@@ -73,6 +73,20 @@ def test_shared_relevance_sentence_is_the_exact_mail_family_sentence() -> None:
     )
 
 
+def test_shared_relevance_sentence_uses_en_for_a_department_only() -> None:
+    assert prospect_relevance_sentence(
+        family_key="roofing",
+        department="SAVOIE",
+    ).endswith("et vous êtes couvreur-zingueur en Savoie.")
+
+
+def test_mail_amount_keeps_one_commercial_decimal() -> None:
+    mail = render_prospect_mail(
+        arbonis_row(signal_amount_minor_units=5_350_000)
+    )
+    assert "53,5 k€" in mail.text
+
+
 def test_uses_plain_greeting_city_and_family_copy_without_raw_title() -> None:
     mail = render_prospect_mail(
         arbonis_row(

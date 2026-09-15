@@ -15,6 +15,7 @@
 /** Les codes d'erreur déclarés par `signals.api.errors.ERROR_CODES`. */
 export type ApiErrorCode =
   | 'email_already_used'
+  | 'landing_access_unavailable'
   | 'invalid_credentials'
   | 'unsupported_locale'
   | 'invalid_reset_token'

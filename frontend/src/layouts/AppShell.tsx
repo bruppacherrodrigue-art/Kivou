@@ -260,6 +260,10 @@ function ConnectedShell({
       </Sidebar>
 
       <SidebarInset as={['overview', 'signals', 'companies'].includes(activeView) ? 'div' : 'main'} className="dashboard-workspace">
+        {me.temporary_access && <aside className="account-claim-banner" aria-label={locale === 'fr' ? 'Accès temporaire' : 'Temporary access'}>
+          <p>{locale === 'fr' ? 'Votre accès est temporaire. Créez votre mot de passe pour retrouver vos signaux' : 'Your access is temporary. Create your password to return to your signals'}</p>
+          <Link className="account-claim-button" to="/app/create-access" state={{ returnTo: `${pathname}${search}` }}>{locale === 'fr' ? 'Créer mon accès' : 'Create my access'}</Link>
+        </aside>}
         <header className={`topbar${['overview', 'signals', 'companies'].includes(activeView) ? ' prospecting-topbar' : ''}`}>
           <SidebarTrigger ref={mobileTrigger} className="sidebar-trigger" aria-label={t.reference.openNavigation} />
           {title ? <h1 className="shell-page-title">{title}</h1> : null}
@@ -311,7 +315,7 @@ function AccountBlock({ me }: { me: ReturnType<typeof useCurrentUser> }) {
 
   return (
     <div className="sidebar-account">
-      <ReferenceLink dashboard className="sidebar-account-link" href="/settings">
+      <ReferenceLink dashboard className="sidebar-account-link" href={me.temporary_access ? '/app/create-access' : '/settings'}>
         <span className="sidebar-account-avatar" aria-hidden="true">{initials}</span>
         <span className="sidebar-account-copy">
           <strong>{displayName}</strong>

@@ -3,9 +3,21 @@ import type { Locale } from '../i18n'
 import { normalCasePlace } from '../presentation/locationText'
 import type { Dossier, NoticeDuration, ProspectingSignal } from './models'
 
-export function formatAmount(money: Money | null | undefined, locale: Locale): string | null {
+export function formatAmount(money: Money | null | undefined, locale: Locale, compact = false): string | null {
   if (!money || !/^\d+(?:\.\d+)?$/.test(money.value) || !/^[A-Z]{3}$/.test(money.currency)) return null
   const [whole, tail = ''] = money.value.split('.')
+  if (compact && BigInt(whole) >= 1000n) {
+    const factor = BigInt(whole) >= 1_000_000n ? 1_000_000n : 1_000n
+    const scale = 10n ** BigInt(tail.length)
+    const numerator = BigInt(`${whole}${tail}`) * 10n
+    const denominator = scale * factor
+    const tenths = (numerator + denominator / 2n) / denominator
+    const decimal = tenths % 10n
+    const value = `${tenths / 10n}${decimal ? `${locale === 'fr' ? ',' : '.'}${decimal}` : ''}`
+    const unit = factor === 1_000_000n ? 'M' : 'k'
+    const currency = money.currency === 'EUR' ? '€' : ` ${money.currency}`
+    return `${value}\u00a0${unit}${currency}`
+  }
   const fraction = tail.replace(/0+$/, '')
   const formatter = new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
     style: 'currency', currency: money.currency, minimumFractionDigits: 0, maximumFractionDigits: 0,
@@ -43,12 +55,14 @@ export function signalClock(item: ProspectingSignal, locale: Locale): { label: s
   return { label: locale === 'fr' ? 'Publié le' : 'Published on', value: dates.publication }
 }
 
-export function signalPlace(item: ProspectingSignal): string | null {
+export function signalPlace(item: ProspectingSignal, locale: Locale = 'fr'): string | null {
   const place = item.contract.location
   const locality = normalCasePlace(place?.locality)
   const subdivision = normalCasePlace(place?.subdivision_label)
   if (locality && subdivision && locality !== subdivision) return `${locality} (${subdivision})`
-  return locality || subdivision || null
+  if (locality) return locality
+  if (subdivision) return locale === 'fr' ? `en ${subdivision}` : subdivision
+  return null
 }
 
 export function dossierName(profile: Dossier): string {

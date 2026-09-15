@@ -14,6 +14,7 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { ConfirmProfile } from './pages/ConfirmProfile'
+import { CreateAccess } from './pages/CreateAccess'
 import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
 import { CompaniesPage } from './companies/CompaniesPage'
@@ -97,6 +98,7 @@ export function AppRoutes() {
           <Route element={<RequireAuth />}>
             <Route path="checkout" element={<Checkout />} />
             <Route path="app/confirm-profile" element={<ConfirmProfile />} />
+            <Route path="app/create-access" element={<CreateAccess />} />
 
             <Route path="app" element={<AppShell />}>
               <Route index element={<Dashboard />} />

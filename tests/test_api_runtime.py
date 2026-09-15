@@ -569,10 +569,12 @@ def test_billing_is_unavailable_rather_than_broken_without_stripe(base_environme
 
 def test_without_smtp_no_delivery_is_wired(base_environment):
     from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
+    from signals.accounts.welcome_delivery import SmtpWelcomeDelivery
 
     module = importlib.import_module(MODULE)
     app = module.build_application()
     assert not isinstance(app.state.password_reset_delivery, SmtpPasswordResetDelivery)
+    assert not isinstance(app.state.welcome_delivery, SmtpWelcomeDelivery)
 
 
 def test_a_configured_smtp_actually_delivers_the_reset_link(
@@ -582,6 +584,7 @@ def test_a_configured_smtp_actually_delivers_the_reset_link(
     ce câblage la production retombait sur `_NullDelivery`, et rien dans les
     journaux ne le disait — l'absence d'e-mail ne produit aucune erreur."""
     from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
+    from signals.accounts.welcome_delivery import SmtpWelcomeDelivery
 
     monkeypatch.setenv("SMTP_HOST", "smtp.kivou.test")
     monkeypatch.setenv("SMTP_FROM_EMAIL", "no-reply@kivou.eu")
@@ -591,6 +594,7 @@ def test_a_configured_smtp_actually_delivers_the_reset_link(
     module = importlib.import_module(MODULE)
     app = module.build_application()
     assert isinstance(app.state.password_reset_delivery, SmtpPasswordResetDelivery)
+    assert isinstance(app.state.welcome_delivery, SmtpWelcomeDelivery)
 
 
 def test_the_reset_link_points_at_the_site_root_not_the_app_prefix():

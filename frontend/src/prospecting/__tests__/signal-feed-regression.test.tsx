@@ -56,7 +56,7 @@ test('count truncation is visibly qualified independently of next-page availabil
   renderFeed()
   await row()
   expect(screen.getByRole('tab', { name: /^Nouveaux\s+12\+$/ })).toBeInTheDocument()
-  expect(screen.getByText('1 signaux sur cette page')).toBeInTheDocument()
+  expect(screen.getByText('1 signal sur cette page')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Page suivante' })).not.toBeInTheDocument()
 })
 

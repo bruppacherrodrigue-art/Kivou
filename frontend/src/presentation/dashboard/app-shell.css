@@ -407,6 +407,50 @@ a:focus-visible {
   background: var(--canvas);
 }
 
+.account-claim-banner {
+  position: sticky;
+  z-index: 9;
+  top: 0;
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 10px clamp(20px, 3.6vw, 56px);
+  border-bottom: 1px solid #b9d9c7;
+  background: #e9f5ed;
+  color: #173f33;
+}
+
+.account-claim-banner p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 640;
+}
+
+.account-claim-button {
+  display: inline-flex;
+  min-height: 36px;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 8px;
+  background: #173f33;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.account-claim-button:hover { background: #225743; }
+.account-claim-banner + .topbar { top: 58px; }
+
+@media (max-width: 640px) {
+  .account-claim-banner { align-items: stretch; flex-direction: column; gap: 8px; }
+  .account-claim-button { justify-content: center; }
+  .account-claim-banner + .topbar { top: 93px; }
+}
+
 .dashboard-workspace-contained {
   height: 100svh;
   height: 100dvh;

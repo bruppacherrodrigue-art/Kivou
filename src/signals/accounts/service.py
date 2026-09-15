@@ -42,7 +42,9 @@ from signals.accounts.schema import (
 )
 from signals.accounts.tokens import new_token, token_hash
 from signals.persistence.conflicts import upsert_returning
-from signals.persistence.schema import materialized_signal
+from signals.persistence.schema import materialized_signal, prospect_target
+
+TEMPORARY_EMAIL_DOMAIN = "landing.kivou.invalid"
 
 
 class AccountError(RuntimeError):
@@ -53,6 +55,10 @@ class AccountError(RuntimeError):
 
 class EmailAlreadyUsed(AccountError):
     code = "email_already_used"
+
+
+class LandingAccessUnavailable(AccountError):
+    code = "landing_access_unavailable"
 
 
 class InvalidCredentials(AccountError):
@@ -115,6 +121,22 @@ class CurrentUser:
     locale: str
     onboarding_status: str
     provisional_profile: bool = False
+    temporary_access: bool = False
+    claim_email: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
+class LandingAccessClaim:
+    """The prospect identity and signal needed for the one welcome message."""
+
+    account_id: str
+    email: str
+    locale: str
+    signal_key: str | None
+    signal_holder: str
+    signal_subject: str
+    signal_location: str
+    unsubscribe_url: str
 
 
 def normalize_email(email: str) -> str:
@@ -125,6 +147,10 @@ def normalize_email(email: str) -> str:
     autres domaines et transformerait deux personnes en une.
     """
     return email.strip().casefold()
+
+
+def is_temporary_email(email: str) -> bool:
+    return normalize_email(email).endswith(f"@{TEMPORARY_EMAIL_DOMAIN}")
 
 
 def _identifier(prefix: str) -> str:
@@ -466,9 +492,115 @@ def current_user(connection: sa.Connection, *, user_id: str) -> CurrentUser:
         .select_from(auth_user.join(account, auth_user.c.account_id == account.c.account_id))
         .where(auth_user.c.user_id == user_id)
     ).one()
+    temporary_access = is_temporary_email(row.email_normalized)
+    claim_target = (
+        _landing_claim_target(connection, account_id=row.account_id)
+        if temporary_access
+        else None
+    )
     return CurrentUser(
         *row,
         provisional_profile=is_provisional_profile(connection, account_id=row.account_id),
+        temporary_access=temporary_access,
+        claim_email=(str(claim_target.email_address) if claim_target is not None else None),
+    )
+
+
+def _landing_claim_target(connection: sa.Connection, *, account_id: str):
+    """Resolve the address attached to the exact acquisition link for this account."""
+
+    landing = account_landing_signal.alias("claim_landing")
+    statement = (
+        sa.select(
+            prospect_target.c.email_address,
+            prospect_target.c.company_name,
+            prospect_target.c.signal_holder,
+            prospect_target.c.signal_subject,
+            prospect_target.c.signal_location,
+            prospect_target.c.unsubscribe_url,
+            landing.c.signal_key,
+        )
+        .select_from(
+            landing.join(
+                prospect_target,
+                prospect_target.c.attribution_token_fingerprint
+                == landing.c.token_fingerprint,
+            )
+        )
+        .where(landing.c.account_id == account_id)
+        .order_by(prospect_target.c.created_at.desc(), prospect_target.c.target_id)
+        .limit(1)
+    )
+    return connection.execute(statement).one_or_none()
+
+
+def claim_landing_access(
+    connection: sa.Connection,
+    *,
+    user_id: str,
+    password: str,
+    now: dt.datetime,
+) -> LandingAccessClaim | None:
+    """Replace a landing-only identity with its verified prospect address.
+
+    Returning ``None`` makes a replay harmless: once the synthetic address has
+    been replaced, the account is already claimed and no second welcome mail is
+    queued.
+    """
+
+    row = connection.execute(
+        sa.select(
+            auth_user.c.account_id,
+            auth_user.c.email_normalized,
+            account.c.locale,
+        )
+        .select_from(auth_user.join(account, auth_user.c.account_id == account.c.account_id))
+        .where(auth_user.c.user_id == user_id, auth_user.c.is_active.is_(True))
+        .with_for_update()
+    ).one()
+    if not is_temporary_email(row.email_normalized):
+        return None
+
+    target = _landing_claim_target(connection, account_id=row.account_id)
+    if target is None:
+        raise LandingAccessUnavailable("adresse du prospect introuvable")
+    normalized = normalize_email(target.email_address)
+    existing = connection.scalar(
+        sa.select(auth_user.c.user_id).where(
+            auth_user.c.email_normalized == normalized,
+            auth_user.c.user_id != user_id,
+        )
+    )
+    if existing is not None:
+        raise EmailAlreadyUsed("adresse déjà utilisée")
+
+    password_hash = hash_password(password)
+    connection.execute(
+        sa.update(auth_user)
+        .where(
+            auth_user.c.user_id == user_id,
+            auth_user.c.email_normalized == row.email_normalized,
+        )
+        .values(
+            email_normalized=normalized,
+            password_hash=password_hash,
+            updated_at=now,
+        )
+    )
+    connection.execute(
+        sa.update(account)
+        .where(account.c.account_id == row.account_id)
+        .values(display_name=str(target.company_name).strip(), updated_at=now)
+    )
+    return LandingAccessClaim(
+        account_id=row.account_id,
+        email=normalized,
+        locale=row.locale,
+        signal_key=target.signal_key,
+        signal_holder=str(target.signal_holder),
+        signal_subject=str(target.signal_subject),
+        signal_location=str(target.signal_location),
+        unsubscribe_url=str(target.unsubscribe_url),
     )
 
 

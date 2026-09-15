@@ -229,13 +229,13 @@ def prospect_relevance_sentence(
         raise ValueError(f"prospect mail family is unknown: {family_key}") from exc
     city = _normal_case(str(company_city or "").strip()) or None
     department_name = _normal_case(str(department or "").strip()) or None
-    place = city or department_name
-    if place is None:
+    if city is None and department_name is None:
         raise ValueError("prospect relevance place is unavailable")
+    place = f"à {city}" if city else f"en {department_name}"
     distance_text = f", à {distance_km} km du chantier" if distance_km not in (None, "") else ""
     return (
         f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} "
-        f"à {place}{distance_text}."
+        f"{place}{distance_text}."
     )
 
 
@@ -244,8 +244,11 @@ def is_prospect_relevance_sentence(value: object) -> bool:
 
     sentence = " ".join(str(value or "").split())
     return sentence.endswith(".") and any(
-        sentence.startswith(
-            f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} à "
+        any(
+            sentence.startswith(
+                f"{family.sentence.rstrip(' .')}, et vous êtes {family.trade_label} {preposition} "
+            )
+            for preposition in ("à", "en")
         )
         for family in load_prospect_mail_catalog().families.values()
     )
@@ -268,8 +271,9 @@ def _amount(minor_units: int, currency: str) -> str:
         millions = (major / Decimal(1_000_000)).quantize(Decimal("0.1"), ROUND_HALF_UP)
         value = format(millions, "f").rstrip("0").rstrip(".").replace(".", ",")
         return f"{value} M{suffix}"
-    thousands = (major / Decimal(1_000)).quantize(Decimal("1"), ROUND_HALF_UP)
-    return f"{int(thousands)} k{suffix}"
+    thousands = (major / Decimal(1_000)).quantize(Decimal("0.1"), ROUND_HALF_UP)
+    value = format(thousands, "f").rstrip("0").rstrip(".").replace(".", ",")
+    return f"{value} k{suffix}"
 
 
 def _date(value: object) -> str:
