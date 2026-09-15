@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import sqlalchemy as sa
+from sqlalchemy.exc import SQLAlchemyError
 
 from signals.chief_of_staff.config import (
     ChiefOfStaffConfigurationState,
@@ -104,7 +105,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     if args.command == "demo":
         try:
             result = run_demo(args.output)
-        except (RuntimeError, ValueError) as error:
+        except (OSError, RuntimeError, SQLAlchemyError, ValueError) as error:
             print(json.dumps({"status": "FAILED_CLOSED", "category": type(error).__name__}))
             return 2
         print(json.dumps({"status": "OFFLINE_DEMO_VALIDATED", **result}, sort_keys=True))
@@ -122,7 +123,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     except InstanceAlreadyRunning:
         print(json.dumps({"status": "ALREADY_RUNNING"}, sort_keys=True))
         return 3
-    except (RuntimeError, ValueError, SupervisorError) as error:
+    except (OSError, RuntimeError, SQLAlchemyError, ValueError, SupervisorError) as error:
         print(json.dumps({"status": "FAILED_CLOSED", "category": type(error).__name__}))
         return 2
     print(

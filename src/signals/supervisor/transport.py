@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -33,7 +34,7 @@ class SubprocessHermesTransport:
     def _environment(self) -> dict[str, str]:
         self.settings.require_configured()
         assert self.settings.hermes_home is not None
-        return {
+        environment = {
             "HOME": str(self.settings.hermes_home),
             "HERMES_HOME": str(self.settings.hermes_home),
             "LANG": "C.UTF-8",
@@ -41,6 +42,14 @@ class SubprocessHermesTransport:
             "PYTHONUTF8": "1",
             "PYTHONUNBUFFERED": "1",
         }
+        for name in ("KIVOU_MODEL_HERMES", "KIVOU_MODEL_CHIEF_OF_STAFF"):
+            value = os.environ.get(name, "").strip()
+            if not value:
+                continue
+            if len(value) > 160 or any(ord(character) < 32 for character in value):
+                raise SupervisorProtocolError(f"{name} is not a valid model route")
+            environment[name] = value
+        return environment
 
     def invoke(self, request: Mapping[str, Any]) -> dict[str, Any]:
         self.settings.require_configured()

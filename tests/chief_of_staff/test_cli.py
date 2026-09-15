@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 
+import sqlalchemy as sa
+
 from signals.chief_of_staff import cli
 from signals.company_research.instance_lock import exclusive_instance_lock
 
@@ -89,3 +91,24 @@ def test_cli_refuses_two_generations_with_same_host_lock(
             )
             == 3
         )
+
+
+def test_cli_sanitizes_database_failures(monkeypatch, tmp_path, capsys) -> None:
+    class BrokenService:
+        def generate(self, **_: object):
+            raise sa.exc.OperationalError("select secret", {}, RuntimeError("database"))
+
+    monkeypatch.setattr(cli, "_runtime_service", lambda **_: BrokenService())
+    code = cli.main(
+        [
+            "generate",
+            "--cadence",
+            "daily",
+            "--lock-file",
+            str(tmp_path / "chief.lock"),
+        ]
+    )
+    output = capsys.readouterr().out
+    assert code == 2
+    assert "OperationalError" in output
+    assert "select secret" not in output
