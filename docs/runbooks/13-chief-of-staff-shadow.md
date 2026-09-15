@@ -9,7 +9,7 @@ Vérifier le head Alembic attendu, le pin dans
 `src/signals/supervisor/hermes.lock.toml`, puis la configuration séparée :
 
 ```bash
-uv run python -m signals.chief_of_staff status
+uv run python -m signals.chief_of_staff generate --cadence daily --at 2026-09-15T05:30:00Z
 uv run python -m signals.supervisor health
 ```
 
@@ -19,7 +19,7 @@ clé dans la ligne de commande ou les logs.
 ## Démonstration hors ligne
 
 ```bash
-uv run python -m signals.chief_of_staff demo --database-url sqlite+pysqlite:///./chief-of-staff-demo.db
+uv run python -m signals.chief_of_staff demo --output /tmp/kivou-chief-of-staff-demo.sqlite
 ```
 
 La commande charge les fixtures, simule le fournisseur, valide et persiste un
@@ -35,9 +35,8 @@ uv run python -m signals.chief_of_staff generate --cadence daily --at 2026-09-15
 ```
 
 `--persist` autorise uniquement la ligne append-only après validation. Codes de
-sortie : `0` succès/rapport déjà présent, `2` configuration ou contexte
-invalide, `3` verrou occupé, `4` budget refusé, `5` fournisseur indisponible,
-`6` rapport rejeté.
+sortie : `0` succès/rapport déjà présent, `2` échec fermé (configuration,
+contexte, budget, fournisseur ou rapport invalide), `3` verrou occupé.
 
 ## Diagnostic
 
@@ -52,7 +51,7 @@ invalide, `3` verrou occupé, `4` budget refusé, `5` fournisseur indisponible,
 
 Les unités livrées sont des exemples désactivés. Une cadence quotidienne après
 la clôture des ingestions Zurich peut être évaluée, mais l'heure définitive,
-l'installation et `systemctl enable` exigent une autorisation séparée.
+l'installation et l'activation systemd exigent une autorisation séparée.
 
 ## Rollback
 

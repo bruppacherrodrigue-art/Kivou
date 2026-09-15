@@ -15,6 +15,7 @@ from signals.chief_of_staff.config import (
     ChiefOfStaffConfigurationState,
     chief_of_staff_config_from_environment,
 )
+from signals.chief_of_staff.demo import run_demo
 from signals.chief_of_staff.hermes import ChiefOfStaffHermesAdapter
 from signals.chief_of_staff.service import ChiefOfStaffService
 from signals.chief_of_staff.store import ChiefOfStaffReportStore
@@ -54,6 +55,8 @@ def _parser() -> argparse.ArgumentParser:
         "--lock-file",
         default=os.environ.get("KIVOU_CHIEF_OF_STAFF_LOCK_FILE", DEFAULT_LOCK_FILE),
     )
+    demo = subparsers.add_parser("demo", help="run the offline fixture demonstration")
+    demo.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -98,6 +101,14 @@ def _runtime_service(*, at: dt.datetime | None = None) -> ChiefOfStaffService:
 
 def main(arguments: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(arguments)
+    if args.command == "demo":
+        try:
+            result = run_demo(args.output)
+        except (RuntimeError, ValueError) as error:
+            print(json.dumps({"status": "FAILED_CLOSED", "category": type(error).__name__}))
+            return 2
+        print(json.dumps({"status": "OFFLINE_DEMO_VALIDATED", **result}, sort_keys=True))
+        return 0
     cadence = args.cadence.replace("-", "_").upper()
     try:
         lock_path = Path(args.lock_file)

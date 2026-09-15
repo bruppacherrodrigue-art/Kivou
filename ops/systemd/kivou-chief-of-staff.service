@@ -1,0 +1,33 @@
+[Unit]
+Description=Kivou — Chief of Staff SHADOW (manuel, non activé)
+Documentation=file:/srv/kivou/app/docs/runbooks/13-chief-of-staff-shadow.md
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+EnvironmentFile=/etc/kivou/chief-of-staff.env
+Environment=KIVOU_CHIEF_OF_STAFF_LOCK_FILE=/srv/kivou/run/chief-of-staff.lock
+ExecStart=/srv/kivou/app/.venv/bin/python -m signals.chief_of_staff generate --cadence daily --persist
+TimeoutStartSec=5min
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-chief-of-staff
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/srv/kivou/run /var/lib/kivou/hermes
