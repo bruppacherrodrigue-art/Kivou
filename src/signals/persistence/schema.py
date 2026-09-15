@@ -970,6 +970,7 @@ _MODEL_USAGE_SQL = ", ".join(
         "for_you",
         "hermes",
         "document_classifier",
+        "chief_of_staff",
     )
 )
 
@@ -1023,6 +1024,53 @@ model_call_journal = sa.Table(
     sa.Index("ix_model_call_usage_called_at", "usage", "called_at"),
     sa.Index("ix_model_call_siren_called_at", "siren", "called_at"),
     sa.Index("ix_model_call_batch_id", "batch_id"),
+)
+
+
+chief_of_staff_report = sa.Table(
+    "chief_of_staff_report",
+    METADATA,
+    sa.Column("report_ref", sa.String(256), primary_key=True),
+    sa.Column("report_version", sa.String(64), nullable=False),
+    sa.Column("cadence", sa.String(16), nullable=False),
+    sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("period_end", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("context_fingerprint", sa.String(64), nullable=False),
+    sa.Column("business_memory_version", sa.String(64), nullable=False),
+    sa.Column("profile_version", sa.String(64), nullable=False),
+    sa.Column("supervisor_version", sa.String(64), nullable=False),
+    sa.Column("model_route", sa.String(256), nullable=False),
+    sa.Column("validated_report", sa.JSON, nullable=False),
+    sa.Column("usage_metadata", sa.JSON, nullable=False),
+    sa.Column("estimated_cost", sa.Numeric(14, 8), nullable=False),
+    sa.Column("actual_cost", sa.Numeric(14, 8)),
+    sa.Column(
+        "model_call_id",
+        sa.String(36),
+        sa.ForeignKey("model_call_journal.call_id", ondelete="SET NULL"),
+    ),
+    sa.CheckConstraint(
+        "cadence IN ('DAILY', 'WEEKLY', 'ON_DEMAND')",
+        name="ck_chief_of_staff_report_cadence",
+    ),
+    sa.CheckConstraint("period_end > period_start", name="ck_chief_of_staff_report_period"),
+    sa.CheckConstraint("estimated_cost >= 0", name="ck_chief_of_staff_report_estimated_cost"),
+    sa.CheckConstraint(
+        "actual_cost IS NULL OR actual_cost >= 0",
+        name="ck_chief_of_staff_report_actual_cost",
+    ),
+    sa.UniqueConstraint(
+        "context_fingerprint",
+        "report_version",
+        "business_memory_version",
+        "profile_version",
+        "supervisor_version",
+        name="uq_chief_of_staff_report_semantic",
+    ),
+    sa.Index("ix_chief_of_staff_report_cadence_captured", "cadence", "captured_at"),
+    sa.Index("ix_chief_of_staff_report_captured", "captured_at"),
 )
 
 
