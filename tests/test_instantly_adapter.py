@@ -215,6 +215,22 @@ def test_http_failures_are_typed(status: int, code: InstantlyErrorCode) -> None:
     assert "synthetic-test-key" not in str(caught.value)
 
 
+def test_http_failure_keeps_a_redacted_bounded_provider_diagnostic() -> None:
+    body = '{"detail":"invalid campaign", "api_key":"do-not-log", "password":"nope"}'
+
+    with pytest.raises(InstantlyProviderError) as caught:
+        _provider(lambda _request: httpx.Response(422, text=body)).list_campaigns(
+            search="KIVOU-safe"
+        )
+
+    assert caught.value.http_status == 422
+    assert caught.value.response_body == (
+        '{"detail":"invalid campaign", "api_key":"<masked>", "password":"<masked>"}'
+    )
+    assert "do-not-log" not in str(caught.value)
+    assert "nope" not in str(caught.value)
+
+
 @pytest.mark.parametrize("exc", [httpx.TimeoutException("timeout"), httpx.NetworkError("down")])
 def test_mutation_unknown_outcome_requires_reconciliation(exc: Exception) -> None:
     calls = 0

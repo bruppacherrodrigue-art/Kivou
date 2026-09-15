@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Protocol
@@ -26,6 +27,8 @@ from signals.acquisition_runtime.contracts import (
     require_aware,
 )
 from signals.acquisition_runtime.events import emit_acquisition_runtime_event
+
+LOGGER = logging.getLogger(__name__)
 from signals.acquisition_runtime.registry import RuntimeExecutionGuard
 from signals.acquisition_runtime.supervisor import KIVOU_STAGE_COSTS
 
@@ -539,7 +542,13 @@ class AcquisitionRuntimeRunner:
                 stage=current_stage,
                 reason_code="CURRENT_RUN_INTERRUPTED",
             )
-        except Exception:  # noqa: BLE001 - provider/configuration detail is private
+        except Exception:
+            LOGGER.exception(
+                "acquisition runtime technical failure cycle=%s stage=%s attempt=%s",
+                None if cycle is None else cycle.cycle_ref,
+                None if current_stage is None else current_stage.value,
+                current_attempt,
+            )
             if cycle is not None:
                 failed = RuntimeActionResult(
                     status=RuntimeStageStatus.FAILED,

@@ -928,7 +928,7 @@ def test_interrupted_provider_stage_reuses_attempt_proposal_and_reservation() ->
     assert completed.registry.stage_snapshots[-1].attempt_count == 1
 
 
-def test_technical_exception_terminalizes_current_run_without_exception_text() -> None:
+def test_technical_exception_terminalizes_current_run_and_logs_its_trace(caplog) -> None:
     stage = AcquisitionRuntimeStage.PERSONALIZATION
     store = FakeStore(
         cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
@@ -941,11 +941,14 @@ def test_technical_exception_terminalizes_current_run_without_exception_text() -
     runner = _runner(store, outcomes={}, proposals={stage: _proposal(stage)})
     runner.registry = FailingRegistry({})
 
-    result = runner.run_once(_request())
+    with caplog.at_level("ERROR", logger="signals.acquisition_runtime.runner"):
+        result = runner.run_once(_request())
 
     assert result.status is RuntimeRunStatus.FAILED
     assert result.reason_code == "CURRENT_RUN_TECHNICAL_FAILURE"
     assert "private-provider-detail" not in repr(result)
+    assert "private-provider-detail" in caplog.text
+    assert "Traceback" in caplog.text
     assert ("finish", "cycle-001", stage, RuntimeStageStatus.FAILED, NOW) in store.events
     assert store.events[-1][0] == "release"
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 from collections.abc import Mapping
 from enum import StrEnum
 from types import MappingProxyType
@@ -18,6 +19,12 @@ from signals.decision_engine.policy import semantic_fingerprint
 
 INSTANTLY_V2_BASE_URL = "https://api.instantly.ai/api/v2"
 MAX_PROVIDER_RESPONSE_BYTES = 1_048_576
+MAX_PROVIDER_ERROR_RESPONSE_BYTES = 500
+_SENSITIVE_RESPONSE_VALUE = re.compile(
+    r'("(?:api[_-]?key|authorization|token|secret|password)"\s*:\s*")[^"]*',
+    re.IGNORECASE,
+)
+_BEARER_TOKEN = re.compile(r"Bearer\\s+[^\\s\",]+", re.IGNORECASE)
 
 
 class InstantlyErrorCode(StrEnum):
@@ -40,11 +47,32 @@ class InstantlyProviderError(RuntimeError):
         *,
         reconciliation_required: bool = False,
         retry_after_seconds: int | None = None,
+        http_status: int | None = None,
+        response_body: str | None = None,
     ) -> None:
-        super().__init__(f"Instantly provider failure: {code.value}")
+        diagnostic = f"Instantly HTTP {http_status}" if http_status is not None else None
+        if diagnostic and response_body:
+            diagnostic = f"{diagnostic}: {response_body}"
+        super().__init__(diagnostic or f"Instantly provider failure: {code.value}")
         self.code = code
         self.reconciliation_required = reconciliation_required
         self.retry_after_seconds = retry_after_seconds
+        self.http_status = http_status
+        self.response_body = response_body
+
+
+def _redacted_error_body(response: httpx.Response) -> str:
+    body = bytearray()
+    for chunk in response.iter_bytes():
+        available = MAX_PROVIDER_ERROR_RESPONSE_BYTES - len(body)
+        if available <= 0:
+            break
+        body.extend(chunk[:available])
+        if len(body) >= MAX_PROVIDER_ERROR_RESPONSE_BYTES:
+            break
+    text = body.decode("utf-8", errors="replace")
+    text = _SENSITIVE_RESPONSE_VALUE.sub(r'\1<masked>', text)
+    return _BEARER_TOKEN.sub("Bearer <masked>", text)
 
 
 class _ProviderModel(BaseModel):
@@ -588,6 +616,8 @@ class HttpInstantlyProvider:
                         reconciliation_required=mutation
                         and code in {InstantlyErrorCode.SERVER_ERROR},
                         retry_after_seconds=retry_after,
+                        http_status=response.status_code,
+                        response_body=_redacted_error_body(response),
                     )
                 body = bytearray()
                 for chunk in response.iter_bytes():

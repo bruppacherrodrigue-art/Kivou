@@ -1066,6 +1066,9 @@ class ProspectionActions:
                 if sent_count == len(target_rows)
                 else ("partial" if sent_count else "failed")
             )
+            failure_message = "; ".join(
+                sorted({item.error for item in attempts if item.error})
+            )[:1000]
             connection.execute(
                 sa.update(prospect_send_request)
                 .where(prospect_send_request.c.request_id == request_id)
@@ -1073,14 +1076,14 @@ class ProspectionActions:
                     status=request_status,
                     sent_count=sent_count,
                     result=result_json if sent_count else None,
-                    error=None if sent_count else "provider rejected every target",
+                    error=None if sent_count else failure_message,
                     completed_at=at,
                 )
             )
         if sent_count == 0:
             raise ProspectionActionError(
                 "INSTANTLY_SEND_FAILED",
-                "le fournisseur n'a accepté aucune cible",
+                failure_message or "le fournisseur n'a accepté aucune cible",
                 target_ids=tuple(str(row["target_id"]) for row in target_rows),
                 status_code=502,
             )
