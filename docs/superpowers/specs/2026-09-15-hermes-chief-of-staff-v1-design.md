@@ -1,6 +1,6 @@
 # Hermes Chief of Staff V1 — conception
 
-Date : 2026-09-15  
+Date : 2026-09-15
 Base observée : `ef159fa8fcc078f1e85811c76e6cfa2bc60e0eae`
 
 ## Décision

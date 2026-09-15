@@ -190,4 +190,3 @@ def test_output_size_is_bounded() -> None:
     value = context()
     with pytest.raises(ReportValidationError, match="output size"):
         validate_report(report(value), context=value, max_output_bytes=100)
-
