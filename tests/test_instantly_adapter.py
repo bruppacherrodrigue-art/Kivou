@@ -82,7 +82,7 @@ def test_campaign_create_request_matches_official_v2_fixture_exactly() -> None:
     assert json.loads(observed[0].content) == request_fixture
 
 
-def test_campaign_schedule_uses_official_nested_shape_and_python_weekdays() -> None:
+def test_campaign_schedule_uses_official_nested_shape_and_instantly_weekdays() -> None:
     config = build_provider_campaign_config(
         step_1_execution_date=dt.date(2026, 8, 24),
         step_2_execution_date=dt.date(2026, 8, 28),
@@ -100,12 +100,12 @@ def test_campaign_schedule_uses_official_nested_shape_and_python_weekdays() -> N
     item = schedule["schedules"][0]
     assert item["timezone"] == "Europe/Paris"
     assert item["days"] == {
-        "0": True,
-        "1": False,
+        "0": False,
+        "1": True,
         "2": False,
         "3": False,
-        "4": True,
-        "5": False,
+        "4": False,
+        "5": True,
         "6": False,
     }
     assert "7" not in item["days"]
@@ -202,6 +202,15 @@ def test_assisted_campaign_uses_provider_timezone_and_required_zero_delay() -> N
     schedule = body["campaign_schedule"]["schedules"][0]
     step = body["sequences"][0]["steps"][0]
     assert schedule["timezone"] == "Europe/Belgrade"
+    assert schedule["days"] == {
+        "0": False,
+        "1": False,
+        "2": True,
+        "3": False,
+        "4": False,
+        "5": False,
+        "6": False,
+    }
     assert step["delay"] == 0
 
 

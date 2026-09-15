@@ -22,12 +22,12 @@
             "to": "17:00"
           },
           "days": {
-            "0": true,
-            "1": false,
+            "0": false,
+            "1": true,
             "2": false,
             "3": false,
-            "4": true,
-            "5": false,
+            "4": false,
+            "5": true,
             "6": false
           },
           "timezone": "Europe/Paris"
@@ -93,12 +93,12 @@
             "to": "17:00"
           },
           "days": {
-            "0": true,
-            "1": false,
+            "0": false,
+            "1": true,
             "2": false,
             "3": false,
-            "4": true,
-            "5": false,
+            "4": false,
+            "5": true,
             "6": false
           },
           "timezone": "Europe/Paris"

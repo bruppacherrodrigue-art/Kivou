@@ -209,8 +209,8 @@ _CAMPAIGN_RESPONSE_KEYS = _CAMPAIGN_CONFIG_KEYS | frozenset(
 
 
 def _expected_weekdays(start_date: dt.date, end_date: dt.date) -> dict[str, bool]:
-    """Map Python's Monday=0 weekday convention to Instantly's 0..6 keys."""
-    active = {start_date.weekday(), end_date.weekday()}
+    """Map Python Monday=0 to Instantly Sunday=0 weekday keys."""
+    active = {(value.weekday() + 1) % 7 for value in (start_date, end_date)}
     return {str(index): index in active for index in range(7)}
 
 
