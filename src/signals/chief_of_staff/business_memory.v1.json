@@ -1,0 +1,60 @@
+{
+  "memory_version": "business-memory-v1",
+  "updated_at": "2026-09-15",
+  "decisions": [
+    {
+      "decision_key": "acquisition.supervisor_separation",
+      "category": "ACQUISITION",
+      "statement": "Acquisition Supervisor reste une spécialisation séparée du Chief of Staff.",
+      "status": "ACTIVE",
+      "effective_from": "2026-09-15",
+      "version": "1.0.0",
+      "source_ref": "docs/adr/2026-09-15-hermes-chief-of-staff.md"
+    },
+    {
+      "decision_key": "autonomy.chief_of_staff_shadow",
+      "category": "AUTONOMY",
+      "statement": "Le Chief of Staff V1 fonctionne uniquement en SHADOW et ne peut exécuter aucune action.",
+      "status": "ACTIVE",
+      "effective_from": "2026-09-15",
+      "version": "1.0.0",
+      "source_ref": "docs/superpowers/specs/2026-09-15-hermes-chief-of-staff-v1-design.md"
+    },
+    {
+      "decision_key": "governance.kivou_truth",
+      "category": "GOVERNANCE",
+      "statement": "Kivou conserve la vérité, les métriques, la mémoire, les permissions et les décisions critiques.",
+      "status": "ACTIVE",
+      "effective_from": "2026-09-15",
+      "version": "1.0.0",
+      "source_ref": "docs/adr/2026-09-15-hermes-chief-of-staff.md"
+    },
+    {
+      "decision_key": "positioning.founder_briefing",
+      "category": "POSITIONING",
+      "statement": "Hermes interprète des faits Kivou vérifiés pour produire un briefing dirigeant sourcé.",
+      "status": "ACTIVE",
+      "effective_from": "2026-09-15",
+      "version": "1.0.0",
+      "source_ref": "docs/superpowers/specs/2026-09-15-hermes-chief-of-staff-v1-design.md"
+    },
+    {
+      "decision_key": "pricing.backend_authority",
+      "category": "PRICING",
+      "statement": "Hermes ne définit ni ne modifie le pricing ; les contrats backend et Stripe autorisés restent souverains.",
+      "status": "ACTIVE",
+      "effective_from": "2026-09-15",
+      "version": "1.0.0",
+      "source_ref": "src/signals/billing/catalogue.py"
+    },
+    {
+      "decision_key": "security.no_executable_tools",
+      "category": "SECURITY",
+      "statement": "Hermes reçoit zéro outil exécutable, aucun secret et aucun accès SQL, shell ou fournisseur.",
+      "status": "ACTIVE",
+      "effective_from": "2026-09-15",
+      "version": "1.0.0",
+      "source_ref": "src/signals/supervisor/hermes_bridge.py"
+    }
+  ]
+}

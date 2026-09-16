@@ -123,6 +123,67 @@ def test_plan_accepts_the_hermes_model_configured_for_this_process(monkeypatch):
     assert result["model"] == configured
 
 
+def test_report_uses_distinct_configured_model_and_same_zero_tool_boundary(monkeypatch):
+    configured = "anthropic/claude-sonnet-4.6"
+    monkeypatch.setenv("KIVOU_MODEL_CHIEF_OF_STAFF", configured)
+    captured = {}
+
+    def oneshot(**kwargs):
+        captured.update(kwargs)
+        return {
+            "response": '{"report_version":"chief-of-staff-report-v1"}',
+            "provider": "openrouter",
+            "model": configured,
+            "automatic_retries": 0,
+            "fallbacks": False,
+        }
+
+    result = handle_request(
+        {
+            "operation": "report",
+            "instructions": "Chief profile",
+            "context_json": '{"content_boundary":"UNTRUSTED_DATA"}',
+            "max_tokens": 512,
+            "timeout_seconds": 4.5,
+            "provider": "openrouter",
+            "model": configured,
+            "provider_routing": ROUTING,
+            "response_schema": PROVIDER_SCHEMA,
+        },
+        metadata_loader=lambda: PINNED_METADATA.copy(),
+        oneshot=oneshot,
+        load_profile_environment=lambda: None,
+    )
+
+    assert result["executable_tools"] == []
+    assert result["model"] == configured
+    assert captured["schema_name"] == "kivou_chief_of_staff_report"
+
+
+def test_report_has_no_fallback_to_generic_hermes_model(monkeypatch):
+    monkeypatch.delenv("KIVOU_MODEL_CHIEF_OF_STAFF", raising=False)
+    monkeypatch.setenv("KIVOU_MODEL_HERMES", "model/acquisition")
+    monkeypatch.setenv("OPENROUTER_MODEL", "model/generic")
+
+    with pytest.raises(BridgeRequestError, match="Chief of Staff model"):
+        handle_request(
+            {
+                "operation": "report",
+                "instructions": "Chief profile",
+                "context_json": '{"content_boundary":"UNTRUSTED_DATA"}',
+                "max_tokens": 512,
+                "timeout_seconds": 4.5,
+                "provider": "openrouter",
+                "model": MODEL,
+                "provider_routing": ROUTING,
+                "response_schema": PROVIDER_SCHEMA,
+            },
+            metadata_loader=lambda: PINNED_METADATA.copy(),
+            oneshot=lambda **_kwargs: pytest.fail("provider must not be invoked"),
+            load_profile_environment=lambda: None,
+        )
+
+
 def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fallback(
     monkeypatch,
 ):

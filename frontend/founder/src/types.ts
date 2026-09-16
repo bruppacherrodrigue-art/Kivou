@@ -3,6 +3,92 @@ export type GateStatus = 'READY' | 'NOT_READY' | 'INSUFFICIENT_EVIDENCE'
 export type AutonomyMode = 'SHADOW' | 'ASSISTED' | 'AUTONOMOUS_CAPPED' | 'ADAPTIVE_VOLUME'
 export type FounderTunnelPeriod = 'today' | 'last_7_days'
 
+export type ChiefOfStaffStatus = 'HEALTHY' | 'WATCH' | 'CRITICAL' | 'UNKNOWN'
+export type ChiefOfStaffCadence = 'DAILY' | 'WEEKLY' | 'ON_DEMAND'
+
+export interface ChiefOfStaffFact {
+  fact_ref: string
+  domain: 'BUSINESS' | 'PRODUCT' | 'DATA' | 'OPERATIONS' | 'ACQUISITION' | 'ROADMAP_RELEASE' | 'STRATEGY'
+  metric_key: string
+  value: number | string | boolean | null
+  unit: 'COUNT' | 'MINOR_UNITS' | 'BASIS_POINTS' | 'RATIO' | 'BOOLEAN' | 'STATUS' | 'TEXT' | 'TIMESTAMP' | 'VERSION'
+  currency: 'CHF' | 'EUR' | 'USD' | null
+  period_start: string
+  period_end: string
+  captured_at: string
+  source_contract: string
+  source_version: string
+  data_status: 'KNOWN' | 'UNKNOWN' | 'INSUFFICIENT_EVIDENCE' | 'STALE'
+}
+
+export interface ChiefOfStaffReport {
+  report_version: 'chief-of-staff-report-v1'
+  report_ref: string
+  context_fingerprint: string
+  cadence: ChiefOfStaffCadence
+  period_start: string
+  period_end: string
+  created_at: string
+  executive_status: ChiefOfStaffStatus
+  executive_summary: string
+  reason_codes: string[]
+  observations: Array<{
+    observation_id: string
+    domain: ChiefOfStaffFact['domain']
+    kind: 'CHANGE' | 'ANOMALY' | 'RISK' | 'STATUS' | 'UNKNOWN'
+    summary: string
+    impact: string
+    reason_codes: string[]
+    fact_refs: string[]
+    confidence: string
+  }>
+  priorities: Array<{
+    priority: number
+    owner: 'FOUNDER' | 'ENGINEERING' | 'ACQUISITION' | 'PRODUCT' | 'DATA' | 'NONE'
+    recommended_action: string
+    reason_codes: string[]
+    fact_refs: string[]
+    approval_required: boolean
+  }>
+  decision_requests: Array<{
+    decision_id: string
+    owner: 'FOUNDER'
+    question: string
+    reason_codes: string[]
+    fact_refs: string[]
+    human_decision_required: true
+  }>
+  unknowns: Array<{
+    unknown_id: string
+    domain: ChiefOfStaffFact['domain']
+    summary: string
+    reason_codes: string[]
+    fact_refs: string[]
+  }>
+  source_refs: string[]
+  confidence: string
+  supervisor_version: string
+  profile_version: '1.1.0'
+}
+
+export interface FounderChiefOfStaffLatest {
+  version: 'founder-chief-of-staff-latest-v1'
+  state: 'AVAILABLE' | 'EMPTY'
+  stale: boolean
+  report: ChiefOfStaffReport | null
+  facts: ChiefOfStaffFact[]
+  captured_at: string | null
+  model_route: string | null
+  usage_metadata: Record<string, unknown>
+  estimated_cost: string | null
+  actual_cost: string | null
+}
+
+export type FounderChiefOfStaffView =
+  | { kind: 'available'; data: FounderChiefOfStaffLatest & { state: 'AVAILABLE'; report: ChiefOfStaffReport } }
+  | { kind: 'empty' }
+  | { kind: 'unavailable' }
+
 export interface FounderAcquisitionStatus {
   mode: string | null
   activity: 'RUNNING' | 'STOPPED' | 'UNKNOWN'
