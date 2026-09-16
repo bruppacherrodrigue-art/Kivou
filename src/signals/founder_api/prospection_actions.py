@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -18,6 +19,7 @@ from signals.prospection_actions.contracts import (
     ProspectStatus,
     RejectCommand,
     SendCommand,
+    SendRequestProgress,
 )
 from signals.prospection_actions.service import ProspectionActionError, ProspectionActions
 
@@ -31,6 +33,39 @@ def _error(error: ProspectionActionError) -> HTTPException:
             "target_ids": list(error.target_ids),
         },
     )
+
+
+def _public_error(value: str | None, *, limit: int) -> str | None:
+    """Keep worker diagnostics useful without returning unbounded stored text."""
+    if value is None:
+        return None
+    normalized = " ".join(value.split())
+    return normalized[:limit] or None
+
+
+def _send_response(result: SendRequestProgress) -> dict[str, object]:
+    """Serialize only the public durable-send progress contract."""
+    request_id = str(result.request_id)
+    return {
+        "version": "founder-prospection-send-v2",
+        "request_id": request_id,
+        "status": result.status,
+        "total_count": result.total_count,
+        "processed_count": result.processed_count,
+        "sent_count": result.sent_count,
+        "failed_count": result.failed_count,
+        "status_url": f"/api/founder/actions/prospection/send/{request_id}",
+        "items": [
+            {
+                "target_id": str(item.target_id),
+                "email_address": str(item.email_address),
+                "status": item.status,
+                "error_code": _public_error(item.error_code, limit=128),
+                "error_message": _public_error(item.error_message, limit=200),
+            }
+            for item in result.items
+        ],
+    }
 
 
 def build_prospection_actions_router(
@@ -107,19 +142,22 @@ def build_prospection_actions_router(
             "directory_effect": result.directory_effect,
         }
 
-    @router.post("/send")
+    @router.post("/send", status_code=202)
     def send(command: SendCommand, identity: FounderIdentityDependency):
         try:
-            result = service.send(command, actor=identity.email)
+            result = service.enqueue_send(command, actor=identity.email)
         except ProspectionActionError as error:
             raise _error(error) from error
-        return {
-            "version": CONTRACT_VERSION,
-            "request_id": result.request_id,
-            "results": result.results,
-            "daily_sent_count": result.daily_sent_count,
-            "daily_remaining": result.daily_remaining,
-        }
+        return _send_response(result)
+
+    @router.get("/send/{request_id}")
+    def send_progress(request_id: UUID, identity: FounderIdentityDependency):
+        del identity
+        try:
+            result = service.send_progress(str(request_id))
+        except ProspectionActionError as error:
+            raise _error(error) from error
+        return _send_response(result)
 
     return router
 
