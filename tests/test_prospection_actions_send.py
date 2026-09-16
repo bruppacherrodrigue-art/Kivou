@@ -78,9 +78,7 @@ def command(version: int = 2) -> SendCommand:
 def _seed_second_target(engine) -> str:
     target_id = "11111111-1111-4111-8111-111111111111"
     with engine.begin() as connection:
-        directory = dict(
-            connection.execute(sa.select(supplier_directory)).mappings().one()
-        )
+        directory = dict(connection.execute(sa.select(supplier_directory)).mappings().one())
         directory.update(
             siren="100000001",
             legal_name="Alpha Béton",
@@ -111,7 +109,7 @@ def test_send_refuses_unapproved_without_calling_provider(sending) -> None:
     actions, provider, _engine, _tmp = sending
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(version=1), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(version=1), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "INVALID_TARGET_STATUS"
     assert provider.calls == []
@@ -128,7 +126,7 @@ def test_send_refuses_non_mx_verified_even_when_approved(sending) -> None:
         )
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "EMAIL_NOT_MX_VERIFIED"
     assert provider.calls == []
@@ -150,7 +148,7 @@ def test_send_refuses_a_stale_placeholder_email_even_when_approved(sending) -> N
         )
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "PLACEHOLDER_EMAIL"
     assert provider.calls == []
@@ -182,7 +180,7 @@ def test_send_holds_consumer_mailboxes_before_provider(sending, email: str) -> N
         )
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "CONSUMER_MAILBOX_HELD"
     assert caught.value.status_code == 422
@@ -212,7 +210,7 @@ def test_send_refuses_approved_mail_that_failed_the_render_contract(sending) -> 
         )
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "MAIL_CONTRACT_FAILED"
     assert provider.calls == []
@@ -235,7 +233,7 @@ def test_send_refuses_an_approved_target_quarantined_by_domain_audit(sending) ->
     assert audit.modified_count == 1
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "DIRECTORY_REVERIFICATION_REQUIRED"
     assert caught.value.status_code == 422
@@ -257,7 +255,7 @@ def test_send_refuses_kill_switch_before_provider(sending) -> None:
     (tmp_path / "acquisition.disabled").touch()
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "KILL_SWITCH_ACTIVE"
     assert provider.calls == []
@@ -293,20 +291,19 @@ def test_send_is_idempotent_and_persists_delivery_cost(sending) -> None:
     actions, provider, engine, _tmp = sending
     approve(actions)
 
-    first = actions.send(command(), actor="rodrigue@kivou.eu")
-    replay = actions.send(command(), actor="rodrigue@kivou.eu")
+    first = actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
+    replay = actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert first == replay
-    assert first.results[0].status == "sent"
-    assert first.daily_sent_count == 1
-    assert first.daily_remaining == 24
-    assert len(provider.calls) == 1
+    assert first.status == "queued"
+    assert first.sent_count == 0
+    assert len(provider.calls) == 0
     with engine.connect() as connection:
         target = connection.execute(sa.select(prospect_target)).mappings().one()
         request = connection.execute(sa.select(prospect_send_request)).mappings().one()
-    assert target["instantly_credit_units"] == 1
-    assert target["instantly_request_count"] == 2
-    assert request["sent_count"] == 1
+    assert target["instantly_credit_units"] == 0
+    assert target["instantly_request_count"] == 0
+    assert request["sent_count"] == 0
 
 
 def test_send_locks_batch_targets_then_directories_in_sorted_order_and_keeps_payload_order(
@@ -339,7 +336,7 @@ def test_send_locks_batch_targets_then_directories_in_sorted_order_and_keeps_pay
 
     sa.event.listen(engine, "before_execute", capture_statement)
     try:
-        result = actions.send(batch, actor="rodrigue@kivou.eu")
+        result = actions.enqueue_send(batch, actor="rodrigue@kivou.eu")
     finally:
         sa.event.remove(engine, "before_execute", capture_statement)
 
@@ -353,19 +350,15 @@ def test_send_locks_batch_targets_then_directories_in_sorted_order_and_keeps_pay
             ).split()
         )
         for statement in statements
-        if isinstance(statement, sa.sql.Select)
-        and statement._for_update_arg is not None
+        if isinstance(statement, sa.sql.Select) and statement._for_update_arg is not None
     ]
     assert len(lock_sql) == 2
     assert "FROM prospect_target" in lock_sql[0]
     assert "ORDER BY prospect_target.target_id FOR UPDATE NOWAIT" in lock_sql[0]
     assert "FROM supplier_directory" in lock_sql[1]
     assert "ORDER BY supplier_directory.siren FOR UPDATE NOWAIT" in lock_sql[1]
-    assert [str(item.target_id) for item in provider.calls[0]] == [
-        TARGET_ID,
-        second_target_id,
-    ]
-    assert [item.target_id for item in result.results] == [TARGET_ID, second_target_id]
+    assert provider.calls == []
+    assert [str(item.target_id) for item in result.items] == [TARGET_ID, second_target_id]
 
 
 def test_send_hard_cap_counts_completed_and_reserved_batches(sending) -> None:
@@ -389,7 +382,7 @@ def test_send_hard_cap_counts_completed_and_reserved_batches(sending) -> None:
         )
 
     with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
 
     assert caught.value.code == "DAILY_SEND_CAP_EXCEEDED"
     assert provider.calls == []

@@ -16,6 +16,7 @@ from signals.prospection_actions.attribution import AttributionProspectLinkIssue
 from signals.prospection_actions.delivery import AssistedInstantlyDelivery
 from signals.prospection_actions.service import ProspectionActions
 from signals.prospection_actions.suppression import EmailSuppressionChecker
+from signals.prospection_actions.worker import ProspectSendWorker
 
 
 def build_prospection_actions(
@@ -56,4 +57,29 @@ def build_founder_acquisition_launcher(engine: Engine) -> FounderAcquisitionLaun
     return FounderAcquisitionLauncher(engine)
 
 
-__all__ = ["build_founder_acquisition_launcher", "build_prospection_actions"]
+def build_prospect_send_worker(
+    engine: Engine,
+    *,
+    client: httpx.Client,
+) -> ProspectSendWorker:
+    """Compose the background worker without coupling it to the HTTP action service."""
+    connectivity = load_connectivity_config()
+    if connectivity.environment != "PRODUCTION":
+        raise RuntimeError("les actions Founder ne s'exécutent qu'en production")
+    mailbox = connectivity.deployment.mailboxes[0]
+    provider = HttpInstantlyProvider(
+        api_key=connectivity.instantly_api_key.get_secret_value(),
+        client=client,
+    )
+    return ProspectSendWorker(
+        engine,
+        provider=provider,
+        provider_account_id=str(mailbox.provider_account_id),
+    )
+
+
+__all__ = [
+    "build_founder_acquisition_launcher",
+    "build_prospect_send_worker",
+    "build_prospection_actions",
+]
