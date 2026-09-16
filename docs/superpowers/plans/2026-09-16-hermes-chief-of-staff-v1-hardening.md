@@ -3,9 +3,9 @@
 > **For Codex:** suivre ce plan en TDD, conserver `plan` rétrocompatible et ne
 > produire aucun appel fournisseur réel.
 
-Date : 2026-09-16  
-Branche : `feat/hermes-chief-of-staff-v1`  
-HEAD initial : `499e40985ad50cfd0c1a62f827aacafa82ad71b9`  
+Date : 2026-09-16
+Branche : `feat/hermes-chief-of-staff-v1`
+HEAD initial : `499e40985ad50cfd0c1a62f827aacafa82ad71b9`
 Merge-base : `ef159fa8fcc078f1e85811c76e6cfa2bc60e0eae`
 
 ## 1. Établir les baselines
