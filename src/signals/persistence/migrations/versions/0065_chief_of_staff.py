@@ -1,4 +1,4 @@
-"""Add append-only Chief of Staff reports and their model usage.
+"""Add append-only Chief of Staff reports, attempts, and model usage.
 
 Revision ID: 0065_chief_of_staff
 Revises: 0064_company_mail_merge
@@ -95,9 +95,81 @@ def upgrade() -> None:
         "chief_of_staff_report",
         ["captured_at"],
     )
+    op.create_table(
+        "chief_of_staff_attempt",
+        sa.Column("attempt_id", sa.String(36), primary_key=True),
+        sa.Column("context_fingerprint", sa.String(64), nullable=False),
+        sa.Column("cadence", sa.String(16), nullable=False),
+        sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("period_end", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("model_route", sa.String(256), nullable=False),
+        sa.Column(
+            "model_call_id",
+            sa.String(36),
+            sa.ForeignKey("model_call_journal.call_id", ondelete="SET NULL"),
+        ),
+        sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False),
+        sa.Column("actual_usd", sa.Numeric(14, 8)),
+        sa.Column("status", sa.String(32), nullable=False),
+        sa.Column("stage", sa.String(32), nullable=False),
+        sa.Column("result_code", sa.String(100), nullable=False),
+        sa.Column("profile_version", sa.String(64), nullable=False),
+        sa.Column("context_version", sa.String(64), nullable=False),
+        sa.Column("expected_report_version", sa.String(64), nullable=False),
+        sa.Column("hermes_version", sa.String(64), nullable=False),
+        sa.CheckConstraint(
+            "cadence IN ('DAILY', 'WEEKLY', 'ON_DEMAND')",
+            name="ck_chief_of_staff_attempt_cadence",
+        ),
+        sa.CheckConstraint(
+            "period_end > period_start", name="ck_chief_of_staff_attempt_period"
+        ),
+        sa.CheckConstraint(
+            "completed_at >= started_at", name="ck_chief_of_staff_attempt_timing"
+        ),
+        sa.CheckConstraint(
+            "status IN ('PROVIDER_FAILED', 'RESPONSE_REJECTED', "
+            "'SEMANTICALLY_REJECTED', 'VALIDATED_NOT_PERSISTED', "
+            "'VALIDATED_PERSISTED', 'IDEMPOTENT_EXISTING')",
+            name="ck_chief_of_staff_attempt_status",
+        ),
+        sa.CheckConstraint(
+            "stage IN ('PROVIDER_CALL', 'STRUCTURED_RESPONSE', "
+            "'SEMANTIC_VALIDATION', 'PERSISTENCE', 'COMPLETE')",
+            name="ck_chief_of_staff_attempt_stage",
+        ),
+        sa.CheckConstraint(
+            "reserved_usd >= 0", name="ck_chief_of_staff_attempt_reserved"
+        ),
+        sa.CheckConstraint(
+            "actual_usd IS NULL OR actual_usd >= 0",
+            name="ck_chief_of_staff_attempt_actual",
+        ),
+    )
+    op.create_index(
+        "ix_chief_of_staff_attempt_context_started",
+        "chief_of_staff_attempt",
+        ["context_fingerprint", "started_at"],
+    )
+    op.create_index(
+        "ix_chief_of_staff_attempt_status_completed",
+        "chief_of_staff_attempt",
+        ["status", "completed_at"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_chief_of_staff_attempt_status_completed",
+        table_name="chief_of_staff_attempt",
+    )
+    op.drop_index(
+        "ix_chief_of_staff_attempt_context_started",
+        table_name="chief_of_staff_attempt",
+    )
+    op.drop_table("chief_of_staff_attempt")
     op.drop_index("ix_chief_of_staff_report_captured", table_name="chief_of_staff_report")
     op.drop_index(
         "ix_chief_of_staff_report_cadence_captured", table_name="chief_of_staff_report"

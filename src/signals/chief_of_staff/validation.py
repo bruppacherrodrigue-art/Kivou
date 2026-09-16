@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 from signals.chief_of_staff.context import context_fingerprint
 from signals.chief_of_staff.contracts import ChiefOfStaffContext, ChiefOfStaffReport
@@ -31,10 +32,33 @@ _SCOPE_EXPANSION = re.compile(
     r"change\s+(?:ta|your)\s+mission|ajoute\s+des\s+outils|add\s+tools?)",
     re.IGNORECASE,
 )
+_QUALITATIVE_QUANTITY = re.compile(
+    r"(?:\b(?:doublee?|doubled|doubling|triplee?|tripled|majorite|majority|"
+    r"minorite|minority|moitie|half|most)\b|"
+    r"\b(?:forte?|strong|sharp|significant|massive)\s+"
+    r"(?:hausse|baisse|croissance|chute|increase|decrease|growth|drop)\b)",
+    re.IGNORECASE,
+)
 
 
 class ReportValidationError(ValueError):
     """A parsed report violates Kivou's semantic publication boundary."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _reject(message: str, code: str) -> None:
+    raise ReportValidationError(message, code=code)
+
+
+def _normalized(value: str) -> str:
+    return "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value)
+        if not unicodedata.combining(character)
+    )
 
 
 def _narratives(report: ChiefOfStaffReport) -> tuple[str, ...]:
@@ -65,28 +89,31 @@ def validate_report(
 ) -> ChiefOfStaffReport:
     expected_pin = pin or load_hermes_pin()
     if report.context_fingerprint != context_fingerprint(context):
-        raise ReportValidationError("context fingerprint mismatch")
+        _reject("context fingerprint mismatch", "CONTEXT_FINGERPRINT_MISMATCH")
     if (
         report.cadence != context.cadence
         or report.period_start != context.period_start
         or report.period_end != context.period_end
     ):
-        raise ReportValidationError("report period does not match context")
+        _reject("report period does not match context", "REPORT_PERIOD_MISMATCH")
     if report.profile_version != context.profile_version:
-        raise ReportValidationError("profile version mismatch")
+        _reject("profile version mismatch", "PROFILE_VERSION_MISMATCH")
     if report.supervisor_version != f"hermes-agent-{expected_pin.version}":
-        raise ReportValidationError("report Hermes pin mismatch")
+        _reject("report Hermes pin mismatch", "HERMES_VERSION_MISMATCH")
 
     facts = {fact.fact_ref: fact for fact in context.facts}
     cited = _cited_fact_refs(report)
     unknown = sorted(set(cited).difference(facts))
     if unknown:
-        raise ReportValidationError(f"unknown fact_ref: {unknown[0]}")
+        _reject("unknown fact_ref", "UNKNOWN_FACT_REF")
     allowed_sources = set(facts)
     allowed_sources.update(item.source_ref for item in context.business_memory)
     unknown_sources = sorted(set(report.source_refs).difference(allowed_sources))
     if unknown_sources:
-        raise ReportValidationError(f"unknown source reference: {unknown_sources[0]}")
+        _reject("unknown source reference", "UNKNOWN_SOURCE_REF")
+    if not set(cited).issubset(report.source_refs):
+        _reject("cited fact_ref missing from source refs", "SOURCE_REF_INCOMPLETE")
+
     if report.executive_status == "CRITICAL":
         known_evidence = any(
             facts[ref].data_status in {"KNOWN", "STALE"}
@@ -94,23 +121,44 @@ def validate_report(
             for ref in observation.fact_refs
         )
         if not report.observations or not known_evidence:
-            raise ReportValidationError("critical conclusion lacks known evidence")
+            _reject("critical conclusion lacks known evidence", "CRITICAL_WITHOUT_EVIDENCE")
+    for observation in report.observations:
+        statuses = {facts[ref].data_status for ref in observation.fact_refs}
+        if observation.kind == "UNKNOWN":
+            if "KNOWN" in statuses:
+                _reject("unknown observation cites known evidence", "UNKNOWN_PRESENTED_AS_FACT")
+        elif not statuses.intersection({"KNOWN", "STALE"}):
+            _reject(
+                "observation lacks known evidence",
+                "OBSERVATION_EVIDENCE_INSUFFICIENT",
+            )
+    for item in report.unknowns:
+        if any(facts[ref].data_status == "KNOWN" for ref in item.fact_refs):
+            _reject("unknown cites known evidence", "UNKNOWN_PRESENTED_AS_FACT")
     if any(not item.human_decision_required for item in report.decision_requests):
-        raise ReportValidationError("decision request must be explicitly human")
+        _reject("decision request must be explicitly human", "DECISION_NOT_HUMAN")
 
     for text in _narratives(report):
         if _DIGIT.search(text):
-            raise ReportValidationError("free-form numeric narrative is forbidden")
+            _reject("free-form numeric narrative is forbidden", "NUMERIC_HALLUCINATION")
+        if _QUALITATIVE_QUANTITY.search(_normalized(text)):
+            _reject(
+                "unverified quantitative narrative is forbidden",
+                "UNVERIFIED_QUANTITATIVE_CLAIM",
+            )
         if _EMAIL.search(text) or _SECRET.search(text):
-            raise ReportValidationError("PII or secret-like content is forbidden")
+            _reject("PII or secret-like content is forbidden", "SENSITIVE_CONTENT")
         if _FORBIDDEN_COMMAND.search(text):
-            raise ReportValidationError("forbidden command or provider appears in report")
+            _reject(
+                "forbidden command or provider appears in report",
+                "FORBIDDEN_COMMAND",
+            )
         if _EXECUTED.search(text):
-            raise ReportValidationError("report claims an action was executed")
+            _reject("report claims an action was executed", "ACTION_EXECUTION_CLAIM")
         if _SCOPE_EXPANSION.search(text):
-            raise ReportValidationError("report attempts to expand its scope")
+            _reject("report attempts to expand its scope", "SCOPE_EXPANSION")
     if len(report.model_dump_json().encode("utf-8")) > max_output_bytes:
-        raise ReportValidationError("report output size exceeds limit")
+        _reject("report output size exceeds limit", "REPORT_TOO_LARGE")
     return report
 
 

@@ -54,6 +54,14 @@ class ChiefOfStaffHermesResult:
     output_tokens: int | None = None
 
 
+class ChiefOfStaffResponseRejected(SupervisorValidationError):
+    """A billed provider response failed Kivou's structured response boundary."""
+
+    def __init__(self, message: str, *, code: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 class ChiefOfStaffHermesAdapter:
     def __init__(
         self,
@@ -120,7 +128,9 @@ class ChiefOfStaffHermesAdapter:
             f"profile_version must be {CHIEF_OF_STAFF_PROFILE_VERSION}."
         )
 
-    def generate(self, context: ChiefOfStaffContext) -> ChiefOfStaffHermesResult:
+    def generate(
+        self, context: ChiefOfStaffContext, *, call_id: str | None = None
+    ) -> ChiefOfStaffHermesResult:
         self.settings.require_configured()
         original_schema = ChiefOfStaffReport.model_json_schema()
         instructions = self._instructions(original_schema)
@@ -136,9 +146,12 @@ class ChiefOfStaffHermesAdapter:
                 "provider_routing": OPENROUTER_PROVIDER_ROUTING,
                 "response_schema": transform_provider_schema(original_schema),
             }
-        call_id: str | None = None
         reserved_usd: Decimal | None = None
-        call_id = str(uuid.uuid4())
+        call_id = call_id or str(uuid.uuid4())
+        try:
+            uuid.UUID(call_id)
+        except (ValueError, AttributeError) as exc:
+            raise ValueError("Chief of Staff model call id must be a UUID") from exc
         reserved_usd = estimate_reservation(
             self.model_route,
             messages=(
@@ -182,23 +195,39 @@ class ChiefOfStaffHermesAdapter:
         )
         raw = response.get("response")
         if not isinstance(raw, str):
-            raise SupervisorValidationError("Hermes response is missing a structured report")
+            raise ChiefOfStaffResponseRejected(
+                "Hermes response is missing a structured report",
+                code="RESPONSE_MISSING",
+            )
         if len(raw.encode("utf-8")) > self.settings.limits.max_output_bytes:
-            raise SupervisorValidationError("Hermes report exceeds maximum output bytes")
+            raise ChiefOfStaffResponseRejected(
+                "Hermes report exceeds maximum output bytes",
+                code="RESPONSE_TOO_LARGE",
+            )
         try:
             decoded = json.loads(raw)
         except json.JSONDecodeError as exc:
-            raise SupervisorValidationError("Hermes response is not one JSON object") from exc
+            raise ChiefOfStaffResponseRejected(
+                "Hermes response is not one JSON object", code="INVALID_JSON"
+            ) from exc
         if not isinstance(decoded, dict):
-            raise SupervisorValidationError("Hermes response is not one JSON object")
+            raise ChiefOfStaffResponseRejected(
+                "Hermes response is not one JSON object", code="INVALID_JSON"
+            )
         try:
             report = ChiefOfStaffReport.model_validate_json(raw)
         except ValidationError as exc:
-            raise SupervisorValidationError("Hermes report failed strict schema validation") from exc
+            raise ChiefOfStaffResponseRejected(
+                "Hermes report failed strict schema validation", code="SCHEMA_INVALID"
+            ) from exc
         if report.supervisor_version != f"hermes-agent-{self.pin.version}":
-            raise SupervisorValidationError("Hermes supervisor version is invalid")
+            raise ChiefOfStaffResponseRejected(
+                "Hermes supervisor version is invalid", code="SUPERVISOR_VERSION_INVALID"
+            )
         if report.profile_version != CHIEF_OF_STAFF_PROFILE_VERSION:
-            raise SupervisorValidationError("Hermes profile version is invalid")
+            raise ChiefOfStaffResponseRejected(
+                "Hermes profile version is invalid", code="PROFILE_VERSION_INVALID"
+            )
         return ChiefOfStaffHermesResult(
             report=report,
             model=self.model,
@@ -211,4 +240,8 @@ class ChiefOfStaffHermesAdapter:
         )
 
 
-__all__ = ["ChiefOfStaffHermesAdapter", "ChiefOfStaffHermesResult"]
+__all__ = [
+    "ChiefOfStaffHermesAdapter",
+    "ChiefOfStaffHermesResult",
+    "ChiefOfStaffResponseRejected",
+]

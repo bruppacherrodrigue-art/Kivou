@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import uuid
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from signals.chief_of_staff.attempt_store import ChiefOfStaffAttemptStore
 from signals.chief_of_staff.business_memory import load_business_memory
 from signals.chief_of_staff.context import build_context, context_fingerprint
 from signals.chief_of_staff.contracts import (
+    REPORT_VERSION,
     ChiefOfStaffDecisionRequest,
     ChiefOfStaffFact,
     ChiefOfStaffObservation,
@@ -178,6 +181,37 @@ def run_demo(output: Path) -> dict[str, Any]:
         actual_cost=Decimal("0"),
         model_call_id=None,
     )
+    replayed, replay_inserted = store.append(
+        report=report,
+        context=context,
+        captured_at=context.generated_at,
+        model_route="fixture/offline-no-provider",
+        usage_metadata={"fixture": fixture["fixture_version"]},
+        estimated_cost=Decimal("0"),
+        actual_cost=Decimal("0"),
+        model_call_id=None,
+    )
+    if replayed.report.report_ref != stored.report.report_ref or replay_inserted:
+        raise RuntimeError("offline demo report idempotence failed")
+    attempts = ChiefOfStaffAttemptStore(engine)
+    attempt = attempts.append(
+        attempt_id=str(uuid.uuid4()),
+        context_fingerprint=context_fingerprint(context),
+        cadence=context.cadence,
+        period_start=context.period_start,
+        period_end=context.period_end,
+        started_at=context.generated_at,
+        completed_at=context.generated_at,
+        model_route="fixture/offline-no-provider",
+        model_call_id=None,
+        status="VALIDATED_PERSISTED" if inserted else "IDEMPOTENT_EXISTING",
+        stage="COMPLETE",
+        result_code="REPORT_PERSISTED" if inserted else "REPORT_ALREADY_EXISTS",
+        profile_version=context.profile_version,
+        context_version=context.context_version,
+        expected_report_version=REPORT_VERSION,
+        hermes_version=load_hermes_pin().version,
+    )
     secret = "offline-demo-origin-secret-value-000000000"
     app = create_founder_app(
         FounderApiConfig(
@@ -194,6 +228,10 @@ def run_demo(output: Path) -> dict[str, Any]:
         "fixture_version": fixture["fixture_version"],
         "context_fingerprint": context_fingerprint(context),
         "fact_count": len(context.facts),
+        "context_bytes": len(context.model_dump_json().encode("utf-8")),
+        "capabilities": {
+            item.capability: item.status for item in context.capabilities
+        },
         "report_ref": stored.report.report_ref,
         "executive_status": stored.report.executive_status,
         "observation_count": len(stored.report.observations),
@@ -201,8 +239,13 @@ def run_demo(output: Path) -> dict[str, Any]:
         "decision_request_count": len(stored.report.decision_requests),
         "unknown_count": len(stored.report.unknowns),
         "inserted": inserted,
+        "idempotent_replay_inserted": replay_inserted,
         "founder_api_state": payload["state"],
+        "attempt_status": attempt.status,
+        "attempt_result_code": attempt.result_code,
+        "attempt_reserved_usd": str(attempt.reserved_usd),
         "provider_calls": 0,
+        "business_actions": 0,
     }
 
 

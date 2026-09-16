@@ -43,9 +43,14 @@ contexte, budget, fournisseur ou rapport invalide), `3` verrou occupé.
 1. Confirmer `SHADOW`, pin et profil.
 2. Confirmer la présence des faits et leurs statuts sans afficher de PII.
 3. Vérifier le journal modèle : réservation puis `succeeded` ou `failed`.
-4. Pour un rapport rejeté, conserver uniquement le code de validation ; ne pas
-   persister la réponse brute.
-5. Pour un verrou occupé, attendre le cycle courant ; ne pas tuer le processus.
+4. Vérifier `chief_of_staff_attempt` : statut terminal, étape, code fermé,
+   corrélation du model call et coûts. Cette table ne doit contenir ni prompt,
+   ni réponse, ni narration, ni PII.
+5. Pour un rapport rejeté, conserver uniquement le code de validation ; ne pas
+   persister la réponse brute. Un appel facturé reste `succeeded` dans le
+   journal modèle même si la tentative est `RESPONSE_REJECTED` ou
+   `SEMANTICALLY_REJECTED`.
+6. Pour un verrou occupé, attendre le cycle courant ; ne pas tuer le processus.
 
 ## Planification proposée, non activée
 

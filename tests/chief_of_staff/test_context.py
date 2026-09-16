@@ -209,3 +209,21 @@ def test_context_rejects_cardinality_and_byte_overflow() -> None:
             generated_at=NOW,
             limits=ContextLimits(max_facts=200, max_bytes=1024),
         )
+
+
+def test_stale_facts_are_explicit_in_data_quality() -> None:
+    facts = collect_founder_facts(overview())
+    target = next(item for item in facts if item.source_contract == "CockpitDataQuality")
+    stale = target.model_copy(update={"data_status": "STALE"})
+    changed = tuple(stale if item.fact_ref == target.fact_ref else item for item in facts)
+    value = build_context(
+        overview=overview(),
+        facts=changed,
+        memory=load_business_memory(),
+        cadence="WEEKLY",
+        period_start=START,
+        period_end=NOW,
+        generated_at=NOW,
+    )
+    assert "STALE_DATA" in value.data_quality.reason_codes
+    assert target.fact_ref in value.data_quality.fact_refs

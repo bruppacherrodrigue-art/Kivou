@@ -12,6 +12,7 @@ from pathlib import Path
 import sqlalchemy as sa
 from sqlalchemy.exc import SQLAlchemyError
 
+from signals.chief_of_staff.attempt_store import ChiefOfStaffAttemptStore
 from signals.chief_of_staff.config import (
     ChiefOfStaffConfigurationState,
     chief_of_staff_config_from_environment,
@@ -72,6 +73,7 @@ def build_service_for_tests(
         overview_reader=overview_reader,  # type: ignore[arg-type]
         generator=generator,  # type: ignore[arg-type]
         store=ChiefOfStaffReportStore(engine),
+        attempt_store=ChiefOfStaffAttemptStore(engine),
         clock=clock,
     )
 
@@ -97,6 +99,7 @@ def _runtime_service(*, at: dt.datetime | None = None) -> ChiefOfStaffService:
         overview_reader=FounderReadService(engine),
         generator=generator,
         store=ChiefOfStaffReportStore(engine),
+        attempt_store=ChiefOfStaffAttemptStore(engine),
     )
 
 

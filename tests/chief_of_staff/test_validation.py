@@ -15,6 +15,7 @@ from signals.chief_of_staff.contracts import (
     ChiefOfStaffObservation,
     ChiefOfStaffPriority,
     ChiefOfStaffReport,
+    ChiefOfStaffUnknown,
     DataQualitySummary,
 )
 from signals.chief_of_staff.validation import ReportValidationError, validate_report
@@ -140,6 +141,29 @@ def test_critical_conclusion_requires_known_evidence() -> None:
         validate_report(report(value, executive_status="CRITICAL"), context=value)
 
 
+def test_non_unknown_observation_requires_known_or_stale_evidence() -> None:
+    value = context(fact_status="INSUFFICIENT_EVIDENCE")
+    with pytest.raises(ReportValidationError, match="observation lacks known evidence") as caught:
+        validate_report(report(value), context=value)
+    assert caught.value.code == "OBSERVATION_EVIDENCE_INSUFFICIENT"
+
+
+def test_unknown_cannot_present_a_known_fact_as_missing() -> None:
+    value = context()
+    unknown = ChiefOfStaffUnknown(
+        unknown_id="unknown:health",
+        domain="OPERATIONS",
+        summary="La santé actuelle est inconnue.",
+        reason_codes=("EVIDENCE_MISSING",),
+        fact_refs=(FACT_REF,),
+    )
+    with pytest.raises(ReportValidationError, match="unknown cites known evidence") as caught:
+        validate_report(
+            report(value, observations=(), unknowns=(unknown,)), context=value
+        )
+    assert caught.value.code == "UNKNOWN_PRESENTED_AS_FACT"
+
+
 def test_sensitive_decision_is_explicitly_human() -> None:
     value = context()
     decision = ChiefOfStaffDecisionRequest(
@@ -171,6 +195,24 @@ def test_hostile_commands_pii_claims_numbers_and_scope_expansion_are_rejected(
     value = context()
     with pytest.raises(ReportValidationError):
         validate_report(report(value, executive_summary=hostile), context=value)
+
+
+@pytest.mark.parametrize(
+    "quantitative_claim",
+    (
+        "Le volume a doublé.",
+        "La majorité des parcours est saine.",
+        "La moitié des preuves manque.",
+        "Une forte hausse est observée.",
+        "The volume doubled.",
+        "Most journeys improved.",
+    ),
+)
+def test_unverified_qualitative_quantities_are_rejected(quantitative_claim: str) -> None:
+    value = context()
+    with pytest.raises(ReportValidationError, match="quantitative") as caught:
+        validate_report(report(value, executive_summary=quantitative_claim), context=value)
+    assert caught.value.code == "UNVERIFIED_QUANTITATIVE_CLAIM"
 
 
 def test_priority_is_advisory_and_never_claims_execution() -> None:

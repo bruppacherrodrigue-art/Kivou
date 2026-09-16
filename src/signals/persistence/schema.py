@@ -1075,6 +1075,64 @@ chief_of_staff_report = sa.Table(
 )
 
 
+chief_of_staff_attempt = sa.Table(
+    "chief_of_staff_attempt",
+    METADATA,
+    sa.Column("attempt_id", sa.String(36), primary_key=True),
+    sa.Column("context_fingerprint", sa.String(64), nullable=False),
+    sa.Column("cadence", sa.String(16), nullable=False),
+    sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("period_end", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("model_route", sa.String(256), nullable=False),
+    sa.Column(
+        "model_call_id",
+        sa.String(36),
+        sa.ForeignKey("model_call_journal.call_id", ondelete="SET NULL"),
+    ),
+    sa.Column("reserved_usd", sa.Numeric(14, 8), nullable=False),
+    sa.Column("actual_usd", sa.Numeric(14, 8)),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("stage", sa.String(32), nullable=False),
+    sa.Column("result_code", sa.String(100), nullable=False),
+    sa.Column("profile_version", sa.String(64), nullable=False),
+    sa.Column("context_version", sa.String(64), nullable=False),
+    sa.Column("expected_report_version", sa.String(64), nullable=False),
+    sa.Column("hermes_version", sa.String(64), nullable=False),
+    sa.CheckConstraint(
+        "cadence IN ('DAILY', 'WEEKLY', 'ON_DEMAND')",
+        name="ck_chief_of_staff_attempt_cadence",
+    ),
+    sa.CheckConstraint("period_end > period_start", name="ck_chief_of_staff_attempt_period"),
+    sa.CheckConstraint(
+        "completed_at >= started_at", name="ck_chief_of_staff_attempt_timing"
+    ),
+    sa.CheckConstraint(
+        "status IN ('PROVIDER_FAILED', 'RESPONSE_REJECTED', "
+        "'SEMANTICALLY_REJECTED', 'VALIDATED_NOT_PERSISTED', "
+        "'VALIDATED_PERSISTED', 'IDEMPOTENT_EXISTING')",
+        name="ck_chief_of_staff_attempt_status",
+    ),
+    sa.CheckConstraint(
+        "stage IN ('PROVIDER_CALL', 'STRUCTURED_RESPONSE', "
+        "'SEMANTIC_VALIDATION', 'PERSISTENCE', 'COMPLETE')",
+        name="ck_chief_of_staff_attempt_stage",
+    ),
+    sa.CheckConstraint("reserved_usd >= 0", name="ck_chief_of_staff_attempt_reserved"),
+    sa.CheckConstraint(
+        "actual_usd IS NULL OR actual_usd >= 0",
+        name="ck_chief_of_staff_attempt_actual",
+    ),
+    sa.Index(
+        "ix_chief_of_staff_attempt_context_started",
+        "context_fingerprint",
+        "started_at",
+    ),
+    sa.Index("ix_chief_of_staff_attempt_status_completed", "status", "completed_at"),
+)
+
+
 prospect_target = sa.Table(
     "prospect_target",
     METADATA,

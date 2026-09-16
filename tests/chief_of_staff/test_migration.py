@@ -4,11 +4,12 @@ import datetime as dt
 from decimal import Decimal
 
 import sqlalchemy as sa
+from alembic import command
 from alembic.script import ScriptDirectory
 
 from signals.model_runtime.budget import ModelBudgetStore
 from signals.model_runtime.config import ModelRoute
-from signals.persistence.database import alembic_config
+from signals.persistence.database import alembic_config, create_database_engine
 
 
 def test_chief_of_staff_migration_is_the_single_head(migrated_sqlite_engine) -> None:
@@ -22,6 +23,7 @@ def test_migration_creates_append_only_report_shape_and_indexes(
 ) -> None:
     inspector = sa.inspect(migrated_sqlite_engine)
     assert "chief_of_staff_report" in inspector.get_table_names()
+    assert "chief_of_staff_attempt" in inspector.get_table_names()
     columns = {item["name"] for item in inspector.get_columns("chief_of_staff_report")}
     assert columns == {
         "report_ref",
@@ -50,6 +52,36 @@ def test_migration_creates_append_only_report_shape_and_indexes(
     assert ("cadence", "captured_at") in indexes
     assert ("captured_at",) in indexes
 
+    attempt_columns = {
+        item["name"] for item in inspector.get_columns("chief_of_staff_attempt")
+    }
+    assert attempt_columns == {
+        "attempt_id",
+        "context_fingerprint",
+        "cadence",
+        "period_start",
+        "period_end",
+        "started_at",
+        "completed_at",
+        "model_route",
+        "model_call_id",
+        "reserved_usd",
+        "actual_usd",
+        "status",
+        "stage",
+        "result_code",
+        "profile_version",
+        "context_version",
+        "expected_report_version",
+        "hermes_version",
+    }
+    attempt_indexes = {
+        tuple(item["column_names"])
+        for item in inspector.get_indexes("chief_of_staff_attempt")
+    }
+    assert ("context_fingerprint", "started_at") in attempt_indexes
+    assert ("status", "completed_at") in attempt_indexes
+
 
 def test_model_budget_accepts_distinct_chief_of_staff_usage(migrated_sqlite_engine) -> None:
     now = dt.datetime(2026, 9, 15, 5, 30, tzinfo=dt.UTC)
@@ -65,3 +97,21 @@ def test_model_budget_accepts_distinct_chief_of_staff_usage(migrated_sqlite_engi
     )
     store.fail(call_id="chief-model-call", error_code="OFFLINE_FIXTURE")
     assert store.calls()[0].usage == "chief_of_staff"
+
+
+def test_0065_upgrades_from_previous_and_downgrades_additive_tables(tmp_path) -> None:
+    engine = create_database_engine(
+        f"sqlite+pysqlite:///{tmp_path / 'chief-migration-transition.sqlite'}"
+    )
+    config = alembic_config(engine)
+    command.upgrade(config, "0064_company_mail_merge")
+    assert "chief_of_staff_attempt" not in sa.inspect(engine).get_table_names()
+    command.upgrade(config, "0065_chief_of_staff")
+    assert {
+        "chief_of_staff_report",
+        "chief_of_staff_attempt",
+    }.issubset(sa.inspect(engine).get_table_names())
+    command.downgrade(config, "0064_company_mail_merge")
+    assert "chief_of_staff_report" not in sa.inspect(engine).get_table_names()
+    assert "chief_of_staff_attempt" not in sa.inspect(engine).get_table_names()
+    engine.dispose()

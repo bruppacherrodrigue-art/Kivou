@@ -14,7 +14,10 @@ from signals.chief_of_staff.contracts import (
     ChiefOfStaffFact,
     DataQualitySummary,
 )
-from signals.chief_of_staff.hermes import ChiefOfStaffHermesAdapter
+from signals.chief_of_staff.hermes import (
+    ChiefOfStaffHermesAdapter,
+    ChiefOfStaffResponseRejected,
+)
 from signals.chief_of_staff.profiles import (
     CHIEF_OF_STAFF_PROFILE_VERSION,
     load_chief_of_staff_profile,
@@ -24,7 +27,6 @@ from signals.supervisor.pin import load_hermes_pin
 from signals.supervisor.runtime import (
     SupervisorSettings,
     SupervisorTimeout,
-    SupervisorValidationError,
     SupervisorVersionMismatch,
 )
 
@@ -205,10 +207,19 @@ def test_adapter_fails_closed_on_pin_mismatch(tmp_path: Path) -> None:
 
 
 def test_adapter_fails_closed_on_invalid_json_and_timeout(tmp_path: Path) -> None:
-    with pytest.raises(SupervisorValidationError, match="not one JSON object"):
+    with pytest.raises(ChiefOfStaffResponseRejected, match="not one JSON object") as caught:
         adapter(tmp_path, Transport(bridge_response("not-json"))).generate(context())
+    assert caught.value.code == "INVALID_JSON"
     with pytest.raises(SupervisorTimeout):
         adapter(tmp_path, Transport(error=SupervisorTimeout("safe timeout"))).generate(context())
+
+
+def test_adapter_classifies_strict_schema_rejection(tmp_path: Path) -> None:
+    payload = json.loads(valid_report())
+    payload["unexpected"] = "forbidden"
+    with pytest.raises(ChiefOfStaffResponseRejected) as caught:
+        adapter(tmp_path, Transport(bridge_response(json.dumps(payload)))).generate(context())
+    assert caught.value.code == "SCHEMA_INVALID"
 
 
 def test_adapter_rejects_nonzero_executable_tools(tmp_path: Path) -> None:
