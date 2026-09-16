@@ -18,6 +18,7 @@ import datetime as dt
 import pathlib
 
 import pytest
+from engagement_helpers import reconcile_discovery
 from fastapi.testclient import TestClient
 from feed_helpers import (
     BOAMP_AGING,
@@ -256,7 +257,8 @@ def test_listing_a_page_does_not_query_evidence_once_per_row(client, icp, engine
     """§31 — la carte n'a pas de preuve, donc pas de N+1 à l'affichage."""
     import sqlalchemy as sa
 
-    seed(engine, icp, count=7)
+    keys = seed(engine, icp, count=7)
+    assert len(reconcile_discovery(engine, client, signal_keys=keys)) == 3
     statements: list[str] = []
 
     @sa.event.listens_for(engine, "before_cursor_execute")
