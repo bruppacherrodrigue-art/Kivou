@@ -475,3 +475,125 @@ def test_recovery_replays_coherent_completed_queue_without_writes(interrupted_re
             == before_request
         )
         assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items
+
+
+def test_recovery_accepts_legacy_sentinel_owned_by_the_same_request(interrupted_request):
+    engine, _tmp_path, _provider, target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == target_ids[0])
+            .values(send_request_id=REQUEST_ID)
+        )
+    with engine.connect() as connection:
+        before_request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+        before_items = connection.execute(sa.select(prospect_send_item)).mappings().all()
+
+    recover_request(engine, request_id=REQUEST_ID, dry_run=True)
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW + dt.timedelta(minutes=1))
+
+    with engine.connect() as connection:
+        assert (
+            dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+            == before_request
+        )
+        assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items
+
+
+def test_recovery_replays_terminal_waiting_activation_retry_without_writes(interrupted_request):
+    engine, tmp_path, provider, _target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+
+    def activation_fails(_campaign_id):
+        raise RuntimeError("activation unavailable")
+
+    provider.activate_campaign = activation_fails
+    worker = ProspectSendWorker(
+        engine,
+        provider=provider,
+        provider_account_id="founder@example.invalid",
+        kill_switch_path=tmp_path / "disabled",
+        clock=lambda: NOW,
+    )
+    for minute in range(25):
+        worker.run_once(worker_ref="recovery-test", now=NOW + dt.timedelta(minutes=minute))
+    with engine.connect() as connection:
+        before_request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+        before_items = connection.execute(sa.select(prospect_send_item)).mappings().all()
+    assert (
+        before_request["status"],
+        before_request["processed_count"],
+        before_request["sent_count"],
+        before_request["failed_count"],
+    ) == (
+        "waiting",
+        21,
+        18,
+        3,
+    )
+    assert before_request["next_attempt_at"] is not None
+    assert before_request["error"] == "Instantly activation failed"
+
+    recover_request(engine, request_id=REQUEST_ID, dry_run=True)
+    recover_request(
+        engine, request_id=REQUEST_ID, dry_run=False, now=NOW + dt.timedelta(minutes=26)
+    )
+
+    with engine.connect() as connection:
+        assert (
+            dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+            == before_request
+        )
+        assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items
+
+
+def test_recovery_replays_running_snapshot_after_last_terminal_item_crash(interrupted_request):
+    engine, _tmp_path, _provider, target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        targets = {
+            row["target_id"]: dict(row)
+            for row in connection.execute(
+                sa.select(prospect_target).where(prospect_target.c.target_id.in_(target_ids[1:]))
+            ).mappings()
+        }
+        for target_id, target in targets.items():
+            invalid = target["email_address"] in INVALID_EMAILS
+            connection.execute(
+                sa.update(prospect_send_item)
+                .where(prospect_send_item.c.target_id == target_id)
+                .values(
+                    status="failed" if invalid else "sent",
+                    error_code="instantly_email_invalid" if invalid else None,
+                    completed_at=NOW,
+                )
+            )
+            connection.execute(
+                sa.update(prospect_target)
+                .where(prospect_target.c.target_id == target_id)
+                .values(
+                    status="approved" if invalid else "sent",
+                    send_request_id=None if invalid else REQUEST_ID,
+                    instantly_accepted_at=None if invalid else NOW,
+                    delivery_error="instantly email invalid" if invalid else None,
+                )
+            )
+        connection.execute(
+            sa.update(prospect_send_request)
+            .where(prospect_send_request.c.request_id == REQUEST_ID)
+            .values(status="running", processed_count=20, sent_count=17, failed_count=3)
+        )
+    with engine.connect() as connection:
+        before_request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+        before_items = connection.execute(sa.select(prospect_send_item)).mappings().all()
+
+    recover_request(engine, request_id=REQUEST_ID, dry_run=True)
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW + dt.timedelta(minutes=1))
+
+    with engine.connect() as connection:
+        assert (
+            dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+            == before_request
+        )
+        assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items

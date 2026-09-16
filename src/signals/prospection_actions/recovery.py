@@ -156,7 +156,7 @@ def _validate_existing_items(connection: sa.Connection, plan: _RecoveryPlan) -> 
                 and item["completed_at"] is not None
                 and target["status"] == "sent"
                 and target["instantly_accepted_at"] is not None
-                and target["send_request_id"] != request_id
+                and target["send_request_id"] in (None, request_id)
             ):
                 raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
         elif status in ("queued", "running", "verification_pending"):
@@ -188,15 +188,35 @@ def _validate_existing_items(connection: sa.Connection, plan: _RecoveryPlan) -> 
             failed += 1
 
     request = plan.request
-    if (
-        int(request["processed_count"]) != processed
-        or int(request["sent_count"]) != sent
-        or int(request["failed_count"]) != failed
-    ):
+    snapshot_processed = int(request["processed_count"])
+    snapshot_sent = int(request["sent_count"])
+    snapshot_failed = int(request["failed_count"])
+    snapshot_consistent = snapshot_processed == snapshot_sent + snapshot_failed
+    snapshot_is_current = (
+        snapshot_processed == processed and snapshot_sent == sent and snapshot_failed == failed
+    )
+    snapshot_is_prior = (
+        request["status"] in ("running", "waiting")
+        and snapshot_consistent
+        and snapshot_processed <= processed
+        and snapshot_sent <= sent
+        and snapshot_failed <= failed
+    )
+    if not snapshot_is_current and not snapshot_is_prior:
         raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
     if processed == len(items):
         expected_status = "completed" if failed == 0 else ("partial" if sent else "failed")
-        if request["status"] != expected_status:
+        activation_waiting = (
+            request["status"] == "waiting"
+            and request["next_attempt_at"] is not None
+            and bool(request["error"])
+        )
+        terminal_crash_replay = request["status"] == "running" and snapshot_is_prior
+        if (
+            request["status"] != expected_status
+            and not activation_waiting
+            and not terminal_crash_replay
+        ):
             raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
     elif request["status"] not in ("queued", "running", "waiting"):
         raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
