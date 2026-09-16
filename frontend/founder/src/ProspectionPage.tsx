@@ -437,6 +437,8 @@ function QueueSection({
     sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY)
   ))
   const [actionError, setActionError] = useState<string | null>(null)
+  const [pollingWarning, setPollingWarning] = useState<string | null>(null)
+  const [reconciliationWarning, setReconciliationWarning] = useState<string | null>(null)
   const [sendSubmitting, setSendSubmitting] = useState(false)
   const [terminalReconciling, setTerminalReconciling] = useState(false)
   const [preparationState, setPreparationState] = useState<'idle' | 'requesting' | 'polling'>('idle')
@@ -446,6 +448,9 @@ function QueueSection({
   const activeSendRequestRef = useRef<string | null>(sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY))
   const sendSubmittingRef = useRef(false)
   const terminalReconciliationRequestRef = useRef<string | null>(null)
+  const listGenerationRef = useRef(0)
+  const listRequestControllerRef = useRef<AbortController | null>(null)
+  const loadMoreControllerRef = useRef<AbortController | null>(null)
   const mountedRef = useRef(true)
   const preparationStartedAtRef = useRef<number | null>(null)
   const preparationSawRunningRef = useRef(false)
@@ -473,6 +478,8 @@ function QueueSection({
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      listRequestControllerRef.current?.abort()
+      loadMoreControllerRef.current?.abort()
     }
   }, [])
 
@@ -524,13 +531,18 @@ function QueueSection({
     }
   }
 
-  const refreshQueue = useCallback(async (signal?: AbortSignal) => {
-    const activeSignal = signal ?? new AbortController().signal
+  const refreshQueue = useCallback(async () => {
+    const generation = ++listGenerationRef.current
+    listRequestControllerRef.current?.abort()
+    loadMoreControllerRef.current?.abort()
+    const controller = new AbortController()
+    listRequestControllerRef.current = controller
+    const activeSignal = controller.signal
     const [pending, approved] = await Promise.all([
       loadFounderProspectionActions('pending_review', activeSignal),
       loadFounderProspectionActions('approved', activeSignal),
     ])
-    if (activeSignal.aborted) return
+    if (activeSignal.aborted || generation !== listGenerationRef.current) return false
     const merged = [...pending.items, ...approved.items]
     setItems(applySendOverlay(merged.filter((item, index) => (
       merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
@@ -547,19 +559,19 @@ function QueueSection({
       },
     })
     setLoaded(true)
+    return true
   }, [applySendOverlay])
 
   useEffect(() => {
-    const controller = new AbortController()
     setLoaded(false)
     setActionError(null)
-    void refreshQueue(controller.signal).catch((error: unknown) => {
-      if (!controller.signal.aborted) {
+    void refreshQueue().catch((error: unknown) => {
+      if (mountedRef.current) {
         setLoaded(true)
         setActionError(founderActionErrorMessage(error, 'Impossible de charger la file de prospection.'))
       }
     })
-    return () => controller.abort()
+    return undefined
   }, [data.generated_at, refreshQueue])
 
   const reconcileSendProgress = useCallback((progress: FounderProspectionSendProgress) => {
@@ -590,12 +602,12 @@ function QueueSection({
           progress.request_id !== activeSendRequestId
           || sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) !== activeSendRequestId
         ) {
-          setActionError('La progression reçue ne correspond pas à la requête en cours.')
+          setPollingWarning('La progression reçue ne correspond pas à la requête en cours.')
           timer = window.setTimeout(() => void poll(), 2_000)
           return
         }
         // Item errors are retained in sendProgress; this clears only a transient polling warning.
-        setActionError(null)
+        setPollingWarning(null)
         reconcileSendProgress(progress)
         if (!TERMINAL_SEND_STATUSES.has(progress.status)) {
           timer = window.setTimeout(() => void poll(), 2_000)
@@ -603,7 +615,7 @@ function QueueSection({
       } catch (error) {
         if (stopped || controller.signal.aborted) return
         if (error instanceof FounderApiError && error.status === 404) {
-          setActionError(founderActionErrorMessage(error, 'La requête d’envoi est introuvable.'))
+          setPollingWarning(founderActionErrorMessage(error, 'La requête d’envoi est introuvable.'))
           if (
             activeSendRequestRef.current === activeSendRequestId
             && sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) === activeSendRequestId
@@ -613,7 +625,7 @@ function QueueSection({
           }
           return
         }
-        setActionError(founderActionErrorMessage(
+        setPollingWarning(founderActionErrorMessage(
           error,
           'La progression de l’envoi est momentanément indisponible. Réessaie dans un instant.',
         ))
@@ -640,35 +652,49 @@ function QueueSection({
       // before allowing any retry or row mutation.
       terminalReconciliationRequestRef.current = activeSendRequestId
       setTerminalReconciling(true)
-      const controller = new AbortController()
-      void refreshQueue(controller.signal)
-        .then(() => {
+      let retryTimer: number | undefined
+      let cancelled = false
+      const reconcile = async () => {
+        try {
+          const refreshed = await refreshQueue()
+          if (!refreshed || cancelled) return
           if (
-            !controller.signal.aborted
-            && mountedRef.current
+            mountedRef.current
             && activeSendRequestRef.current === activeSendRequestId
             && sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) === activeSendRequestId
           ) {
+            setReconciliationWarning(null)
             sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
             activateSendRequest(null)
             setTerminalReconciling(false)
           }
-        })
-        .catch((error: unknown) => {
-          if (!controller.signal.aborted) {
-            setActionError(founderActionErrorMessage(
+        } catch (error: unknown) {
+          if (!cancelled) {
+            setReconciliationWarning(founderActionErrorMessage(
               error,
-              'Impossible d’actualiser la file après l’envoi.',
+              'Impossible d’actualiser la file après l’envoi. Nouvelle tentative en cours.',
             ))
+            retryTimer = window.setTimeout(() => void reconcile(), 2_000)
           }
-        })
-      return () => controller.abort()
+        }
+      }
+      void reconcile()
+      return () => {
+        cancelled = true
+        listRequestControllerRef.current?.abort()
+        if (retryTimer !== undefined) window.clearTimeout(retryTimer)
+      }
     }
     return undefined
   }, [activeSendRequestId, activateSendRequest, refreshQueue, sendProgress])
 
   const loadMore = async () => {
     if (loadingMore) return
+    const generation = ++listGenerationRef.current
+    listRequestControllerRef.current?.abort()
+    loadMoreControllerRef.current?.abort()
+    const controller = new AbortController()
+    loadMoreControllerRef.current = controller
     const requests: Array<Promise<{
       status: 'pending_review' | 'approved'
       response: Awaited<ReturnType<typeof loadFounderProspectionActions>>
@@ -676,7 +702,6 @@ function QueueSection({
     for (const status of ['pending_review', 'approved'] as const) {
       const page = queuePages[status].next
       if (page !== null) {
-        const controller = new AbortController()
         requests.push(loadFounderProspectionActions(status, controller.signal, page)
           .then((response) => ({ status, response })))
       }
@@ -686,6 +711,7 @@ function QueueSection({
     setActionError(null)
     try {
       const pages = await Promise.all(requests)
+      if (controller.signal.aborted || generation !== listGenerationRef.current) return
       setItems((current) => {
         const merged = [...current, ...pages.flatMap(({ response }) => response.items)]
         return applySendOverlay(merged.filter((item, index) => (
@@ -705,9 +731,11 @@ function QueueSection({
         return next
       })
     } catch (error) {
-      setActionError(founderActionErrorMessage(error, 'Impossible de charger la suite de la file.'))
+      if (!controller.signal.aborted && generation === listGenerationRef.current) {
+        setActionError(founderActionErrorMessage(error, 'Impossible de charger la suite de la file.'))
+      }
     } finally {
-      setLoadingMore(false)
+      if (generation === listGenerationRef.current) setLoadingMore(false)
     }
   }
 
@@ -755,6 +783,13 @@ function QueueSection({
     target: FounderProspectionActionTarget,
     changes: FounderProspectionCorrectionChanges,
   ): Promise<boolean> => {
+    const currentTarget = items.find((item) => item.target_id === target.target_id)
+    if (!currentTarget) {
+      setCorrectingTarget(null)
+      setActionError('Cette cible a été actualisée. Rouvre sa fiche avant de la modifier.')
+      return false
+    }
+    target = currentTarget
     setActionError(null)
     setBusyTargetIds((current) => new Set(current).add(target.target_id))
     const optimistic: FounderProspectionActionTarget = {
@@ -804,6 +839,13 @@ function QueueSection({
     reason: FounderProspectionRejectionReason,
     comment?: string,
   ): Promise<boolean> => {
+    const currentTarget = items.find((item) => item.target_id === target.target_id)
+    if (!currentTarget) {
+      setRejectingTarget(null)
+      setActionError('Cette cible a été actualisée. Rouvre sa fiche avant de l’écarter.')
+      return false
+    }
+    target = currentTarget
     setActionError(null)
     setBusyTargetIds((current) => new Set(current).add(target.target_id))
     setItems((current) => current.map((item) => item.target_id === target.target_id
@@ -942,6 +984,8 @@ function QueueSection({
           </p>
         ) : null}
         {actionError ? <p className="prospection-action-error" role="alert">{actionError}</p> : null}
+        {pollingWarning ? <p className="prospection-action-warning" role="alert">{pollingWarning}</p> : null}
+        {reconciliationWarning ? <p className="prospection-action-warning" role="alert">{reconciliationWarning}</p> : null}
         {!loaded ? (
           <div className="prospection-compact-empty">
             <strong>Chargement de la file…</strong>

@@ -1245,6 +1245,39 @@ describe('actions de prospection', () => {
     await act(async () => { await Promise.resolve() })
     expect(within(screen.getByRole('row', { name: /^Entreprise 1 Grenoble/ })).getByText('Acceptée')).toBeInTheDocument()
   })
+
+  it('réessaie la réconciliation terminale après un 503 avant de déverrouiller la file', async () => {
+    vi.useFakeTimers()
+    const requestId = 'request-reconcile-retry'
+    sessionStorage.setItem('founder-prospection-send-request-id', requestId)
+    const approved = target(1, 'approved')
+    let approvedLoads = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) {
+        approvedLoads += 1
+        return approvedLoads === 2
+          ? { ok: false, status: 503, json: async () => ({ detail: { code: 'TEMPORARY', message: 'Réessaie' } }) }
+          : { ok: true, status: 200, json: async () => list([approved]) }
+      }
+      if (url.endsWith(`/send/${requestId}`)) return { ok: true, status: 200, json: async () => sendProgress({
+        request_id: requestId, status: 'partial', total_count: 1, processed_count: 1, sent_count: 0, failed_count: 1,
+        items: [{ target_id: approved.target_id, email_address: approved.email.address, status: 'failed', error_code: 'FAILED', error_message: 'Échec public' }],
+      }) }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(screen.getByText('0/1 envoyées · 1 en échec')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Envoyer les 0 cibles validées' })).toBeDisabled()
+    expect(screen.getByText('Réessaie (TEMPORARY)')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+    expect(screen.getByRole('button', { name: 'Envoyer la cible validée' })).toBeEnabled()
+    expect(sessionStorage.getItem('founder-prospection-send-request-id')).toBeNull()
+  })
 })
 
 function sendProgress(overrides: Record<string, unknown>) {
