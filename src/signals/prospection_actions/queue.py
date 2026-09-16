@@ -135,6 +135,11 @@ def reserve_send(
             ).where(prospect_send_request.c.request_day == request_day)
         )
         if int(reserved_today or 0) + len(command.targets) > 25:
+            existing = _existing_request(connection, request_id)
+            if existing is not None:
+                return _existing_reservation(
+                    request_id=request_id, fingerprint=fingerprint, existing=existing
+                )
             raise action_error(
                 "DAILY_SEND_CAP_EXCEEDED",
                 "le plafond quotidien de 25 envois est atteint",

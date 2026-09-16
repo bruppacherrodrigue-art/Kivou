@@ -99,6 +99,42 @@ def interleave_before_request_insert(actions, competitor_command, engine) -> Non
     return insert_request
 
 
+def interleave_before_quota_query(actions, competitor_command, engine) -> None:
+    interleaved = False
+
+    def query_quota(connection, _cursor, statement, _parameters, _context, _executemany):
+        nonlocal interleaved
+        if not interleaved and "sum(case" in statement.lower():
+            interleaved = True
+            competing_actions(actions, engine).enqueue_send(
+                competitor_command, actor="rodrigue@kivou.eu"
+            )
+
+    sa.event.listen(engine, "before_cursor_execute", query_quota)
+    return query_quota
+
+
+def reserve_daily_capacity(engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(prospect_send_request).values(
+                request_id="23c6d156-4ae7-4518-8254-3b6ee32c84ba",
+                payload_fingerprint="f" * 64,
+                target_ids=[],
+                request_day=NOW.date(),
+                reserved_count=24,
+                sent_count=24,
+                processed_count=24,
+                failed_count=0,
+                status="completed",
+                created_by="rodrigue@kivou.eu",
+                created_at=NOW,
+                updated_at=NOW,
+                completed_at=NOW,
+            )
+        )
+
+
 def test_enqueue_reserves_without_calling_provider(async_sending):
     actions, provider, _engine = async_sending
 
@@ -192,5 +228,43 @@ def test_other_payload_request_insert_race_becomes_a_conflict(async_sending):
 
     assert caught.value.code == "SEND_REQUEST_IDEMPOTENCY_CONFLICT"
     assert row_count(engine, prospect_send_request) == 1
+    assert row_count(engine, prospect_send_item) == 1
+    assert provider.calls == []
+
+
+def test_identical_quota_boundary_race_replays(async_sending):
+    actions, provider, engine = async_sending
+    reserve_daily_capacity(engine)
+    listener = interleave_before_quota_query(actions, command(), engine)
+
+    try:
+        result = actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", listener)
+
+    assert result.status == "queued"
+    assert row_count(engine, prospect_send_request) == 2
+    assert row_count(engine, prospect_send_item) == 1
+    assert provider.calls == []
+
+
+def test_other_payload_quota_boundary_race_conflicts(async_sending):
+    actions, provider, engine = async_sending
+    second_target_id = _seed_second_target(engine)
+    reserve_daily_capacity(engine)
+    other_command = SendCommand(
+        request_id="484be03d-fbe4-46b1-9900-b99b4068fcbd",
+        targets=(SendTarget(target_id=second_target_id, expected_version=2),),
+    )
+    listener = interleave_before_quota_query(actions, other_command, engine)
+
+    try:
+        with pytest.raises(ProspectionActionError) as caught:
+            actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", listener)
+
+    assert caught.value.code == "SEND_REQUEST_IDEMPOTENCY_CONFLICT"
+    assert row_count(engine, prospect_send_request) == 2
     assert row_count(engine, prospect_send_item) == 1
     assert provider.calls == []
