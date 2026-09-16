@@ -76,7 +76,7 @@ class AssistedInstantlyDelivery:
 
     def ensure_campaign(self, request: Mapping[str, object], *, at: dt.datetime) -> str:
         campaign = self._provider.create_assisted_campaign(
-            name=self._campaign_name(request, at=at),
+            name=self.campaign_name(request, at=at),
             provider_account_id=self._provider_account_id,
             execution_date=at.astimezone(dt.UTC).date(),
         )
@@ -96,7 +96,11 @@ class AssistedInstantlyDelivery:
                         "kivou_subject": target.subject,
                         "kivou_envelope": target.html,
                     },
-                    "skip_if_in_workspace": True,
+                    # An old campaign may contain this email with obsolete mail.
+                    # The worker has reconciled absence in this bound campaign;
+                    # workspace-wide skipping would prevent the corrected import.
+                    # https://developer.instantly.ai/api-reference/lead/create-lead
+                    "skip_if_in_workspace": False,
                 },
             ),
         )
@@ -125,7 +129,7 @@ class AssistedInstantlyDelivery:
         at: dt.datetime,
         before_read: Callable[[str | None], None] | None = None,
     ) -> str | None:
-        name = self._campaign_name(request, at=at)
+        name = self.campaign_name(request, at=at)
         matches = []
         for items in self._pages(
             lambda **cursor: self._provider.list_campaigns(search=name, **cursor),
@@ -217,9 +221,21 @@ class AssistedInstantlyDelivery:
         return str(getattr(campaign, "status", "")).casefold() in {"active", "1", "completed", "3"}
 
     @staticmethod
-    def _campaign_name(request: Mapping[str, object], *, at: dt.datetime) -> str:
+    def campaign_name(request: Mapping[str, object], *, at: dt.datetime) -> str:
+        """Keep one exact remote identity across retries, without prefix collisions."""
+        intent = (request.get("result") or {}).get("accounting", {}).get("campaign:create")
+        request_identity = str(request["request_id"])
+        if isinstance(intent, dict):
+            if "campaign_name" in intent:
+                name = intent["campaign_name"]
+                if not isinstance(name, str) or not 1 <= len(name) <= 256:
+                    raise ReconciliationRequired("reconciliation_required: malformed campaign name")
+                return name
+            # Only an already-persisted legacy create intent may use the old
+            # short name. Never broaden a new request's scan to legacy names.
+            request_identity = request_identity[:8]
         request_day = request.get("request_day") or at.astimezone(dt.UTC).date()
-        return f"Kivou assisted {request_day} {str(request['request_id'])[:8]}"
+        return f"Kivou assisted {request_day} {request_identity}"
 
 
 __all__ = [

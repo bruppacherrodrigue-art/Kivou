@@ -502,6 +502,19 @@ class ProspectSendWorker:
                 )
                 .values(provider_campaign_id=target_campaign, updated_at=claim.clock())
             )
+        if target["instantly_id"] and not item["instantly_id"]:
+            # Snapshot reused exposure while its binding is still authorized.
+            # A correction during verification GET can clear the target cache,
+            # but must not erase this request's evidence for activation safety.
+            connection.execute(
+                sa.update(prospect_send_item)
+                .where(
+                    prospect_send_item.c.request_id == item["request_id"],
+                    prospect_send_item.c.target_id == item["target_id"],
+                    self._lease_matches(str(item["request_id"]), claim.lease_id),
+                )
+                .values(instantly_id=target["instantly_id"], updated_at=claim.clock())
+            )
         return None
 
     def _reject_changed_target(
@@ -542,12 +555,11 @@ class ProspectSendWorker:
             .mappings()
             .one()
         )
-        target = (
-            connection.execute(
-                sa.select(prospect_target).where(prospect_target.c.target_id == target_id)
+        exposed_lead = connection.scalar(
+            sa.select(prospect_send_item.c.instantly_id).where(
+                prospect_send_item.c.request_id == request_id,
+                prospect_send_item.c.target_id == target_id,
             )
-            .mappings()
-            .one()
         )
         campaign_id = request["provider_campaign_id"]
         receipt = self._accounting(claim, connection).get(f"lead:{target_id}:import", {})
@@ -555,7 +567,7 @@ class ProspectSendWorker:
         # from sending. An import intent is conservative evidence even after a
         # crash rolled back the local lead ID or an edit changed its binding.
         exposed = campaign_id and (
-            (target["instantly_id"] and target["provider_campaign_id"] == campaign_id)
+            exposed_lead
             or (
                 receipt.get("zero_matches")
                 and receipt.get("campaign_id", campaign_id) == campaign_id
@@ -645,6 +657,15 @@ class ProspectSendWorker:
             accounting = self._accounting(claim, connection)
             requests = 0
             if operation.key is not None:
+                request = (
+                    connection.execute(
+                        sa.select(prospect_send_request).where(
+                            prospect_send_request.c.request_id == claim.request["request_id"]
+                        )
+                    )
+                    .mappings()
+                    .one()
+                )
                 previous = accounting.get(operation.key, {})
                 accounting[operation.key] = {
                     "kind": "mutation",
@@ -652,12 +673,19 @@ class ProspectSendWorker:
                     "zero_matches": True,
                     **previous,
                     "attempt_count": int(previous.get("attempt_count", bool(previous))) + 1,
-                    "campaign_id": connection.scalar(
-                        sa.select(prospect_send_request.c.provider_campaign_id).where(
-                            prospect_send_request.c.request_id == claim.request["request_id"]
-                        )
-                    ),
+                    "campaign_id": request["provider_campaign_id"],
                 }
+                if operation.key == "campaign:create":
+                    # The exact prior name was fully scanned and absent. Any
+                    # new creation uses the full identity, including a legacy
+                    # retry; reopening the guard re-scans this declared name.
+                    accounting[operation.key]["campaign_name"] = self._delivery.campaign_name(
+                        {
+                            "request_id": request["request_id"],
+                            "request_day": request["request_day"],
+                        },
+                        at=claim.clock(),
+                    )
                 requests += 1
             for label in operation.replay_reads:
                 token = str(uuid.uuid4())

@@ -47,6 +47,16 @@ from signals.prospection_actions.queue import (
     send_progress as load_send_progress,
 )
 
+# A reusable binding is a cache of the normalized email and rendered provider
+# variables (subject/HTML), not just a target ID. All payload-editing/rejection
+# actions invalidate this cache atomically. Old send items/requests retain their
+# exposure evidence; historical charges and acceptance timestamps remain intact.
+_INVALIDATED_PROVIDER_BINDING = {
+    "instantly_id": None,
+    "provider_campaign_id": None,
+    "delivery_error": None,
+}
+
 
 class EmailVerifier(Protocol):
     def verify(self, email: str) -> bool: ...
@@ -355,6 +365,7 @@ class ProspectionActions:
                     "mail_contract_failure": rendered.contract_failure,
                     "version": int(row["version"]) + 1,
                     "updated_at": at,
+                    **_INVALIDATED_PROVIDER_BINDING,
                 }
                 connection.execute(
                     sa.update(prospect_target)
@@ -652,6 +663,7 @@ class ProspectionActions:
                 mail_contract_failure=rendered.contract_failure,
                 version=int(row["version"]) + 1,
                 updated_at=at,
+                **_INVALIDATED_PROVIDER_BINDING,
             )
             if rendered.contract_status == "failed":
                 values.update(
@@ -728,6 +740,7 @@ class ProspectionActions:
                 "rejected_by": actor,
                 "version": int(row["version"]) + 1,
                 "updated_at": at,
+                **_INVALIDATED_PROVIDER_BINDING,
             }
             connection.execute(
                 sa.update(prospect_target)
