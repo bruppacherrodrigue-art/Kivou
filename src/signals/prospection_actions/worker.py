@@ -1040,6 +1040,7 @@ class ProspectSendWorker:
                     provider_campaign_id=campaign_id,
                     instantly_id=instantly_id,
                     instantly_accepted_at=now,
+                    delivery_error=None,
                     version=prospect_target.c.version + 1,
                     updated_at=now,
                 )

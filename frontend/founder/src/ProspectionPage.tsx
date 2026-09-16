@@ -469,7 +469,7 @@ function QueueSection({
     targets.map((target) => {
       const overlay = sendItemOverlayRef.current.get(target.target_id)
       return overlay?.status === 'sent'
-        ? { ...target, status: 'sent' as const }
+        ? { ...target, status: 'sent' as const, acceptance_error: null }
         : target
     })
   ), [])
@@ -1078,7 +1078,7 @@ function QueueSection({
                       )}
                     </td>
                     <td>
-                      {item.acceptance_error ? (
+                      {item.status !== 'sent' && item.acceptance_error ? (
                         <>
                           <span>Échec de vérification</span>
                           <small>{acceptanceErrorLabel(item.acceptance_error)}</small>

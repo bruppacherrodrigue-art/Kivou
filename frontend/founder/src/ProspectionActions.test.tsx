@@ -930,7 +930,10 @@ describe('actions de prospection', () => {
 
   it('n’envoie pas deux fois le même lot et distingue acceptation fournisseur et livraison SMTP', async () => {
     const user = userEvent.setup()
-    const approved = [target(1, 'approved')]
+    const approved = [{
+      ...target(1, 'approved'),
+      acceptance_error: 'instantly_email_verification_pending',
+    }]
     vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000002')
     const queued = sendProgress({ request_id: '00000000-0000-4000-8000-000000000002', total_count: 1 })
     const completed = sendProgress({
@@ -971,6 +974,7 @@ describe('actions de prospection', () => {
     const row = screen.getByRole('row', { name: /Entreprise 1/ })
     expect(within(row).getByText('Acceptée')).toBeInTheDocument()
     expect(within(row).getByText('Non confirmée')).toBeInTheDocument()
+    expect(within(row).queryByText('Échec de vérification')).not.toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/send'))).toHaveLength(1)
     expect(progressCall).toBe(1)
   })

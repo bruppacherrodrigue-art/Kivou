@@ -215,6 +215,22 @@ def test_acceptance_does_not_claim_smtp_delivery(worker_fixture):
     assert target["sent_at"] is None
 
 
+def test_acceptance_clears_a_transient_verification_error(worker_fixture):
+    worker, _provider, engine = worker_fixture(verification_status=1)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target).values(
+                delivery_error="instantly_email_verification_pending"
+            )
+        )
+
+    worker.run_once(worker_ref="worker-a", now=NOW)
+
+    target = target_row(engine)
+    assert target["status"] == "sent"
+    assert target["delivery_error"] is None
+
+
 def test_campaign_activation_runs_once_after_the_last_terminal_item(worker_fixture):
     worker, provider, _engine = worker_fixture(verification_status=1)
 
