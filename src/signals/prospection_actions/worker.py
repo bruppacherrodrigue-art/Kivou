@@ -205,6 +205,10 @@ class ProspectSendWorker:
             # no ordinary item left.  It must never starve a queued sibling.
             sa.and_(
                 prospect_send_item.c.status.in_(_TERMINAL),
+                sa.or_(
+                    prospect_send_item.c.error_code.is_(None),
+                    prospect_send_item.c.error_code != "recovery_already_accepted",
+                ),
                 ~nonterminal,
                 prospect_send_request.c.next_attempt_at <= now,
             ),
