@@ -303,6 +303,18 @@ def _directives_starting_with(text: str, prefix: str) -> tuple[str, ...]:
     return tuple(directive for directive in _directives(text) if directive.startswith(prefix))
 
 
+def _expanded_nginx_directives(text: str) -> tuple[str, ...]:
+    """Expand versioned local include fragments for directive-level assertions."""
+    expanded: list[str] = []
+    for directive in _directives(text):
+        include = re.fullmatch(r"include /etc/nginx/(kivou[-a-z]+\.conf);", directive)
+        if include is not None and (NGINX_DIR / include.group(1)).is_file():
+            expanded.extend(_directives((NGINX_DIR / include.group(1)).read_text()))
+        else:
+            expanded.append(directive)
+    return tuple(expanded)
+
+
 def _direct_server_directives(text: str) -> tuple[str, ...]:
     depth = 0
     directives: list[str] = []
@@ -784,9 +796,9 @@ def test_founder_uses_only_production_security_header_fragments() -> None:
     assert site.count("include /etc/nginx/kivou-production-security-headers.conf;") == 3
 
 
-def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> None:
+def test_founder_api_overwrites_trusted_headers_after_founder_proxy_params() -> None:
     https = _only_founder_server("listen 443 ssl http2;")
-    shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
+    founder_params = "include /etc/nginx/kivou-founder-proxy-params.conf;"
     founder_user = "proxy_set_header X-Kivou-Founder-User $remote_user;"
     origin_secret = "proxy_set_header X-Kivou-Founder-Origin-Secret $kivou_founder_origin_secret;"
 
@@ -797,11 +809,12 @@ def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> N
             "proxy_pass http://127.0.0.1:8011;",
         )
         assert directives.count("limit_req zone=kivou_api burst=20 nodelay;") == 1
-        assert directives.count(shared_params) == 1
+        assert directives.count(founder_params) == 1
+        assert "include /etc/nginx/kivou-proxy-params.conf;" not in directives
         assert directives.count(founder_user) == 1
         assert directives.count(origin_secret) == 1
-        assert directives.index(shared_params) < directives.index(founder_user)
-        assert directives.index(shared_params) < directives.index(origin_secret)
+        assert directives.index(founder_params) < directives.index(founder_user)
+        assert directives.index(founder_params) < directives.index(origin_secret)
         assert not any(
             directive.startswith(
                 (
@@ -817,14 +830,17 @@ def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> N
         assert "cloudflare" not in lowered
 
 
-def test_founder_api_has_a_longer_read_timeout_than_the_shared_proxy_default() -> None:
+def test_founder_api_expands_to_one_longer_read_timeout_than_common_proxy_routes() -> None:
     https = _only_founder_server("listen 443 ssl http2;")
-    shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
+    common = _directives((NGINX_DIR / "kivou-proxy-params.conf").read_text())
+    assert common.count("proxy_read_timeout    30s;") == 1
 
     for selector in (*FOUNDER_ACTION_POST_SELECTORS, "^~ /api/founder/"):
-        directives = _directives(_only_location(https, selector).body)
-        assert directives.count("proxy_read_timeout 120s;") == 1
-        assert directives.index(shared_params) < directives.index("proxy_read_timeout 120s;")
+        directives = _expanded_nginx_directives(_only_location(https, selector).body)
+        read_timeouts = tuple(
+            directive for directive in directives if directive.startswith("proxy_read_timeout ")
+        )
+        assert read_timeouts == ("proxy_read_timeout 120s;",)
 
 
 def test_founder_nginx_allows_posts_only_on_the_four_action_endpoints() -> None:
@@ -841,6 +857,7 @@ def test_founder_nginx_allows_posts_only_on_the_four_action_endpoints() -> None:
 
 def test_shared_proxy_params_own_standard_headers_not_founder_trust() -> None:
     shared = (NGINX_DIR / "kivou-proxy-params.conf").read_text()
+    founder = (NGINX_DIR / "kivou-founder-proxy-params.conf").read_text()
 
     assert re.search(r"^proxy_set_header\s+Host\s+\$host;$", shared, re.MULTILINE)
     assert re.search(
@@ -850,6 +867,10 @@ def test_shared_proxy_params_own_standard_headers_not_founder_trust() -> None:
     )
     assert "X-Kivou-Founder-User" not in shared
     assert "X-Kivou-Founder-Origin-Secret" not in shared
+    assert _directives(founder) == tuple(
+        "proxy_read_timeout 120s;" if directive.startswith("proxy_read_timeout ") else directive
+        for directive in _directives(shared)
+    )
 
 
 def test_founder_https_never_proxies_customer_or_internal_routes() -> None:

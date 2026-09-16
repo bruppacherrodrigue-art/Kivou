@@ -54,6 +54,9 @@ def _active_production_environment(
     (release / "ops/nginx/kivou-founder-control.conf").write_text(
         "founder nginx\n", encoding="utf-8"
     )
+    (release / "ops/nginx/kivou-founder-proxy-params.conf").write_text(
+        "founder proxy params\n", encoding="utf-8"
+    )
 
     live_backend = tmp_path / "app"
     live_frontend = tmp_path / "www"
@@ -154,6 +157,7 @@ def _active_production_environment(
     sites_enabled.mkdir(parents=True)
     nginx_available = sites_available / "kivou-founder-control.conf"
     nginx_enabled = sites_enabled / "kivou-founder-control.conf"
+    founder_proxy_params = tmp_path / "nginx/kivou-founder-proxy-params.conf"
 
     env = {
         **os.environ,
@@ -182,6 +186,7 @@ def _active_production_environment(
         "KIVOU_FOUNDER_SYSTEMD_UNIT_PATH": str(systemd_dir / "kivou-founder-api.service"),
         "KIVOU_FOUNDER_NGINX_AVAILABLE": str(nginx_available),
         "KIVOU_FOUNDER_NGINX_ENABLED": str(nginx_enabled),
+        "KIVOU_FOUNDER_NGINX_PROXY_PARAMS": str(founder_proxy_params),
         "KIVOU_FOUNDER_HEALTH_URL": "http://127.0.0.1:18011/healthz",
     }
     return env, log, release, founder_frontend, old_founder
@@ -313,6 +318,9 @@ def test_active_production_release_synchronizes_founder_surface(tmp_path: pathli
     assert pathlib.Path(env["KIVOU_FOUNDER_NGINX_AVAILABLE"]).read_text(
         encoding="utf-8"
     ) == "founder nginx\n"
+    assert pathlib.Path(env["KIVOU_FOUNDER_NGINX_PROXY_PARAMS"]).read_text(
+        encoding="utf-8"
+    ) == "founder proxy params\n"
     assert pathlib.Path(env["KIVOU_FOUNDER_NGINX_ENABLED"]).resolve() == pathlib.Path(
         env["KIVOU_FOUNDER_NGINX_AVAILABLE"]
     )
