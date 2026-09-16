@@ -402,8 +402,8 @@ def test_queue_reads_only_pending_review_targets_as_ready_mail() -> None:
                     "email_address": "sent@example.test",
                     "attribution_member_ref": "c" * 64,
                     "status": "sent",
-                    "delivery_status": "sent",
-                    "sent_at": NOW,
+                    "delivery_status": "not_sent",
+                    "instantly_accepted_at": NOW,
                 },
             ],
         )
@@ -420,8 +420,8 @@ def test_queue_reads_only_pending_review_targets_as_ready_mail() -> None:
     assert item.bait_holder == "SAS TITULAIRE"
     assert item.mail_body.startswith("Bonjour Camille Martin,")
     assert item.mail_html == "<p>Bonjour Camille Martin,</p>"
-    assert result.results.sent_count == 1
-    assert result.results.no_sends_yet is False
+    assert result.results.sent_count == 0
+    assert result.results.no_sends_yet is True
 
 
 def test_directory_filters_before_pagination_without_changing_global_facets() -> None:

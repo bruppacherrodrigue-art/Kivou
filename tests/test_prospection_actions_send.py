@@ -261,30 +261,21 @@ def test_send_refuses_kill_switch_before_provider(sending) -> None:
     assert provider.calls == []
 
 
-def test_send_rechecks_kill_switch_after_reservation(sending) -> None:
+def test_sync_send_compatibility_alias_only_enqueues(sending) -> None:
     actions, provider, engine, _tmp = sending
     approve(actions)
+    result = actions.send(command(), actor="rodrigue@kivou.eu")
 
-    class DelayedKillSwitch:
-        def __init__(self) -> None:
-            self.calls = 0
-
-        def exists(self) -> bool:
-            self.calls += 1
-            return self.calls >= 2
-
-    actions._kill_switch_path = DelayedKillSwitch()
-
-    with pytest.raises(ProspectionActionError) as caught:
-        actions.send(command(), actor="rodrigue@kivou.eu")
-
-    assert caught.value.code == "KILL_SWITCH_ACTIVE"
+    assert result.status == "queued"
     assert provider.calls == []
     with engine.connect() as connection:
         target = connection.execute(sa.select(prospect_target)).mappings().one()
         request = connection.execute(sa.select(prospect_send_request)).mappings().one()
-    assert target["send_request_id"] is None
-    assert request["status"] == "failed"
+    assert target["status"] == "approved"
+    assert target["delivery_status"] == "not_sent"
+    assert target["sent_at"] is None
+    assert target["instantly_accepted_at"] is None
+    assert request["status"] == "queued"
 
 
 def test_send_is_idempotent_and_persists_delivery_cost(sending) -> None:

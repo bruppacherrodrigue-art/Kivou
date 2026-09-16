@@ -162,12 +162,8 @@ def test_assisted_preparation_builds_up_to_twenty_five_final_pending_targets(
     assert all(row["email_verification_status"] == "mx_verified" for row in rows)
     no_director = next(row for row in rows if row["siren"] == "100000001")
     assert no_director["mail_text"].startswith("Bonjour,")
-    assert "béton prêt à l'emploi" in "\n".join(
-        row["mail_text"] for row in rows
-    ).casefold()
-    assert "Vous fournissez " + "ou réalisez" not in "\n".join(
-        row["mail_text"] for row in rows
-    )
+    assert "béton prêt à l'emploi" in "\n".join(row["mail_text"] for row in rows).casefold()
+    assert "Vous fournissez " + "ou réalisez" not in "\n".join(row["mail_text"] for row in rows)
 
 
 def test_assisted_preparation_persists_contract_failure_as_blocked_pending_review(
@@ -281,7 +277,12 @@ def test_assisted_preparation_skips_contacted_in_last_ninety_days(
         connection.execute(
             sa.update(prospect_target)
             .where(prospect_target.c.siren == "100000001")
-            .values(status="sent", delivery_status="sent", sent_at=NOW)
+            .values(
+                status="sent",
+                delivery_status="not_sent",
+                instantly_accepted_at=NOW,
+                sent_at=None,
+            )
         )
         connection.execute(sa.delete(prospect_target).where(prospect_target.c.siren != "100000001"))
 
@@ -351,9 +352,13 @@ def test_assisted_preparation_quarantines_placeholder_email(migrated_sqlite_engi
     ).prepare(signal(), cycle_ref="cycle-placeholder")
 
     with migrated_sqlite_engine.connect() as connection:
-        directory = connection.execute(
-            sa.select(supplier_directory).where(supplier_directory.c.siren == "100000001")
-        ).mappings().one()
+        directory = (
+            connection.execute(
+                sa.select(supplier_directory).where(supplier_directory.c.siren == "100000001")
+            )
+            .mappings()
+            .one()
+        )
         queued = set(connection.execute(sa.select(prospect_target.c.siren)).scalars())
     assert "100000001" not in queued
     assert directory["email_verification_status"] == "mx_failed"
@@ -389,7 +394,9 @@ def test_assisted_preparation_excludes_holder_family(migrated_sqlite_engine) -> 
     assert families == {"reinforcement_steel"}
 
 
-def test_assisted_preparation_suspends_when_holder_family_is_unknown(migrated_sqlite_engine) -> None:
+def test_assisted_preparation_suspends_when_holder_family_is_unknown(
+    migrated_sqlite_engine,
+) -> None:
     seed_directory(migrated_sqlite_engine, 5, eligible_department_count=5)
     result = ProspectPreparationService(
         migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW

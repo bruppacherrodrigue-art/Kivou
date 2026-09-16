@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import sqlalchemy as sa
 from test_assisted_prospect_preparation import NOW, Links, seed_directory, signal
@@ -245,3 +247,72 @@ def test_out_of_order_events_preserve_monotonic_delivery_and_event_timestamps(
     assert _utc(target["sent_at"]) == sent_at
     assert _utc(target["opened_at"]) == opened_at
     assert _utc(target["clicked_at"]) == clicked_at
+
+
+def test_duplicate_webhook_repairs_projection_without_erasing_local_click(
+    migrated_sqlite_engine,
+) -> None:
+    row = _accepted_target(migrated_sqlite_engine)
+    email = str(row["email_address"])
+    clicked_at = NOW + dt.timedelta(minutes=1)
+    _ingest(migrated_sqlite_engine, "email_sent", email)
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == row["target_id"])
+            .values(delivery_status="clicked", clicked_at=clicked_at, sent_at=None)
+        )
+
+    replay = _ingest(migrated_sqlite_engine, "email_sent", email)
+
+    target = _target_row(migrated_sqlite_engine)
+    assert replay.replayed
+    assert target["delivery_status"] == "clicked"
+    assert _utc(target["clicked_at"]) == clicked_at
+    assert _utc(target["sent_at"]) == NOW + dt.timedelta(minutes=5)
+
+
+def test_bounce_is_terminal_while_later_open_still_records_its_timestamp(
+    migrated_sqlite_engine,
+) -> None:
+    row = _accepted_target(migrated_sqlite_engine)
+    email = str(row["email_address"])
+    bounced_at = NOW + dt.timedelta(minutes=1)
+    opened_at = NOW + dt.timedelta(minutes=2)
+
+    _ingest(migrated_sqlite_engine, "email_bounced", email, occurred_at=bounced_at)
+    _ingest(migrated_sqlite_engine, "email_opened", email, occurred_at=opened_at)
+
+    target = _target_row(migrated_sqlite_engine)
+    assert target["delivery_status"] == "bounced"
+    assert _utc(target["bounced_at"]) == bounced_at
+    assert _utc(target["opened_at"]) == opened_at
+
+
+def test_concurrent_distinct_webhooks_serialize_to_a_complete_projection(
+    migrated_sqlite_engine,
+) -> None:
+    row = _accepted_target(migrated_sqlite_engine)
+    email = str(row["email_address"])
+    barrier = Barrier(2)
+
+    def ingest(kind: str, occurred_at: dt.datetime):
+        barrier.wait(timeout=5)
+        return _ingest(migrated_sqlite_engine, kind, email, occurred_at=occurred_at)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = tuple(
+            executor.map(
+                lambda item: ingest(*item),
+                (
+                    ("email_opened", NOW + dt.timedelta(minutes=1)),
+                    ("email_link_clicked", NOW + dt.timedelta(minutes=2)),
+                ),
+            )
+        )
+
+    target = _target_row(migrated_sqlite_engine)
+    assert all(not result.replayed for result in results)
+    assert target["delivery_status"] == "clicked"
+    assert _utc(target["opened_at"]) == NOW + dt.timedelta(minutes=1)
+    assert _utc(target["clicked_at"]) == NOW + dt.timedelta(minutes=2)

@@ -238,6 +238,8 @@ def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
     opened_at = delivered_at + dt.timedelta(hours=1)
     clicked_at = opened_at + dt.timedelta(hours=1)
     equal_timestamp = clicked_at + dt.timedelta(hours=1)
+    local_clicked_at = accepted_at + dt.timedelta(minutes=1)
+    local_unsubscribed_at = accepted_at + dt.timedelta(minutes=2)
     with engine.begin() as connection:
         connection.execute(
             sa.insert(supplier).values(
@@ -303,10 +305,10 @@ def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
             "provider_campaign_id": "campaign-1",
             "sent_at": accepted_at,
             "opened_at": accepted_at,
-            "clicked_at": accepted_at,
+            "clicked_at": None,
             "replied_at": accepted_at,
             "bounced_at": accepted_at,
-            "unsubscribed_at": accepted_at,
+            "unsubscribed_at": None,
             "reply_classification": "human_reply",
             "created_at": NOW,
             "updated_at": NOW,
@@ -327,6 +329,15 @@ def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
                     "opportunity_key": "opportunity-with-events",
                     "email_address": "with-events@example.test",
                     "attribution_member_ref": "d" * 64,
+                },
+                {
+                    **base,
+                    "target_id": "target-with-local-events",
+                    "opportunity_key": "opportunity-with-local-events",
+                    "email_address": "local-events@example.test",
+                    "attribution_member_ref": "e" * 64,
+                    "clicked_at": local_clicked_at,
+                    "unsubscribed_at": local_unsubscribed_at,
                 },
             ],
         )
@@ -381,6 +392,14 @@ def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
                     "occurred_at": equal_timestamp + dt.timedelta(minutes=1),
                     "received_at": equal_timestamp + dt.timedelta(minutes=1),
                 },
+                {
+                    "event_fingerprint": "email-opened-after-bounce",
+                    "target_id": "target-with-events",
+                    "provider_campaign_id": "campaign-1",
+                    "provider_event_type": "email_opened",
+                    "occurred_at": equal_timestamp + dt.timedelta(minutes=2),
+                    "received_at": equal_timestamp + dt.timedelta(minutes=2),
+                },
             ],
         )
 
@@ -414,6 +433,11 @@ def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
     assert rows["target-with-events"]["opened_at"] == stored_time(opened_at)
     assert rows["target-with-events"]["clicked_at"] == stored_time(clicked_at)
     assert rows["target-with-events"]["bounced_at"] == stored_time(equal_timestamp)
+    assert rows["target-with-local-events"]["instantly_accepted_at"] == stored_time(accepted_at)
+    assert rows["target-with-local-events"]["delivery_status"] == "unsubscribed"
+    assert rows["target-with-local-events"]["sent_at"] is None
+    assert rows["target-with-local-events"]["clicked_at"] == stored_time(local_clicked_at)
+    assert rows["target-with-local-events"]["unsubscribed_at"] == stored_time(local_unsubscribed_at)
 
 
 def test_downgrade_async_prospect_send_marks_unfinished_requests_failed(engine):

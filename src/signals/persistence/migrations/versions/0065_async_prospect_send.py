@@ -20,6 +20,27 @@ _DELIVERY_TIMESTAMPS = (
     "unsubscribed_at",
 )
 
+_DELIVERY_PRECEDENCE = {
+    "not_sent": 0,
+    "delivered": 1,
+    "opened": 2,
+    "clicked": 3,
+    "replied": 4,
+    "bounced": 5,
+    "unsubscribed": 6,
+}
+
+_EVENT_DELIVERY_PROJECTIONS = {
+    "email_sent": ("delivered", "sent_at"),
+    "email_opened": ("opened", "opened_at"),
+    "email_link_clicked": ("clicked", "clicked_at"),
+    "link_clicked": ("clicked", "clicked_at"),
+    "reply_received": ("replied", "replied_at"),
+    "auto_reply_received": ("replied", "replied_at"),
+    "email_bounced": ("bounced", "bounced_at"),
+    "lead_unsubscribed": ("unsubscribed", "unsubscribed_at"),
+}
+
 
 def _rebuild_delivery_state() -> None:
     """Replace legacy acceptance-as-delivery values with the webhook event projection."""
@@ -27,7 +48,9 @@ def _rebuild_delivery_state() -> None:
     target = sa.table(
         "prospect_target",
         sa.column("target_id", sa.String(36)),
+        sa.column("status", sa.String(16)),
         sa.column("delivery_status", sa.String(16)),
+        sa.column("instantly_accepted_at", sa.DateTime(timezone=True)),
         sa.column("sent_at", sa.DateTime(timezone=True)),
         sa.column("opened_at", sa.DateTime(timezone=True)),
         sa.column("clicked_at", sa.DateTime(timezone=True)),
@@ -46,16 +69,33 @@ def _rebuild_delivery_state() -> None:
 
     bind.execute(
         sa.update(target).values(
-            delivery_status="not_sent",
+            instantly_accepted_at=sa.case(
+                (target.c.status == "sent", target.c.sent_at),
+                else_=target.c.instantly_accepted_at,
+            ),
+            delivery_status=sa.case(
+                (target.c.unsubscribed_at.is_not(None), "unsubscribed"),
+                (target.c.clicked_at.is_not(None), "clicked"),
+                else_="not_sent",
+            ),
             sent_at=None,
             opened_at=None,
-            clicked_at=None,
             replied_at=None,
             bounced_at=None,
-            unsubscribed_at=None,
             reply_classification=None,
         )
     )
+    target_rows = {
+        str(row["target_id"]): dict(row)
+        for row in bind.execute(
+            sa.select(
+                target.c.target_id,
+                target.c.delivery_status,
+                target.c.clicked_at,
+                target.c.unsubscribed_at,
+            )
+        ).mappings()
+    }
     rows = bind.execute(
         sa.select(
             events.c.event_fingerprint,
@@ -68,48 +108,35 @@ def _rebuild_delivery_state() -> None:
     ).mappings()
 
     delivery_by_target: dict[str, dict[str, object]] = {}
-    latest_higher_order: dict[str, tuple[object, str, str]] = {}
     for row in rows:
         target_id = str(row["target_id"])
         event_type = str(row["provider_event_type"])
         occurred_at = row["occurred_at"]
+        current = target_rows[target_id]
         values = delivery_by_target.setdefault(
             target_id,
-            {"delivery_status": "not_sent", **{column: None for column in _DELIVERY_TIMESTAMPS}},
+            {
+                "delivery_status": current["delivery_status"],
+                **{column: None for column in _DELIVERY_TIMESTAMPS},
+                "clicked_at": current["clicked_at"],
+                "unsubscribed_at": current["unsubscribed_at"],
+                "reply_classification": None,
+            },
         )
-        if event_type == "email_sent":
-            if values["sent_at"] is None:
-                values["sent_at"] = occurred_at
-            values["delivery_status"] = "delivered"
+        projection = _EVENT_DELIVERY_PROJECTIONS.get(event_type)
+        if projection is None:
             continue
-
-        status_and_timestamp = {
-            "email_opened": ("opened", "opened_at"),
-            "email_link_clicked": ("clicked", "clicked_at"),
-            "link_clicked": ("clicked", "clicked_at"),
-            "reply_received": ("replied", "replied_at"),
-            "auto_reply_received": ("replied", "replied_at"),
-            "email_bounced": ("bounced", "bounced_at"),
-            "lead_unsubscribed": ("unsubscribed", "unsubscribed_at"),
-        }.get(event_type)
-        if status_and_timestamp is None:
-            continue
-        status, timestamp_column = status_and_timestamp
-        if values[timestamp_column] is None:
+        status, timestamp_column = projection
+        if values[timestamp_column] is None or occurred_at < values[timestamp_column]:
             values[timestamp_column] = occurred_at
         if event_type == "reply_received":
             values["reply_classification"] = "human_reply"
         elif event_type == "auto_reply_received":
             values["reply_classification"] = "auto_reply"
-        candidate = (occurred_at, str(row["event_fingerprint"]), status)
-        previous = latest_higher_order.get(target_id)
-        if previous is None or candidate[:2] > previous[:2]:
-            latest_higher_order[target_id] = candidate
+        if _DELIVERY_PRECEDENCE[status] > _DELIVERY_PRECEDENCE[values["delivery_status"]]:
+            values["delivery_status"] = status
 
     for target_id, values in delivery_by_target.items():
-        higher_order = latest_higher_order.get(target_id)
-        if higher_order is not None:
-            values["delivery_status"] = higher_order[2]
         bind.execute(sa.update(target).where(target.c.target_id == target_id).values(**values))
 
 
