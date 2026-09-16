@@ -1,5 +1,7 @@
 import type {
   FounderOverview,
+  FounderChiefOfStaffLatest,
+  FounderChiefOfStaffView,
   FounderProspection,
   FounderProspectionActionList,
   FounderProspectionActionStatus,
@@ -108,6 +110,34 @@ export function loadFounderSession(signal: AbortSignal): Promise<FounderSession>
 
 export function loadFounderSystem(signal: AbortSignal): Promise<FounderSystem> {
   return requestJson<FounderSystem>('/api/founder/system', signal)
+}
+
+export async function loadFounderChiefOfStaff(
+  signal: AbortSignal,
+): Promise<FounderChiefOfStaffView> {
+  try {
+    const payload = await requestJson<FounderChiefOfStaffLatest>(
+      '/api/founder/chief-of-staff/latest',
+      signal,
+    )
+    if (payload.version !== 'founder-chief-of-staff-latest-v1') {
+      throw new FounderApiError('Le brief d’Hermes est invalide.', 502)
+    }
+    if (payload.state === 'EMPTY') return { kind: 'empty' }
+    if (payload.state !== 'AVAILABLE' || payload.report === null) {
+      throw new FounderApiError('Le brief d’Hermes est invalide.', 502)
+    }
+    return {
+      kind: 'available',
+      data: payload as FounderChiefOfStaffLatest & {
+        state: 'AVAILABLE'
+        report: NonNullable<FounderChiefOfStaffLatest['report']>
+      },
+    }
+  } catch (error) {
+    if (signal.aborted) throw error
+    return { kind: 'unavailable' }
+  }
 }
 
 export function loadFounderOverview(

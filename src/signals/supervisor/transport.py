@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -30,10 +31,10 @@ class SubprocessHermesTransport:
         self.settings = settings
         self.bridge_path = bridge_path or Path(__file__).with_name("hermes_bridge.py")
 
-    def _environment(self) -> dict[str, str]:
+    def _environment(self, operation: object) -> dict[str, str]:
         self.settings.require_configured()
         assert self.settings.hermes_home is not None
-        return {
+        environment = {
             "HOME": str(self.settings.hermes_home),
             "HERMES_HOME": str(self.settings.hermes_home),
             "LANG": "C.UTF-8",
@@ -41,6 +42,18 @@ class SubprocessHermesTransport:
             "PYTHONUTF8": "1",
             "PYTHONUNBUFFERED": "1",
         }
+        model_variable = {
+            "plan": "KIVOU_MODEL_HERMES",
+            "report": "KIVOU_MODEL_CHIEF_OF_STAFF",
+        }.get(operation)
+        for name in (() if model_variable is None else (model_variable,)):
+            value = os.environ.get(name, "").strip()
+            if not value:
+                continue
+            if len(value) > 160 or any(ord(character) < 32 for character in value):
+                raise SupervisorProtocolError(f"{name} is not a valid model route")
+            environment[name] = value
+        return environment
 
     def invoke(self, request: Mapping[str, Any]) -> dict[str, Any]:
         self.settings.require_configured()
@@ -63,7 +76,7 @@ class SubprocessHermesTransport:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=self.settings.working_directory,
-                env=self._environment(),
+                env=self._environment(request.get("operation")),
                 shell=False,
                 close_fds=True,
             )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import httpx
 from fastapi import FastAPI
 
+from signals.chief_of_staff.store import ChiefOfStaffReportStore
 from signals.founder_api.actions_composition import (
     build_founder_acquisition_launcher,
     build_prospection_actions,
@@ -35,6 +36,7 @@ def build_application() -> FastAPI:
         read_service=FounderReadService(engine, operations=operations),
         prospection_actions=build_prospection_actions(write_engine, client=provider_client),
         acquisition_launcher=build_founder_acquisition_launcher(write_engine),
+        chief_of_staff_store=ChiefOfStaffReportStore(engine),
     )
     application.state.founder_read_engine = engine
     application.state.founder_write_engine = write_engine
