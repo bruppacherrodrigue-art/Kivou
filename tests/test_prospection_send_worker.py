@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import sqlalchemy as sa
-from test_prospection_actions_send import Suppressions, approve
+from test_prospection_actions_send import Suppressions, _seed_second_target, approve
 from test_prospection_actions_service import NOW, TARGET_ID, LinkIssuer, MxVerifier, seed
 
 from signals.persistence.schema import prospect_send_item, prospect_send_request, prospect_target
@@ -23,14 +23,25 @@ class Provider:
         self.get_lead_calls: list[str] = []
         self.activate_calls: list[str] = []
         self.sleep_calls: list[object] = []
+        self.active = False
+        self.campaigns: list[object] = []
+        self.leads: list[dict[str, object]] = []
 
     def create_assisted_campaign(self, *, name, provider_account_id, execution_date):
         self.create_campaign_calls.append((name, provider_account_id, execution_date))
-        return type("Campaign", (), {"provider_campaign_id": "campaign-1"})()
+        campaign = type("Campaign", (), {"provider_campaign_id": "campaign-1", "name": name})()
+        self.campaigns.append(campaign)
+        return campaign
 
     def create_lead_or_batch(self, *, provider_campaign_id, leads, verify_leads_on_import=False):
         self.create_lead_calls.append((provider_campaign_id, leads, verify_leads_on_import))
-        return {"id": "lead-1", "verification_status": self.verification_status}
+        lead = {
+            "id": "lead-1",
+            "verification_status": self.verification_status,
+            "email": leads[0]["email"],
+        }
+        self.leads.append(lead)
+        return lead
 
     def get_lead(self, provider_lead_id):
         self.get_lead_calls.append(provider_lead_id)
@@ -38,6 +49,16 @@ class Provider:
 
     def activate_campaign(self, provider_campaign_id):
         self.activate_calls.append(provider_campaign_id)
+        self.active = True
+
+    def get_campaign(self, provider_campaign_id):
+        return type("Campaign", (), {"status": "active" if self.active else "paused"})()
+
+    def list_campaigns(self, *, search):
+        return tuple(item for item in self.campaigns if item.name == search)
+
+    def list_leads(self, *, provider_campaign_id):
+        return {"items": self.leads}
 
 
 def send_item(engine):
@@ -129,6 +150,47 @@ def test_worker_reuses_existing_lead_without_import(worker_fixture):
     assert provider.get_lead_calls == ["existing-lead"]
 
 
+def test_multi_item_request_reaches_both_terminal_items_then_activates_once(worker_fixture):
+    worker, provider, engine = worker_fixture(verification_status=1)
+    second_target_id = _seed_second_target(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_request).values(
+                reserved_count=2,
+                target_ids=[TARGET_ID, second_target_id],
+            )
+        )
+        connection.execute(
+            sa.insert(prospect_send_item).values(
+                request_id="484be03d-fbe4-46b1-9900-b99b4068fcbd",
+                target_id=second_target_id,
+                position=1,
+                expected_version=2,
+                status="queued",
+                next_attempt_at=NOW,
+                attempt_count=0,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+
+    first = worker.run_once(worker_ref="worker-a", now=NOW)
+    second = worker.run_once(worker_ref="worker-b", now=NOW)
+
+    with engine.connect() as connection:
+        statuses = (
+            connection.execute(
+                sa.select(prospect_send_item.c.status).order_by(prospect_send_item.c.position)
+            )
+            .scalars()
+            .all()
+        )
+    assert first.status == "waiting"
+    assert second.status == "completed"
+    assert statuses == ["sent", "sent"]
+    assert provider.activate_calls == ["campaign-1"]
+
+
 def test_acceptance_does_not_claim_smtp_delivery(worker_fixture):
     worker, _provider, engine = worker_fixture(verification_status=1)
 
@@ -169,6 +231,101 @@ def test_worker_rechecks_kill_switch_before_campaign_activation(worker_fixture):
 
     assert outcome.status == "waiting"
     assert provider.activate_calls == []
+
+
+def test_activation_failure_keeps_accepted_item_terminal_and_respects_due_time(worker_fixture):
+    worker, provider, engine = worker_fixture(verification_status=1)
+
+    def fail_activation(_campaign_id):
+        raise RuntimeError("temporary outage")
+
+    provider.activate_campaign = fail_activation
+    outcome = worker.run_once(worker_ref="worker-a", now=NOW)
+
+    item = send_item(engine)
+    with engine.connect() as connection:
+        request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+    assert outcome.status == "waiting"
+    assert item["status"] == "sent"
+    assert request["sent_count"] == request["processed_count"] == 1
+    assert utc(request["next_attempt_at"]) == NOW + dt.timedelta(minutes=1)
+    assert request["error"] == "Instantly activation failed"
+    assert worker.run_once(worker_ref="worker-b", now=NOW) == type(outcome)("idle")
+
+
+def test_stale_worker_does_not_activate_campaign(worker_fixture):
+    worker, provider, _engine = worker_fixture(verification_status=1)
+    worker._lease_current = lambda _claim: False
+
+    outcome = worker.run_once(worker_ref="worker-a", now=NOW)
+
+    assert outcome.status == "lost"
+    assert provider.activate_calls == []
+
+
+def test_activation_reconciliation_avoids_a_second_mutation_after_ambiguous_crash(worker_fixture):
+    worker, provider, _engine = worker_fixture(verification_status=1)
+    original = provider.activate_campaign
+
+    def activate_then_crash(campaign_id):
+        original(campaign_id)
+        raise RuntimeError("connection dropped after activation")
+
+    provider.activate_campaign = activate_then_crash
+    first = worker.run_once(worker_ref="worker-a", now=NOW)
+    second = worker.run_once(worker_ref="worker-b", now=NOW + dt.timedelta(minutes=1))
+
+    assert first.status == "waiting"
+    assert second.status == "completed"
+    assert provider.activate_calls == ["campaign-1"]
+
+
+def test_campaign_creation_interruption_reconciles_before_retrying_mutation(worker_fixture):
+    worker, provider, engine = worker_fixture(verification_status=12)
+    original = worker._persist_campaign
+    calls = 0
+
+    def crash_after_remote_create(claim, campaign_id, *, now):
+        nonlocal calls
+        calls += 1
+        return False if calls == 1 else original(claim, campaign_id, now=now)
+
+    worker._persist_campaign = crash_after_remote_create
+    assert worker.run_once(worker_ref="worker-a", now=NOW).status == "lost"
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_request).values(lease_expires_at=NOW - dt.timedelta(seconds=1))
+        )
+
+    recovered = worker.run_once(worker_ref="worker-b", now=NOW)
+
+    assert recovered.status == "waiting"
+    assert len(provider.create_campaign_calls) == 1
+    assert len(provider.create_lead_calls) == 1
+
+
+def test_lead_import_interruption_reconciles_before_retrying_mutation(worker_fixture):
+    worker, provider, engine = worker_fixture(verification_status=12)
+    original = worker._persist_lead
+    calls = 0
+
+    def crash_after_remote_import(claim, campaign_id, instantly_id, *, now):
+        nonlocal calls
+        calls += 1
+        return False if calls == 1 else original(claim, campaign_id, instantly_id, now=now)
+
+    worker._persist_lead = crash_after_remote_import
+    assert worker.run_once(worker_ref="worker-a", now=NOW).status == "lost"
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_request).values(lease_expires_at=NOW - dt.timedelta(seconds=1))
+        )
+
+    recovered = worker.run_once(worker_ref="worker-b", now=NOW)
+
+    assert recovered.status == "waiting"
+    assert len(provider.create_campaign_calls) == 1
+    assert len(provider.create_lead_calls) == 1
 
 
 @pytest.mark.parametrize(

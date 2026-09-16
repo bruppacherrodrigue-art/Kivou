@@ -64,6 +64,19 @@ class ProspectSendWorker:
             return self._retry(claim, now=now, error=error)
 
     def _claim(self, *, worker_ref: str, now: dt.datetime) -> _Claim | None:
+        queued_items = prospect_send_item.alias("queued_items")
+        nonterminal = sa.exists(
+            sa.select(sa.literal(1)).where(
+                queued_items.c.request_id == prospect_send_request.c.request_id,
+                queued_items.c.status.not_in(_TERMINAL),
+            )
+        )
+        any_sent = sa.exists(
+            sa.select(sa.literal(1)).where(
+                queued_items.c.request_id == prospect_send_request.c.request_id,
+                queued_items.c.status == "sent",
+            )
+        )
         request_reclaimable = sa.or_(
             prospect_send_request.c.status.in_(("queued", "waiting")),
             sa.and_(
@@ -80,15 +93,13 @@ class ProspectSendWorker:
                 prospect_send_item.c.status == "running",
                 prospect_send_request.c.lease_expires_at <= now,
             ),
+            # A terminal row is only an activation-retry carrier once there is
+            # no ordinary item left.  It must never starve a queued sibling.
             sa.and_(
-                prospect_send_item.c.status.in_(_TERMINAL),
-                sa.or_(
-                    prospect_send_request.c.status == "waiting",
-                    sa.and_(
-                        prospect_send_request.c.status == "running",
-                        prospect_send_request.c.lease_expires_at <= now,
-                    ),
-                ),
+                prospect_send_item.c.status == "sent",
+                ~nonterminal,
+                any_sent,
+                prospect_send_request.c.next_attempt_at <= now,
             ),
         )
         with self._engine.begin() as connection:
@@ -206,23 +217,54 @@ class ProspectSendWorker:
             "provider_campaign_id"
         )
         if not campaign_id:
-            if self._kill_switch_path.exists():
-                return self._wait(claim, now=now, error="kill switch active")
-            campaign_id = self._delivery.ensure_campaign(claim.request, at=now)
-            if not self._persist_campaign(claim, campaign_id, now=now):
+            result = self._result(claim)
+            if result is None:
                 return WorkerOutcome("lost", request_id, target_id)
+            if result.get("reconcile") == "campaign":
+                campaign_id = self._delivery.find_campaign(claim.request, at=now)
+                if campaign_id and not self._persist_campaign(claim, campaign_id, now=now):
+                    return WorkerOutcome("lost", request_id, target_id)
+            if campaign_id:
+                claim = _Claim(
+                    request={**claim.request, "provider_campaign_id": campaign_id},
+                    item=claim.item,
+                    target={**claim.target, "provider_campaign_id": campaign_id},
+                    lease_id=claim.lease_id,
+                )
+            else:
+                if not self._set_result(claim, {"reconcile": "campaign"}, now):
+                    return WorkerOutcome("lost", request_id, target_id)
+                if self._kill_switch_path.exists():
+                    return self._wait(claim, now=now, error="kill switch active")
+                campaign_id = self._delivery.ensure_campaign(claim.request, at=now)
+                if not self._persist_campaign(claim, campaign_id, now=now):
+                    return WorkerOutcome("lost", request_id, target_id)
 
         instantly_id = claim.item.get("instantly_id") or claim.target.get("instantly_id")
         imported = False
         if not instantly_id:
-            if self._kill_switch_path.exists():
-                return self._wait(claim, now=now, error="kill switch active")
-            instantly_id = self._delivery.import_target(
-                str(campaign_id), self._delivery_target(claim.target)
-            )
-            imported = True
-            if not self._persist_lead(claim, str(campaign_id), instantly_id, now=now):
+            result = self._result(claim)
+            if result is None:
                 return WorkerOutcome("lost", request_id, target_id)
+            if result.get("reconcile") == "lead":
+                instantly_id = self._delivery.find_lead(
+                    str(campaign_id), str(claim.target["email_address"])
+                )
+                if instantly_id and not self._persist_lead(
+                    claim, str(campaign_id), instantly_id, now=now
+                ):
+                    return WorkerOutcome("lost", request_id, target_id)
+            if not instantly_id:
+                if not self._set_result(claim, {"reconcile": "lead"}, now):
+                    return WorkerOutcome("lost", request_id, target_id)
+                if self._kill_switch_path.exists():
+                    return self._wait(claim, now=now, error="kill switch active")
+                instantly_id = self._delivery.import_target(
+                    str(campaign_id), self._delivery_target(claim.target)
+                )
+                imported = True
+                if not self._persist_lead(claim, str(campaign_id), instantly_id, now=now):
+                    return WorkerOutcome("lost", request_id, target_id)
 
         verification = self._delivery.verification(str(instantly_id))
         if verification.status == "pending":
@@ -329,7 +371,16 @@ class ProspectSendWorker:
         request_id = str(claim.request["request_id"])
         next_attempt = now + RETRY_DELAY
         with self._engine.begin() as connection:
-            terminal = claim.item["status"] in _TERMINAL
+            current_status = connection.scalar(
+                sa.select(prospect_send_item.c.status).where(
+                    prospect_send_item.c.request_id == request_id,
+                    prospect_send_item.c.target_id == claim.target["target_id"],
+                    self._lease_matches(request_id, claim.lease_id),
+                )
+            )
+            if current_status is None:
+                return WorkerOutcome("lost", request_id, str(claim.target["target_id"]))
+            terminal = current_status in _TERMINAL
             item = connection.execute(
                 sa.update(prospect_send_item)
                 .where(
@@ -339,7 +390,7 @@ class ProspectSendWorker:
                 )
                 .values(
                     status=(
-                        str(claim.item["status"])
+                        str(current_status)
                         if terminal
                         else ("verification_pending" if instantly_id else "queued")
                     ),
@@ -366,7 +417,12 @@ class ProspectSendWorker:
             if item.rowcount != 1:
                 return WorkerOutcome("lost", request_id, str(claim.target["target_id"]))
             self._release_with_counts(
-                connection, claim, now=now, status="waiting", next_attempt=next_attempt
+                connection,
+                claim,
+                now=now,
+                status="waiting",
+                next_attempt=next_attempt,
+                error=error[:1000] if error else None,
             )
         return WorkerOutcome("waiting", request_id, str(claim.target["target_id"]))
 
@@ -514,6 +570,7 @@ class ProspectSendWorker:
         status: str,
         next_attempt: dt.datetime | None,
         completed: bool = False,
+        error: str | None = None,
     ) -> bool:
         request_id = str(claim.request["request_id"])
         processed, sent, failed, _ = self._counts(connection, request_id)
@@ -534,6 +591,7 @@ class ProspectSendWorker:
                 lease_expires_at=None,
                 updated_at=now,
                 completed_at=now if completed else None,
+                error=error,
             )
         )
         return update.rowcount == 1
@@ -543,50 +601,78 @@ class ProspectSendWorker:
     ) -> WorkerOutcome:
         request_id = str(claim.request["request_id"])
         target_id = str(claim.target["target_id"])
+        activated = False
         if status in {"completed", "partial"}:
-            with self._engine.connect() as connection:
-                request = dict(
-                    connection.execute(
-                        sa.select(prospect_send_request.c.result).where(
-                            prospect_send_request.c.request_id == request_id,
-                            prospect_send_request.c.lease_id == claim.lease_id,
-                            prospect_send_request.c.status == "running",
-                        )
-                    )
-                    .mappings()
-                    .one_or_none()
-                    or {}
-                )
-            activated = isinstance(request.get("result"), dict) and bool(
-                request["result"].get("campaign_activated_at")
-            )
+            result = self._result(claim)
+            if result is None:
+                return WorkerOutcome("lost", request_id, target_id)
+            activation = result.get("activation") if isinstance(result, dict) else None
+            activated = isinstance(activation, dict) and activation.get("state") == "active"
             if not activated and not campaign_id:
                 return self._wait(claim, now=now, error="campaign id missing for activation")
             try:
+                # Reconciliation is the durable ambiguity fence: an interrupted
+                # activate is always read back before another mutation is allowed.
+                if not activated and self._delivery.campaign_active(campaign_id):
+                    if not self._set_result(claim, {"activation": {"state": "active"}}, now):
+                        return WorkerOutcome("lost", request_id, target_id)
+                    activated = True
                 if not activated:
+                    if not self._set_result(claim, {"activation": {"state": "activating"}}, now):
+                        return WorkerOutcome("lost", request_id, target_id)
+                    if not self._lease_current(claim):
+                        return WorkerOutcome("lost", request_id, target_id)
                     if self._kill_switch_path.exists():
-                        return self._wait(claim, now=now, error="kill switch active")
+                        return self._wait(claim, now=now, error="activation deferred")
                     self._delivery.activate(campaign_id)
-            except Exception as error:  # noqa: BLE001 - leave final item durable and retry activation
-                return self._wait(claim, now=now, error=str(error))
+                    if not self._set_result(claim, {"activation": {"state": "active"}}, now):
+                        return WorkerOutcome("lost", request_id, target_id)
+            except Exception:  # noqa: BLE001 - terminal item remains terminal on retry
+                return self._wait(claim, now=now, error="Instantly activation failed")
         with self._engine.begin() as connection:
-            if status in {"completed", "partial"} and not activated:
-                marked = connection.execute(
-                    sa.update(prospect_send_request)
-                    .where(
-                        prospect_send_request.c.request_id == request_id,
-                        prospect_send_request.c.lease_id == claim.lease_id,
-                        prospect_send_request.c.status == "running",
-                    )
-                    .values(result={"campaign_activated_at": now.isoformat()}, updated_at=now)
-                )
-                if marked.rowcount != 1:
-                    return WorkerOutcome("lost", request_id, target_id)
             if not self._release_with_counts(
                 connection, claim, now=now, status=status, next_attempt=None, completed=True
             ):
                 return WorkerOutcome("lost", request_id, target_id)
         return WorkerOutcome(status, request_id, target_id)
+
+    def _result(self, claim: _Claim) -> dict[str, object] | None:
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(prospect_send_request.c.result).where(
+                        prospect_send_request.c.request_id == claim.request["request_id"],
+                        prospect_send_request.c.lease_id == claim.lease_id,
+                        prospect_send_request.c.status == "running",
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        return (
+            dict(row["result"] or {}) if row is not None and isinstance(row["result"], dict) else {}
+        )
+
+    def _set_result(self, claim: _Claim, values: dict[str, object], now: dt.datetime) -> bool:
+        current = self._result(claim)
+        if current is None:
+            return False
+        with self._engine.begin() as connection:
+            return (
+                connection.execute(
+                    sa.update(prospect_send_request)
+                    .where(
+                        prospect_send_request.c.request_id == claim.request["request_id"],
+                        prospect_send_request.c.lease_id == claim.lease_id,
+                        prospect_send_request.c.status == "running",
+                    )
+                    .values(result={**current, **values}, updated_at=now)
+                ).rowcount
+                == 1
+            )
+
+    def _lease_current(self, claim: _Claim) -> bool:
+        return self._result(claim) is not None
 
 
 __all__ = ["ProspectSendWorker", "WorkerOutcome"]
