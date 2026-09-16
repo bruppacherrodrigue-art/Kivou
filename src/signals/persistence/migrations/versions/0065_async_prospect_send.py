@@ -113,6 +113,30 @@ def _rebuild_delivery_state() -> None:
         bind.execute(sa.update(target).where(target.c.target_id == target_id).values(**values))
 
 
+def _drop_acceptance_timestamp() -> None:
+    """Remove the target column without cascading SQLite's dependent audit rows."""
+    bind = op.get_bind()
+    if bind.dialect.name != "sqlite":
+        with op.batch_alter_table("prospect_target") as batch:
+            batch.drop_column("instantly_accepted_at")
+        return
+
+    context = op.get_context()
+    with context.autocommit_block():
+        bind.exec_driver_sql("PRAGMA foreign_keys=OFF")
+    try:
+        with op.batch_alter_table("prospect_target") as batch:
+            batch.drop_column("instantly_accepted_at")
+    finally:
+        with context.autocommit_block():
+            bind.exec_driver_sql("PRAGMA foreign_keys=ON")
+    invalid_foreign_keys = bind.exec_driver_sql("PRAGMA foreign_key_check").all()
+    if invalid_foreign_keys:
+        raise RuntimeError(
+            f"foreign key violations after prospect target rebuild: {invalid_foreign_keys}"
+        )
+
+
 def upgrade() -> None:
     with op.batch_alter_table("prospect_target") as batch:
         batch.add_column(sa.Column("instantly_accepted_at", sa.DateTime(timezone=True)))
@@ -291,5 +315,14 @@ def downgrade() -> None:
         batch.drop_column("provider_campaign_id")
         batch.drop_column("failed_count")
         batch.drop_column("processed_count")
-    with op.batch_alter_table("prospect_target") as batch:
-        batch.drop_column("instantly_accepted_at")
+    target = sa.table(
+        "prospect_target",
+        sa.column("instantly_accepted_at", sa.DateTime(timezone=True)),
+        sa.column("sent_at", sa.DateTime(timezone=True)),
+    )
+    op.execute(
+        sa.update(target)
+        .where(target.c.instantly_accepted_at.is_not(None))
+        .values(sent_at=target.c.instantly_accepted_at)
+    )
+    _drop_acceptance_timestamp()
