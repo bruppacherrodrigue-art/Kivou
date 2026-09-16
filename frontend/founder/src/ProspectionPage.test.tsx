@@ -265,6 +265,7 @@ const ACTION_TARGET: FounderProspectionActionTarget = {
     instantly_credit_units: 0,
     instantly_request_count: 0,
   },
+  acceptance_error: null,
   created_at: '2026-09-11T07:45:00Z',
   updated_at: '2026-09-11T07:45:00Z',
   approved_at: null,

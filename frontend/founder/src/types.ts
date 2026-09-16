@@ -460,6 +460,7 @@ export interface FounderProspectionActionTarget {
     instantly_credit_units: number
     instantly_request_count: number
   }
+  acceptance_error: string | null
   created_at: string
   updated_at: string
   approved_at: string | null

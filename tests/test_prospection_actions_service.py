@@ -163,6 +163,20 @@ def test_approve_is_versioned_and_records_actor(service) -> None:
     assert stale.value.code == "TARGET_VERSION_CONFLICT"
 
 
+def test_list_exposes_persisted_provider_acceptance_error(service) -> None:
+    actions, _verifier, _issuer, engine = service
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == TARGET_ID)
+            .values(delivery_error="instantly email invalid")
+        )
+
+    result = actions.list()
+
+    assert result.items[0].acceptance_error == "instantly email invalid"
+
+
 def test_approve_refuses_mail_that_failed_the_render_contract(service) -> None:
     actions, _verifier, _issuer, engine = service
     with engine.begin() as connection:

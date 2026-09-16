@@ -1077,7 +1077,14 @@ function QueueSection({
                         </div>
                       )}
                     </td>
-                    <td>{acceptanceStatusLabel(item.status)}</td>
+                    <td>
+                      {item.acceptance_error ? (
+                        <>
+                          <span>Échec de vérification</span>
+                          <small>{acceptanceErrorLabel(item.acceptance_error)}</small>
+                        </>
+                      ) : acceptanceStatusLabel(item.status)}
+                    </td>
                     <td>{smtpDeliveryStatusLabel(item.delivery.status)}</td>
                     </tr>
                   </Fragment>
@@ -1183,6 +1190,16 @@ function acceptanceStatusLabel(status: FounderProspectionActionTarget['status'])
     case 'sent': return 'Acceptée'
     case 'rejected': return 'Écartée'
   }
+}
+
+function acceptanceErrorLabel(error: string): string {
+  if (error === 'instantly email invalid') {
+    return 'Adresse invalide selon la vérification Instantly'
+  }
+  if (error === 'instantly_account_error') {
+    return 'Compte d’envoi Instantly indisponible'
+  }
+  return error
 }
 
 function smtpDeliveryStatusLabel(status: FounderProspectionActionTarget['delivery']['status']): string {

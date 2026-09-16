@@ -227,6 +227,7 @@ def _target(row: dict[str, object]) -> ProspectTarget:
             instantly_credit_units=int(row.get("instantly_credit_units") or 0),
             instantly_request_count=int(row.get("instantly_request_count") or 0),
         ),
+        acceptance_error=row.get("delivery_error"),
         created_at=_aware(row["created_at"]),
         updated_at=_aware(row["updated_at"]),
         approved_at=_aware(row.get("approved_at")),

@@ -133,6 +133,7 @@ class ProspectTarget(_Contract):
     signal: SignalSnapshot
     mail: MailSnapshot
     delivery: DeliverySnapshot
+    acceptance_error: str | None = Field(default=None, max_length=1000)
     created_at: dt.datetime
     updated_at: dt.datetime
     approved_at: dt.datetime | None = None

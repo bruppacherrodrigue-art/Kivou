@@ -112,6 +112,7 @@ const TARGET: FounderProspectionActionTarget = {
     instantly_credit_units: 0,
     instantly_request_count: 0,
   },
+  acceptance_error: null,
   created_at: '2026-09-11T09:30:00Z',
   updated_at: '2026-09-11T09:30:00Z',
   approved_at: null,
@@ -905,6 +906,26 @@ describe('actions de prospection', () => {
     expect(screen.queryByText(/provider-secret|instantly-secret/)).not.toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/send'))).toBe(false)
     await waitFor(() => expect(sessionStorage.getItem('founder-prospection-send-request-id')).toBeNull())
+  })
+
+  it('conserve le motif d’un rejet Instantly après rechargement de la file', async () => {
+    const invalid = {
+      ...target(1, 'approved'),
+      acceptance_error: 'instantly email invalid',
+    }
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) return { ok: true, status: 200, json: async () => list([invalid]) }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+
+    const row = await screen.findByRole('row', { name: /^Entreprise 1 Grenoble/ })
+    expect(within(row).getByText('Échec de vérification')).toBeInTheDocument()
+    expect(within(row).getByText('Adresse invalide selon la vérification Instantly')).toBeInTheDocument()
   })
 
   it('n’envoie pas deux fois le même lot et distingue acceptation fournisseur et livraison SMTP', async () => {
