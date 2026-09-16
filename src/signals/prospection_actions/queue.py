@@ -5,7 +5,8 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -33,6 +34,8 @@ ErrorFactory = Callable[..., Exception]
 LockedRows = Callable[..., tuple[sa.RowMapping, ...]]
 DirectoryValidator = Callable[[dict[str, object], sa.RowMapping | None], None]
 SuppressionCheck = Callable[[sa.Connection, str, dt.datetime], bool]
+
+_POSTGRES_QUOTA_LOCK_NAMESPACE = 61_408
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,39 @@ def _existing_reservation(
     )
 
 
+@contextmanager
+def _reservation_transaction(engine: Engine, request_day: dt.date) -> Iterator[sa.Connection]:
+    """Serialize daily quota allocation without relying on process-local state."""
+    connection = engine.connect()
+    transaction: sa.Transaction | None = None
+    try:
+        if connection.dialect.name == "sqlite":
+            connection.exec_driver_sql("BEGIN IMMEDIATE")
+        else:
+            transaction = connection.begin()
+            if connection.dialect.name == "postgresql":
+                connection.execute(
+                    sa.text("SELECT pg_advisory_xact_lock(:namespace, :day_key)"),
+                    {
+                        "namespace": _POSTGRES_QUOTA_LOCK_NAMESPACE,
+                        "day_key": request_day.toordinal(),
+                    },
+                )
+        yield connection
+        if transaction is None:
+            connection.commit()
+        else:
+            transaction.commit()
+    except Exception:
+        if transaction is None:
+            connection.rollback()
+        else:
+            transaction.rollback()
+        raise
+    finally:
+        connection.close()
+
+
 def send_fingerprint(command) -> str:
     body = {
         "request_id": str(command.request_id),
@@ -107,7 +143,7 @@ def reserve_send(
     request_day = at.astimezone(dt.UTC).date()
     requested_target_ids = tuple(str(item.target_id) for item in command.targets)
 
-    with engine.begin() as connection:
+    with _reservation_transaction(engine, request_day) as connection:
         existing = _existing_request(connection, request_id)
         if existing is not None:
             return _existing_reservation(
@@ -277,13 +313,25 @@ def reserve_send(
                             for position, item in enumerate(command.targets)
                         ],
                     )
-                connection.execute(
-                    sa.update(prospect_target)
-                    .where(
-                        prospect_target.c.target_id.in_([row["target_id"] for row in target_rows])
+                for item in command.targets:
+                    updated = connection.execute(
+                        sa.update(prospect_target)
+                        .where(
+                            prospect_target.c.target_id == str(item.target_id),
+                            prospect_target.c.version == item.expected_version,
+                            prospect_target.c.status == ProspectStatus.APPROVED.value,
+                            prospect_target.c.send_request_id.is_(None),
+                            prospect_target.c.mail_contract_status == "passed",
+                            prospect_target.c.email_verification_status == "mx_verified",
+                        )
+                        .values(send_request_id=request_id, updated_at=at)
                     )
-                    .values(send_request_id=request_id, updated_at=at)
-                )
+                    if updated.rowcount != 1:
+                        raise action_error(
+                            "INVALID_TARGET_STATUS",
+                            "une cible a déjà été réservée ou modifiée",
+                            target_ids=(str(item.target_id),),
+                        )
         except sa.exc.IntegrityError as error:
             if not _is_request_id_conflict(error):
                 raise
@@ -306,52 +354,59 @@ def send_progress(
 ) -> SendRequestProgress:
     """Load the durable request view, including queue item status in payload order."""
     with engine.connect() as connection:
-        request = (
+        rows = tuple(
             connection.execute(
-                sa.select(prospect_send_request).where(
-                    prospect_send_request.c.request_id == str(request_id)
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
-        if request is None:
-            raise action_error(
-                "SEND_REQUEST_NOT_FOUND",
-                "demande d'envoi introuvable",
-                status_code=404,
-            )
-        items = tuple(
-            SendItemProgress(
-                target_id=UUID(str(row["target_id"])),
-                email_address=str(row["email_address"]),
-                status=str(row["status"]),
-                instantly_id=row["instantly_id"],
-                verification_status=row["verification_status"],
-                error_code=row["error_code"],
-                error_message=row["error_message"],
-            )
-            for row in connection.execute(
                 sa.select(
+                    prospect_send_request.c.request_id,
+                    prospect_send_request.c.status.label("request_status"),
+                    prospect_send_request.c.reserved_count,
+                    prospect_send_request.c.processed_count,
+                    prospect_send_request.c.sent_count,
+                    prospect_send_request.c.failed_count,
                     prospect_send_item.c.target_id,
-                    prospect_send_item.c.status,
+                    prospect_send_item.c.status.label("item_status"),
                     prospect_send_item.c.instantly_id,
                     prospect_send_item.c.verification_status,
                     prospect_send_item.c.error_code,
                     prospect_send_item.c.error_message,
                     prospect_target.c.email_address,
                 )
-                .join(
-                    prospect_target,
-                    prospect_target.c.target_id == prospect_send_item.c.target_id,
+                .select_from(
+                    prospect_send_request.outerjoin(
+                        prospect_send_item,
+                        prospect_send_item.c.request_id == prospect_send_request.c.request_id,
+                    ).outerjoin(
+                        prospect_target,
+                        prospect_target.c.target_id == prospect_send_item.c.target_id,
+                    )
                 )
-                .where(prospect_send_item.c.request_id == str(request_id))
+                .where(prospect_send_request.c.request_id == str(request_id))
                 .order_by(prospect_send_item.c.position)
             ).mappings()
         )
+        if not rows:
+            raise action_error(
+                "SEND_REQUEST_NOT_FOUND",
+                "demande d'envoi introuvable",
+                status_code=404,
+            )
+        request = rows[0]
+        items = tuple(
+            SendItemProgress(
+                target_id=UUID(str(row["target_id"])),
+                email_address=str(row["email_address"]),
+                status=str(row["item_status"]),
+                instantly_id=row["instantly_id"],
+                verification_status=row["verification_status"],
+                error_code=row["error_code"],
+                error_message=row["error_message"],
+            )
+            for row in rows
+            if row["target_id"] is not None
+        )
     return SendRequestProgress(
         request_id=UUID(str(request["request_id"])),
-        status=str(request["status"]),
+        status=str(request["request_status"]),
         total_count=int(request["reserved_count"]),
         processed_count=int(request["processed_count"]),
         sent_count=int(request["sent_count"]),
