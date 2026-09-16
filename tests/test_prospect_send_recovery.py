@@ -30,6 +30,7 @@ class Provider:
         self.verification_by_lead = verification_by_lead
         self.create_campaign_calls: list[object] = []
         self.create_lead_calls: list[object] = []
+        self.get_lead_calls: list[str] = []
         self.activate_calls: list[str] = []
         self.active = False
 
@@ -42,6 +43,7 @@ class Provider:
         raise AssertionError("recovery must never create a lead")
 
     def get_lead(self, provider_lead_id):
+        self.get_lead_calls.append(provider_lead_id)
         return {
             "id": provider_lead_id,
             "verification_status": self.verification_by_lead[provider_lead_id],
@@ -313,3 +315,163 @@ def test_recovery_cli_requires_one_uuid_and_one_mode(capsys):
         '{"status":"configuration_invalid"}',
         '{"status":"configuration_invalid"}',
     ]
+
+
+def test_recovery_rejects_existing_item_with_another_target_lead_without_writes(
+    interrupted_request,
+):
+    engine, _tmp_path, _provider, target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(
+                prospect_send_item.c.request_id == REQUEST_ID,
+                prospect_send_item.c.target_id == target_ids[1],
+            )
+            .values(instantly_id="accepted-lead")
+        )
+    with engine.connect() as connection:
+        before_request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+        before_items = connection.execute(sa.select(prospect_send_item)).mappings().all()
+
+    with pytest.raises(RecoveryError) as caught:
+        recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+
+    assert caught.value.code == "RECOVERY_ITEM_INCONSISTENT"
+    with engine.connect() as connection:
+        assert (
+            dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+            == before_request
+        )
+        assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items
+
+
+def test_recovery_rejects_existing_sent_item_while_target_is_approved(interrupted_request):
+    engine, _tmp_path, _provider, target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(
+                prospect_send_item.c.request_id == REQUEST_ID,
+                prospect_send_item.c.target_id.in_(target_ids[1:]),
+            )
+            .values(status="sent", completed_at=NOW)
+        )
+        connection.execute(
+            sa.update(prospect_send_request)
+            .where(prospect_send_request.c.request_id == REQUEST_ID)
+            .values(status="completed", processed_count=21, sent_count=21, failed_count=0)
+        )
+
+    with pytest.raises(RecoveryError) as caught:
+        recover_request(engine, request_id=REQUEST_ID, dry_run=True)
+
+    assert caught.value.code == "RECOVERY_ITEM_INCONSISTENT"
+
+
+def test_worker_fails_closed_when_recovered_item_lead_differs_from_target(interrupted_request):
+    engine, tmp_path, provider, target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(prospect_send_item.c.target_id == target_ids[1])
+            .values(instantly_id="accepted-lead")
+        )
+    worker = ProspectSendWorker(
+        engine,
+        provider=provider,
+        provider_account_id="founder@example.invalid",
+        kill_switch_path=tmp_path / "disabled",
+        clock=lambda: NOW,
+    )
+
+    outcome = worker.run_once(worker_ref="recovery-test", now=NOW)
+
+    assert outcome.status == "waiting"
+    assert provider.get_lead_calls == []
+    with engine.connect() as connection:
+        item = (
+            connection.execute(
+                sa.select(prospect_send_item).where(prospect_send_item.c.target_id == target_ids[1])
+            )
+            .mappings()
+            .one()
+        )
+    assert item["error_code"] == "lead_binding_conflict"
+
+
+def test_recovery_preserves_evidence_and_replays_coherent_partial_progress(interrupted_request):
+    engine, _tmp_path, _provider, target_ids = interrupted_request
+    evidence = {"accounting": {"lead:1": {"confirmed": True}}, "audit": "preserved"}
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_request)
+            .where(prospect_send_request.c.request_id == REQUEST_ID)
+            .values(result=evidence)
+        )
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(prospect_send_item.c.target_id == target_ids[1])
+            .values(status="sent", completed_at=NOW)
+        )
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == target_ids[1])
+            .values(status="sent", instantly_accepted_at=NOW)
+        )
+        connection.execute(
+            sa.update(prospect_send_request)
+            .where(prospect_send_request.c.request_id == REQUEST_ID)
+            .values(status="waiting", processed_count=2, sent_count=2, failed_count=0)
+        )
+    with engine.connect() as connection:
+        before_request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+        before_items = connection.execute(sa.select(prospect_send_item)).mappings().all()
+
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW + dt.timedelta(minutes=1))
+
+    with engine.connect() as connection:
+        assert (
+            dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+            == before_request
+        )
+        assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items
+    assert before_request["result"] == {**evidence, "recovery": {"state": "reconstructed"}}
+
+
+def test_recovery_replays_coherent_completed_queue_without_writes(interrupted_request):
+    engine, _tmp_path, _provider, target_ids = interrupted_request
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(prospect_send_item.c.target_id.in_(target_ids[1:]))
+            .values(status="sent", completed_at=NOW)
+        )
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id.in_(target_ids[1:]))
+            .values(status="sent", instantly_accepted_at=NOW)
+        )
+        connection.execute(
+            sa.update(prospect_send_request)
+            .where(prospect_send_request.c.request_id == REQUEST_ID)
+            .values(status="completed", processed_count=21, sent_count=21, failed_count=0)
+        )
+    with engine.connect() as connection:
+        before_request = dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+        before_items = connection.execute(sa.select(prospect_send_item)).mappings().all()
+
+    recover_request(engine, request_id=REQUEST_ID, dry_run=False, now=NOW + dt.timedelta(minutes=1))
+
+    with engine.connect() as connection:
+        assert (
+            dict(connection.execute(sa.select(prospect_send_request)).mappings().one())
+            == before_request
+        )
+        assert connection.execute(sa.select(prospect_send_item)).mappings().all() == before_items

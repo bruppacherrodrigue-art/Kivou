@@ -47,6 +47,7 @@ class _RecoveryPlan:
     campaign_id: str
     sent_target_ids: frozenset[str]
     targets: dict[str, dict[str, object]]
+    request: dict[str, object]
 
 
 def _rows_for_recovery(connection: sa.Connection, request_id: str, *, lock: bool) -> _RecoveryPlan:
@@ -100,16 +101,6 @@ def _rows_for_recovery(connection: sa.Connection, request_id: str, *, lock: bool
         raise RecoveryError("RECOVERY_CAMPAIGN_BINDING_CONFLICT")
     campaign_id = next(iter(campaign_ids))
 
-    existing_items = tuple(
-        connection.execute(
-            sa.select(prospect_send_item.c.target_id).where(
-                prospect_send_item.c.request_id == request_id
-            )
-        ).scalars()
-    )
-    if existing_items and set(map(str, existing_items)) != set(target_ids):
-        raise RecoveryError("RECOVERY_ALREADY_STARTED")
-
     return _RecoveryPlan(
         preview=RecoveryPreview(
             request_id=request_id,
@@ -122,7 +113,94 @@ def _rows_for_recovery(connection: sa.Connection, request_id: str, *, lock: bool
         campaign_id=campaign_id,
         sent_target_ids=frozenset(str(target["target_id"]) for target in sent),
         targets=targets,
+        request=dict(request),
     )
+
+
+def _validate_existing_items(connection: sa.Connection, plan: _RecoveryPlan) -> int:
+    """Accept only a complete, internally coherent durable replay state."""
+
+    request_id = plan.preview.request_id
+    items = tuple(
+        connection.execute(
+            sa.select(prospect_send_item)
+            .where(prospect_send_item.c.request_id == request_id)
+            .order_by(prospect_send_item.c.position)
+        ).mappings()
+    )
+    if not items:
+        return 0
+    if (
+        len(items) != len(plan.target_ids)
+        or tuple(item["target_id"] for item in items) != plan.target_ids
+    ):
+        raise RecoveryError("RECOVERY_ALREADY_STARTED")
+    if tuple(item["position"] for item in items) != tuple(range(len(plan.target_ids))):
+        raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+    if plan.request["provider_campaign_id"] != plan.campaign_id:
+        raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+
+    processed = sent = failed = 0
+    for item in items:
+        target_id = str(item["target_id"])
+        target = plan.targets[target_id]
+        if item["instantly_id"] != target["instantly_id"]:
+            raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        if target["provider_campaign_id"] != plan.campaign_id:
+            raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        status = str(item["status"])
+        sentinel = item["error_code"] == _RECOVERY_ACCOUNTED_ACCEPTANCE
+        if sentinel:
+            if not (
+                status == "sent"
+                and item["completed_at"] is not None
+                and target["status"] == "sent"
+                and target["instantly_accepted_at"] is not None
+                and target["send_request_id"] != request_id
+            ):
+                raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        elif status in ("queued", "running", "verification_pending"):
+            if not (
+                target["status"] == "approved"
+                and target["send_request_id"] == request_id
+                and int(item["expected_version"]) == int(target["version"])
+                and item["instantly_id"]
+                and target["provider_campaign_id"]
+            ):
+                raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        elif status == "sent":
+            if target["status"] != "sent" or item["completed_at"] is None:
+                raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        elif status == "failed":
+            if (
+                target["status"] == "sent"
+                or target["send_request_id"] == request_id
+                or not item["error_code"]
+            ):
+                raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        else:
+            raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+        if status in ("sent", "failed"):
+            processed += 1
+        if status == "sent":
+            sent += 1
+        if status == "failed":
+            failed += 1
+
+    request = plan.request
+    if (
+        int(request["processed_count"]) != processed
+        or int(request["sent_count"]) != sent
+        or int(request["failed_count"]) != failed
+    ):
+        raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+    if processed == len(items):
+        expected_status = "completed" if failed == 0 else ("partial" if sent else "failed")
+        if request["status"] != expected_status:
+            raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+    elif request["status"] not in ("queued", "running", "waiting"):
+        raise RecoveryError("RECOVERY_ITEM_INCONSISTENT")
+    return len(items)
 
 
 def recover_request(
@@ -142,7 +220,9 @@ def recover_request(
     normalized_request_id = str(UUID(str(request_id)))
     if dry_run:
         with engine.connect() as connection:
-            return _rows_for_recovery(connection, normalized_request_id, lock=False).preview
+            plan = _rows_for_recovery(connection, normalized_request_id, lock=False)
+            _validate_existing_items(connection, plan)
+            return plan.preview
 
     now = now or dt.datetime.now(dt.UTC)
     if now.tzinfo is None:
@@ -151,14 +231,7 @@ def recover_request(
         if connection.dialect.name == "sqlite":
             connection.exec_driver_sql("BEGIN IMMEDIATE")
         plan = _rows_for_recovery(connection, normalized_request_id, lock=True)
-        item_count = int(
-            connection.scalar(
-                sa.select(sa.func.count())
-                .select_from(prospect_send_item)
-                .where(prospect_send_item.c.request_id == normalized_request_id)
-            )
-            or 0
-        )
+        item_count = _validate_existing_items(connection, plan)
         if item_count:
             return plan.preview
 
@@ -178,7 +251,10 @@ def recover_request(
                 claimed_by=None,
                 lease_id=None,
                 lease_expires_at=None,
-                result={"recovery": {"state": "reconstructed"}},
+                result={
+                    **(plan.request["result"] if isinstance(plan.request["result"], dict) else {}),
+                    "recovery": {"state": "reconstructed"},
+                },
                 error=None,
                 started_at=None,
                 updated_at=now,

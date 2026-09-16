@@ -493,6 +493,12 @@ class ProspectSendWorker:
             or target["version"] != item["expected_version"]
         ):
             return self._reject_changed_target(claim, connection, "target_changed_after_enqueue")
+        if (
+            item["instantly_id"]
+            and target["instantly_id"]
+            and (item["instantly_id"] != target["instantly_id"])
+        ):
+            return self._reject_changed_target(claim, connection, "lead_binding_conflict")
         campaign_id = connection.scalar(
             sa.select(prospect_send_request.c.provider_campaign_id).where(
                 prospect_send_request.c.request_id == item["request_id"],
