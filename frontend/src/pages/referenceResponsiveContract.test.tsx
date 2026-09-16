@@ -169,6 +169,7 @@ describe('contrat responsive connecté à 390 px', () => {
     )
     const media = [...css.matchAll(/@media\s*\(([^)]+)\)/g)].map((match) => match[1])
     expect(media).toEqual([
+      'max-width: 640px',
       'min-width: 768px',
       'max-width: 899px',
       'max-width: 1279px',
@@ -181,6 +182,29 @@ describe('contrat responsive connecté à 390 px', () => {
       'max-width: 600px',
     ])
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*scroll-behavior:\s*auto/)
+  })
+
+  it('empile la bannière de création d’accès jusqu’à 640 px inclus', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
+      'utf8',
+    )
+    const block = css.match(
+      /@media \(max-width: (?<maxWidth>\d+)px\) \{\s*\.account-claim-banner \{[^}]*flex-direction: column;[^}]*\}\s*\.account-claim-button \{[^}]*justify-content: center;[^}]*\}\s*\.account-claim-banner \+ \.topbar \{[^}]*top: 93px;[^}]*\}\s*\}/,
+    )
+
+    expect(block).not.toBeNull()
+    const maxWidth = Number(block?.groups?.maxWidth)
+    expect(maxWidth).toBe(640)
+    for (const [width, stacked] of [
+      [390, true],
+      [639, true],
+      [640, true],
+      [641, false],
+      [1440, false],
+    ] as const) {
+      expect(width <= maxWidth, `${width}px`).toBe(stacked)
+    }
   })
 })
 
