@@ -445,6 +445,8 @@ a:focus-visible {
 .account-claim-button:hover { background: #225743; }
 .account-claim-banner + .topbar { top: 58px; }
 
+/* Jusqu'à 640 px, la copie et le CTA d'accès temporaire s'empilent pour
+ * préserver leur lisibilité et une cible tactile pleine largeur. */
 @media (max-width: 640px) {
   .account-claim-banner { align-items: stretch; flex-direction: column; gap: 8px; }
   .account-claim-button { justify-content: center; }

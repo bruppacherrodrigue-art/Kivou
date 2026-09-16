@@ -18,6 +18,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("GET", "/unsubscribe/{token}"),
         ("POST", "/unsubscribe/{token}"),
         ("GET", "/account/export"),
+        ("POST", "/auth/claim-access"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
         ("POST", "/auth/password-reset/confirm"),
@@ -81,6 +82,7 @@ PRIVATE_ASGI_ROUTES = frozenset(
 EXPECTED_PROXY_SELECTORS = frozenset(
     {
         "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences|dashboard|account)(/|$)",
+        "= /auth/claim-access",
         "= /auth/login",
         "= /auth/signup",
         "= /auth/password-reset/request",
@@ -647,6 +649,41 @@ def test_every_reviewed_public_route_reaches_fastapi_and_private_routes_do_not()
         )
         assert "include /etc/nginx/kivou-proxy-params.conf;" in block.body
         assert "try_files" not in block.body
+
+
+def test_claim_access_uses_the_reviewed_auth_proxy_contract_in_staging_and_production() -> None:
+    expected = (
+        "limit_req zone=kivou_auth burst=3 nodelay;",
+        "proxy_pass http://127.0.0.1:KIVOU_API_PORT;",
+        "include /etc/nginx/kivou-proxy-params.conf;",
+    )
+    sites = (
+        ("kivou-staging.conf", "include /etc/nginx/kivou-security-headers.conf;"),
+        (
+            "kivou-production.conf",
+            "include /etc/nginx/kivou-production-security-headers.conf;",
+        ),
+    )
+
+    for filename, security_include in sites:
+        body = (NGINX_DIR / filename).read_text()
+        https_servers = [
+            block
+            for block in _server_blocks(body)
+            if "listen 443 ssl http2;" in _direct_server_directives(block.body)
+        ]
+        assert len(https_servers) == 1, filename
+        https = https_servers[0]
+        assert security_include in _direct_server_directives(https.body)
+
+        claim_access = _only_location(https, "= /auth/claim-access")
+        directives = _directives(claim_access.body)
+        assert directives == expected
+        assert not any(
+            directive.startswith(("add_header ", "proxy_hide_header ", "try_files "))
+            or "sensitive-links-gate" in directive
+            for directive in directives
+        )
 
 
 def test_instantly_and_attribution_use_exact_reviewed_locations_and_limits() -> None:
