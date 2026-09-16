@@ -43,7 +43,7 @@ function available(status: ChiefOfStaffStatus = 'WATCH'): FounderChiefOfStaffVie
       period_end: '2026-09-15T00:00:00+02:00', created_at: '2026-09-15T05:30:00Z',
       executive_status: status, executive_summary: 'La situation demande une surveillance humaine.',
       reason_codes: ['BUSINESS_WATCH'], confidence: '0.8', supervisor_version: 'hermes-agent-0.20.4',
-      profile_version: '1.0.0', source_refs: ['fact:business:mrr:chf', 'fact:business:mrr:eur', 'fact:data:m2:unknown'],
+      profile_version: '1.1.0', source_refs: ['fact:business:mrr:chf', 'fact:business:mrr:eur', 'fact:data:m2:unknown'],
       observations: [{
         observation_id: 'observation:currency', domain: 'BUSINESS', kind: 'STATUS',
         summary: 'Les revenus sont établis dans deux devises distinctes.',

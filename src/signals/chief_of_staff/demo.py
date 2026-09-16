@@ -135,7 +135,7 @@ def _simulated_report(context) -> ChiefOfStaffReport:
         source_refs=tuple(sorted((business_ref, operations_ref, unknown_ref))),
         confidence=Decimal("0.8"),
         supervisor_version=f"hermes-agent-{pin.version}",
-        profile_version="1.0.0",
+        profile_version="1.1.0",
     )
 
 

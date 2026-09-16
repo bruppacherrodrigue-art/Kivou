@@ -6,6 +6,7 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
+from signals.chief_of_staff.capabilities import evaluate_capabilities
 from signals.chief_of_staff.contracts import (
     BusinessDecision,
     ChiefOfStaffContext,
@@ -55,12 +56,14 @@ def context(**changes: object) -> ChiefOfStaffContext:
                 source_ref="docs/adr/2026-09-15-hermes-chief-of-staff.md",
             ),
         ),
-        "profile_version": "1.0.0",
+        "profile_version": "1.1.0",
         "facts": (fact(period_start=NOW - dt.timedelta(days=1)),),
         "active_gates": (),
         "known_incidents": (),
         "data_quality": DataQualitySummary(reason_codes=(), fact_refs=()),
-        "available_capabilities": ("STRATEGIC_SYNTHESIS",),
+        "capabilities": evaluate_capabilities(
+            (fact(period_start=NOW - dt.timedelta(days=1)),)
+        ),
     }
     values.update(changes)
     return ChiefOfStaffContext.model_validate(values)
@@ -84,7 +87,7 @@ def report(**changes: object) -> ChiefOfStaffReport:
         "source_refs": ("fact:cockpit:paid:2026w37",),
         "confidence": Decimal("0.8"),
         "supervisor_version": "hermes-agent-0.20.4",
-        "profile_version": "1.0.0",
+        "profile_version": "1.1.0",
     }
     values.update(changes)
     return ChiefOfStaffReport.model_validate(values)

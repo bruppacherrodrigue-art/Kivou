@@ -28,10 +28,12 @@ OPENROUTER_PROVIDER_ROUTING = {
 
 
 def _configured_model(operation: str = "plan") -> str:
-    variable = (
-        "KIVOU_MODEL_CHIEF_OF_STAFF" if operation == "report" else "KIVOU_MODEL_HERMES"
-    )
-    return os.environ.get(variable, OPENROUTER_MODEL).strip()
+    if operation == "report":
+        model = os.environ.get("KIVOU_MODEL_CHIEF_OF_STAFF", "").strip()
+        if not model:
+            raise BridgeRequestError("Chief of Staff model is not configured")
+        return model
+    return os.environ.get("KIVOU_MODEL_HERMES", OPENROUTER_MODEL).strip()
 
 
 def _closed_provider_failure(exc: Exception) -> dict[str, Any] | None:
@@ -138,11 +140,12 @@ def _official_oneshot(
     provider_routing: Mapping[str, Any],
     response_schema: Mapping[str, Any],
     schema_name: str = "kivou_supervisor_plan",
+    operation: str = "plan",
 ) -> dict[str, Any]:
     """Make one exact OpenRouter call through Hermes' zero-retry client helper."""
     if (
         provider != OPENROUTER_PROVIDER
-        or model not in {_configured_model("plan"), _configured_model("report")}
+        or model != _configured_model(operation)
         or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
     ):
         raise BridgeRequestError("the frozen OpenRouter route is required")
@@ -322,6 +325,7 @@ def handle_request(
     }
     if operation == "report":
         invocation["schema_name"] = "kivou_chief_of_staff_report"
+        invocation["operation"] = "report"
     route = invoke(
         **invocation,
     )

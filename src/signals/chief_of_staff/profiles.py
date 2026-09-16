@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from importlib.resources import files
 
-CHIEF_OF_STAFF_PROFILE_VERSION = "1.0.0"
+CHIEF_OF_STAFF_PROFILE_VERSION = "1.1.0"
 
 
 def load_chief_of_staff_profile() -> str:

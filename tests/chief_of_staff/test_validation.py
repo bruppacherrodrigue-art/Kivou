@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+from signals.chief_of_staff.capabilities import evaluate_capabilities
 from signals.chief_of_staff.context import context_fingerprint
 from signals.chief_of_staff.contracts import (
     BusinessDecision,
@@ -23,6 +24,19 @@ FACT_REF = "fact:operations:health:abc"
 
 
 def context(*, fact_status: str = "KNOWN") -> ChiefOfStaffContext:
+    fact = ChiefOfStaffFact(
+        fact_ref=FACT_REF,
+        domain="OPERATIONS",
+        metric_key="health",
+        value=("DEGRADED" if fact_status in {"KNOWN", "STALE"} else None),
+        unit="STATUS",
+        period_start=NOW - dt.timedelta(days=1),
+        period_end=NOW,
+        captured_at=NOW,
+        source_contract="AcquisitionOperationalHealth",
+        source_version="acquisition-health-v1",
+        data_status=fact_status,
+    )
     return ChiefOfStaffContext(
         generated_at=NOW,
         cadence="DAILY",
@@ -40,26 +54,12 @@ def context(*, fact_status: str = "KNOWN") -> ChiefOfStaffContext:
                 source_ref="src/signals/supervisor/hermes_bridge.py",
             ),
         ),
-        profile_version="1.0.0",
-        facts=(
-            ChiefOfStaffFact(
-                fact_ref=FACT_REF,
-                domain="OPERATIONS",
-                metric_key="health",
-                value=("DEGRADED" if fact_status == "KNOWN" else None),
-                unit="STATUS",
-                period_start=NOW - dt.timedelta(days=1),
-                period_end=NOW,
-                captured_at=NOW,
-                source_contract="AcquisitionOperationalHealth",
-                source_version="acquisition-health-v1",
-                data_status=fact_status,
-            ),
-        ),
+        profile_version="1.1.0",
+        facts=(fact,),
         active_gates=(),
         known_incidents=(),
         data_quality=DataQualitySummary(),
-        available_capabilities=("OPERATIONS_REVIEW",),
+        capabilities=evaluate_capabilities((fact,)),
     )
 
 
@@ -92,7 +92,7 @@ def report(value: ChiefOfStaffContext, **changes: object) -> ChiefOfStaffReport:
         "source_refs": (FACT_REF,),
         "confidence": Decimal("0.8"),
         "supervisor_version": "hermes-agent-0.20.4",
-        "profile_version": "1.0.0",
+        "profile_version": "1.1.0",
     }
     payload.update(changes)
     return ChiefOfStaffReport.model_validate(payload)
@@ -109,7 +109,7 @@ def test_valid_cited_report_passes() -> None:
         ({"context_fingerprint": "b" * 64}, "fingerprint"),
         ({"period_end": NOW + dt.timedelta(seconds=1)}, "period"),
         ({"supervisor_version": "hermes-agent-9.9.9"}, "Hermes pin"),
-        ({"profile_version": "1.0.0"}, None),
+        ({"profile_version": "1.1.0"}, None),
         ({"source_refs": ("fact:invented",)}, "unknown source"),
     ),
 )

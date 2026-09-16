@@ -173,6 +173,16 @@ def test_context_is_bounded_sorted_and_reproducible() -> None:
     assert len(context_fingerprint(first)) == 64
     assert len(first.active_gates) == 3
     assert first.known_incidents[0].incident_ref == "incident-safe-ref"
+    statuses = {item.capability: item.status for item in first.capabilities}
+    assert statuses == {
+        "BUSINESS_REVIEW": "AVAILABLE",
+        "PRODUCT_JOURNEY_REVIEW": "UNAVAILABLE",
+        "DATA_HEALTH_REVIEW": "AVAILABLE",
+        "OPERATIONS_REVIEW": "AVAILABLE",
+        "ACQUISITION_REVIEW": "AVAILABLE",
+        "ROADMAP_RELEASE_REVIEW": "UNAVAILABLE",
+        "STRATEGIC_SYNTHESIS": "AVAILABLE",
+    }
 
 
 def test_context_rejects_cardinality_and_byte_overflow() -> None:

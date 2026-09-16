@@ -117,9 +117,19 @@ print(json.dumps({
         "LC_ALL": "C.UTF-8",
         "PYTHONUTF8": "1",
         "PYTHONUNBUFFERED": "1",
-        "KIVOU_MODEL_HERMES": "model/acquisition",
-        "KIVOU_MODEL_CHIEF_OF_STAFF": "model/chief",
     }
+
+    report = SubprocessHermesTransport(configured, bridge_path=fixture).invoke(
+        {"operation": "report"}
+    )
+    assert report["environment"]["KIVOU_MODEL_CHIEF_OF_STAFF"] == "model/chief"
+    assert "KIVOU_MODEL_HERMES" not in report["environment"]
+
+    plan = SubprocessHermesTransport(configured, bridge_path=fixture).invoke(
+        {"operation": "plan"}
+    )
+    assert plan["environment"]["KIVOU_MODEL_HERMES"] == "model/acquisition"
+    assert "KIVOU_MODEL_CHIEF_OF_STAFF" not in plan["environment"]
 
 
 def test_timeout_kills_the_bridge_and_returns_no_result(tmp_path):

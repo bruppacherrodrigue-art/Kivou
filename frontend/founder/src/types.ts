@@ -68,7 +68,7 @@ export interface ChiefOfStaffReport {
   source_refs: string[]
   confidence: string
   supervisor_version: string
-  profile_version: '1.0.0'
+  profile_version: '1.1.0'
 }
 
 export interface FounderChiefOfStaffLatest {

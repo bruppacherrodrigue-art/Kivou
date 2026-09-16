@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
+from signals.chief_of_staff.capabilities import evaluate_capabilities
 from signals.chief_of_staff.contracts import (
     BusinessDecision,
     ChiefOfStaffContext,
@@ -17,6 +19,7 @@ from signals.chief_of_staff.profiles import (
     CHIEF_OF_STAFF_PROFILE_VERSION,
     load_chief_of_staff_profile,
 )
+from signals.model_runtime.config import ModelRoute
 from signals.supervisor.pin import load_hermes_pin
 from signals.supervisor.runtime import (
     SupervisorSettings,
@@ -27,6 +30,38 @@ from signals.supervisor.runtime import (
 
 NOW = dt.datetime(2026, 9, 15, 5, 30, tzinfo=dt.UTC)
 PIN = load_hermes_pin()
+MODEL_ENV = {
+    "KIVOU_MODEL_CHIEF_OF_STAFF": "anthropic/claude-sonnet-4.6",
+    "KIVOU_MODEL_BUDGET_CHIEF_OF_STAFF_USD": "1",
+    "KIVOU_MODEL_RESERVE_INPUT_CHIEF_OF_STAFF_USD_PER_MILLION": "6",
+    "KIVOU_MODEL_RESERVE_OUTPUT_CHIEF_OF_STAFF_USD_PER_MILLION": "30",
+}
+
+
+class Budget:
+    def reserve(self, **_values: object) -> None: ...
+    def succeed(self, **_values: object) -> None: ...
+    def fail(self, **_values: object) -> None: ...
+
+
+def model_route(*, usage: str = "chief_of_staff") -> ModelRoute:
+    return ModelRoute(
+        usage=usage,  # type: ignore[arg-type]
+        model="anthropic/claude-sonnet-4.6",
+        daily_budget_usd=Decimal("1"),
+        reserve_input_usd_per_million=Decimal("6"),
+        reserve_output_usd_per_million=Decimal("30"),
+    )
+
+
+def adapter(tmp_path: Path, transport: Transport) -> ChiefOfStaffHermesAdapter:
+    return ChiefOfStaffHermesAdapter(
+        settings(tmp_path),
+        transport=transport,
+        model_route=model_route(),
+        budget_store=Budget(),
+        environment=MODEL_ENV,
+    )
 
 
 def settings(tmp_path: Path) -> SupervisorSettings:
@@ -69,12 +104,12 @@ def context() -> ChiefOfStaffContext:
         period_end=NOW,
         business_memory_version="business-memory-v1",
         business_memory=(decision,),
-        profile_version="1.0.0",
+        profile_version="1.1.0",
         facts=(fact,),
         active_gates=(),
         known_incidents=(),
         data_quality=DataQualitySummary(),
-        available_capabilities=("STRATEGIC_SYNTHESIS",),
+        capabilities=evaluate_capabilities((fact,)),
     )
 
 
@@ -98,7 +133,7 @@ def valid_report() -> str:
             "source_refs": ["fact:business:paid:abc"],
             "confidence": "0.75",
             "supervisor_version": "hermes-agent-0.20.4",
-            "profile_version": "1.0.0",
+            "profile_version": "1.1.0",
         }
     )
 
@@ -115,6 +150,11 @@ def bridge_response(payload: str, **changes: object) -> dict[str, object]:
         "model": "anthropic/claude-sonnet-4.6",
         "automatic_retries": 0,
         "fallbacks": False,
+        "usage": {
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "cost_usd": "0.001",
+        },
     }
     value.update(changes)
     return value
@@ -136,7 +176,7 @@ class Transport:
 
 def test_chief_profile_is_explicit_versioned_and_forbids_execution() -> None:
     profile = load_chief_of_staff_profile()
-    assert CHIEF_OF_STAFF_PROFILE_VERSION == "1.0.0"
+    assert CHIEF_OF_STAFF_PROFILE_VERSION == "1.1.0"
     assert "Kivou Chief of Staff" in profile
     assert "never execute" in profile
     assert "fact_ref" in profile
@@ -148,7 +188,7 @@ def test_chief_profile_is_explicit_versioned_and_forbids_execution() -> None:
 
 def test_adapter_invokes_report_schema_with_zero_tools_and_exact_pin(tmp_path: Path) -> None:
     transport = Transport(bridge_response(valid_report()))
-    result = ChiefOfStaffHermesAdapter(settings(tmp_path), transport=transport).generate(context())
+    result = adapter(tmp_path, transport).generate(context())
     assert result.report.executive_status == "WATCH"
     request = transport.requests[0]
     assert request["operation"] == "report"
@@ -161,21 +201,17 @@ def test_adapter_invokes_report_schema_with_zero_tools_and_exact_pin(tmp_path: P
 def test_adapter_fails_closed_on_pin_mismatch(tmp_path: Path) -> None:
     transport = Transport(bridge_response(valid_report(), source_commit="0" * 40))
     with pytest.raises(SupervisorVersionMismatch):
-        ChiefOfStaffHermesAdapter(settings(tmp_path), transport=transport).generate(context())
+        adapter(tmp_path, transport).generate(context())
 
 
 def test_adapter_fails_closed_on_invalid_json_and_timeout(tmp_path: Path) -> None:
     with pytest.raises(SupervisorValidationError, match="not one JSON object"):
-        ChiefOfStaffHermesAdapter(
-            settings(tmp_path), transport=Transport(bridge_response("not-json"))
-        ).generate(context())
+        adapter(tmp_path, Transport(bridge_response("not-json"))).generate(context())
     with pytest.raises(SupervisorTimeout):
-        ChiefOfStaffHermesAdapter(
-            settings(tmp_path), transport=Transport(error=SupervisorTimeout("safe timeout"))
-        ).generate(context())
+        adapter(tmp_path, Transport(error=SupervisorTimeout("safe timeout"))).generate(context())
 
 
 def test_adapter_rejects_nonzero_executable_tools(tmp_path: Path) -> None:
     transport = Transport(bridge_response(valid_report(), executable_tools=["shell"]))
     with pytest.raises(SupervisorVersionMismatch, match="executable tools"):
-        ChiefOfStaffHermesAdapter(settings(tmp_path), transport=transport).generate(context())
+        adapter(tmp_path, transport).generate(context())

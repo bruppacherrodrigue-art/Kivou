@@ -15,10 +15,10 @@ from pydantic import (
     model_validator,
 )
 
-CONTEXT_VERSION = "chief-of-staff-context-v1"
+CONTEXT_VERSION = "chief-of-staff-context-v2"
 REPORT_VERSION = "chief-of-staff-report-v1"
 BUSINESS_MEMORY_VERSION = "business-memory-v1"
-PROFILE_VERSION = "1.0.0"
+PROFILE_VERSION = "1.1.0"
 CHIEF_OF_STAFF_TIMEZONE = "Europe/Zurich"
 
 ShortText = Annotated[
@@ -52,6 +52,16 @@ Capability = Literal[
     "ROADMAP_RELEASE_REVIEW",
     "STRATEGIC_SYNTHESIS",
 ]
+CapabilityStatus = Literal["AVAILABLE", "UNAVAILABLE", "INSUFFICIENT_EVIDENCE"]
+CAPABILITY_ORDER: tuple[Capability, ...] = (
+    "BUSINESS_REVIEW",
+    "PRODUCT_JOURNEY_REVIEW",
+    "DATA_HEALTH_REVIEW",
+    "OPERATIONS_REVIEW",
+    "ACQUISITION_REVIEW",
+    "ROADMAP_RELEASE_REVIEW",
+    "STRATEGIC_SYNTHESIS",
+)
 FactValue = int | Decimal | str | bool | None
 
 
@@ -140,8 +150,8 @@ class ChiefOfStaffFact(ChiefOfStaffModel):
             raise ValueError("fact period end must follow start")
         if self.data_status in {"UNKNOWN", "INSUFFICIENT_EVIDENCE"} and self.value is not None:
             raise ValueError("unknown facts cannot carry a value")
-        if self.data_status == "KNOWN" and self.value is None:
-            raise ValueError("known facts require a value")
+        if self.data_status in {"KNOWN", "STALE"} and self.value is None:
+            raise ValueError("known or stale facts require a value")
         if self.unit == "MINOR_UNITS" and self.data_status in {"KNOWN", "STALE"}:
             if isinstance(self.value, bool) or not isinstance(self.value, int):
                 raise ValueError("money facts require integer minor units")
@@ -172,8 +182,23 @@ class DataQualitySummary(ChiefOfStaffModel):
     fact_refs: tuple[StableRef, ...] = Field(default=(), max_length=100)
 
 
+class CapabilityAvailability(ChiefOfStaffModel):
+    capability: Capability
+    status: CapabilityStatus
+    reason_codes: tuple[ReasonCode, ...] = Field(min_length=1, max_length=10)
+    fact_refs: tuple[StableRef, ...] = Field(default=(), max_length=100)
+
+    @model_validator(mode="after")
+    def validate_evidence(self) -> CapabilityAvailability:
+        if self.status == "AVAILABLE" and not self.fact_refs:
+            raise ValueError("available capabilities require fact references")
+        if self.status == "UNAVAILABLE" and self.fact_refs:
+            raise ValueError("unavailable capabilities cannot claim fact references")
+        return self
+
+
 class ChiefOfStaffContext(ChiefOfStaffModel):
-    context_version: Literal["chief-of-staff-context-v1"] = CONTEXT_VERSION
+    context_version: Literal["chief-of-staff-context-v2"] = CONTEXT_VERSION
     generated_at: dt.datetime
     timezone: Literal["Europe/Zurich"] = CHIEF_OF_STAFF_TIMEZONE
     runtime_mode: Literal["SHADOW"] = "SHADOW"
@@ -182,12 +207,12 @@ class ChiefOfStaffContext(ChiefOfStaffModel):
     period_end: dt.datetime
     business_memory_version: Literal["business-memory-v1"]
     business_memory: tuple[BusinessDecision, ...] = Field(min_length=1, max_length=100)
-    profile_version: Literal["1.0.0"]
+    profile_version: Literal["1.1.0"]
     facts: tuple[ChiefOfStaffFact, ...] = Field(max_length=200)
     active_gates: tuple[ActiveGate, ...] = Field(max_length=50)
     known_incidents: tuple[KnownIncident, ...] = Field(max_length=50)
     data_quality: DataQualitySummary
-    available_capabilities: tuple[Capability, ...] = Field(min_length=1, max_length=7)
+    capabilities: tuple[CapabilityAvailability, ...] = Field(min_length=7, max_length=7)
     content_boundary: Literal["UNTRUSTED_DATA"] = "UNTRUSTED_DATA"
 
     _times = field_validator("generated_at", "period_start", "period_end")(_aware)
@@ -199,9 +224,9 @@ class ChiefOfStaffContext(ChiefOfStaffModel):
         refs = tuple(item.fact_ref for item in self.facts)
         if refs != tuple(sorted(set(refs))):
             raise ValueError("facts must have unique sorted references")
-        capabilities = tuple(self.available_capabilities)
-        if capabilities != tuple(sorted(set(capabilities))):
-            raise ValueError("capabilities must be unique and sorted")
+        capabilities = tuple(item.capability for item in self.capabilities)
+        if capabilities != CAPABILITY_ORDER:
+            raise ValueError("capabilities must use the complete canonical order")
         return self
 
 
@@ -260,7 +285,7 @@ class ChiefOfStaffReport(ChiefOfStaffModel):
     source_refs: tuple[StableRef, ...] = Field(max_length=100)
     confidence: Decimal = Field(ge=0, le=1)
     supervisor_version: StableRef
-    profile_version: Literal["1.0.0"]
+    profile_version: Literal["1.1.0"]
 
     _times = field_validator("period_start", "period_end", "created_at")(_aware)
 
@@ -279,6 +304,7 @@ class ChiefOfStaffReport(ChiefOfStaffModel):
 
 __all__ = [
     "BUSINESS_MEMORY_VERSION",
+    "CAPABILITY_ORDER",
     "CHIEF_OF_STAFF_TIMEZONE",
     "CONTEXT_VERSION",
     "PROFILE_VERSION",
@@ -286,6 +312,7 @@ __all__ = [
     "ActiveGate",
     "BusinessDecision",
     "BusinessMemory",
+    "CapabilityAvailability",
     "ChiefOfStaffContext",
     "ChiefOfStaffDecisionRequest",
     "ChiefOfStaffFact",

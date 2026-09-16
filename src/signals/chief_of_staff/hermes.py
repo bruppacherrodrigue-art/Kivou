@@ -11,6 +11,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from signals.chief_of_staff.config import (
+    ChiefOfStaffConfigurationState,
+    chief_of_staff_config_from_environment,
+)
 from signals.chief_of_staff.contracts import ChiefOfStaffContext, ChiefOfStaffReport
 from signals.chief_of_staff.profiles import (
     CHIEF_OF_STAFF_PROFILE_VERSION,
@@ -22,13 +26,13 @@ from signals.model_runtime.openrouter import estimate_reservation
 from signals.supervisor.hermes import (
     BRIDGE_PROTOCOL_VERSION,
     CLOSED_PROVIDER_ERROR_CODES,
-    OPENROUTER_MODEL,
     OPENROUTER_PROVIDER,
     OPENROUTER_PROVIDER_ROUTING,
     transform_provider_schema,
 )
 from signals.supervisor.pin import HermesPin, load_hermes_pin
 from signals.supervisor.runtime import (
+    SupervisorNotConfigured,
     SupervisorProviderError,
     SupervisorSettings,
     SupervisorUnavailable,
@@ -57,18 +61,29 @@ class ChiefOfStaffHermesAdapter:
         *,
         transport: HermesTransport | None = None,
         pin: HermesPin | None = None,
-        model: str = OPENROUTER_MODEL,
         model_route: ModelRoute | None = None,
         budget_store: ModelBudgetStore | None = None,
         batch_id: str | None = None,
+        environment: Mapping[str, str] | None = None,
     ) -> None:
+        configuration = chief_of_staff_config_from_environment(environment)
+        if configuration.state is not ChiefOfStaffConfigurationState.CONFIGURED:
+            raise SupervisorNotConfigured("Chief of Staff model is not configured")
+        if model_route is None:
+            raise ValueError("Chief of Staff model route is required")
+        if model_route.usage != "chief_of_staff":
+            raise ValueError("Chief of Staff model route usage must be chief_of_staff")
+        if configuration.route != model_route:
+            raise ValueError("Chief of Staff configured route does not match the adapter route")
+        if budget_store is None:
+            raise ValueError("Chief of Staff budget store is required")
         self.settings = settings
         self.transport = transport or SubprocessHermesTransport(settings)
         self.pin = pin or load_hermes_pin()
         self.model_route = model_route
         self.budget_store = budget_store
         self.batch_id = batch_id
-        self.model = model_route.model if model_route is not None else model
+        self.model = model_route.model
 
     def _metadata(self, response: dict[str, Any]) -> None:
         if response.get("ok") is not True:
@@ -123,51 +138,48 @@ class ChiefOfStaffHermesAdapter:
             }
         call_id: str | None = None
         reserved_usd: Decimal | None = None
-        if self.model_route is not None and self.budget_store is not None:
-            call_id = str(uuid.uuid4())
-            reserved_usd = estimate_reservation(
-                self.model_route,
-                messages=(
-                    {"role": "system", "content": instructions},
-                    {"role": "user", "content": context_json},
-                ),
-                max_tokens=self.settings.limits.max_output_tokens,
-            )
-            self.budget_store.reserve(
-                route=self.model_route,
-                estimated_usd=reserved_usd,
-                call_id=call_id,
-                batch_id=self.batch_id,
-            )
+        call_id = str(uuid.uuid4())
+        reserved_usd = estimate_reservation(
+            self.model_route,
+            messages=(
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": context_json},
+            ),
+            max_tokens=self.settings.limits.max_output_tokens,
+        )
+        self.budget_store.reserve(
+            route=self.model_route,
+            estimated_usd=reserved_usd,
+            call_id=call_id,
+            batch_id=self.batch_id,
+        )
         try:
             response = self.transport.invoke(request)
             self._metadata(response)
         except Exception:
-            if call_id is not None and self.budget_store is not None:
-                self.budget_store.fail(call_id=call_id, error_code="CHIEF_OF_STAFF_TRANSPORT")
+            self.budget_store.fail(call_id=call_id, error_code="CHIEF_OF_STAFF_TRANSPORT")
             raise
         actual_usd: Decimal | None = None
         input_tokens: int | None = None
         output_tokens: int | None = None
         usage = response.get("usage")
-        if call_id is not None and self.budget_store is not None:
-            try:
-                if not isinstance(usage, Mapping):
-                    raise TypeError
-                input_tokens = int(usage["input_tokens"])
-                output_tokens = int(usage["output_tokens"])
-                actual_usd = Decimal(str(usage["cost_usd"]))
-                if input_tokens < 0 or output_tokens < 0 or not actual_usd.is_finite():
-                    raise ValueError
-            except (KeyError, TypeError, ValueError) as exc:
-                self.budget_store.fail(call_id=call_id, error_code="CHIEF_OF_STAFF_USAGE_MISSING")
-                raise SupervisorValidationError("Hermes usage is missing") from exc
-            self.budget_store.succeed(
-                call_id=call_id,
-                actual_usd=actual_usd,
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-            )
+        try:
+            if not isinstance(usage, Mapping):
+                raise TypeError
+            input_tokens = int(usage["input_tokens"])
+            output_tokens = int(usage["output_tokens"])
+            actual_usd = Decimal(str(usage["cost_usd"]))
+            if input_tokens < 0 or output_tokens < 0 or not actual_usd.is_finite():
+                raise ValueError
+        except (KeyError, TypeError, ValueError) as exc:
+            self.budget_store.fail(call_id=call_id, error_code="CHIEF_OF_STAFF_USAGE_MISSING")
+            raise SupervisorValidationError("Hermes usage is missing") from exc
+        self.budget_store.succeed(
+            call_id=call_id,
+            actual_usd=actual_usd,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )
         raw = response.get("response")
         if not isinstance(raw, str):
             raise SupervisorValidationError("Hermes response is missing a structured report")

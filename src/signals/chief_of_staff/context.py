@@ -6,6 +6,7 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
+from signals.chief_of_staff.capabilities import evaluate_capabilities
 from signals.chief_of_staff.contracts import (
     ActiveGate,
     BusinessMemory,
@@ -18,19 +19,6 @@ from signals.chief_of_staff.contracts import (
 from signals.chief_of_staff.facts import fact_refs_for_metrics
 from signals.decision_engine.policy import semantic_fingerprint
 
-_CAPABILITIES = tuple(
-    sorted(
-        (
-            "BUSINESS_REVIEW",
-            "PRODUCT_JOURNEY_REVIEW",
-            "DATA_HEALTH_REVIEW",
-            "OPERATIONS_REVIEW",
-            "ACQUISITION_REVIEW",
-            "ROADMAP_RELEASE_REVIEW",
-            "STRATEGIC_SYNTHESIS",
-        )
-    )
-)
 _GATE_NAMES = (
     "h_a_runtime",
     "h_b_state",
@@ -101,14 +89,27 @@ def build_context(
         "matching_disagreement",
         "retained_m2_mrr_minor_units",
     }
-    quality_refs = fact_refs_for_metrics(ordered_facts, quality_metrics)
+    quality_refs = tuple(
+        sorted(
+            set(fact_refs_for_metrics(ordered_facts, quality_metrics))
+            | {
+                fact.fact_ref
+                for fact in ordered_facts
+                if fact.data_status == "STALE"
+            }
+        )
+    )
     quality_reasons = tuple(
         sorted(
             {
-                "DATA_UNKNOWN" if fact.data_status == "UNKNOWN" else "INSUFFICIENT_EVIDENCE"
+                "DATA_UNKNOWN"
+                if fact.data_status == "UNKNOWN"
+                else "STALE_DATA"
+                if fact.data_status == "STALE"
+                else "INSUFFICIENT_EVIDENCE"
                 for fact in ordered_facts
                 if fact.fact_ref in quality_refs
-                and fact.data_status in {"UNKNOWN", "INSUFFICIENT_EVIDENCE"}
+                and fact.data_status in {"UNKNOWN", "INSUFFICIENT_EVIDENCE", "STALE"}
             }
         )
     )
@@ -119,7 +120,7 @@ def build_context(
         period_end=period_end,
         business_memory_version=memory.memory_version,
         business_memory=memory.decisions,
-        profile_version="1.0.0",
+        profile_version="1.1.0",
         facts=ordered_facts,
         active_gates=active_gates,
         known_incidents=known_incidents,
@@ -127,7 +128,7 @@ def build_context(
             reason_codes=quality_reasons,
             fact_refs=quality_refs,
         ),
-        available_capabilities=_CAPABILITIES,
+        capabilities=evaluate_capabilities(ordered_facts),
     )
     size = len(context.model_dump_json().encode("utf-8"))
     if size > limits.max_bytes:

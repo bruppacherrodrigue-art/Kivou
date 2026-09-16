@@ -31,7 +31,7 @@ class SubprocessHermesTransport:
         self.settings = settings
         self.bridge_path = bridge_path or Path(__file__).with_name("hermes_bridge.py")
 
-    def _environment(self) -> dict[str, str]:
+    def _environment(self, operation: object) -> dict[str, str]:
         self.settings.require_configured()
         assert self.settings.hermes_home is not None
         environment = {
@@ -42,7 +42,11 @@ class SubprocessHermesTransport:
             "PYTHONUTF8": "1",
             "PYTHONUNBUFFERED": "1",
         }
-        for name in ("KIVOU_MODEL_HERMES", "KIVOU_MODEL_CHIEF_OF_STAFF"):
+        model_variable = {
+            "plan": "KIVOU_MODEL_HERMES",
+            "report": "KIVOU_MODEL_CHIEF_OF_STAFF",
+        }.get(operation)
+        for name in (() if model_variable is None else (model_variable,)):
             value = os.environ.get(name, "").strip()
             if not value:
                 continue
@@ -72,7 +76,7 @@ class SubprocessHermesTransport:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=self.settings.working_directory,
-                env=self._environment(),
+                env=self._environment(request.get("operation")),
                 shell=False,
                 close_fds=True,
             )
