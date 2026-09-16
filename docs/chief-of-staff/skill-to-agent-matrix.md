@@ -15,3 +15,10 @@ documentés.
 Business Review, Strategic Advisor, Pricing Analyst, Roadmap Controller et
 Founder Briefing restent des skills du Chief of Staff. Aucun processus autonome
 n'est créé par cette PR.
+
+Disponibilité V1 : Business, Data Health, Operations et Acquisition sont
+évaluables uniquement lorsque leur contrat source fournit une preuve connue ou
+périmée ; Strategic Synthesis exige les quatre. Product Journey et
+Roadmap/Release sont enregistrés comme candidats mais `UNAVAILABLE`, faute de
+read models et faits déterministes dédiés. Une capacité indisponible ne peut
+être citée que comme limite ou inconnue, jamais comme analyse réalisée.

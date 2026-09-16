@@ -22,11 +22,11 @@ fallback et de retry), pas leurs contextes ni leurs sorties.
 WeeklyCommercialCockpitService + Founder read models + Operations
   -> projections déterministes et assainies
   -> ChiefOfStaffFact[] + mémoire métier approuvée
-  -> ChiefOfStaffContext v1 (UNTRUSTED_DATA, borné, Europe/Zurich)
-  -> profil Hermes kivou-chief-of-staff v1 en SHADOW, zéro outil
-  -> ChiefOfStaffReport v1 strict
+  -> ChiefOfStaffContext v2 (UNTRUSTED_DATA, borné, Europe/Zurich)
+  -> profil Hermes kivou-chief-of-staff v1.1 en SHADOW, zéro outil
+  -> ChiefOfStaffReport strict
   -> validation sémantique fail-closed
-  -> rapport append-only/idempotent + journal modèle existant
+  -> rapport append-only/idempotent + journaux modèle et tentative assainie
   -> GET Founder authentifiés
   -> section « Brief d'Hermes » sur Aujourd'hui
 ```
@@ -56,8 +56,8 @@ timezone-aware et cardinalités bornées.
 - `ChiefOfStaffFact` : référence stable, domaine, métrique, valeur typée,
   unité, période, capture, contrat/version source et statut de donnée.
 - `ChiefOfStaffContext` : version, génération, timezone, cadence, période,
-  versions mémoire/profil, faits, gates, incidents, qualité, capacités et
-  frontière `UNTRUSTED_DATA`.
+  versions mémoire/profil, faits, gates, incidents, qualité, statuts de
+  capacités et frontière `UNTRUSTED_DATA`.
 - `ChiefOfStaffReport` : référence/fingerprint, période, statut exécutif,
   résumé sans chiffres libres, observations, trois priorités au plus, cinq
   décisions au plus, inconnues, sources, confiance et versions.
@@ -98,12 +98,41 @@ en échec ; une réponse utilisable finalise coût et tokens. L'appel reste uniq
 sans fallback et sans retry. Les tests utilisent un transport simulé et aucun
 appel OpenRouter réel.
 
+Le verrouillage est appliqué au CLI, à l'adapter et au bridge. L'opération
+`report` exige les quatre variables Chief of Staff, une `ModelRoute` d'usage
+`chief_of_staff` exactement concordante et un `ModelBudgetStore`. Elle ne peut
+jamais utiliser `OPENROUTER_MODEL`. Une construction invalide échoue avant
+réservation et avant transport. Le chemin Acquisition `plan` conserve son
+comportement historique.
+
 ## Persistance et concurrence
 
 Une migration additive après le head Alembic réel crée
-`chief_of_staff_report`. Le `context_fingerprint` et les versions pertinentes
-forment l'identité sémantique ; un conflit retourne le rapport existant sans le
-remplacer. Aucun `UPDATE` ou `DELETE` applicatif n'est exposé.
+`chief_of_staff_report` et `chief_of_staff_attempt`. Le
+`context_fingerprint` et les versions pertinentes forment l'identité
+sémantique d'un rapport ; un conflit retourne le rapport existant sans le
+remplacer. Chaque invocation reçoit néanmoins une tentative terminale
+append-only. Elle conserve seulement étapes, codes fermés, route, coût et
+versions, jamais prompt, réponse brute, narration, PII ou secret. Le journal
+financier modèle reste l'autorité sur le résultat facturé. Aucun `UPDATE` ou
+`DELETE` applicatif n'est exposé.
+
+## Durcissement du 2026-09-16
+
+La disponibilité analytique est désormais calculée par Kivou, jamais par le
+modèle. Chaque capacité porte un statut `AVAILABLE`, `UNAVAILABLE` ou
+`INSUFFICIENT_EVIDENCE`, des raisons fermées et les faits qui justifient le
+statut. Business, Data, Operations et Acquisition exigent leur domaine et leur
+contrat source déterministe. Strategic Synthesis exige ces quatre capacités.
+Product Journey et Roadmap/Release sont `UNAVAILABLE` tant qu'aucun read model
+et aucune projection déterministe dédiés ne sont fournis.
+
+Les faits `STALE` sont repris explicitement dans la qualité des données. La
+validation interdit aussi les comparaisons quantitatives ou magnitudes en texte
+libre (par exemple doublement, majorité, moitié ou forte hausse) : la V1 ne
+possède aucun champ structuré permettant à Hermes d'établir ces mesures. Les
+observations non inconnues doivent citer une preuve `KNOWN` ou `STALE`, et les
+inconnues ne peuvent pas devenir des faits.
 
 La CLI utilise un verrou non bloquant configurable. Elle est dry-run par
 défaut ; `--persist` est explicite. Les unités systemd proposées sont des
