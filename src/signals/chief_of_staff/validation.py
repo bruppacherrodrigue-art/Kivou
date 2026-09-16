@@ -33,10 +33,13 @@ _SCOPE_EXPANSION = re.compile(
     re.IGNORECASE,
 )
 _QUALITATIVE_QUANTITY = re.compile(
-    r"(?:\b(?:doublee?|doubled|doubling|triplee?|tripled|majorite|majority|"
-    r"minorite|minority|moitie|half|most)\b|"
-    r"\b(?:forte?|strong|sharp|significant|massive)\s+"
-    r"(?:hausse|baisse|croissance|chute|increase|decrease|growth|drop)\b)",
+    r"(?:\b(?:doubl\w*|tripl\w*|multipl\w*|majorit\w*|minor(?:ite|ity)|"
+    r"moitie|half|most|twice|\w+fold|augment\w*|hauss\w*|baiss\w*|diminu\w*|croiss\w*|"
+    r"chut\w*|progress\w*|recul\w*|increas\w*|decreas\w*|growth|drop\w*|"
+    r"improv\w*|declin\w*)\b|"
+    r"\b(?:deux|trois|twice|three)\s+fois\s+plus\b|"
+    r"\b(?:presque|quasi|almost|nearly)\s+(?:tous|toutes|all)\b|"
+    r"\b(?:more|less)\s+than\b)",
     re.IGNORECASE,
 )
 

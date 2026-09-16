@@ -206,6 +206,13 @@ def test_hostile_commands_pii_claims_numbers_and_scope_expansion_are_rejected(
         "Une forte hausse est observée.",
         "The volume doubled.",
         "Most journeys improved.",
+        "Le volume est deux fois plus élevé.",
+        "Presque tous les parcours sont sains.",
+        "Le volume a fortement augmenté.",
+        "Une augmentation importante est observée.",
+        "Le volume a été multiplié.",
+        "More than half of journeys improved.",
+        "The volume increased sharply.",
     ),
 )
 def test_unverified_qualitative_quantities_are_rejected(quantitative_claim: str) -> None:
