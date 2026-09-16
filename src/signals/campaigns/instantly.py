@@ -6,6 +6,7 @@ import datetime as dt
 import json
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Protocol
@@ -92,13 +93,24 @@ class ProviderLead(_ProviderModel):
     status: str | int | None = None
 
 
+@dataclass(frozen=True)
+class ProviderCampaignPage:
+    items: tuple[ProviderCampaign, ...]
+    next_starting_after: object = None
+
+    def __iter__(self):
+        return iter(self.items)
+
+
 class ProviderMutationResult(_ProviderModel):
     provider_identity: str | None = None
     status: str | int | None = None
 
 
 class InstantlyProvider(Protocol):
-    def list_campaigns(self, *, search: str) -> tuple[ProviderCampaign, ...]: ...
+    def list_campaigns(
+        self, *, search: str, starting_after: str | None = None
+    ) -> ProviderCampaignPage: ...
     def get_campaign(self, provider_campaign_id: str) -> ProviderCampaign: ...
     def get_campaign_status(self, provider_campaign_id: str) -> ProviderCampaign: ...
     def create_campaign(
@@ -120,7 +132,9 @@ class InstantlyProvider(Protocol):
         leads: tuple[dict[str, object], ...],
         verify_leads_on_import: bool = False,
     ) -> object: ...
-    def list_leads(self, *, provider_campaign_id: str) -> object: ...
+    def list_leads(
+        self, *, provider_campaign_id: str, starting_after: str | None = None
+    ) -> object: ...
     def get_lead(self, provider_lead_id: str) -> object: ...
     def pause_lead(self, provider_lead_id: str) -> object: ...
     def list_webhooks(self) -> object: ...
@@ -678,12 +692,22 @@ class HttpInstantlyProvider:
                 reconciliation_required=mutation,
             ) from exc
 
-    def list_campaigns(self, *, search: str) -> tuple[ProviderCampaign, ...]:
-        value = self._call("GET", "/campaigns", params={"search": search})
-        items = value.get("items", value.get("data", [])) if isinstance(value, dict) else value
-        if not isinstance(items, list):
+    def list_campaigns(
+        self, *, search: str, starting_after: str | None = None
+    ) -> ProviderCampaignPage:
+        params = {"search": search}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        value = self._call("GET", "/campaigns", params=params)
+        if (
+            not isinstance(value, dict)
+            or not isinstance(value.get("items"), list)
+            or "next_starting_after" not in value
+        ):
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
-        return tuple(self._campaign(item) for item in items)
+        return ProviderCampaignPage(
+            tuple(self._campaign(item) for item in value["items"]), value["next_starting_after"]
+        )
 
     def get_campaign(self, provider_campaign_id: str) -> ProviderCampaign:
         return self._campaign(
@@ -847,8 +871,11 @@ class HttpInstantlyProvider:
             mutation=True,
         )
 
-    def list_leads(self, *, provider_campaign_id: str) -> object:
-        value = self._call("POST", "/leads/list", json_body={"campaign_id": provider_campaign_id})
+    def list_leads(self, *, provider_campaign_id: str, starting_after: str | None = None) -> object:
+        body = {"campaign": provider_campaign_id}
+        if starting_after is not None:
+            body["starting_after"] = starting_after
+        value = self._call("POST", "/leads/list", json_body=body)
         if not isinstance(value, dict) or not isinstance(value.get("items"), list):
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
         return {

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -29,13 +29,15 @@ class AssistedInstantlyProvider(Protocol):
 
     def get_lead(self, provider_lead_id: str) -> object: ...
 
-    def list_campaigns(self, *, search: str) -> tuple[object, ...]: ...
+    def list_campaigns(self, *, search: str, starting_after: str | None = None) -> object: ...
 
     def get_campaign(self, provider_campaign_id: str) -> object: ...
 
     def get_campaign_status(self, provider_campaign_id: str) -> object: ...
 
-    def list_leads(self, *, provider_campaign_id: str) -> object: ...
+    def list_leads(
+        self, *, provider_campaign_id: str, starting_after: str | None = None
+    ) -> object: ...
 
     def activate_campaign(self, provider_campaign_id: str) -> object: ...
 
@@ -46,6 +48,7 @@ _VERIFICATION_ERRORS = {
     -3: "instantly_email_catch_all",
     -4: "instantly_email_job_change",
 }
+MAX_RECONCILIATION_PAGES = 20
 
 
 class ReconciliationRequired(RuntimeError):
@@ -115,30 +118,97 @@ class AssistedInstantlyDelivery:
     def activate(self, campaign_id: str) -> None:
         self._provider.activate_campaign(campaign_id)
 
-    def find_campaign(self, request: Mapping[str, object], *, at: dt.datetime) -> str | None:
+    def find_campaign(
+        self,
+        request: Mapping[str, object],
+        *,
+        at: dt.datetime,
+        before_read: Callable[[str | None], None] | None = None,
+    ) -> str | None:
         name = self._campaign_name(request, at=at)
-        matches = [
-            item
-            for item in self._provider.list_campaigns(search=name)
-            if getattr(item, "name", None) == name and getattr(item, "provider_campaign_id", None)
-        ]
-        if len(matches) > 1:
-            raise ReconciliationRequired("reconciliation_required: multiple campaigns")
+        matches = []
+        for items in self._pages(
+            lambda **cursor: self._provider.list_campaigns(search=name, **cursor),
+            before_read=before_read,
+        ):
+            for item in items:
+                if not getattr(item, "name", None) or not getattr(
+                    item, "provider_campaign_id", None
+                ):
+                    raise ReconciliationRequired("reconciliation_required: malformed campaigns")
+                if item.name == name:
+                    matches.append(item)
+            if len(matches) > 1:
+                raise ReconciliationRequired("reconciliation_required: multiple campaigns")
         return str(matches[0].provider_campaign_id) if matches else None
 
-    def find_lead(self, campaign_id: str, email: str) -> str | None:
-        response = self._provider.list_leads(provider_campaign_id=campaign_id)
-        items = response.get("items", []) if isinstance(response, dict) else []
-        matches = [
-            item
-            for item in items
-            if isinstance(item, dict)
-            and str(item.get("email", "")).casefold() == email.casefold()
-            and item.get("id")
-        ]
-        if len(matches) > 1:
-            raise ReconciliationRequired("reconciliation_required: multiple leads")
+    def find_lead(
+        self,
+        campaign_id: str,
+        email: str,
+        *,
+        before_read: Callable[[str | None], None] | None = None,
+    ) -> str | None:
+        matches = []
+        for items in self._pages(
+            lambda **cursor: self._provider.list_leads(provider_campaign_id=campaign_id, **cursor),
+            before_read=before_read,
+        ):
+            for item in items:
+                if (
+                    not isinstance(item, dict)
+                    or not item.get("id")
+                    or not isinstance(item.get("email"), str)
+                ):
+                    raise ReconciliationRequired("reconciliation_required: malformed leads")
+                if item.get("campaign_id", item.get("campaign")) != campaign_id or (
+                    "campaign" in item and item["campaign"] != campaign_id
+                ):
+                    raise ReconciliationRequired("reconciliation_required: lead campaign mismatch")
+                if item["email"].casefold() == email.casefold():
+                    matches.append(item)
+            if len(matches) > 1:
+                raise ReconciliationRequired("reconciliation_required: multiple leads")
         return str(matches[0]["id"]) if matches else None
+
+    @staticmethod
+    def _pages(fetch, *, before_read):
+        cursor = None
+        seen = set()
+        for _ in range(MAX_RECONCILIATION_PAGES):
+            if before_read is not None:
+                before_read(cursor)
+            try:
+                response = fetch(**({"starting_after": cursor} if cursor is not None else {}))
+            except Exception as error:
+                raise ReconciliationRequired(
+                    "reconciliation_required: provider read failed"
+                ) from error
+            if isinstance(response, tuple):
+                items, following = response, None
+            elif isinstance(response, dict):
+                if "next_starting_after" not in response or not isinstance(
+                    response.get("items"), list
+                ):
+                    raise ReconciliationRequired("reconciliation_required: malformed pagination")
+                items, following = response["items"], response["next_starting_after"]
+            else:
+                items = getattr(response, "items", None)
+                following = getattr(response, "next_starting_after", None)
+                if not isinstance(items, tuple):
+                    raise ReconciliationRequired("reconciliation_required: malformed pagination")
+            if following is not None and (
+                not isinstance(following, str)
+                or not 1 <= len(following) <= 512
+                or following in seen
+            ):
+                raise ReconciliationRequired("reconciliation_required: malformed pagination")
+            yield items
+            if following is None:
+                return
+            seen.add(following)
+            cursor = following
+        raise ReconciliationRequired("reconciliation_required: pagination limit")
 
     def campaign_active(self, campaign_id: str) -> bool:
         """Active or completed proves activation; a paused campaign still needs resume."""

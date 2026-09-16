@@ -21,7 +21,7 @@ from signals.campaigns.instantly import (
     normalized_provider_campaign_config_fingerprint,
     provider_campaign_configs_match,
 )
-from signals.prospection_actions.delivery import AssistedInstantlyDelivery
+from signals.prospection_actions.delivery import AssistedInstantlyDelivery, ReconciliationRequired
 
 OFFICIAL_FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "instantly_v2_contract_v1.json").read_text()
@@ -528,7 +528,40 @@ def test_lead_list_uses_official_post_endpoint_and_campaign_filter() -> None:
 
     assert observed[0].method == "POST"
     assert observed[0].url == httpx.URL(f"{INSTANTLY_V2_BASE_URL}/leads/list")
-    assert json.loads(observed[0].content) == {"campaign_id": campaign_id}
+    assert json.loads(observed[0].content) == {"campaign": campaign_id}
+
+
+@pytest.mark.parametrize(
+    "binding", [{}, {"campaign": "foreign"}, {"campaign": "foreign", "campaign_id": "expected"}]
+)
+def test_reconciliation_rejects_missing_foreign_or_contradictory_campaign_binding(binding):
+    provider = _provider(
+        lambda _request: httpx.Response(
+            200,
+            json={
+                "items": [{"id": "lead-1", "email": "lead@example.invalid", **binding}],
+                "next_starting_after": None,
+            },
+        )
+    )
+    delivery = AssistedInstantlyDelivery(
+        provider=provider, provider_account_id="sender@example.invalid"
+    )
+    with pytest.raises(ReconciliationRequired):
+        delivery.find_lead("expected", "lead@example.invalid")
+
+
+def test_campaign_page_retains_cursor_for_complete_reconciliation():
+    observed = []
+
+    def handler(request):
+        observed.append(request)
+        return httpx.Response(200, json={"items": [], "next_starting_after": "next-page"})
+
+    page = _provider(handler).list_campaigns(search="Kivou", starting_after="previous-page")
+    assert tuple(page) == ()
+    assert page.next_starting_after == "next-page"
+    assert observed[0].url.params["starting_after"] == "previous-page"
 
 
 def test_official_patch_lead_has_no_contractual_pause_mutation() -> None:

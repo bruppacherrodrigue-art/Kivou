@@ -7,7 +7,7 @@ import sqlite3
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -33,6 +33,18 @@ class WorkerOutcome:
     target_id: str | None = None
 
 
+@dataclass
+class _Operations:
+    ready_reads: dict[str, list[str]] = field(default_factory=dict)
+    phase_reads: list[str] = field(default_factory=list)
+
+
+class _DeclareOperation(Exception):
+    def __init__(self, key: str | None, replay_reads: list[str]) -> None:
+        self.key = key
+        self.replay_reads = replay_reads
+
+
 @dataclass(frozen=True)
 class _Claim:
     request: dict[str, object]
@@ -40,6 +52,7 @@ class _Claim:
     target: dict[str, object]
     lease_id: str
     clock: Callable[[], dt.datetime]
+    operations: _Operations = field(default_factory=_Operations)
 
 
 class ProspectSendWorker:
@@ -66,10 +79,15 @@ class ProspectSendWorker:
         claim = self._claim(worker_ref=worker_ref, now=now)
         if claim is None:
             return WorkerOutcome("idle")
-        try:
-            return self._process(claim)
-        except Exception as error:  # noqa: BLE001 - provider boundary is made durable
-            return self._retry(claim, error=error)
+        for _ in range(100):
+            try:
+                return self._process(claim)
+            except _DeclareOperation as operation:
+                if outcome := self._declare_operation(claim, operation):
+                    return outcome
+            except Exception as error:  # noqa: BLE001 - provider boundary is made durable
+                return self._retry(claim, error=error)
+        return self._retry(claim, error=ReconciliationRequired("declaration limit"))
 
     @contextmanager
     def _transaction(self) -> Iterator[sa.Connection]:
@@ -286,12 +304,40 @@ class ProspectSendWorker:
     def _process(self, claim: _Claim) -> WorkerOutcome:
         request_id = str(claim.request["request_id"])
         target_id = str(claim.target["target_id"])
-        if claim.item["status"] not in _TERMINAL:
-            with self._mutation_guard(claim) as connection:
-                if connection is None:
-                    return WorkerOutcome("lost", request_id, target_id)
-                if completed := self._finish_already_sent(claim, connection):
-                    return completed
+        with self._mutation_guard(claim) as connection:
+            if connection is None:
+                return WorkerOutcome("lost", request_id, target_id)
+            if completed := self._check_target(claim, connection):
+                return completed
+            claim = replace(
+                claim,
+                request=dict(
+                    connection.execute(
+                        sa.select(prospect_send_request).where(
+                            prospect_send_request.c.request_id == request_id
+                        )
+                    )
+                    .mappings()
+                    .one()
+                ),
+                item=dict(
+                    connection.execute(
+                        sa.select(prospect_send_item).where(
+                            prospect_send_item.c.request_id == request_id,
+                            prospect_send_item.c.target_id == target_id,
+                        )
+                    )
+                    .mappings()
+                    .one()
+                ),
+                target=dict(
+                    connection.execute(
+                        sa.select(prospect_target).where(prospect_target.c.target_id == target_id)
+                    )
+                    .mappings()
+                    .one()
+                ),
+            )
         if claim.item["status"] in _TERMINAL:
             with self._engine.connect() as connection:
                 final_status = self._counts(connection, request_id)[3]
@@ -309,21 +355,31 @@ class ProspectSendWorker:
             "provider_campaign_id"
         )
         if not campaign_id:
+            claim.operations.phase_reads = []
             with self._mutation_guard(claim) as connection:
                 if connection is None:
                     return WorkerOutcome("lost", request_id, target_id)
-                if completed := self._finish_already_sent(claim, connection):
+                if completed := self._check_target(claim, connection):
                     return completed
                 try:
-                    campaign_id = self._delivery.find_campaign(claim.request, at=claim.clock())
+                    campaign_id = self._delivery.find_campaign(
+                        claim.request,
+                        at=claim.clock(),
+                        before_read=lambda cursor: self._require_read(
+                            claim, f"campaign:list:{cursor}"
+                        ),
+                    )
                     if not campaign_id:
                         if self._kill_switch_path.exists():
                             return self._wait(
                                 claim, error="kill switch active", connection=connection
                             )
+                        self._require_mutation(claim, "campaign:create", connection)
                         campaign_id = self._delivery.ensure_campaign(
                             claim.request, at=claim.clock()
                         )
+                except _DeclareOperation:
+                    raise
                 except Exception as error:  # noqa: BLE001 - public durable retry
                     return self._retry(claim, error=error, connection=connection)
                 if not self._persist_campaign(
@@ -331,26 +387,32 @@ class ProspectSendWorker:
                 ):
                     return WorkerOutcome("lost", request_id, target_id)
         instantly_id = claim.item.get("instantly_id") or claim.target.get("instantly_id")
-        imported = False
         if not instantly_id:
+            claim.operations.phase_reads = []
             with self._mutation_guard(claim) as connection:
                 if connection is None:
                     return WorkerOutcome("lost", request_id, target_id)
-                if completed := self._finish_already_sent(claim, connection):
+                if completed := self._check_target(claim, connection):
                     return completed
                 try:
                     instantly_id = self._delivery.find_lead(
-                        str(campaign_id), str(claim.target["email_address"])
+                        str(campaign_id),
+                        str(claim.target["email_address"]),
+                        before_read=lambda cursor: self._require_read(
+                            claim, f"lead:{target_id}:list:{cursor}"
+                        ),
                     )
                     if not instantly_id:
                         if self._kill_switch_path.exists():
                             return self._wait(
                                 claim, error="kill switch active", connection=connection
                             )
+                        self._require_mutation(claim, f"lead:{target_id}:import", connection)
                         instantly_id = self._delivery.import_target(
                             str(campaign_id), self._delivery_target(claim.target)
                         )
-                        imported = True
+                except _DeclareOperation:
+                    raise
                 except Exception as error:  # noqa: BLE001 - public durable retry
                     return self._retry(claim, error=error, connection=connection)
                 if not self._persist_lead(
@@ -361,7 +423,15 @@ class ProspectSendWorker:
                     connection=connection,
                 ):
                     return WorkerOutcome("lost", request_id, target_id)
+                self._confirm_import(claim, connection)
 
+        claim.operations.phase_reads = []
+        with self._mutation_guard(claim) as connection:
+            if connection is None:
+                return WorkerOutcome("lost", request_id, target_id)
+            if completed := self._check_target(claim, connection):
+                return completed
+            self._require_read(claim, f"lead:{target_id}:verification")
         verification = self._delivery.verification(str(instantly_id))
         if verification.status == "pending":
             return self._wait(
@@ -381,7 +451,191 @@ class ProspectSendWorker:
             claim,
             campaign_id=str(campaign_id),
             instantly_id=str(instantly_id),
-            imported=imported,
+        )
+
+    def _check_target(self, claim: _Claim, connection: sa.Connection) -> WorkerOutcome | None:
+        if completed := self._finish_already_sent(claim, connection):
+            return completed
+        item = (
+            connection.execute(
+                sa.select(prospect_send_item).where(
+                    prospect_send_item.c.request_id == claim.request["request_id"],
+                    prospect_send_item.c.target_id == claim.target["target_id"],
+                )
+            )
+            .mappings()
+            .one()
+        )
+        if item["status"] in _TERMINAL:
+            return None
+        target = (
+            connection.execute(
+                sa.select(prospect_target).where(
+                    prospect_target.c.target_id == claim.target["target_id"],
+                )
+            )
+            .mappings()
+            .one()
+        )
+        if (
+            target["status"] != "approved"
+            or target["send_request_id"] != item["request_id"]
+            or target["version"] != item["expected_version"]
+        ):
+            return self._reject_changed_target(claim, connection, "target_changed_after_enqueue")
+        campaign_id = connection.scalar(
+            sa.select(prospect_send_request.c.provider_campaign_id).where(
+                prospect_send_request.c.request_id == item["request_id"],
+            )
+        )
+        target_campaign = target["provider_campaign_id"]
+        if (target["instantly_id"] and not target_campaign) or (
+            campaign_id and target_campaign and campaign_id != target_campaign
+        ):
+            return self._reject_changed_target(claim, connection, "campaign_binding_conflict")
+        if target_campaign and not campaign_id:
+            connection.execute(
+                sa.update(prospect_send_request)
+                .where(
+                    prospect_send_request.c.request_id == item["request_id"],
+                )
+                .values(provider_campaign_id=target_campaign, updated_at=claim.clock())
+            )
+        return None
+
+    def _reject_changed_target(
+        self, claim: _Claim, connection: sa.Connection, code: str
+    ) -> WorkerOutcome:
+        now = claim.clock()
+        request_id, target_id = str(claim.request["request_id"]), str(claim.target["target_id"])
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(
+                prospect_send_item.c.request_id == request_id,
+                prospect_send_item.c.target_id == target_id,
+                self._lease_matches(request_id, claim.lease_id),
+            )
+            .values(
+                status="failed",
+                error_code=code,
+                error_message=code.replace("_", " "),
+                completed_at=now,
+                updated_at=now,
+            )
+        )
+        connection.execute(
+            sa.update(prospect_target)
+            .where(
+                prospect_target.c.target_id == target_id,
+                prospect_target.c.send_request_id == request_id,
+                prospect_target.c.status.in_(("approved", "rejected")),
+            )
+            .values(send_request_id=None)
+        )
+        self._set_result(claim, {"activation_blocked": code}, now=now, connection=connection)
+        status = self._counts(connection, request_id)[3] or "waiting"
+        self._release_with_counts(
+            connection,
+            claim,
+            now=now,
+            status=status,
+            next_attempt=now if status == "waiting" else None,
+            completed=status != "waiting",
+            error=code,
+        )
+        return WorkerOutcome(status, request_id, target_id)
+
+    @staticmethod
+    def _require_read(claim: _Claim, label: str) -> None:
+        ready = claim.operations.ready_reads.get(label)
+        if not ready:
+            raise _DeclareOperation(None, [*claim.operations.phase_reads, label])
+        ready.pop(0)
+        claim.operations.phase_reads.append(label)
+
+    def _require_mutation(self, claim: _Claim, key: str, connection: sa.Connection) -> None:
+        accounting = self._result(claim, connection=connection).get("accounting", {})
+        if key not in accounting:
+            # Called only after a complete scan established absence/inactivity.
+            raise _DeclareOperation(key, list(claim.operations.phase_reads))
+
+    def _declare_operation(
+        self, claim: _Claim, operation: _DeclareOperation
+    ) -> WorkerOutcome | None:
+        """Durably declare HTTP attempts before calling the provider.
+
+        Mutation keys identify one logical attempt through ambiguous retries.
+        Each reconciliation/verification read gets a distinct receipt, including
+        re-reads required after declaring a mutation and reopening the guard.
+        A crash can leave a declared attempt without a response; these counters
+        audit declared attempts, not a claim of exact provider billing.
+        """
+        ready: dict[str, list[str]] = {}
+        with self._mutation_guard(claim) as connection:
+            if connection is None:
+                return WorkerOutcome(
+                    "lost", str(claim.request["request_id"]), str(claim.target["target_id"])
+                )
+            if outcome := self._check_target(claim, connection):
+                return outcome
+            accounting = dict(self._result(claim, connection=connection).get("accounting", {}))
+            requests = 0
+            if operation.key is not None and operation.key not in accounting:
+                accounting[operation.key] = {
+                    "kind": "mutation",
+                    "confirmed": False,
+                    "zero_matches": True,
+                }
+                requests += 1
+            for label in operation.replay_reads:
+                token = str(uuid.uuid4())
+                previous = accounting.get(label, {})
+                accounting[label] = {
+                    "kind": "read",
+                    "receipt": token,
+                    "attempts": int(previous.get("attempts", 0)) + 1,
+                }
+                ready.setdefault(label, []).append(token)
+                requests += 1
+            now = claim.clock()
+            connection.execute(
+                sa.update(prospect_target)
+                .where(
+                    prospect_target.c.target_id == claim.target["target_id"],
+                    self._lease_matches(str(claim.request["request_id"]), claim.lease_id),
+                )
+                .values(
+                    instantly_request_count=prospect_target.c.instantly_request_count + requests,
+                    updated_at=now,
+                )
+            )
+            self._set_result(claim, {"accounting": accounting}, now=now, connection=connection)
+        claim.operations.ready_reads = ready
+        return None
+
+    def _confirm_import(self, claim: _Claim, connection: sa.Connection) -> None:
+        accounting = dict(self._result(claim, connection=connection).get("accounting", {}))
+        key = f"lead:{claim.target['target_id']}:import"
+        intent = accounting.get(key)
+        if (
+            not isinstance(intent, dict)
+            or not intent.get("zero_matches")
+            or intent.get("confirmed")
+        ):
+            return
+        # This covers a returned import or the unique scoped lead reconciled
+        # after remote success/DB rollback. Existing leads without intent cost no credit.
+        connection.execute(
+            sa.update(prospect_target)
+            .where(
+                prospect_target.c.target_id == claim.target["target_id"],
+                self._lease_matches(str(claim.request["request_id"]), claim.lease_id),
+            )
+            .values(instantly_credit_units=prospect_target.c.instantly_credit_units + 1)
+        )
+        accounting[key] = {**intent, "confirmed": True}
+        self._set_result(
+            claim, {"accounting": accounting}, now=claim.clock(), connection=connection
         )
 
     def _finish_already_sent(
@@ -546,7 +800,7 @@ class ProspectSendWorker:
         with transaction as guarded_connection:
             if guarded_connection is None:
                 return WorkerOutcome("lost", request_id, str(claim.target["target_id"]))
-            if completed := self._finish_already_sent(claim, guarded_connection):
+            if completed := self._check_target(claim, guarded_connection):
                 return completed
             now = claim.clock()
             next_attempt = now + RETRY_DELAY
@@ -628,14 +882,13 @@ class ProspectSendWorker:
         *,
         campaign_id: str,
         instantly_id: str,
-        imported: bool,
     ) -> WorkerOutcome:
         request_id = str(claim.request["request_id"])
         target_id = str(claim.target["target_id"])
         with self._mutation_guard(claim) as connection:
             if connection is None:
                 return WorkerOutcome("lost", request_id, target_id)
-            if completed := self._finish_already_sent(claim, connection):
+            if completed := self._check_target(claim, connection):
                 return completed
             now = claim.clock()
             item = connection.execute(
@@ -669,9 +922,6 @@ class ProspectSendWorker:
                     provider_campaign_id=campaign_id,
                     instantly_id=instantly_id,
                     instantly_accepted_at=now,
-                    instantly_credit_units=prospect_target.c.instantly_credit_units
-                    + (1 if imported else 0),
-                    instantly_request_count=prospect_target.c.instantly_request_count + 1,
                     version=prospect_target.c.version + 1,
                     updated_at=now,
                 )
@@ -698,7 +948,7 @@ class ProspectSendWorker:
         with self._mutation_guard(claim) as connection:
             if connection is None:
                 return WorkerOutcome("lost", request_id, target_id)
-            if completed := self._finish_already_sent(claim, connection):
+            if completed := self._check_target(claim, connection):
                 return completed
             now = claim.clock()
             item = connection.execute(
@@ -800,11 +1050,12 @@ class ProspectSendWorker:
     def _finalize(self, claim: _Claim, *, campaign_id: str, status: str) -> WorkerOutcome:
         request_id = str(claim.request["request_id"])
         target_id = str(claim.target["target_id"])
+        claim.operations.phase_reads = []
         with self._mutation_guard(claim) as connection:
             if connection is None:
                 return WorkerOutcome("lost", request_id, target_id)
-            if status in {"completed", "partial"}:
-                result = self._result(claim, connection=connection)
+            result = self._result(claim, connection=connection)
+            if status in {"completed", "partial"} and not result.get("activation_blocked"):
                 activation = result.get("activation")
                 activated = isinstance(activation, dict) and activation.get("state") == "active"
                 if not activated and not campaign_id:
@@ -812,12 +1063,18 @@ class ProspectSendWorker:
                         claim, error="campaign id missing for activation", connection=connection
                     )
                 try:
-                    if not activated and not self._delivery.campaign_active(campaign_id):
+                    if not activated:
+                        self._require_read(claim, "campaign:status")
+                        activated = self._delivery.campaign_active(campaign_id)
+                    if not activated:
                         if self._kill_switch_path.exists():
                             return self._wait(
                                 claim, error="activation deferred", connection=connection
                             )
+                        self._require_mutation(claim, "campaign:activate", connection)
                         self._delivery.activate(campaign_id)
+                except _DeclareOperation:
+                    raise
                 except Exception:  # noqa: BLE001 - terminal item remains terminal on retry
                     return self._wait(
                         claim, error="Instantly activation failed", connection=connection
@@ -836,6 +1093,7 @@ class ProspectSendWorker:
                 status=status,
                 next_attempt=None,
                 completed=True,
+                error=result.get("activation_blocked"),
             ):
                 return WorkerOutcome("lost", request_id, target_id)
         return WorkerOutcome(status, request_id, target_id)

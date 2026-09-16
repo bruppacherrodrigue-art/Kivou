@@ -43,6 +43,7 @@ class Provider:
             "id": "lead-1",
             "verification_status": self.verification_status,
             "email": leads[0]["email"],
+            "campaign_id": provider_campaign_id,
         }
         self.leads.append(lead)
         return lead
@@ -62,7 +63,7 @@ class Provider:
         return tuple(item for item in self.campaigns if item.name == search)
 
     def list_leads(self, *, provider_campaign_id):
-        return {"items": self.leads}
+        return {"items": self.leads, "next_starting_after": None}
 
 
 def send_item(engine):
@@ -342,6 +343,7 @@ def test_completed_campaign_recovery_with_actual_adapter_does_not_activate_twice
     assert observed == [
         ("GET", "/api/v2/leads/lead-1"),
         ("GET", "/api/v2/campaigns/campaign-1"),
+        ("GET", "/api/v2/campaigns/campaign-1"),
         ("POST", "/api/v2/campaigns/campaign-1/activate"),
         ("GET", "/api/v2/campaigns/campaign-1"),
     ]
@@ -473,7 +475,8 @@ def test_last_already_sent_item_leaves_activation_for_a_dedicated_retry(worker_f
     assert request["lease_id"] is None
 
     assert worker.run_once(worker_ref="worker-c", now=NOW).status == "completed"
-    assert provider.activate_calls == reconcile_calls == ["campaign-1"]
+    assert provider.activate_calls == ["campaign-1"]
+    assert reconcile_calls == ["campaign-1", "campaign-1"]
 
 
 def test_target_sent_during_verification_is_never_downgraded(worker_fixture):
@@ -677,7 +680,8 @@ def test_elapsed_provider_calls_renew_using_fresh_time(worker_fixture):
 
     provider.activate_campaign = activate
     assert worker.run_once(worker_ref="worker-a", now=NOW).status == "completed"
-    assert current[0] == NOW + dt.timedelta(minutes=16)
+    # Declaring activation durably requires reopening the guard and re-reading status.
+    assert current[0] == NOW + dt.timedelta(minutes=20)
     assert provider.activate_calls == ["campaign-1"]
     assert utc(target_row(engine)["instantly_accepted_at"]) == NOW + dt.timedelta(minutes=12)
 
@@ -712,7 +716,9 @@ def test_multiple_remote_matches_are_visible_and_due_without_mutation(worker_fix
         )
     else:
         email = target_row(engine)["email_address"]
-        provider.leads = [{"id": f"lead-{i}", "email": email} for i in range(2)]
+        provider.leads = [
+            {"id": f"lead-{i}", "email": email, "campaign_id": "campaign-1"} for i in range(2)
+        ]
 
     assert worker.run_once(worker_ref="worker-a", now=NOW).status == "waiting"
     assert provider.create_campaign_calls == provider.create_lead_calls == []
