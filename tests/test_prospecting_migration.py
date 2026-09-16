@@ -308,6 +308,52 @@ def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
     assert rows["target-with-events"]["clicked_at"] == stored_time(clicked_at)
 
 
+def test_downgrade_async_prospect_send_marks_unfinished_requests_failed(engine):
+    config = alembic_config(engine)
+    command.upgrade(config, ASYNC_PROSPECT_SEND)
+    request = sa.Table("prospect_send_request", sa.MetaData(), autoload_with=engine)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(request),
+            [
+                {
+                    "request_id": f"request-{status}",
+                    "payload_fingerprint": status * 16,
+                    "target_ids": [f"target-{status}"],
+                    "request_day": NOW.date(),
+                    "reserved_count": 1,
+                    "sent_count": 0,
+                    "processed_count": 0,
+                    "failed_count": 0,
+                    "status": status,
+                    "error": f"provider context for {status}",
+                    "created_by": "rodrigue@kivou.eu",
+                    "created_at": NOW,
+                    "updated_at": NOW,
+                }
+                for status in ("queued", "running", "waiting")
+            ],
+        )
+
+    command.downgrade(config, "0064_company_mail_merge")
+    legacy_request = sa.Table("prospect_send_request", sa.MetaData(), autoload_with=engine)
+    with engine.connect() as connection:
+        rows = {
+            row["request_id"]: dict(row)
+            for row in connection.execute(sa.select(legacy_request)).mappings()
+        }
+
+    for status in ("queued", "running", "waiting"):
+        row = rows[f"request-{status}"]
+        assert row["status"] == "failed"
+        assert row["sent_count"] == 0
+        expected_completed_at = (
+            NOW if engine.dialect.name == "postgresql" else NOW.replace(tzinfo=None)
+        )
+        assert row["completed_at"] == expected_completed_at
+        assert row["error"] == f"provider context for {status}; unfinished async state: {status}"
+
+
 def test_populated_0058_upgrade_retains_notes_feedback_contacts_and_account_scope(engine):
     before = populated_0058(engine)
     config = alembic_config(engine)

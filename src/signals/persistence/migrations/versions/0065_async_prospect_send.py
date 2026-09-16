@@ -266,6 +266,15 @@ def downgrade() -> None:
     op.drop_table("prospect_send_item")
     op.drop_index("ix_prospect_send_request_lease_expires_at", table_name="prospect_send_request")
     op.drop_index("ix_prospect_send_request_next_attempt_at", table_name="prospect_send_request")
+    op.execute(
+        sa.text(
+            "UPDATE prospect_send_request SET "
+            "status = 'failed', "
+            "completed_at = COALESCE(completed_at, updated_at, started_at, created_at), "
+            "error = COALESCE(error || '; ', '') || 'unfinished async state: ' || status "
+            "WHERE status IN ('queued', 'running', 'waiting')"
+        )
+    )
     with op.batch_alter_table("prospect_send_request") as batch:
         batch.drop_constraint("ck_prospect_send_request_status", type_="check")
         batch.create_check_constraint(
