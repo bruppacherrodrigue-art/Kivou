@@ -438,12 +438,14 @@ function QueueSection({
   ))
   const [actionError, setActionError] = useState<string | null>(null)
   const [sendSubmitting, setSendSubmitting] = useState(false)
+  const [terminalReconciling, setTerminalReconciling] = useState(false)
   const [preparationState, setPreparationState] = useState<'idle' | 'requesting' | 'polling'>('idle')
   const preparationBaselineRef = useRef<string | null>(null)
   const sendProgressRef = useRef<FounderProspectionSendProgress | null>(null)
   const sendItemOverlayRef = useRef(new Map<string, FounderProspectionSendProgress['items'][number]>())
   const activeSendRequestRef = useRef<string | null>(sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY))
   const sendSubmittingRef = useRef(false)
+  const terminalReconciliationRequestRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
   const preparationStartedAtRef = useRef<number | null>(null)
   const preparationSawRunningRef = useRef(false)
@@ -584,6 +586,16 @@ function QueueSection({
       try {
         const progress = await loadFounderProspectSend(activeSendRequestId, controller.signal)
         if (stopped || controller.signal.aborted) return
+        if (
+          progress.request_id !== activeSendRequestId
+          || sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) !== activeSendRequestId
+        ) {
+          setActionError('La progression reçue ne correspond pas à la requête en cours.')
+          timer = window.setTimeout(() => void poll(), 2_000)
+          return
+        }
+        // Item errors are retained in sendProgress; this clears only a transient polling warning.
+        setActionError(null)
         reconcileSendProgress(progress)
         if (!TERMINAL_SEND_STATUSES.has(progress.status)) {
           timer = window.setTimeout(() => void poll(), 2_000)
@@ -623,11 +635,37 @@ function QueueSection({
       && sendProgress?.request_id === activeSendRequestId
       && TERMINAL_SEND_STATUSES.has(sendProgress.status)
     ) {
-      // Effects run after React commits the terminal progress to the page.
-      sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
-      activateSendRequest(null)
+      if (terminalReconciliationRequestRef.current === activeSendRequestId) return undefined
+      // This runs after React commits terminal progress, then refreshes authoritative target versions
+      // before allowing any retry or row mutation.
+      terminalReconciliationRequestRef.current = activeSendRequestId
+      setTerminalReconciling(true)
+      const controller = new AbortController()
+      void refreshQueue(controller.signal)
+        .then(() => {
+          if (
+            !controller.signal.aborted
+            && mountedRef.current
+            && activeSendRequestRef.current === activeSendRequestId
+            && sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) === activeSendRequestId
+          ) {
+            sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
+            activateSendRequest(null)
+            setTerminalReconciling(false)
+          }
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) {
+            setActionError(founderActionErrorMessage(
+              error,
+              'Impossible d’actualiser la file après l’envoi.',
+            ))
+          }
+        })
+      return () => controller.abort()
     }
-  }, [activeSendRequestId, activateSendRequest, sendProgress])
+    return undefined
+  }, [activeSendRequestId, activateSendRequest, refreshQueue, sendProgress])
 
   const loadMore = async () => {
     if (loadingMore) return
@@ -973,21 +1011,21 @@ function QueueSection({
                         <div className="prospection-row-actions">
                           <button
                             type="button"
-                            disabled={item.status === 'approved' || busyTargetIds.has(item.target_id)}
+                            disabled={terminalReconciling || item.status === 'approved' || busyTargetIds.has(item.target_id)}
                             onClick={() => void approve(item)}
                           >
                             {item.status === 'approved' ? 'Validée' : 'Valider'}
                           </button>
                           <button
                             type="button"
-                            disabled={busyTargetIds.has(item.target_id)}
+                            disabled={terminalReconciling || busyTargetIds.has(item.target_id)}
                             onClick={() => setCorrectingTarget(item)}
                           >
                             Corriger
                           </button>
                           <button
                             type="button"
-                            disabled={busyTargetIds.has(item.target_id)}
+                            disabled={terminalReconciling || busyTargetIds.has(item.target_id)}
                             onClick={() => setRejectingTarget(item)}
                           >
                             Écarter
@@ -1021,7 +1059,7 @@ function QueueSection({
             <button
               type="button"
               className="prospection-action-primary"
-              disabled={sendBatchCount === 0 || activeSendRequestId !== null || sendSubmitting || killSwitchActive}
+              disabled={sendBatchCount === 0 || activeSendRequestId !== null || sendSubmitting || terminalReconciling || killSwitchActive}
               aria-label={sendBatchLabel(eligibleApprovedCount, heldApprovedCount)}
               onClick={() => setSendConfirmationOpen(true)}
             >
@@ -1050,7 +1088,7 @@ function QueueSection({
       {correctingTarget ? (
         <CorrectionDrawer
           item={correctingTarget}
-          busy={busyTargetIds.has(correctingTarget.target_id)}
+          busy={terminalReconciling || busyTargetIds.has(correctingTarget.target_id)}
           onClose={() => setCorrectingTarget(null)}
           onSubmit={(changes) => correct(correctingTarget, changes)}
         />
@@ -1058,7 +1096,7 @@ function QueueSection({
       {rejectingTarget ? (
         <RejectionDrawer
           item={rejectingTarget}
-          busy={busyTargetIds.has(rejectingTarget.target_id)}
+          busy={terminalReconciling || busyTargetIds.has(rejectingTarget.target_id)}
           onClose={() => setRejectingTarget(null)}
           onSubmit={(reason, comment) => reject(rejectingTarget, reason, comment)}
         />

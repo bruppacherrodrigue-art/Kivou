@@ -664,7 +664,6 @@ describe('actions de prospection', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
-    expect(await screen.findByText('Vérification de l’envoi en cours.')).toBeInTheDocument()
     expect(screen.queryByText('upstream response lost')).not.toBeInTheDocument()
     expect(await screen.findByText('0/1 envoyées')).toBeInTheDocument()
 
@@ -685,6 +684,8 @@ describe('actions de prospection', () => {
       .mockReturnValueOnce(firstRequestId)
       .mockReturnValueOnce(secondRequestId)
     let firstAttemptFinished = false
+    let resolveTerminalRefresh!: (value: FounderProspectionActionList) => void
+    const terminalRefresh = new Promise<FounderProspectionActionList>((resolve) => { resolveTerminalRefresh = resolve })
     let sendAttempt = 0
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
@@ -692,8 +693,13 @@ describe('actions de prospection', () => {
         return { ok: true, status: 200, json: async () => list([]) }
       }
       if (url.includes('/list?status=approved')) {
-        const items = firstAttemptFinished ? [{ ...approved[1], version: approved[1].version + 1 }] : approved
-        return { ok: true, status: 200, json: async () => list(items) }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => firstAttemptFinished
+            ? terminalRefresh
+            : list(approved),
+        }
       }
       if (url.endsWith('/send')) {
         sendAttempt += 1
@@ -738,8 +744,14 @@ describe('actions de prospection', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
 
     expect(await screen.findByText('1/2 envoyée · 1 en échec')).toBeInTheDocument()
-    expect(await screen.findByRole('row', { name: /Entreprise 2/ })).toBeInTheDocument()
-    expect(screen.getByRole('row', { name: /Entreprise 1/ })).toBeInTheDocument()
+    const staleFailedRow = await screen.findByRole('row', { name: /Entreprise 2/ })
+    await waitFor(() => expect(within(staleFailedRow).getByRole('button', { name: 'Corriger' })).toBeDisabled())
+    expect(within(staleFailedRow).getByRole('button', { name: 'Écarter' })).toBeDisabled()
+    resolveTerminalRefresh(list([{ ...approved[1], version: approved[1].version + 1 }]))
+    await waitFor(() => expect(within(screen.getByRole('row', { name: /Entreprise 2/ }))
+      .getByRole('button', { name: 'Corriger' })).toBeEnabled())
+    expect(within(screen.getByRole('row', { name: /Entreprise 2/ }))
+      .getByRole('button', { name: 'Écarter' })).toBeEnabled()
 
     await user.click(screen.getByRole('button', { name: 'Envoyer la cible validée' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
@@ -751,12 +763,12 @@ describe('actions de prospection', () => {
       request_id: secondRequestId,
       targets: [{
         target_id: approved[1].target_id,
-        expected_version: approved[1].version,
+        expected_version: approved[1].version + 1,
       }],
     })
   })
 
-  it('charge la page suivante à la demande et limite chaque lot d’envoi à 25 cibles', async () => {
+  it('réconcilie la première page après 25 envois et révèle la 26e cible sans curseur périmé', async () => {
     const user = userEvent.setup()
     const approved = Array.from({ length: 26 }, (_, index) => target(index + 1, 'approved'))
     const requestId = 'a2083564-a5ea-48c1-89ad-467db95d78d8'
@@ -802,17 +814,17 @@ describe('actions de prospection', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Charger la suite · 1 restante' }))
-    const sendButton = await screen.findByRole('button', { name: 'Envoyer les 25 premières cibles validées' })
-    expect(screen.getByText('26 cibles validées')).toBeInTheDocument()
+    const sendButton = await screen.findByRole('button', { name: 'Envoyer les 25 cibles validées' })
+    expect(screen.getByText('25 cibles validées')).toBeInTheDocument()
     await user.click(sendButton)
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
 
     expect(await screen.findByText('25/25 envoyées')).toBeInTheDocument()
+    expect(await screen.findByRole('row', { name: /Entreprise 26/ })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Envoyer la cible validée' })).toBeEnabled()
     const sentBody = JSON.parse(String(fetchMock.mock.calls.find(([url]) => String(url).endsWith('/send'))?.[1]?.body))
     expect(sentBody.targets).toHaveLength(25)
-    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('status=approved&page=2'))).toBe(true)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('status=approved&page=2'))).toBe(false)
   })
 
   it('affiche la progression durable, les échecs publics et jamais les diagnostics fournisseur', async () => {
@@ -1115,7 +1127,6 @@ describe('actions de prospection', () => {
     await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
 
-    expect(await screen.findByText('Vérification de l’envoi en cours.')).toBeInTheDocument()
     expect(await screen.findByText('0/1 envoyées')).toBeInTheDocument()
     expect(screen.queryByText('raw upstream body')).not.toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/send'))).toHaveLength(1)
@@ -1142,6 +1153,55 @@ describe('actions de prospection', () => {
     const secondRow = screen.getByRole('row', { name: /^Entreprise 2 Grenoble/ })
     expect(within(firstRow).getByText('Acceptée')).toBeInTheDocument()
     expect(within(secondRow).getByText('Validée, non transmise')).toBeInTheDocument()
+  })
+
+  it('efface un avertissement de polling dès qu’un GET de progression réussit', async () => {
+    vi.useFakeTimers()
+    sessionStorage.setItem('founder-prospection-send-request-id', 'request-recover')
+    let attempts = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.endsWith('/send/request-recover')) {
+        attempts += 1
+        return attempts === 1
+          ? { ok: false, status: 502, json: async () => ({ detail: { code: 'TEMPORARY', message: 'Indisponible' } }) }
+          : { ok: true, status: 200, json: async () => sendProgress({ request_id: 'request-recover', status: 'running', total_count: 1, processed_count: 1, sent_count: 1 }) }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByRole('alert')).toHaveTextContent('Indisponible (TEMPORARY)')
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+    expect(screen.getByText('1/1 envoyée')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('rejette une réponse GET associée à une autre requête sans modifier le stockage ni les lignes', async () => {
+    const requestId = 'request-active'
+    sessionStorage.setItem('founder-prospection-send-request-id', requestId)
+    const approved = target(1, 'approved')
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) return { ok: true, status: 200, json: async () => list([approved]) }
+      if (url.endsWith(`/send/${requestId}`)) return { ok: true, status: 200, json: async () => sendProgress({
+        request_id: 'request-other', status: 'completed', total_count: 1, processed_count: 1, sent_count: 1,
+        items: [{ target_id: approved.target_id, email_address: approved.email.address, status: 'sent', error_code: null, error_message: null }],
+      }) }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent('La progression reçue ne correspond pas à la requête en cours.')
+    expect(sessionStorage.getItem('founder-prospection-send-request-id')).toBe(requestId)
+    expect(within(screen.getByRole('row', { name: /Entreprise 1/ })).getByText('Validée, non transmise')).toBeInTheDocument()
+    expect(screen.queryByText('1/1 envoyée')).not.toBeInTheDocument()
   })
 
   it('fusionne les réponses de progression partielles et garde les confirmations lors d’un rafraîchissement', async () => {
