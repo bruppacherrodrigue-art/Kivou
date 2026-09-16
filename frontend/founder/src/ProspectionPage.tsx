@@ -437,9 +437,14 @@ function QueueSection({
     sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY)
   ))
   const [actionError, setActionError] = useState<string | null>(null)
+  const [sendSubmitting, setSendSubmitting] = useState(false)
   const [preparationState, setPreparationState] = useState<'idle' | 'requesting' | 'polling'>('idle')
   const preparationBaselineRef = useRef<string | null>(null)
   const sendProgressRef = useRef<FounderProspectionSendProgress | null>(null)
+  const sendItemOverlayRef = useRef(new Map<string, FounderProspectionSendProgress['items'][number]>())
+  const activeSendRequestRef = useRef<string | null>(sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY))
+  const sendSubmittingRef = useRef(false)
+  const mountedRef = useRef(true)
   const preparationStartedAtRef = useRef<number | null>(null)
   const preparationSawRunningRef = useRef(false)
   const preparationGeneratedAtRef = useRef<string | null>(null)
@@ -447,6 +452,28 @@ function QueueSection({
   const acquisition = data.acquisition_status
   const preparationRunning = preparationState !== 'idle' || acquisition.activity === 'RUNNING'
   const preparationAtCap = acquisition.prepared_today_count >= acquisition.daily_pending_cap
+
+  const activateSendRequest = useCallback((requestId: string | null) => {
+    activeSendRequestRef.current = requestId
+    setActiveSendRequestId(requestId)
+  }, [])
+
+  const applySendOverlay = useCallback((targets: FounderProspectionActionTarget[]) => (
+    targets.map((target) => {
+      const overlay = sendItemOverlayRef.current.get(`target:${target.target_id}`)
+        ?? sendItemOverlayRef.current.get(`email:${target.email.address.toLowerCase()}`)
+      return overlay?.status === 'sent'
+        ? { ...target, status: 'sent' as const }
+        : target
+    })
+  ), [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (preparationState !== 'polling') return undefined
@@ -504,9 +531,9 @@ function QueueSection({
     ])
     if (activeSignal.aborted) return
     const merged = [...pending.items, ...approved.items]
-    setItems(merged.filter((item, index) => (
+    setItems(applySendOverlay(merged.filter((item, index) => (
       merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
-    )))
+    ))))
     setKillSwitchActive(pending.kill_switch_active || approved.kill_switch_active)
     setQueuePages({
       pending_review: {
@@ -519,7 +546,7 @@ function QueueSection({
       },
     })
     setLoaded(true)
-  }, [])
+  }, [applySendOverlay])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -535,20 +562,17 @@ function QueueSection({
   }, [data.generated_at, refreshQueue])
 
   const reconcileSendProgress = useCallback((progress: FounderProspectionSendProgress) => {
-    const sentIds = new Set(progress.items
-      .filter((item) => item.status === 'sent')
-      .map((item) => item.target_id))
-    if (sentIds.size > 0) {
-      setItems((current) => current.map((item) => sentIds.has(item.target_id)
-        ? { ...item, status: 'sent' }
-        : item))
-    }
+    sendItemOverlayRef.current = new Map(progress.items.flatMap((item) => [
+      [`target:${item.target_id}`, item] as const,
+      [`email:${item.email_address.toLowerCase()}`, item] as const,
+    ]))
+    setItems((current) => applySendOverlay(current))
     sendProgressRef.current = progress
     setSendProgress(progress)
-  }, [])
+  }, [applySendOverlay])
 
   useEffect(() => {
-    if (!activeSendRequestId) return undefined
+    if (!activeSendRequestId || sendSubmittingRef.current) return undefined
     if (
       sendProgressRef.current?.request_id === activeSendRequestId
       && TERMINAL_SEND_STATUSES.has(sendProgressRef.current.status)
@@ -567,6 +591,17 @@ function QueueSection({
         }
       } catch (error) {
         if (stopped || controller.signal.aborted) return
+        if (error instanceof FounderApiError && error.status === 404) {
+          setActionError(founderActionErrorMessage(error, 'La requête d’envoi est introuvable.'))
+          if (
+            activeSendRequestRef.current === activeSendRequestId
+            && sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) === activeSendRequestId
+          ) {
+            sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
+            activateSendRequest(null)
+          }
+          return
+        }
         setActionError(founderActionErrorMessage(
           error,
           'La progression de l’envoi est momentanément indisponible. Réessaie dans un instant.',
@@ -581,7 +616,7 @@ function QueueSection({
       controller.abort()
       if (timer !== undefined) window.clearTimeout(timer)
     }
-  }, [activeSendRequestId, reconcileSendProgress])
+  }, [activeSendRequestId, activateSendRequest, reconcileSendProgress])
 
   useEffect(() => {
     if (
@@ -591,9 +626,9 @@ function QueueSection({
     ) {
       // Effects run after React commits the terminal progress to the page.
       sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
-      setActiveSendRequestId(null)
+      activateSendRequest(null)
     }
-  }, [activeSendRequestId, sendProgress])
+  }, [activeSendRequestId, activateSendRequest, sendProgress])
 
   const loadMore = async () => {
     if (loadingMore) return
@@ -616,9 +651,9 @@ function QueueSection({
       const pages = await Promise.all(requests)
       setItems((current) => {
         const merged = [...current, ...pages.flatMap(({ response }) => response.items)]
-        return merged.filter((item, index) => (
+        return applySendOverlay(merged.filter((item, index) => (
           merged.findIndex((candidate) => candidate.target_id === item.target_id) === index
-        ))
+        )))
       })
       setQueuePages((current) => {
         const next = { ...current }
@@ -775,8 +810,12 @@ function QueueSection({
     const approved = items.filter((item) => (
       item.status === 'approved' && !isConsumerMailbox(item.email.address)
     )).slice(0, 25)
-    if (approved.length === 0 || activeSendRequestId) return
+    if (approved.length === 0 || activeSendRequestRef.current || sendSubmittingRef.current) return
     const requestId = crypto.randomUUID()
+    sendSubmittingRef.current = true
+    setSendSubmitting(true)
+    activeSendRequestRef.current = requestId
+    sessionStorage.setItem(SEND_REQUEST_STORAGE_KEY, requestId)
     setSendConfirmationOpen(false)
     setActionError(null)
     sendProgressRef.current = null
@@ -786,10 +825,33 @@ function QueueSection({
         requestId,
         approved.map((item) => ({ target_id: item.target_id, expected_version: item.version })),
       )
-      sessionStorage.setItem(SEND_REQUEST_STORAGE_KEY, response.request_id)
+      if (
+        !mountedRef.current
+        || activeSendRequestRef.current !== requestId
+        || sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY) !== requestId
+      ) return
+      if (response.request_id !== requestId) {
+        sendSubmittingRef.current = false
+        setSendSubmitting(false)
+        setActionError('La réponse d’envoi ne correspond pas à la requête en cours.')
+        activateSendRequest(requestId)
+        return
+      }
+      sendSubmittingRef.current = false
+      setSendSubmitting(false)
       reconcileSendProgress(response)
-      setActiveSendRequestId(response.request_id)
+      activateSendRequest(requestId)
     } catch (error) {
+      if (!mountedRef.current || activeSendRequestRef.current !== requestId) return
+      sendSubmittingRef.current = false
+      setSendSubmitting(false)
+      if (error instanceof FounderApiError) {
+        sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
+        activateSendRequest(null)
+      } else {
+        // The POST may have reached the server; resume this persisted request instead of retrying it.
+        activateSendRequest(requestId)
+      }
       setActionError(founderActionErrorMessage(error, 'L’envoi a échoué.'))
     }
   }
@@ -954,7 +1016,7 @@ function QueueSection({
             <button
               type="button"
               className="prospection-action-primary"
-              disabled={sendBatchCount === 0 || activeSendRequestId !== null || killSwitchActive}
+              disabled={sendBatchCount === 0 || activeSendRequestId !== null || sendSubmitting || killSwitchActive}
               aria-label={sendBatchLabel(eligibleApprovedCount, heldApprovedCount)}
               onClick={() => setSendConfirmationOpen(true)}
             >
@@ -1001,6 +1063,7 @@ function QueueSection({
           count={sendBatchCount}
           onClose={() => setSendConfirmationOpen(false)}
           onConfirm={() => void sendApproved()}
+          busy={sendSubmitting || activeSendRequestId !== null}
         />
       ) : null}
     </section>
@@ -1018,7 +1081,12 @@ function sendBatchLabel(approvedCount: number, heldCount = 0): string {
 
 function sendProgressLabel(progress: FounderProspectionSendProgress): string {
   const sent = `${progress.sent_count}/${progress.total_count} envoyée${progress.sent_count === 1 ? '' : 's'}`
-  return progress.failed_count > 0 ? `${sent} · ${progress.failed_count} en échec` : sent
+  const verificationCount = progress.items.filter((item) => item.status === 'verification_pending').length
+  const details = [
+    progress.failed_count > 0 ? `${progress.failed_count} en échec` : null,
+    verificationCount > 0 ? `${verificationCount} en vérification` : null,
+  ].filter((detail): detail is string => detail !== null)
+  return details.length > 0 ? `${sent} · ${details.join(' · ')}` : sent
 }
 
 function acceptanceStatusLabel(status: FounderProspectionActionTarget['status']): string {
@@ -1055,10 +1123,12 @@ function SendConfirmationDrawer({
   count,
   onClose,
   onConfirm,
+  busy,
 }: {
   count: number
   onClose: () => void
   onConfirm: () => void
+  busy: boolean
 }) {
   return (
     <div className="prospection-drawer-backdrop">
@@ -1071,7 +1141,7 @@ function SendConfirmationDrawer({
           <p>Les cibles validées seront transmises à Instantly. Cette action démarre réellement leur envoi.</p>
           <footer>
             <button type="button" onClick={onClose}>Annuler</button>
-            <button type="button" className="prospection-action-primary" onClick={onConfirm}>
+            <button type="button" className="prospection-action-primary" onClick={onConfirm} disabled={busy}>
               Envoyer maintenant
             </button>
           </footer>

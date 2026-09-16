@@ -61,8 +61,8 @@ async function requestActionJson<T>(url: string, body: unknown, fallbackMessage:
       // A reverse-proxy failure may not return the API error envelope.
     }
     const detail = payload?.detail
-    const code = typeof detail?.code === 'string' ? detail.code : null
-    const message = typeof detail?.message === 'string' ? detail.message : fallbackMessage
+    const code = typeof detail?.code === 'string' ? detail.code.slice(0, 128) : null
+    const message = typeof detail?.message === 'string' ? detail.message.slice(0, 200) : fallbackMessage
     const targetIds = Array.isArray(detail?.target_ids)
       ? detail.target_ids.filter((value): value is string => typeof value === 'string')
       : []
@@ -78,13 +78,26 @@ async function requestJson<T>(url: string, signal: AbortSignal): Promise<T> {
     signal,
   })
   if (!response.ok) {
+    let payload: FounderActionErrorPayload | null = null
+    try {
+      payload = (await response.json()) as FounderActionErrorPayload
+    } catch {
+      // A reverse-proxy failure may not return the API error envelope.
+    }
+    const detail = payload?.detail
+    const code = typeof detail?.code === 'string' ? detail.code.slice(0, 128) : null
+    const publicMessage = typeof detail?.message === 'string' ? detail.message.slice(0, 200) : null
+    const targetIds = Array.isArray(detail?.target_ids)
+      ? detail.target_ids.filter((value): value is string => typeof value === 'string')
+      : []
     const message =
-      response.status === 401 || response.status === 403
+      publicMessage
+      ?? (response.status === 401 || response.status === 403
         ? 'Accès refusé par la frontière Founder.'
         : response.status === 503
           ? 'Les données Founder ne sont pas encore disponibles.'
-          : 'Le service Founder est momentanément indisponible.'
-    throw new FounderApiError(message, response.status)
+          : 'Le service Founder est momentanément indisponible.')
+    throw new FounderApiError(message, response.status, code, targetIds)
   }
   return (await response.json()) as T
 }
