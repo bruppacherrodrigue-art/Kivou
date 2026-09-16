@@ -200,6 +200,26 @@ class SendCommand(_Contract):
         return value
 
 
+class SendItemProgress(_Contract):
+    target_id: UUID
+    email_address: EmailStr
+    status: Literal["queued", "running", "verification_pending", "sent", "failed"]
+    instantly_id: str | None = None
+    verification_status: int | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+class SendRequestProgress(_Contract):
+    request_id: UUID
+    status: Literal["queued", "running", "waiting", "completed", "partial", "failed"]
+    total_count: int = Field(ge=1, le=25)
+    processed_count: int = Field(ge=0, le=25)
+    sent_count: int = Field(ge=0, le=25)
+    failed_count: int = Field(ge=0, le=25)
+    items: tuple[SendItemProgress, ...]
+
+
 class DailyCounts(_Contract):
     prepared: int = Field(ge=0)
     approved: int = Field(ge=0)
