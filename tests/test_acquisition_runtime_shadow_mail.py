@@ -32,7 +32,7 @@ def test_shadow_mail_contains_v2_facts_and_required_links() -> None:
     assert "8 septembre" in mail.body
     assert (
         "Sur ce type de lot, le titulaire sous-traite souvent le béton prêt à l'emploi, "
-        "et vous êtes fournisseur de béton prêt à l'emploi à Rhône."
+        "et vous êtes fournisseur de béton prêt à l'emploi en Rhône."
     ) in mail.body
     assert "Kivou repère les marchés publics attribués près de chez vous" in mail.body
     assert "https://kivou.eu/a/token-1" in mail.body
