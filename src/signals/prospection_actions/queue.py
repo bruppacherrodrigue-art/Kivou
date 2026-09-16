@@ -43,6 +43,37 @@ class SendReservation:
     existing: dict[str, object] | None = None
 
 
+def _existing_request(connection: sa.Connection, request_id: str) -> dict[str, object] | None:
+    row = (
+        connection.execute(
+            sa.select(prospect_send_request).where(prospect_send_request.c.request_id == request_id)
+        )
+        .mappings()
+        .one_or_none()
+    )
+    return None if row is None else dict(row)
+
+
+def _is_request_id_conflict(error: sa.exc.IntegrityError) -> bool:
+    original = error.orig
+    diagnostic = getattr(original, "diag", None)
+    constraint = getattr(diagnostic, "constraint_name", None)
+    if constraint == "prospect_send_request_pkey":
+        return True
+    return "UNIQUE constraint failed: prospect_send_request.request_id" in str(original)
+
+
+def _existing_reservation(
+    *, request_id: str, fingerprint: str, existing: dict[str, object]
+) -> SendReservation:
+    return SendReservation(
+        request_id=request_id,
+        fingerprint=fingerprint,
+        target_rows=(),
+        existing=existing,
+    )
+
+
 def send_fingerprint(command) -> str:
     body = {
         "request_id": str(command.request_id),
@@ -77,21 +108,10 @@ def reserve_send(
     requested_target_ids = tuple(str(item.target_id) for item in command.targets)
 
     with engine.begin() as connection:
-        existing = (
-            connection.execute(
-                sa.select(prospect_send_request).where(
-                    prospect_send_request.c.request_id == request_id
-                )
-            )
-            .mappings()
-            .one_or_none()
-        )
+        existing = _existing_request(connection, request_id)
         if existing is not None:
-            return SendReservation(
-                request_id=request_id,
-                fingerprint=fingerprint,
-                target_rows=(),
-                existing=dict(existing),
+            return _existing_reservation(
+                request_id=request_id, fingerprint=fingerprint, existing=existing
             )
         if before_reservation is not None:
             before_reservation()
@@ -129,6 +149,11 @@ def reserve_send(
             .with_for_update(nowait=True),
             target_ids=requested_target_ids,
         )
+        existing = _existing_request(connection, request_id)
+        if existing is not None:
+            return _existing_reservation(
+                request_id=request_id, fingerprint=fingerprint, existing=existing
+            )
         targets_by_id = {str(row["target_id"]): row for row in locked_target_rows}
         target_rows: list[dict[str, object]] = []
         for item in command.targets:
@@ -227,29 +252,42 @@ def reserve_send(
         }
         if create_items:
             request_values["next_attempt_at"] = at
-        connection.execute(sa.insert(prospect_send_request).values(**request_values))
-        if create_items:
-            connection.execute(
-                sa.insert(prospect_send_item),
-                [
-                    {
-                        "request_id": request_id,
-                        "target_id": str(item.target_id),
-                        "position": position,
-                        "expected_version": item.expected_version,
-                        "status": "queued",
-                        "next_attempt_at": at,
-                        "created_at": at,
-                        "updated_at": at,
-                    }
-                    for position, item in enumerate(command.targets)
-                ],
+        try:
+            with connection.begin_nested():
+                connection.execute(sa.insert(prospect_send_request).values(**request_values))
+                if create_items:
+                    connection.execute(
+                        sa.insert(prospect_send_item),
+                        [
+                            {
+                                "request_id": request_id,
+                                "target_id": str(item.target_id),
+                                "position": position,
+                                "expected_version": item.expected_version,
+                                "status": "queued",
+                                "next_attempt_at": at,
+                                "created_at": at,
+                                "updated_at": at,
+                            }
+                            for position, item in enumerate(command.targets)
+                        ],
+                    )
+                connection.execute(
+                    sa.update(prospect_target)
+                    .where(
+                        prospect_target.c.target_id.in_([row["target_id"] for row in target_rows])
+                    )
+                    .values(send_request_id=request_id, updated_at=at)
+                )
+        except sa.exc.IntegrityError as error:
+            if not _is_request_id_conflict(error):
+                raise
+            existing = _existing_request(connection, request_id)
+            if existing is None:
+                raise
+            return _existing_reservation(
+                request_id=request_id, fingerprint=fingerprint, existing=existing
             )
-        connection.execute(
-            sa.update(prospect_target)
-            .where(prospect_target.c.target_id.in_([row["target_id"] for row in target_rows]))
-            .values(send_request_id=request_id, updated_at=at)
-        )
 
     return SendReservation(
         request_id=request_id,
