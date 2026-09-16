@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from signals.chief_of_staff.attempt_store import ChiefOfStaffAttemptStore
+from signals.chief_of_staff.contracts import ChiefOfStaffObservation
 from signals.chief_of_staff.hermes import (
     ChiefOfStaffHermesResult,
     ChiefOfStaffResponseRejected,
@@ -228,3 +229,48 @@ def test_service_audits_semantic_rejections(
     assert attempt.stage == "SEMANTIC_VALIDATION"
     assert attempt.result_code == code
     assert "Active la campagne" not in repr(attempt)
+    assert ChiefOfStaffReportStore(migrated_sqlite_engine).latest() is None
+
+
+def test_service_audits_unknown_fact_reference_without_persisting_report(
+    migrated_sqlite_engine,
+) -> None:
+    class UnknownFactGenerator(Generator):
+        def generate(self, context, *, call_id=None):
+            generated = super().generate(context, call_id=call_id)
+            observation = ChiefOfStaffObservation(
+                observation_id="observation:invented",
+                domain="OPERATIONS",
+                kind="RISK",
+                summary="Une preuve inconnue est présentée comme établie.",
+                impact="La conclusion ne doit pas être publiée.",
+                reason_codes=("INVENTED_REFERENCE",),
+                fact_refs=("fact:invented",),
+                confidence=Decimal("0.8"),
+            )
+            return generated.__class__(
+                **{
+                    **generated.__dict__,
+                    "report": generated.report.model_copy(
+                        update={
+                            "observations": (observation,),
+                            "source_refs": ("fact:invented",),
+                        }
+                    ),
+                }
+            )
+
+    attempts = ChiefOfStaffAttemptStore(migrated_sqlite_engine)
+    service = ChiefOfStaffService(
+        overview_reader=OverviewReader(),
+        generator=UnknownFactGenerator(),
+        store=ChiefOfStaffReportStore(migrated_sqlite_engine),
+        attempt_store=attempts,
+        clock=lambda: NOW,
+    )
+    with pytest.raises(ValueError, match="unknown fact_ref"):
+        service.generate(cadence="DAILY", persist=True)
+    attempt = attempts.history()[0]
+    assert attempt.status == "SEMANTICALLY_REJECTED"
+    assert attempt.result_code == "UNKNOWN_FACT_REF"
+    assert ChiefOfStaffReportStore(migrated_sqlite_engine).latest() is None
