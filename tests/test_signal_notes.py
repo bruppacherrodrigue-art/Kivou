@@ -15,6 +15,7 @@ from engagement_helpers import (
     make_app,
     make_engine,
     pay,
+    reconcile_discovery,
     seed,
     signed_up,
 )
@@ -222,7 +223,8 @@ def test_browser_account_id_is_rejected_without_altering_the_note(alice, engine)
 
 def test_locked_anonymous_foreign_origin_and_long_notes_fail_closed(alice, app, engine):
     icp = icp_of(alice)
-    seed(engine, icp, count=5)
+    keys = seed(engine, icp, count=5)
+    assert len(reconcile_discovery(engine, alice, signal_keys=keys)) == 3
     items = alice.get("/signals?limit=50").json()["items"]
     locked = next(item["signal_id"] for item in items if item["locked"])
     unlocked = next(item["signal_id"] for item in items if not item["locked"])

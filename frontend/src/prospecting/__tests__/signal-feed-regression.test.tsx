@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
-import { callsTo, feedPage, mockApi } from '../../test/harness'
+import { DISCOVERY_STATUS, callsTo, feedPage, mockApi } from '../../test/harness'
 import { BASE, DETAIL, SIGNAL, item, renderFeed, workflow } from './signal-regression-harness'
 
 afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
@@ -69,6 +69,14 @@ test('an incomplete provisional landing keeps real signals and adds one waiting 
   expect(screen.getAllByRole('article')).toHaveLength(1)
 })
 
+test('an empty provisional landing never claims that the account is up to date', async () => {
+  mockApi({ ...BASE, 'GET /signals': { body: feedPage([], { provisional_profile: true, landing_cohort: { signal_id: SIGNAL.signal_id, expected: 3, materialized: 0 } }) } })
+  renderFeed()
+
+  expect(await screen.findByText('Vos prochains signaux arriveront ici')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Vous êtes à jour' })).not.toBeInTheDocument()
+})
+
 test('a complete provisional landing has no waiting row', async () => {
   const items = [SIGNAL, item({ signal_id: 'second' }), item({ signal_id: 'third' })]
   mockApi({ ...BASE, 'GET /signals': { body: feedPage(items, { provisional_profile: true, landing_cohort: { signal_id: SIGNAL.signal_id, expected: 3, materialized: 3 } }) } })
@@ -97,6 +105,32 @@ test('an empty new segment guides the user to saved signals', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Voir les sauvegardés' }))
   await waitFor(() => expect(lastFeed().search.getAll('status')).toEqual(['saved']))
   expect(await screen.findByRole('heading', { name: 'Aucun signal dans cette sélection' })).toBeInTheDocument()
+})
+
+test('an underfilled Discovery feed explains 0/3 instead of claiming it is up to date', async () => {
+  mockApi({
+    ...BASE,
+    'GET /billing/status': { body: { ...DISCOVERY_STATUS, discovery: { granted_signal_count: 0, remaining_slots: 3, limit: 3 } } },
+    'GET /signals': { body: feedPage([]) },
+  })
+  renderFeed()
+
+  expect(await screen.findByText('Vos 3 signaux sont en préparation. Kivou sélectionne les meilleures opportunités disponibles.')).toBeInTheDocument()
+  expect(screen.getByText('0/3 signaux attribués')).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Vous êtes à jour' })).not.toBeInTheDocument()
+})
+
+test('a partial Discovery feed reports two assigned signals and the remaining one', async () => {
+  mockApi({
+    ...BASE,
+    'GET /billing/status': { body: { ...DISCOVERY_STATUS, discovery: { granted_signal_count: 2, remaining_slots: 1, limit: 3 } } },
+    'GET /signals': { body: feedPage([SIGNAL, item({ signal_id: 'second' })]) },
+  })
+  renderFeed()
+
+  expect(await screen.findByText('2 de vos 3 signaux sont disponibles. Kivou prépare le suivant.')).toBeInTheDocument()
+  expect(screen.getByText('2/3 signaux attribués')).toBeInTheDocument()
+  expect(screen.getAllByRole('article')).toHaveLength(2)
 })
 
 test('a successful detail workflow refreshes the list and server global counts', async () => {

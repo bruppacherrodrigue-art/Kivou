@@ -9,7 +9,7 @@ const EMPTY_DASHBOARD = {
   strong_matches: 0, top3: [], to_follow_up: [], to_follow_up_truncated: false,
   week: { new: 0, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false,
   profile: { name: ICP.label, sector_label: 'Routes et génie civil', zone_labels: ICP.customer_input.territories },
-  plan: { name: 'Découverte', opened: 0, quota: 3, period_end: null },
+  plan: { code: 'discovery', name: 'Découverte', assigned: 0, opened_this_month: null, quota: 3, remaining: 3, availability: 'preparing', period_end: null },
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -43,13 +43,14 @@ describe('shell Kivou', () => {
     expect(links[0]).toHaveAttribute('aria-current', 'page')
   })
 
-  it('affiche le plan, les signaux ouverts, le secteur et les zones en bas du menu', async () => {
+  it('affiche le plan, les signaux attribués, le secteur et les zones en bas du menu', async () => {
     mockConnectedApi()
     renderApp(<AppRoutes />, { route: '/app', session: AUTHENTICATED })
     await screen.findByRole('heading', { name: 'Vos priorités commerciales' })
     const summary = document.querySelector<HTMLElement>('.sidebar-plan-summary')!
     expect(summary).toHaveTextContent('Plan Découverte')
-    expect(summary).toHaveTextContent('signaux ce mois')
+    expect(summary).toHaveTextContent('0/3 signaux attribués')
+    expect(summary).not.toHaveTextContent('ce mois')
     expect(summary).toHaveTextContent('Routes et génie civil')
     expect(summary).toHaveTextContent('France')
     expect(summary).not.toHaveTextContent(/\bFR\b/)

@@ -981,7 +981,16 @@ export interface DashboardResponse {
   week: { new: number; saved: number; contacted: number; replied: number }
   scan_truncated: boolean
   profile: { name: string; sector_label: string; zone_labels: string[] } | null
-  plan: { name: string; opened: number; quota: number | null; period_end: string | null }
+  plan: {
+    code: PlanCode
+    name: string
+    assigned: number | null
+    opened_this_month: number | null
+    quota: number | null
+    remaining: number | null
+    availability: 'preparing' | 'partial' | 'complete' | null
+    period_end: string | null
+  }
 }
 
 // ─── Facturation ─────────────────────────────────────────────────────────────

@@ -2,7 +2,16 @@
 
 import pytest
 import sqlalchemy as sa
-from engagement_helpers import Clock, icp_of, make_app, make_engine, pay, seed, signed_up
+from engagement_helpers import (
+    Clock,
+    icp_of,
+    make_app,
+    make_engine,
+    pay,
+    reconcile_discovery,
+    seed,
+    signed_up,
+)
 
 
 @pytest.fixture
@@ -164,8 +173,8 @@ def test_discovery_cannot_queue_directory_enrichment(prepared, monkeypatch):
 
     engine, app, _ = prepared
     client = signed_up(app, "discovery-enrichment@example.com")
-    seed(engine, icp_of(client), count=1)
-    client.get("/signals")
+    keys = seed(engine, icp_of(client), count=1)
+    reconcile_discovery(engine, client, signal_keys=keys)
     key = client.get("/companies").json()["items"][0]["company_key"]
     assert client.get(f"/companies/{key}").json()["capabilities"]["can_enrich_company"] is False
     calls = []
@@ -198,8 +207,8 @@ def test_discovery_private_only_profile_masks_official_website_without_hiding_av
     engine, app, _ = prepared
     client = signed_up(app, "private-website@example.com")
     profile = icp_of(client)
-    seed(engine, profile, count=1)
-    client.get("/signals")
+    keys = seed(engine, profile, count=1)
+    reconcile_discovery(engine, client, signal_keys=keys)
     key = client.get("/companies").json()["items"][0]["company_key"]
     assert client.put(f"/companies/{key}/prospection", json={}).status_code == 200
     assert client.patch(f"/target-icps/{profile}", json={"customer_input": {}}).status_code == 200

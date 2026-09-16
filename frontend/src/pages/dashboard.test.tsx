@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
-import type { UnlockedFeedItem } from '../api/types'
+import type { DashboardResponse, UnlockedFeedItem } from '../api/types'
 import { AUTHENTICATED, ICP, PRO_STATUS, UNLOCKED_ITEM, callsTo, mockApi, renderApp } from '../test/harness'
 
 const signal = (index: number): UnlockedFeedItem => ({
@@ -18,7 +18,7 @@ const signal = (index: number): UnlockedFeedItem => ({
 
 const signals = [signal(1), signal(2), signal(3), signal(4)]
 
-function dashboard(top3 = signals.slice(0, 3), firstVisit = false) {
+function dashboard(top3 = signals.slice(0, 3), firstVisit = false): DashboardResponse {
   return {
     as_of: '2026-09-04',
     last_seen_at: firstVisit ? null : '2026-09-01T09:00:00+00:00',
@@ -43,7 +43,7 @@ function dashboard(top3 = signals.slice(0, 3), firstVisit = false) {
     week: { new: 12, saved: 5, contacted: 3, replied: 1 },
     scan_truncated: false,
     profile: { name: ICP.label, sector_label: 'Routes et génie civil', zone_labels: ICP.customer_input.territories },
-    plan: { name: 'Pro', opened: 2, quota: 3, period_end: null },
+    plan: { code: 'pro', name: 'Pro', assigned: null, opened_this_month: 2, quota: null, remaining: null, availability: null, period_end: null },
   }
 }
 
@@ -140,6 +140,27 @@ describe('Aujourd’hui', () => {
     expect(screen.getByText('Vos prochaines relances se préparent ici')).toBeVisible()
   })
 
+  it('explique un compte Découverte à 0/3 sans prétendre qu’il est à jour', async () => {
+    const payload = dashboard([], true)
+    payload.plan = { code: 'discovery', name: 'Découverte', assigned: 0, opened_this_month: null, quota: 3, remaining: 3, availability: 'preparing', period_end: null }
+    mockApi(routes(payload))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Vos 3 signaux sont en préparation. Kivou sélectionne les meilleures opportunités disponibles.')).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Vous êtes à jour' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Reprendre mes signaux sauvegardés' })).not.toBeInTheDocument()
+  })
+
+  it('annonce le reliquat Découverte après deux attributions', async () => {
+    const payload = dashboard(signals.slice(0, 2), true)
+    payload.plan = { code: 'discovery', name: 'Découverte', assigned: 2, opened_this_month: null, quota: 3, remaining: 1, availability: 'partial', period_end: null }
+    mockApi(routes(payload))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('2 de vos 3 signaux sont disponibles. Kivou prépare le suivant.')).toBeVisible()
+    expect(screen.getAllByRole('article')).toHaveLength(2)
+  })
+
   it('fait de /app la page Aujourd’hui', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
@@ -151,7 +172,7 @@ describe('Aujourd’hui', () => {
     const payload = dashboard()
     payload.new_since_last_visit = 0
     payload.week.new = 7
-    payload.profile.zone_labels = ['FR', 'France', 'Vaud', 'Vaud']
+    payload.profile!.zone_labels = ['FR', 'France', 'Vaud', 'Vaud']
     mockApi(routes(payload))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
 
