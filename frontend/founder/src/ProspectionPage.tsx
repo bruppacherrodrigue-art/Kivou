@@ -460,8 +460,7 @@ function QueueSection({
 
   const applySendOverlay = useCallback((targets: FounderProspectionActionTarget[]) => (
     targets.map((target) => {
-      const overlay = sendItemOverlayRef.current.get(`target:${target.target_id}`)
-        ?? sendItemOverlayRef.current.get(`email:${target.email.address.toLowerCase()}`)
+      const overlay = sendItemOverlayRef.current.get(target.target_id)
       return overlay?.status === 'sent'
         ? { ...target, status: 'sent' as const }
         : target
@@ -562,13 +561,13 @@ function QueueSection({
   }, [data.generated_at, refreshQueue])
 
   const reconcileSendProgress = useCallback((progress: FounderProspectionSendProgress) => {
-    sendItemOverlayRef.current = new Map(progress.items.flatMap((item) => [
-      [`target:${item.target_id}`, item] as const,
-      [`email:${item.email_address.toLowerCase()}`, item] as const,
-    ]))
+    const mergedItems = new Map(sendItemOverlayRef.current)
+    for (const item of progress.items) mergedItems.set(item.target_id, item)
+    sendItemOverlayRef.current = mergedItems
     setItems((current) => applySendOverlay(current))
-    sendProgressRef.current = progress
-    setSendProgress(progress)
+    const mergedProgress = { ...progress, items: [...mergedItems.values()] }
+    sendProgressRef.current = mergedProgress
+    setSendProgress(mergedProgress)
   }, [applySendOverlay])
 
   useEffect(() => {
@@ -818,6 +817,8 @@ function QueueSection({
     sessionStorage.setItem(SEND_REQUEST_STORAGE_KEY, requestId)
     setSendConfirmationOpen(false)
     setActionError(null)
+    // A new request must not inherit confirmation states from a prior terminal request.
+    sendItemOverlayRef.current.clear()
     sendProgressRef.current = null
     setSendProgress(null)
     try {
@@ -845,14 +846,18 @@ function QueueSection({
       if (!mountedRef.current || activeSendRequestRef.current !== requestId) return
       sendSubmittingRef.current = false
       setSendSubmitting(false)
-      if (error instanceof FounderApiError) {
+      if (error instanceof FounderApiError && error.status >= 400 && error.status < 500) {
         sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
         activateSendRequest(null)
       } else {
         // The POST may have reached the server; resume this persisted request instead of retrying it.
         activateSendRequest(requestId)
       }
-      setActionError(founderActionErrorMessage(error, 'L’envoi a échoué.'))
+      setActionError(
+        error instanceof FounderApiError && error.status >= 500
+          ? 'Vérification de l’envoi en cours.'
+          : founderActionErrorMessage(error, 'L’envoi a échoué.'),
+      )
     }
   }
   return (

@@ -184,6 +184,7 @@ function renderPage() {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
   sessionStorage.clear()
@@ -633,85 +634,11 @@ describe('actions de prospection', () => {
     }])
   })
 
-  it('recharge la version serveur et change de request_id après un échec fournisseur terminal', async () => {
-    const user = userEvent.setup()
-    const approved = target(1, 'approved')
-    const firstRequestId = '2483f230-563f-469d-9f3c-20b3eabbe2c2'
-    const secondRequestId = 'aa856878-5ac9-45bf-8261-b7a652a8ed23'
-    vi.spyOn(globalThis.crypto, 'randomUUID')
-      .mockReturnValueOnce(firstRequestId)
-      .mockReturnValueOnce(secondRequestId)
-    let terminalFailureRecorded = false
-    let sendAttempt = 0
-    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
-      void init
-      const url = String(input)
-      if (url.includes('/list?status=pending_review')) {
-        return { ok: true, status: 200, json: async () => list([]) }
-      }
-      if (url.includes('/list?status=approved')) {
-        const current = terminalFailureRecorded ? { ...approved, version: approved.version + 1 } : approved
-        return { ok: true, status: 200, json: async () => list([current]) }
-      }
-      if (url.endsWith('/send')) {
-        sendAttempt += 1
-        if (sendAttempt === 1) {
-          terminalFailureRecorded = true
-          return {
-            ok: false,
-            status: 502,
-            json: async () => ({
-              detail: {
-                code: 'INSTANTLY_SEND_FAILED',
-                message: 'Le fournisseur n’a accepté aucune cible.',
-                target_ids: [approved.target_id],
-              },
-            }),
-          }
-        }
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            version: 'founder-prospection-actions-v1',
-            request_id: secondRequestId,
-            results: [{ target_id: approved.target_id, status: 'sent', instantly_id: 'fake-new-attempt' }],
-            daily_sent_count: 1,
-            daily_remaining: 24,
-          }),
-        }
-      }
-      throw new Error(`requête inattendue: ${url}`)
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    renderPage()
-    await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Le fournisseur n’a accepté aucune cible. (INSTANTLY_SEND_FAILED)',
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Envoyer la cible validée' }))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
-    await waitFor(() => expect(sendAttempt).toBe(2))
-
-    const bodies = fetchMock.mock.calls
-      .filter(([url]) => String(url).endsWith('/send'))
-      .map(([, init]) => JSON.parse(String(init?.body)))
-    expect(bodies[0].request_id).toBe(firstRequestId)
-    expect(bodies[1]).toEqual({
-      request_id: secondRequestId,
-      targets: [{ target_id: approved.target_id, expected_version: approved.version }],
-    })
-  })
-
-  it('affiche une erreur de transport sans exposer le corps amont', async () => {
+  it('garde une erreur de transport ambiguë en vérification sans exposer le corps amont', async () => {
     const user = userEvent.setup()
     const approved = [target(1, 'approved')]
     const requestId = '162cc52c-650d-4866-bd7e-b505920f5eb5'
     const randomUUID = vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(requestId)
-    let attempts = 0
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/list?status=pending_review')) {
@@ -720,29 +647,14 @@ describe('actions de prospection', () => {
       if (url.includes('/list?status=approved')) {
         return { ok: true, status: 200, json: async () => list(approved) }
       }
+      if (url.includes('/prospection/send/')) {
+        return { ok: true, status: 200, json: async () => sendProgress({ request_id: requestId, status: 'running' }) }
+      }
       if (url.endsWith('/send')) {
-        attempts += 1
-        if (attempts === 1) {
-          return {
-            ok: false,
-            status: 502,
-            json: async () => ({ proxy_error: 'upstream response lost' }),
-          }
-        }
         return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            version: 'founder-prospection-actions-v1',
-            request_id: requestId,
-            results: [{
-              target_id: approved[0].target_id,
-              status: 'sent',
-              instantly_id: 'fake-lead-retried',
-            }],
-            daily_sent_count: 1,
-            daily_remaining: 24,
-          }),
+          ok: false,
+          status: 502,
+          json: async () => ({ proxy_error: 'upstream response lost' }),
         }
       }
       throw new Error(`requête inattendue: ${url} ${init?.method ?? 'GET'}`)
@@ -752,19 +664,16 @@ describe('actions de prospection', () => {
     renderPage()
     await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('L’envoi a échoué. (HTTP 502)')
-
-    await user.click(screen.getByRole('button', { name: 'Envoyer la cible validée' }))
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
-    await waitFor(() => expect(attempts).toBe(2))
+    expect(await screen.findByText('Vérification de l’envoi en cours.')).toBeInTheDocument()
+    expect(screen.queryByText('upstream response lost')).not.toBeInTheDocument()
+    expect(await screen.findByText('0/1 envoyées')).toBeInTheDocument()
 
     const sendBodies = fetchMock.mock.calls
       .filter(([url]) => String(url).endsWith('/send'))
       .map(([, init]) => JSON.parse(String(init?.body)))
-    expect(sendBodies).toHaveLength(2)
+    expect(sendBodies).toHaveLength(1)
     expect(sendBodies[0].request_id).toBe(requestId)
-    expect(sendBodies[1].request_id).toBe(requestId)
-    expect(randomUUID).toHaveBeenCalledTimes(2)
+    expect(randomUUID).toHaveBeenCalledTimes(1)
   })
 
   it('réconcilie un envoi partiel puis crée une nouvelle requête pour la cible échouée', async () => {
@@ -1185,6 +1094,96 @@ describe('actions de prospection', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Requête introuvable (SEND_REQUEST_NOT_FOUND)')
     expect(screen.queryByText('secret')).not.toBeInTheDocument()
     expect(sessionStorage.getItem('founder-prospection-send-request-id')).toBeNull()
+  })
+
+  it('reprend en GET après un 504 ambigu sans autoriser un second POST', async () => {
+    const user = userEvent.setup()
+    const approved = [target(1, 'approved')]
+    const requestId = '00000000-0000-4000-8000-000000000005'
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(requestId)
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) return { ok: true, status: 200, json: async () => list(approved) }
+      if (url.endsWith('/send')) return { ok: false, status: 504, json: async () => ({ proxy_error: 'raw upstream body' }) }
+      if (url.endsWith(`/send/${requestId}`)) return { ok: true, status: 200, json: async () => sendProgress({ request_id: requestId }) }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Envoyer la cible validée' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Envoyer maintenant' }))
+
+    expect(await screen.findByText('Vérification de l’envoi en cours.')).toBeInTheDocument()
+    expect(await screen.findByText('0/1 envoyées')).toBeInTheDocument()
+    expect(screen.queryByText('raw upstream body')).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/send'))).toHaveLength(1)
+  })
+
+  it('applique la progression strictement au target_id quand deux cibles partagent un e-mail', async () => {
+    sessionStorage.setItem('founder-prospection-send-request-id', 'request-duplicate-email')
+    const first = target(1, 'approved')
+    const second = { ...target(2, 'approved'), email: { ...TARGET.email, address: first.email.address } }
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) return { ok: true, status: 200, json: async () => list([first, second]) }
+      if (url.endsWith('/send/request-duplicate-email')) return { ok: true, status: 200, json: async () => sendProgress({
+        request_id: 'request-duplicate-email', status: 'completed', total_count: 2, processed_count: 1, sent_count: 1,
+        items: [{ target_id: first.target_id, email_address: first.email.address, status: 'sent', error_code: null, error_message: null }],
+      }) }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderPage()
+    const firstRow = await screen.findByRole('row', { name: /^Entreprise 1 Grenoble/ })
+    const secondRow = screen.getByRole('row', { name: /^Entreprise 2 Grenoble/ })
+    expect(within(firstRow).getByText('Acceptée')).toBeInTheDocument()
+    expect(within(secondRow).getByText('Validée, non transmise')).toBeInTheDocument()
+  })
+
+  it('fusionne les réponses de progression partielles et garde les confirmations lors d’un rafraîchissement', async () => {
+    vi.useFakeTimers()
+    sessionStorage.setItem('founder-prospection-send-request-id', 'request-merge')
+    const first = target(1, 'approved')
+    const second = target(2, 'approved')
+    let poll = 0
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.includes('/list?status=pending_review')) return { ok: true, status: 200, json: async () => list([]) }
+      if (url.includes('/list?status=approved')) return { ok: true, status: 200, json: async () => list([first, second]) }
+      if (url.endsWith('/send/request-merge')) {
+        poll += 1
+        return { ok: true, status: 200, json: async () => poll === 1
+          ? sendProgress({ request_id: 'request-merge', status: 'running', total_count: 2, processed_count: 1, sent_count: 1,
+              items: [{ target_id: first.target_id, email_address: first.email.address, status: 'sent', error_code: null, error_message: null }] })
+          : sendProgress({ request_id: 'request-merge', status: 'partial', total_count: 2, processed_count: 2, sent_count: 1, failed_count: 1,
+              items: [{ target_id: second.target_id, email_address: second.email.address, status: 'failed', error_code: 'INVALID', error_message: 'Adresse invalide' }] }) }
+      }
+      throw new Error(`requête inattendue: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const page = renderPage()
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByText('1/2 envoyée')).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2_000) })
+    expect(screen.getByText('1/2 envoyée · 1 en échec')).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: /^Entreprise 1 Grenoble/ })).getByText('Acceptée')).toBeInTheDocument()
+
+    page.rerender(
+      <ProspectionPage
+        data={{ ...READ_MODEL, generated_at: '2026-09-11T10:02:00Z' }}
+        filters={{ page: 1, q: '', family: '', department: '', status: '', reverification_reason: '' }}
+        refreshing={false}
+        onFiltersChange={vi.fn()}
+        onRefresh={vi.fn()}
+      />,
+    )
+    await act(async () => { await Promise.resolve() })
+    expect(within(screen.getByRole('row', { name: /^Entreprise 1 Grenoble/ })).getByText('Acceptée')).toBeInTheDocument()
   })
 })
 
