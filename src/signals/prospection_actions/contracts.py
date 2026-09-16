@@ -54,11 +54,11 @@ class EmailSource(StrEnum):
 
 class DeliveryStatus(StrEnum):
     NOT_SENT = "not_sent"
-    SENT = "sent"
+    DELIVERED = "delivered"
+    BOUNCED = "bounced"
     OPENED = "opened"
     CLICKED = "clicked"
     REPLIED = "replied"
-    BOUNCED = "bounced"
     UNSUBSCRIBED = "unsubscribed"
 
 

@@ -26,6 +26,25 @@ from signals.persistence.schema import (
     supplier_directory,
 )
 
+_DELIVERY_TIMESTAMPS = (
+    "sent_at",
+    "opened_at",
+    "clicked_at",
+    "replied_at",
+    "bounced_at",
+    "unsubscribed_at",
+)
+
+_EVENT_DELIVERY_PROJECTIONS = {
+    ProviderEventType.EMAIL_OPENED.value: ("opened", "opened_at"),
+    ProviderEventType.EMAIL_LINK_CLICKED.value: ("clicked", "clicked_at"),
+    ProviderEventType.LINK_CLICKED.value: ("clicked", "clicked_at"),
+    ProviderEventType.REPLY_RECEIVED.value: ("replied", "replied_at"),
+    ProviderEventType.AUTO_REPLY_RECEIVED.value: ("replied", "replied_at"),
+    ProviderEventType.EMAIL_BOUNCED.value: ("bounced", "bounced_at"),
+    ProviderEventType.LEAD_UNSUBSCRIBED.value: ("unsubscribed", "unsubscribed_at"),
+}
+
 
 class AssistedProspectWebhookProjector:
     def __init__(
@@ -46,10 +65,7 @@ class AssistedProspectWebhookProjector:
             return bool(
                 connection.scalar(
                     sa.select(sa.literal(1))
-                    .where(
-                        prospect_target.c.provider_campaign_id
-                        == payload.provider_campaign_id
-                    )
+                    .where(prospect_target.c.provider_campaign_id == payload.provider_campaign_id)
                     .limit(1)
                 )
             )
@@ -130,7 +146,19 @@ class AssistedProspectWebhookProjector:
             if not inserted:
                 return WebhookIngestResult(event_fingerprint=fingerprint, replayed=True)
             if row is not None:
-                values = self._target_values(payload, row, received_at)
+                events = connection.execute(
+                    sa.select(
+                        prospect_delivery_event.c.event_fingerprint,
+                        prospect_delivery_event.c.provider_event_type,
+                        prospect_delivery_event.c.occurred_at,
+                    )
+                    .where(prospect_delivery_event.c.target_id == row["target_id"])
+                    .order_by(
+                        prospect_delivery_event.c.occurred_at,
+                        prospect_delivery_event.c.event_fingerprint,
+                    )
+                ).mappings()
+                values = self._target_values(row, events, received_at)
                 connection.execute(
                     sa.update(prospect_target)
                     .where(prospect_target.c.target_id == row["target_id"])
@@ -164,47 +192,49 @@ class AssistedProspectWebhookProjector:
             elif payload.event_type is ProviderEventType.ACCOUNT_ERROR:
                 connection.execute(
                     sa.update(prospect_target)
-                    .where(
-                        prospect_target.c.provider_campaign_id
-                        == payload.provider_campaign_id
-                    )
+                    .where(prospect_target.c.provider_campaign_id == payload.provider_campaign_id)
                     .values(delivery_error="instantly_account_error", updated_at=received_at)
                 )
         return WebhookIngestResult(event_fingerprint=fingerprint, replayed=False)
 
     @staticmethod
     def _target_values(
-        payload: InstantlyWebhookPayload,
         row: dict[str, object],
+        events: sa.MappingResult,
         received_at: dt.datetime,
     ) -> dict[str, object]:
         values: dict[str, object] = {
             "version": int(row["version"]) + 1,
             "updated_at": received_at,
+            "delivery_status": "not_sent",
+            "reply_classification": None,
         }
-        event = payload.event_type
-        if event is ProviderEventType.EMAIL_SENT:
-            values.update(delivery_status="sent", sent_at=row.get("sent_at") or payload.timestamp)
-        elif event is ProviderEventType.EMAIL_OPENED:
-            values.update(delivery_status="opened", opened_at=row.get("opened_at") or payload.timestamp)
-        elif event in {ProviderEventType.EMAIL_LINK_CLICKED, ProviderEventType.LINK_CLICKED}:
-            values.update(delivery_status="clicked", clicked_at=row.get("clicked_at") or payload.timestamp)
-        elif event is ProviderEventType.REPLY_RECEIVED:
-            values.update(
-                delivery_status="replied",
-                replied_at=row.get("replied_at") or payload.timestamp,
-                reply_classification="human_reply",
-            )
-        elif event is ProviderEventType.AUTO_REPLY_RECEIVED:
-            values.update(
-                delivery_status="replied",
-                replied_at=row.get("replied_at") or payload.timestamp,
-                reply_classification="auto_reply",
-            )
-        elif event is ProviderEventType.EMAIL_BOUNCED:
-            values.update(delivery_status="bounced", bounced_at=payload.timestamp)
-        elif event is ProviderEventType.LEAD_UNSUBSCRIBED:
-            values.update(delivery_status="unsubscribed", unsubscribed_at=payload.timestamp)
+        values.update({column: None for column in _DELIVERY_TIMESTAMPS})
+        latest_higher_order: tuple[object, str, str] | None = None
+        for event in events:
+            event_type = str(event["provider_event_type"])
+            occurred_at = event["occurred_at"]
+            if event_type == ProviderEventType.EMAIL_SENT.value:
+                if values["sent_at"] is None:
+                    values["sent_at"] = occurred_at
+                    if latest_higher_order is None:
+                        values["delivery_status"] = "delivered"
+                continue
+            projection = _EVENT_DELIVERY_PROJECTIONS.get(event_type)
+            if projection is None:
+                continue
+            status, timestamp_column = projection
+            if values[timestamp_column] is None:
+                values[timestamp_column] = occurred_at
+            if event_type == ProviderEventType.REPLY_RECEIVED.value:
+                values["reply_classification"] = "human_reply"
+            elif event_type == ProviderEventType.AUTO_REPLY_RECEIVED.value:
+                values["reply_classification"] = "auto_reply"
+            candidate = (occurred_at, str(event["event_fingerprint"]), status)
+            if latest_higher_order is None or candidate[:2] > latest_higher_order[:2]:
+                latest_higher_order = candidate
+        if latest_higher_order is not None:
+            values["delivery_status"] = latest_higher_order[2]
         return values
 
 

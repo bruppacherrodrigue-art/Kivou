@@ -111,9 +111,13 @@ def test_visible_unsubscribe_requires_confirmation_and_suppresses_target(
             sa.select(sa.func.count()).select_from(acquisition_contact_suppression)
         )
         target = connection.execute(sa.select(prospect_target)).mappings().one()
-        directory = connection.execute(
-            sa.select(supplier_directory).where(supplier_directory.c.siren == row["siren"])
-        ).mappings().one()
+        directory = (
+            connection.execute(
+                sa.select(supplier_directory).where(supplier_directory.c.siren == row["siren"])
+            )
+            .mappings()
+            .one()
+        )
 
     assert confirmation.status_code == 200
     assert "Confirmer" in confirmation.text
