@@ -4,6 +4,7 @@ import {
   approveFounderProspect,
   correctFounderProspect,
   FounderApiError,
+  loadFounderProspectSend,
   loadFounderProspectionActions,
   prepareFounderProspection,
   rejectFounderProspect,
@@ -18,7 +19,15 @@ import type {
   FounderProspectionCorrectionChanges,
   FounderProspectionRejectionReason,
   FounderProspectionFilters,
+  FounderProspectionSendProgress,
 } from './types'
+
+const SEND_REQUEST_STORAGE_KEY = 'founder-prospection-send-request-id'
+const TERMINAL_SEND_STATUSES = new Set<FounderProspectionSendProgress['status']>([
+  'completed',
+  'partial',
+  'failed',
+])
 
 const FAMILY_LABELS: Record<string, string> = {
   ready_mix_concrete: 'Béton prêt à l’emploi',
@@ -423,13 +432,14 @@ function QueueSection({
   const [correctingTarget, setCorrectingTarget] = useState<FounderProspectionActionTarget | null>(null)
   const [rejectingTarget, setRejectingTarget] = useState<FounderProspectionActionTarget | null>(null)
   const [sendConfirmationOpen, setSendConfirmationOpen] = useState(false)
-  const [sendState, setSendState] = useState<'idle' | 'sending'>('idle')
-  const [sendingCount, setSendingCount] = useState(0)
-  const [sendNotice, setSendNotice] = useState<string | null>(null)
+  const [sendProgress, setSendProgress] = useState<FounderProspectionSendProgress | null>(null)
+  const [activeSendRequestId, setActiveSendRequestId] = useState<string | null>(() => (
+    sessionStorage.getItem(SEND_REQUEST_STORAGE_KEY)
+  ))
   const [actionError, setActionError] = useState<string | null>(null)
   const [preparationState, setPreparationState] = useState<'idle' | 'requesting' | 'polling'>('idle')
-  const sendRequestRef = useRef<{ fingerprint: string; requestId: string } | null>(null)
   const preparationBaselineRef = useRef<string | null>(null)
+  const sendProgressRef = useRef<FounderProspectionSendProgress | null>(null)
   const preparationStartedAtRef = useRef<number | null>(null)
   const preparationSawRunningRef = useRef(false)
   const preparationGeneratedAtRef = useRef<string | null>(null)
@@ -523,6 +533,67 @@ function QueueSection({
     })
     return () => controller.abort()
   }, [data.generated_at, refreshQueue])
+
+  const reconcileSendProgress = useCallback((progress: FounderProspectionSendProgress) => {
+    const sentIds = new Set(progress.items
+      .filter((item) => item.status === 'sent')
+      .map((item) => item.target_id))
+    if (sentIds.size > 0) {
+      setItems((current) => current.map((item) => sentIds.has(item.target_id)
+        ? { ...item, status: 'sent' }
+        : item))
+    }
+    sendProgressRef.current = progress
+    setSendProgress(progress)
+  }, [])
+
+  useEffect(() => {
+    if (!activeSendRequestId) return undefined
+    if (
+      sendProgressRef.current?.request_id === activeSendRequestId
+      && TERMINAL_SEND_STATUSES.has(sendProgressRef.current.status)
+    ) return undefined
+    const controller = new AbortController()
+    let timer: number | undefined
+    let stopped = false
+
+    const poll = async () => {
+      try {
+        const progress = await loadFounderProspectSend(activeSendRequestId, controller.signal)
+        if (stopped || controller.signal.aborted) return
+        reconcileSendProgress(progress)
+        if (!TERMINAL_SEND_STATUSES.has(progress.status)) {
+          timer = window.setTimeout(() => void poll(), 2_000)
+        }
+      } catch (error) {
+        if (stopped || controller.signal.aborted) return
+        setActionError(founderActionErrorMessage(
+          error,
+          'La progression de l’envoi est momentanément indisponible. Réessaie dans un instant.',
+        ))
+        timer = window.setTimeout(() => void poll(), 2_000)
+      }
+    }
+
+    void poll()
+    return () => {
+      stopped = true
+      controller.abort()
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
+  }, [activeSendRequestId, reconcileSendProgress])
+
+  useEffect(() => {
+    if (
+      activeSendRequestId
+      && sendProgress?.request_id === activeSendRequestId
+      && TERMINAL_SEND_STATUSES.has(sendProgress.status)
+    ) {
+      // Effects run after React commits the terminal progress to the page.
+      sessionStorage.removeItem(SEND_REQUEST_STORAGE_KEY)
+      setActiveSendRequestId(null)
+    }
+  }, [activeSendRequestId, sendProgress])
 
   const loadMore = async () => {
     if (loadingMore) return
@@ -691,11 +762,11 @@ function QueueSection({
   const sendBatchCount = Math.min(eligibleApprovedCount, 25)
   const remainingQueueCount = queuePages.pending_review.remaining + queuePages.approved.remaining
   const visibleItems = items.filter((item) => (
-    (item.status === 'pending_review' || item.status === 'approved')
+    (item.status === 'pending_review' || item.status === 'approved' || item.status === 'sent')
     && !isConsumerMailbox(item.email.address)
   ))
   const heldItems = items.filter((item) => (
-    (item.status === 'pending_review' || item.status === 'approved')
+    (item.status === 'pending_review' || item.status === 'approved' || item.status === 'sent')
     && isConsumerMailbox(item.email.address)
   ))
   const orderedVisibleItems = [...visibleItems, ...heldItems]
@@ -704,66 +775,22 @@ function QueueSection({
     const approved = items.filter((item) => (
       item.status === 'approved' && !isConsumerMailbox(item.email.address)
     )).slice(0, 25)
-    if (approved.length === 0 || sendState === 'sending') return
-    const fingerprint = approved
-      .map((item) => `${item.target_id}:${item.version}`)
-      .sort()
-      .join('|')
-    const requestId = sendRequestRef.current?.fingerprint === fingerprint
-      ? sendRequestRef.current.requestId
-      : crypto.randomUUID()
-    sendRequestRef.current = { fingerprint, requestId }
+    if (approved.length === 0 || activeSendRequestId) return
+    const requestId = crypto.randomUUID()
     setSendConfirmationOpen(false)
     setActionError(null)
-    setSendNotice(null)
-    setSendingCount(approved.length)
-    setSendState('sending')
-    const batchIds = new Set(approved.map((item) => item.target_id))
-    setItems((current) => current.map((item) => batchIds.has(item.target_id)
-      ? { ...item, status: 'sent', version: item.version + 1 }
-      : item))
+    sendProgressRef.current = null
+    setSendProgress(null)
     try {
       const response = await sendFounderProspects(
         requestId,
         approved.map((item) => ({ target_id: item.target_id, expected_version: item.version })),
       )
-      const failedIds = new Set(response.results
-        .filter((result) => result.status === 'failed')
-        .map((result) => result.target_id))
-      sendRequestRef.current = null
-      if (failedIds.size > 0) {
-        setSendNotice(`${failedIds.size} cible${failedIds.size === 1 ? '' : 's'} non envoyée${failedIds.size === 1 ? '' : 's'}.`)
-      } else {
-        setSendNotice(`${approved.length} cible${approved.length === 1 ? '' : 's'} envoyée${approved.length === 1 ? '' : 's'}.`)
-      }
-      try {
-        await refreshQueue()
-      } catch (error) {
-        setActionError(founderActionErrorMessage(
-          error,
-          'L’envoi est enregistré, mais la file n’a pas pu être actualisée. Recharge la page.',
-        ))
-      }
+      sessionStorage.setItem(SEND_REQUEST_STORAGE_KEY, response.request_id)
+      reconcileSendProgress(response)
+      setActiveSendRequestId(response.request_id)
     } catch (error) {
-      const message = founderActionErrorMessage(error, 'L’envoi a échoué.')
-      if (error instanceof FounderApiError && error.code) {
-        sendRequestRef.current = null
-        try {
-          await refreshQueue()
-          setActionError(message)
-        } catch {
-          setActionError(`${message} La file n’a pas pu être actualisée ; recharge la page.`)
-        }
-      } else {
-        setItems((current) => current.map((item) => (
-          batchIds.has(item.target_id)
-            ? approved.find((candidate) => candidate.target_id === item.target_id) ?? item
-            : item
-        )))
-        setActionError(message)
-      }
-    } finally {
-      setSendState('idle')
+      setActionError(founderActionErrorMessage(error, 'L’envoi a échoué.'))
     }
   }
   return (
@@ -831,6 +858,8 @@ function QueueSection({
                   <th>Signal d’appât</th>
                   <th>Mail</th>
                   <th>Décision</th>
+                  <th>Acceptation fournisseur</th>
+                  <th>Livraison SMTP</th>
                 </tr>
               </thead>
               <tbody>
@@ -838,7 +867,7 @@ function QueueSection({
                   <Fragment key={item.target_id}>
                     {item.target_id === firstHeldTargetId ? (
                       <tr className="prospection-mailbox-hold-divider">
-                        <th colSpan={7}>{heldItems.length} boîte{heldItems.length === 1 ? '' : 's'} grand public en attente</th>
+                        <th colSpan={9}>{heldItems.length} boîte{heldItems.length === 1 ? '' : 's'} grand public en attente</th>
                       </tr>
                     ) : null}
                     <tr className={item.status === 'approved' ? 'prospection-row-approved' : undefined}>
@@ -871,30 +900,36 @@ function QueueSection({
                       </button>
                     </td>
                     <td>
-                      <div className="prospection-row-actions">
-                        <button
-                          type="button"
-                          disabled={item.status === 'approved' || busyTargetIds.has(item.target_id)}
-                          onClick={() => void approve(item)}
-                        >
-                          {item.status === 'approved' ? 'Validée' : 'Valider'}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busyTargetIds.has(item.target_id)}
-                          onClick={() => setCorrectingTarget(item)}
-                        >
-                          Corriger
-                        </button>
-                        <button
-                          type="button"
-                          disabled={busyTargetIds.has(item.target_id)}
-                          onClick={() => setRejectingTarget(item)}
-                        >
-                          Écarter
-                        </button>
-                      </div>
+                      {item.status === 'sent' ? (
+                        <span>Transmission terminée</span>
+                      ) : (
+                        <div className="prospection-row-actions">
+                          <button
+                            type="button"
+                            disabled={item.status === 'approved' || busyTargetIds.has(item.target_id)}
+                            onClick={() => void approve(item)}
+                          >
+                            {item.status === 'approved' ? 'Validée' : 'Valider'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyTargetIds.has(item.target_id)}
+                            onClick={() => setCorrectingTarget(item)}
+                          >
+                            Corriger
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busyTargetIds.has(item.target_id)}
+                            onClick={() => setRejectingTarget(item)}
+                          >
+                            Écarter
+                          </button>
+                        </div>
+                      )}
                     </td>
+                    <td>{acceptanceStatusLabel(item.status)}</td>
+                    <td>{smtpDeliveryStatusLabel(item.delivery.status)}</td>
                     </tr>
                   </Fragment>
                 ))}
@@ -919,7 +954,7 @@ function QueueSection({
             <button
               type="button"
               className="prospection-action-primary"
-              disabled={sendBatchCount === 0 || sendState === 'sending' || killSwitchActive}
+              disabled={sendBatchCount === 0 || activeSendRequestId !== null || killSwitchActive}
               aria-label={sendBatchLabel(eligibleApprovedCount, heldApprovedCount)}
               onClick={() => setSendConfirmationOpen(true)}
             >
@@ -932,12 +967,18 @@ function QueueSection({
             Envois suspendus par le coupe-circuit.
           </p>
         ) : null}
-        {sendState === 'sending' ? (
+        {sendProgress ? (
           <p className="prospection-action-notice" role="status">
-            {sendingCount === 1 ? 'Envoi de la cible…' : `Envoi de ${sendingCount} cibles…`}
+            {sendProgressLabel(sendProgress)}
           </p>
         ) : null}
-        {sendNotice ? <p className="prospection-action-notice" role="status">{sendNotice}</p> : null}
+        {sendProgress?.items
+          .filter((item) => item.status === 'failed' && item.error_message)
+          .map((item) => (
+            <p key={item.target_id} className="prospection-action-error" role="alert">
+              {item.email_address} — {item.error_message}
+            </p>
+          ))}
       </article>
       {correctingTarget ? (
         <CorrectionDrawer
@@ -973,6 +1014,32 @@ function sendBatchLabel(approvedCount: number, heldCount = 0): string {
   if (approvedCount === 1) return 'Envoyer la cible validée'
   if (approvedCount > 25) return 'Envoyer les 25 premières cibles validées'
   return `Envoyer les ${approvedCount} cibles validées`
+}
+
+function sendProgressLabel(progress: FounderProspectionSendProgress): string {
+  const sent = `${progress.sent_count}/${progress.total_count} envoyée${progress.sent_count === 1 ? '' : 's'}`
+  return progress.failed_count > 0 ? `${sent} · ${progress.failed_count} en échec` : sent
+}
+
+function acceptanceStatusLabel(status: FounderProspectionActionTarget['status']): string {
+  switch (status) {
+    case 'pending_review': return 'En attente de validation'
+    case 'approved': return 'Validée, non transmise'
+    case 'sent': return 'Acceptée'
+    case 'rejected': return 'Écartée'
+  }
+}
+
+function smtpDeliveryStatusLabel(status: FounderProspectionActionTarget['delivery']['status']): string {
+  switch (status) {
+    case 'not_sent': return 'Non confirmée'
+    case 'delivered': return 'Délivrée'
+    case 'opened': return 'Ouverte'
+    case 'clicked': return 'Cliquée'
+    case 'replied': return 'Réponse reçue'
+    case 'bounced': return 'Rejetée'
+    case 'unsubscribed': return 'Désinscrite'
+  }
 }
 
 function founderActionErrorMessage(error: unknown, fallback: string): string {

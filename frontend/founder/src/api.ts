@@ -9,7 +9,7 @@ import type {
   FounderProspectionRejectionReason,
   FounderProspectionRejectionResponse,
   FounderProspectionPrepareResponse,
-  FounderProspectionSendResponse,
+  FounderProspectionSendProgress,
   FounderSession,
   FounderSystem,
   FounderProspectionTargetResponse,
@@ -198,10 +198,20 @@ export async function rejectFounderProspect(
 export async function sendFounderProspects(
   requestId: string,
   targets: Array<{ target_id: string; expected_version: number }>,
-): Promise<FounderProspectionSendResponse> {
-  return requestActionJson<FounderProspectionSendResponse>(
+): Promise<FounderProspectionSendProgress> {
+  return requestActionJson<FounderProspectionSendProgress>(
     '/api/founder/actions/prospection/send',
     { request_id: requestId, targets },
     'L’envoi a échoué.',
+  )
+}
+
+export function loadFounderProspectSend(
+  requestId: string,
+  signal: AbortSignal,
+): Promise<FounderProspectionSendProgress> {
+  return requestJson<FounderProspectionSendProgress>(
+    `/api/founder/actions/prospection/send/${encodeURIComponent(requestId)}`,
+    signal,
   )
 }
