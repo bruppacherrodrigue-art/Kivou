@@ -33,6 +33,8 @@ class AssistedInstantlyProvider(Protocol):
 
     def get_campaign(self, provider_campaign_id: str) -> object: ...
 
+    def get_campaign_status(self, provider_campaign_id: str) -> object: ...
+
     def list_leads(self, *, provider_campaign_id: str) -> object: ...
 
     def activate_campaign(self, provider_campaign_id: str) -> object: ...
@@ -44,6 +46,10 @@ _VERIFICATION_ERRORS = {
     -3: "instantly_email_catch_all",
     -4: "instantly_email_job_change",
 }
+
+
+class ReconciliationRequired(RuntimeError):
+    """Remote identity is ambiguous; a worker must never guess a mutation."""
 
 
 @dataclass(frozen=True)
@@ -116,7 +122,9 @@ class AssistedInstantlyDelivery:
             for item in self._provider.list_campaigns(search=name)
             if getattr(item, "name", None) == name and getattr(item, "provider_campaign_id", None)
         ]
-        return str(matches[0].provider_campaign_id) if len(matches) == 1 else None
+        if len(matches) > 1:
+            raise ReconciliationRequired("reconciliation_required: multiple campaigns")
+        return str(matches[0].provider_campaign_id) if matches else None
 
     def find_lead(self, campaign_id: str, email: str) -> str | None:
         response = self._provider.list_leads(provider_campaign_id=campaign_id)
@@ -128,10 +136,13 @@ class AssistedInstantlyDelivery:
             and str(item.get("email", "")).casefold() == email.casefold()
             and item.get("id")
         ]
-        return str(matches[0]["id"]) if len(matches) == 1 else None
+        if len(matches) > 1:
+            raise ReconciliationRequired("reconciliation_required: multiple leads")
+        return str(matches[0]["id"]) if matches else None
 
     def campaign_active(self, campaign_id: str) -> bool:
-        campaign = self._provider.get_campaign(campaign_id)
+        read_status = getattr(self._provider, "get_campaign_status", self._provider.get_campaign)
+        campaign = read_status(campaign_id)
         return str(getattr(campaign, "status", "")).casefold() in {"active", "1"}
 
     @staticmethod
@@ -140,4 +151,9 @@ class AssistedInstantlyDelivery:
         return f"Kivou assisted {request_day} {str(request['request_id'])[:8]}"
 
 
-__all__ = ["AssistedInstantlyDelivery", "AssistedInstantlyProvider", "Verification"]
+__all__ = [
+    "AssistedInstantlyDelivery",
+    "AssistedInstantlyProvider",
+    "ReconciliationRequired",
+    "Verification",
+]

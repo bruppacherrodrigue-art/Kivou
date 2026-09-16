@@ -152,24 +152,18 @@ def test_campaign_patch_sends_only_the_official_writable_subset() -> None:
     provider_config = dict(OFFICIAL_FIXTURE["campaign_create_request"])
     provider_config.pop("name")
     campaign_id = OFFICIAL_FIXTURE["campaign_patch_response"]["id"]
-    result = _provider(handler).configure_campaign(
-        campaign_id, provider_config=provider_config
-    )
+    result = _provider(handler).configure_campaign(campaign_id, provider_config=provider_config)
 
     assert result.provider_campaign_id == campaign_id
     assert observed[0].method == "PATCH"
-    assert observed[0].url == httpx.URL(
-        f"{INSTANTLY_V2_BASE_URL}/campaigns/{campaign_id}"
-    )
+    assert observed[0].url == httpx.URL(f"{INSTANTLY_V2_BASE_URL}/campaigns/{campaign_id}")
     assert json.loads(observed[0].content) == provider_config
 
 
 def test_create_binds_identity_without_assuming_full_response_config() -> None:
     response = OFFICIAL_FIXTURE["campaign_patch_response"]
 
-    campaign = _provider(
-        lambda _request: httpx.Response(200, json=response)
-    ).create_campaign(
+    campaign = _provider(lambda _request: httpx.Response(200, json=response)).create_campaign(
         name=response["name"],
         provider_config={
             key: value
@@ -218,11 +212,24 @@ def test_get_campaign_requires_full_normalizable_readback() -> None:
     response = OFFICIAL_FIXTURE["campaign_patch_response"]
 
     with pytest.raises(InstantlyProviderError) as caught:
-        _provider(lambda _request: httpx.Response(200, json=response)).get_campaign(
-            response["id"]
-        )
+        _provider(lambda _request: httpx.Response(200, json=response)).get_campaign(response["id"])
 
     assert caught.value.code is InstantlyErrorCode.MALFORMED_RESPONSE
+
+
+def test_assisted_campaign_status_readback_does_not_require_two_steps() -> None:
+    assisted = {"id": "provider-campaign-1", "name": "Kivou assisted test", "status": "active"}
+    provider = _provider(lambda _request: httpx.Response(200, json=assisted))
+
+    created = provider.create_assisted_campaign(
+        name="Kivou assisted test",
+        provider_account_id="sender@example.invalid",
+        execution_date=dt.date(2026, 9, 15),
+    )
+    status = provider.get_campaign_status(created.provider_campaign_id)
+    provider.activate_campaign(created.provider_campaign_id)
+
+    assert status.status == "active"
 
 
 @pytest.mark.parametrize(
@@ -313,9 +320,7 @@ def test_campaign_readback_normalizes_official_response_enrichment() -> None:
     def handler(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json=OFFICIAL_FIXTURE["campaign_get_response"])
 
-    campaign = _provider(handler).get_campaign(
-        OFFICIAL_FIXTURE["campaign_get_response"]["id"]
-    )
+    campaign = _provider(handler).get_campaign(OFFICIAL_FIXTURE["campaign_get_response"]["id"])
     desired = dict(OFFICIAL_FIXTURE["campaign_create_request"])
     desired.pop("name")
 
@@ -334,9 +339,7 @@ def test_campaign_readback_normalizes_official_response_enrichment() -> None:
 @pytest.mark.parametrize(
     "mutate",
     [
-        lambda value: value["campaign_schedule"]["schedules"][0]["timing"].update(
-            to="16:59"
-        ),
+        lambda value: value["campaign_schedule"]["schedules"][0]["timing"].update(to="16:59"),
         lambda value: value["sequences"][0]["steps"][0]["variants"][0].update(
             body="provider drift"
         ),
@@ -416,9 +419,7 @@ def test_unknown_campaign_response_field_fails_closed() -> None:
         lambda value: value["sequences"][0]["steps"].append(
             {
                 "type": "email",
-                "variants": [
-                    {"subject": "", "body": "forbidden", "v_disabled": False}
-                ],
+                "variants": [{"subject": "", "body": "forbidden", "v_disabled": False}],
             }
         ),
     ],
@@ -493,9 +494,7 @@ def test_official_lead_get_and_list_shapes_normalize_payload_binding() -> None:
 
     assert lead["custom_variables"] == {"kivou_member_ref": "member-safe"}
     assert lead["campaign_id"] == OFFICIAL_FIXTURE["campaign_get_response"]["id"]
-    assert listed["items"][0]["custom_variables"] == {
-        "kivou_member_ref": "member-safe"
-    }
+    assert listed["items"][0]["custom_variables"] == {"kivou_member_ref": "member-safe"}
     assert calls == 2
 
 
@@ -550,9 +549,7 @@ def test_oversized_provider_stream_stops_at_the_configured_read_bound() -> None:
                 yield b"x" * 262_144
 
     stream = OversizedStream()
-    provider = _provider(
-        lambda _request: httpx.Response(200, stream=stream)
-    )
+    provider = _provider(lambda _request: httpx.Response(200, stream=stream))
 
     with pytest.raises(InstantlyProviderError) as caught:
         provider.list_webhooks()

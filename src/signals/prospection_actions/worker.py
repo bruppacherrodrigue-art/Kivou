@@ -18,6 +18,11 @@ from signals.prospection_actions.delivery import (
 from signals.prospection_actions.service import DeliveryTarget
 
 LEASE = dt.timedelta(minutes=5)
+MUTATION_HORIZON = dt.timedelta(minutes=15)
+# Instantly clients used here must have a bounded timeout below this horizon;
+# composition owns that transport invariant.  A lease is never held in a DB
+# transaction while the network call is in flight.
+MAX_PROVIDER_TIMEOUT = dt.timedelta(minutes=5)
 RETRY_DELAY = dt.timedelta(minutes=1)
 _TERMINAL = ("sent", "failed")
 
@@ -46,6 +51,15 @@ class ProspectSendWorker:
         provider_account_id: str,
         kill_switch_path: Path = Path("/etc/kivou/acquisition.disabled"),
     ) -> None:
+        timeout_seconds = getattr(
+            provider, "mutation_timeout_seconds", MAX_PROVIDER_TIMEOUT.total_seconds()
+        )
+        if (
+            not isinstance(timeout_seconds, (int, float))
+            or timeout_seconds <= 0
+            or timeout_seconds >= MUTATION_HORIZON.total_seconds()
+        ):
+            raise ValueError("provider timeout must be bounded below the mutation lease horizon")
         self._engine = engine
         self._delivery = AssistedInstantlyDelivery(
             provider=provider, provider_account_id=provider_account_id
@@ -71,12 +85,6 @@ class ProspectSendWorker:
                 queued_items.c.status.not_in(_TERMINAL),
             )
         )
-        any_sent = sa.exists(
-            sa.select(sa.literal(1)).where(
-                queued_items.c.request_id == prospect_send_request.c.request_id,
-                queued_items.c.status == "sent",
-            )
-        )
         request_reclaimable = sa.or_(
             prospect_send_request.c.status.in_(("queued", "waiting")),
             sa.and_(
@@ -96,9 +104,8 @@ class ProspectSendWorker:
             # A terminal row is only an activation-retry carrier once there is
             # no ordinary item left.  It must never starve a queued sibling.
             sa.and_(
-                prospect_send_item.c.status == "sent",
+                prospect_send_item.c.status.in_(_TERMINAL),
                 ~nonterminal,
-                any_sent,
                 prospect_send_request.c.next_attempt_at <= now,
             ),
         )
@@ -232,6 +239,8 @@ class ProspectSendWorker:
                     lease_id=claim.lease_id,
                 )
             else:
+                if not self._extend_mutation_lease(claim, now):
+                    return WorkerOutcome("lost", request_id, target_id)
                 if not self._set_result(claim, {"reconcile": "campaign"}, now):
                     return WorkerOutcome("lost", request_id, target_id)
                 if self._kill_switch_path.exists():
@@ -255,6 +264,8 @@ class ProspectSendWorker:
                 ):
                     return WorkerOutcome("lost", request_id, target_id)
             if not instantly_id:
+                if not self._extend_mutation_lease(claim, now):
+                    return WorkerOutcome("lost", request_id, target_id)
                 if not self._set_result(claim, {"reconcile": "lead"}, now):
                     return WorkerOutcome("lost", request_id, target_id)
                 if self._kill_switch_path.exists():
@@ -618,6 +629,8 @@ class ProspectSendWorker:
                         return WorkerOutcome("lost", request_id, target_id)
                     activated = True
                 if not activated:
+                    if not self._extend_mutation_lease(claim, now):
+                        return WorkerOutcome("lost", request_id, target_id)
                     if not self._set_result(claim, {"activation": {"state": "activating"}}, now):
                         return WorkerOutcome("lost", request_id, target_id)
                     if not self._lease_current(claim):
@@ -649,9 +662,9 @@ class ProspectSendWorker:
                 .mappings()
                 .one_or_none()
             )
-        return (
-            dict(row["result"] or {}) if row is not None and isinstance(row["result"], dict) else {}
-        )
+        if row is None:
+            return None
+        return dict(row["result"] or {}) if isinstance(row["result"], dict) else {}
 
     def _set_result(self, claim: _Claim, values: dict[str, object], now: dt.datetime) -> bool:
         current = self._result(claim)
@@ -673,6 +686,23 @@ class ProspectSendWorker:
 
     def _lease_current(self, claim: _Claim) -> bool:
         return self._result(claim) is not None
+
+    def _extend_mutation_lease(self, claim: _Claim, now: dt.datetime) -> bool:
+        if MAX_PROVIDER_TIMEOUT >= MUTATION_HORIZON:
+            raise RuntimeError("provider timeout exceeds mutation lease horizon")
+        with self._engine.begin() as connection:
+            return (
+                connection.execute(
+                    sa.update(prospect_send_request)
+                    .where(
+                        prospect_send_request.c.request_id == claim.request["request_id"],
+                        prospect_send_request.c.lease_id == claim.lease_id,
+                        prospect_send_request.c.status == "running",
+                    )
+                    .values(lease_expires_at=now + MUTATION_HORIZON, updated_at=now)
+                ).rowcount
+                == 1
+            )
 
 
 __all__ = ["ProspectSendWorker", "WorkerOutcome"]
