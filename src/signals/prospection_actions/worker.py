@@ -107,6 +107,14 @@ class ProspectSendWorker:
             if connection.scalar(item) not in ("running", *_TERMINAL):
                 yield None
                 return
+            target = sa.select(prospect_target.c.target_id).where(
+                prospect_target.c.target_id == claim.target["target_id"]
+            )
+            if connection.dialect.name == "postgresql":
+                target = target.with_for_update()
+            if connection.scalar(target) is None:
+                yield None
+                return
             yield connection
             # A waiting claimant must see a fresh lease when the guard commits.
             # If the operation released the request, this update matches nothing.
@@ -236,23 +244,19 @@ class ProspectSendWorker:
             .mappings()
             .one()
         )
-        item = dict(
-            connection.execute(
-                sa.select(prospect_send_item).where(
-                    prospect_send_item.c.request_id == row["request_id"],
-                    prospect_send_item.c.target_id == row["target_id"],
-                )
-            )
-            .mappings()
-            .one()
+        item_query = sa.select(prospect_send_item).where(
+            prospect_send_item.c.request_id == row["request_id"],
+            prospect_send_item.c.target_id == row["target_id"],
         )
-        target = dict(
-            connection.execute(
-                sa.select(prospect_target).where(prospect_target.c.target_id == row["target_id"])
-            )
-            .mappings()
-            .one()
+        if connection.dialect.name == "postgresql":
+            item_query = item_query.with_for_update()
+        item = dict(connection.execute(item_query).mappings().one())
+        target_query = sa.select(prospect_target).where(
+            prospect_target.c.target_id == row["target_id"]
         )
+        if connection.dialect.name == "postgresql":
+            target_query = target_query.with_for_update()
+        target = dict(connection.execute(target_query).mappings().one())
         if item["status"] not in _TERMINAL:
             connection.execute(
                 sa.update(prospect_send_item)
@@ -282,6 +286,12 @@ class ProspectSendWorker:
     def _process(self, claim: _Claim) -> WorkerOutcome:
         request_id = str(claim.request["request_id"])
         target_id = str(claim.target["target_id"])
+        if claim.item["status"] not in _TERMINAL:
+            with self._mutation_guard(claim) as connection:
+                if connection is None:
+                    return WorkerOutcome("lost", request_id, target_id)
+                if completed := self._finish_already_sent(claim, connection):
+                    return completed
         if claim.item["status"] in _TERMINAL:
             with self._engine.connect() as connection:
                 final_status = self._counts(connection, request_id)[3]
@@ -302,6 +312,8 @@ class ProspectSendWorker:
             with self._mutation_guard(claim) as connection:
                 if connection is None:
                     return WorkerOutcome("lost", request_id, target_id)
+                if completed := self._finish_already_sent(claim, connection):
+                    return completed
                 try:
                     campaign_id = self._delivery.find_campaign(claim.request, at=claim.clock())
                     if not campaign_id:
@@ -324,6 +336,8 @@ class ProspectSendWorker:
             with self._mutation_guard(claim) as connection:
                 if connection is None:
                     return WorkerOutcome("lost", request_id, target_id)
+                if completed := self._finish_already_sent(claim, connection):
+                    return completed
                 try:
                     instantly_id = self._delivery.find_lead(
                         str(campaign_id), str(claim.target["email_address"])
@@ -369,6 +383,78 @@ class ProspectSendWorker:
             instantly_id=str(instantly_id),
             imported=imported,
         )
+
+    def _finish_already_sent(
+        self, claim: _Claim, connection: sa.Connection
+    ) -> WorkerOutcome | None:
+        """Reuse accepted state under request/item/target locks without provider calls.
+
+        Terminal items remain activation retry carriers. A nonterminal item may
+        observe a target accepted elsewhere, including during verification GET.
+        """
+        request_id = str(claim.request["request_id"])
+        target_id = str(claim.target["target_id"])
+        target = (
+            connection.execute(
+                sa.select(prospect_target.c.instantly_id, prospect_target.c.instantly_accepted_at)
+                .join(
+                    prospect_send_item,
+                    prospect_send_item.c.target_id == prospect_target.c.target_id,
+                )
+                .where(
+                    prospect_target.c.target_id == target_id,
+                    prospect_target.c.status == "sent",
+                    prospect_send_item.c.request_id == request_id,
+                    prospect_send_item.c.status == "running",
+                    self._lease_matches(request_id, claim.lease_id),
+                )
+            )
+            .mappings()
+            .one_or_none()
+        )
+        if target is None:
+            return None
+        now = claim.clock()
+        connection.execute(
+            sa.update(prospect_send_item)
+            .where(
+                prospect_send_item.c.request_id == request_id,
+                prospect_send_item.c.target_id == target_id,
+                self._lease_matches(request_id, claim.lease_id),
+            )
+            .values(
+                status="sent",
+                instantly_id=target["instantly_id"] or prospect_send_item.c.instantly_id,
+                verification_status=1,
+                completed_at=target["instantly_accepted_at"] or now,
+                updated_at=now,
+                error_code=None,
+                error_message=None,
+            )
+        )
+        _, sent, _, final_status = self._counts(connection, request_id)
+        request = (
+            connection.execute(
+                sa.select(prospect_send_request).where(
+                    prospect_send_request.c.request_id == request_id
+                )
+            )
+            .mappings()
+            .one()
+        )
+        activation = (request["result"] or {}).get("activation")
+        activated = isinstance(activation, dict) and activation.get("state") == "active"
+        activation_due = sent and request["provider_campaign_id"] and not activated
+        status = "waiting" if final_status is None or activation_due else final_status
+        self._release_with_counts(
+            connection,
+            claim,
+            now=now,
+            status=status,
+            next_attempt=now if status == "waiting" else None,
+            completed=status != "waiting",
+        )
+        return WorkerOutcome(status, request_id, target_id)
 
     @staticmethod
     def _delivery_target(row: dict[str, object]) -> DeliveryTarget:
@@ -460,6 +546,8 @@ class ProspectSendWorker:
         with transaction as guarded_connection:
             if guarded_connection is None:
                 return WorkerOutcome("lost", request_id, str(claim.target["target_id"]))
+            if completed := self._finish_already_sent(claim, guarded_connection):
+                return completed
             now = claim.clock()
             next_attempt = now + RETRY_DELAY
             current_status = guarded_connection.scalar(
@@ -547,6 +635,8 @@ class ProspectSendWorker:
         with self._mutation_guard(claim) as connection:
             if connection is None:
                 return WorkerOutcome("lost", request_id, target_id)
+            if completed := self._finish_already_sent(claim, connection):
+                return completed
             now = claim.clock()
             item = connection.execute(
                 sa.update(prospect_send_item)
@@ -608,6 +698,8 @@ class ProspectSendWorker:
         with self._mutation_guard(claim) as connection:
             if connection is None:
                 return WorkerOutcome("lost", request_id, target_id)
+            if completed := self._finish_already_sent(claim, connection):
+                return completed
             now = claim.clock()
             item = connection.execute(
                 sa.update(prospect_send_item)

@@ -21,6 +21,7 @@ from signals.campaigns.instantly import (
     normalized_provider_campaign_config_fingerprint,
     provider_campaign_configs_match,
 )
+from signals.prospection_actions.delivery import AssistedInstantlyDelivery
 
 OFFICIAL_FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "instantly_v2_contract_v1.json").read_text()
@@ -230,6 +231,23 @@ def test_assisted_campaign_status_readback_does_not_require_two_steps() -> None:
     provider.activate_campaign(created.provider_campaign_id)
 
     assert status.status == "active"
+
+
+@pytest.mark.parametrize(
+    ("status", "satisfied"),
+    [(1, True), ("Active", True), (3, True), ("Completed", True), (2, False), ("Paused", False)],
+)
+def test_assisted_activation_readback_accepts_completed_but_not_paused(status, satisfied):
+    provider = _provider(
+        lambda _request: httpx.Response(
+            200, json={"id": "campaign-1", "name": "Kivou assisted test", "status": status}
+        )
+    )
+    delivery = AssistedInstantlyDelivery(
+        provider=provider, provider_account_id="sender@example.invalid"
+    )
+
+    assert delivery.campaign_active("campaign-1") is satisfied
 
 
 @pytest.mark.parametrize(

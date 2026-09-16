@@ -141,9 +141,10 @@ class AssistedInstantlyDelivery:
         return str(matches[0]["id"]) if matches else None
 
     def campaign_active(self, campaign_id: str) -> bool:
+        """Active or completed proves activation; a paused campaign still needs resume."""
         read_status = getattr(self._provider, "get_campaign_status", self._provider.get_campaign)
         campaign = read_status(campaign_id)
-        return str(getattr(campaign, "status", "")).casefold() in {"active", "1"}
+        return str(getattr(campaign, "status", "")).casefold() in {"active", "1", "completed", "3"}
 
     @staticmethod
     def _campaign_name(request: Mapping[str, object], *, at: dt.datetime) -> str:
