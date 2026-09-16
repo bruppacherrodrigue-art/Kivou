@@ -141,6 +141,11 @@ def test_existing_campaign_binds_request_and_all_siblings(worker_fixture, confli
     if conflict:
         assert item["error_code"] == "campaign_binding_conflict"
         assert provider.create_lead_calls == provider.activate_calls == []
+        assert (
+            worker.run_once(worker_ref="worker-c", now=NOW + dt.timedelta(minutes=1)).status
+            == "partial"
+        )
+        assert provider.activate_calls == ["existing"]
     else:
         assert provider.create_lead_calls[0][0] == "existing"
         assert provider.activate_calls == ["existing"]
@@ -273,7 +278,9 @@ def test_import_intent_preserves_declared_costs_and_confirms_credit_once(worker_
     )
     assert target_row(engine)["instantly_credit_units"] == 1
     assert len(provider.create_lead_calls) == 1
-    assert target_row(engine)["instantly_request_count"] == 8
+    # A fresh POST needs a new durable attempt and a guarded re-scan. A unique
+    # reconciled success instead confirms the old receipt without another POST.
+    assert target_row(engine)["instantly_request_count"] == (10 if point == "before_import" else 8)
     provider.verification_status = 1
     assert (
         worker.run_once(worker_ref="worker-c", now=NOW + dt.timedelta(minutes=7)).status
@@ -283,3 +290,6 @@ def test_import_intent_preserves_declared_costs_and_confirms_credit_once(worker_
     with engine.connect() as connection:
         result = connection.scalar(sa.select(prospect_send_request.c.result))
     assert result["accounting"][f"lead:{TARGET_ID}:import"]["confirmed"] is True
+    assert result["accounting"][f"lead:{TARGET_ID}:import"]["attempt_count"] == (
+        2 if point == "before_import" else 1
+    )

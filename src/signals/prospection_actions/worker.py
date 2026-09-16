@@ -37,6 +37,7 @@ class WorkerOutcome:
 class _Operations:
     ready_reads: dict[str, list[str]] = field(default_factory=dict)
     phase_reads: list[str] = field(default_factory=list)
+    ready_mutations: set[str] = field(default_factory=set)
 
 
 class _DeclareOperation(Exception):
@@ -374,7 +375,7 @@ class ProspectSendWorker:
                             return self._wait(
                                 claim, error="kill switch active", connection=connection
                             )
-                        self._require_mutation(claim, "campaign:create", connection)
+                        self._require_mutation(claim, "campaign:create")
                         campaign_id = self._delivery.ensure_campaign(
                             claim.request, at=claim.clock()
                         )
@@ -407,7 +408,7 @@ class ProspectSendWorker:
                             return self._wait(
                                 claim, error="kill switch active", connection=connection
                             )
-                        self._require_mutation(claim, f"lead:{target_id}:import", connection)
+                        self._require_mutation(claim, f"lead:{target_id}:import")
                         instantly_id = self._delivery.import_target(
                             str(campaign_id), self._delivery_target(claim.target)
                         )
@@ -528,20 +529,55 @@ class ProspectSendWorker:
             .where(
                 prospect_target.c.target_id == target_id,
                 prospect_target.c.send_request_id == request_id,
-                prospect_target.c.status.in_(("approved", "rejected")),
+                prospect_target.c.status != "sent",
             )
             .values(send_request_id=None)
         )
-        self._set_result(claim, {"activation_blocked": code}, now=now, connection=connection)
-        status = self._counts(connection, request_id)[3] or "waiting"
+        request = (
+            connection.execute(
+                sa.select(prospect_send_request).where(
+                    prospect_send_request.c.request_id == request_id
+                )
+            )
+            .mappings()
+            .one()
+        )
+        target = (
+            connection.execute(
+                sa.select(prospect_target).where(prospect_target.c.target_id == target_id)
+            )
+            .mappings()
+            .one()
+        )
+        campaign_id = request["provider_campaign_id"]
+        receipt = self._accounting(claim, connection).get(f"lead:{target_id}:import", {})
+        # A cancelled, never-exposed sibling must not prevent valid siblings
+        # from sending. An import intent is conservative evidence even after a
+        # crash rolled back the local lead ID or an edit changed its binding.
+        exposed = campaign_id and (
+            (target["instantly_id"] and target["provider_campaign_id"] == campaign_id)
+            or (
+                receipt.get("zero_matches")
+                and receipt.get("campaign_id", campaign_id) == campaign_id
+            )
+        )
+        if exposed:
+            self._set_result(claim, {"activation_blocked": code}, now=now, connection=connection)
+        result = self._result(claim, connection=connection)
+        blocked = result.get("activation_blocked")
+        _, sent, _, final_status = self._counts(connection, request_id)
+        status = final_status or "waiting"
+        if blocked or (sent and self._activation_due(campaign_id, result)):
+            status = "waiting"
+        error = self._blocked_error(blocked) if blocked else code
         self._release_with_counts(
             connection,
             claim,
             now=now,
             status=status,
-            next_attempt=now if status == "waiting" else None,
+            next_attempt=(now + RETRY_DELAY if blocked else now) if status == "waiting" else None,
             completed=status != "waiting",
-            error=code,
+            error=error,
         )
         return WorkerOutcome(status, request_id, target_id)
 
@@ -553,18 +589,46 @@ class ProspectSendWorker:
         ready.pop(0)
         claim.operations.phase_reads.append(label)
 
-    def _require_mutation(self, claim: _Claim, key: str, connection: sa.Connection) -> None:
-        accounting = self._result(claim, connection=connection).get("accounting", {})
-        if key not in accounting:
+    @staticmethod
+    def _require_mutation(claim: _Claim, key: str) -> None:
+        if key not in claim.operations.ready_mutations:
             # Called only after a complete scan established absence/inactivity.
             raise _DeclareOperation(key, list(claim.operations.phase_reads))
+        # A receipt deduplicates import credit, never future POST attempts. The
+        # in-memory permit is consumed even if this attempt returns 429 or fails.
+        claim.operations.ready_mutations.remove(key)
+
+    @staticmethod
+    def _read_phase(label: str) -> str:
+        # Cursor identities are transient replay information, not ledger keys.
+        return label.split(":list:", 1)[0] + ":list" if ":list:" in label else label
+
+    def _accounting(self, claim: _Claim, connection: sa.Connection) -> dict[str, dict]:
+        ledger = self._result(claim, connection=connection).get("accounting", {})
+        accounting = {}
+        for key, entry in ledger.items():
+            if entry.get("kind") != "read":
+                accounting[key] = dict(entry)
+                continue
+            phase = self._read_phase(key)
+            previous = accounting.get(phase, {})
+            # Compact legacy per-cursor receipts without changing historical
+            # target totals. One aggregate and one current receipt per phase.
+            accounting[phase] = {
+                "kind": "read",
+                "receipt": entry.get("receipt"),
+                "read_count": previous.get("read_count", 0)
+                + entry.get("read_count", entry.get("attempts", 0)),
+            }
+        return accounting
 
     def _declare_operation(
         self, claim: _Claim, operation: _DeclareOperation
     ) -> WorkerOutcome | None:
         """Durably declare HTTP attempts before calling the provider.
 
-        Mutation keys identify one logical attempt through ambiguous retries.
+        Mutation keys identify one logical operation through ambiguous retries;
+        attempt_count and target totals increment before EACH new POST attempt.
         Each reconciliation/verification read gets a distinct receipt, including
         re-reads required after declaring a mutation and reopening the guard.
         A crash can leave a declared attempt without a response; these counters
@@ -578,22 +642,31 @@ class ProspectSendWorker:
                 )
             if outcome := self._check_target(claim, connection):
                 return outcome
-            accounting = dict(self._result(claim, connection=connection).get("accounting", {}))
+            accounting = self._accounting(claim, connection)
             requests = 0
-            if operation.key is not None and operation.key not in accounting:
+            if operation.key is not None:
+                previous = accounting.get(operation.key, {})
                 accounting[operation.key] = {
                     "kind": "mutation",
                     "confirmed": False,
                     "zero_matches": True,
+                    **previous,
+                    "attempt_count": int(previous.get("attempt_count", bool(previous))) + 1,
+                    "campaign_id": connection.scalar(
+                        sa.select(prospect_send_request.c.provider_campaign_id).where(
+                            prospect_send_request.c.request_id == claim.request["request_id"]
+                        )
+                    ),
                 }
                 requests += 1
             for label in operation.replay_reads:
                 token = str(uuid.uuid4())
-                previous = accounting.get(label, {})
-                accounting[label] = {
+                phase = self._read_phase(label)
+                previous = accounting.get(phase, {})
+                accounting[phase] = {
                     "kind": "read",
                     "receipt": token,
-                    "attempts": int(previous.get("attempts", 0)) + 1,
+                    "read_count": int(previous.get("read_count", 0)) + 1,
                 }
                 ready.setdefault(label, []).append(token)
                 requests += 1
@@ -611,10 +684,12 @@ class ProspectSendWorker:
             )
             self._set_result(claim, {"accounting": accounting}, now=now, connection=connection)
         claim.operations.ready_reads = ready
+        if operation.key is not None:
+            claim.operations.ready_mutations.add(operation.key)
         return None
 
     def _confirm_import(self, claim: _Claim, connection: sa.Connection) -> None:
-        accounting = dict(self._result(claim, connection=connection).get("accounting", {}))
+        accounting = self._accounting(claim, connection)
         key = f"lead:{claim.target['target_id']}:import"
         intent = accounting.get(key)
         if (
@@ -696,9 +771,9 @@ class ProspectSendWorker:
             .mappings()
             .one()
         )
-        activation = (request["result"] or {}).get("activation")
-        activated = isinstance(activation, dict) and activation.get("state") == "active"
-        activation_due = sent and request["provider_campaign_id"] and not activated
+        activation_due = sent and self._activation_due(
+            request["provider_campaign_id"], request["result"] or {}
+        )
         status = "waiting" if final_status is None or activation_due else final_status
         self._release_with_counts(
             connection,
@@ -1025,6 +1100,10 @@ class ProspectSendWorker:
     ) -> bool:
         request_id = str(claim.request["request_id"])
         processed, sent, failed, _ = self._counts(connection, request_id)
+        # A sibling's pending/accepted transition must not hide the durable
+        # recovery requirement of a previously exposed, cancelled target.
+        if blocked := self._result(claim, connection=connection).get("activation_blocked"):
+            error = self._blocked_error(blocked)
         update = connection.execute(
             sa.update(prospect_send_request)
             .where(
@@ -1055,7 +1134,9 @@ class ProspectSendWorker:
             if connection is None:
                 return WorkerOutcome("lost", request_id, target_id)
             result = self._result(claim, connection=connection)
-            if status in {"completed", "partial"} and not result.get("activation_blocked"):
+            if blocked := result.get("activation_blocked"):
+                return self._wait(claim, error=self._blocked_error(blocked), connection=connection)
+            if status in {"completed", "partial"}:
                 activation = result.get("activation")
                 activated = isinstance(activation, dict) and activation.get("state") == "active"
                 if not activated and not campaign_id:
@@ -1071,7 +1152,7 @@ class ProspectSendWorker:
                             return self._wait(
                                 claim, error="activation deferred", connection=connection
                             )
-                        self._require_mutation(claim, "campaign:activate", connection)
+                        self._require_mutation(claim, "campaign:activate")
                         self._delivery.activate(campaign_id)
                 except _DeclareOperation:
                     raise
@@ -1093,10 +1174,19 @@ class ProspectSendWorker:
                 status=status,
                 next_attempt=None,
                 completed=True,
-                error=result.get("activation_blocked"),
             ):
                 return WorkerOutcome("lost", request_id, target_id)
         return WorkerOutcome(status, request_id, target_id)
+
+    @staticmethod
+    def _activation_due(campaign_id: object, result: dict) -> bool:
+        activation = result.get("activation")
+        activated = isinstance(activation, dict) and activation.get("state") == "active"
+        return bool(campaign_id) and not activated
+
+    @staticmethod
+    def _blocked_error(code: object) -> str:
+        return f"Activation blocked ({code}); reconcile imported lead before activation"[:1000]
 
     def _result(self, claim: _Claim, *, connection: sa.Connection) -> dict[str, object]:
         result = connection.scalar(
