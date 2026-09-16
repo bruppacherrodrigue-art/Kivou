@@ -147,6 +147,22 @@ def test_clock_must_be_timezone_aware(migrated_sqlite_engine) -> None:
         ).generate(cadence="DAILY")
 
 
+def test_attempt_timestamps_use_runtime_clock_not_analytical_at(
+    migrated_sqlite_engine,
+) -> None:
+    analytical_at = NOW - dt.timedelta(days=2)
+    outcome = ChiefOfStaffService(
+        overview_reader=OverviewReader(),
+        generator=Generator(),
+        store=ChiefOfStaffReportStore(migrated_sqlite_engine),
+        attempt_store=ChiefOfStaffAttemptStore(migrated_sqlite_engine),
+        clock=lambda: NOW,
+    ).generate(cadence="ON_DEMAND", at=analytical_at)
+    assert outcome.context.generated_at == analytical_at
+    assert outcome.attempt.started_at == NOW
+    assert outcome.attempt.completed_at == NOW
+
+
 @pytest.mark.parametrize(
     ("error", "status", "stage", "code"),
     (

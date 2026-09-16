@@ -139,7 +139,8 @@ class ChiefOfStaffService:
         at: dt.datetime | None = None,
         persist: bool = False,
     ) -> ChiefOfStaffGeneration:
-        generated_at = _aware(at or self.clock())
+        runtime_started_at = _aware(self.clock())
+        generated_at = _aware(at or runtime_started_at)
         period_start, period_end = reporting_period(cadence, at=generated_at)
         overview = self.overview_reader.overview(now=generated_at)
         context = build_context(
@@ -160,7 +161,7 @@ class ChiefOfStaffService:
             self._append_attempt(
                 attempt_id=attempt_id,
                 context=context,
-                started_at=generated_at,
+                started_at=runtime_started_at,
                 model_route=model_route,
                 model_call_id=planned_call_id,
                 status="RESPONSE_REJECTED",
@@ -192,7 +193,7 @@ class ChiefOfStaffService:
             self._append_attempt(
                 attempt_id=attempt_id,
                 context=context,
-                started_at=generated_at,
+                started_at=runtime_started_at,
                 model_route=model_route,
                 model_call_id=planned_call_id,
                 status="PROVIDER_FAILED",
@@ -206,7 +207,7 @@ class ChiefOfStaffService:
             self._append_attempt(
                 attempt_id=attempt_id,
                 context=context,
-                started_at=generated_at,
+                started_at=runtime_started_at,
                 model_route=generated.model,
                 model_call_id=generated.call_id or planned_call_id,
                 status="SEMANTICALLY_REJECTED",
@@ -234,7 +235,7 @@ class ChiefOfStaffService:
                 self._append_attempt(
                     attempt_id=attempt_id,
                     context=context,
-                    started_at=generated_at,
+                    started_at=runtime_started_at,
                     model_route=generated.model,
                     model_call_id=generated.call_id or planned_call_id,
                     status="VALIDATED_NOT_PERSISTED",
@@ -245,7 +246,7 @@ class ChiefOfStaffService:
         attempt = self._append_attempt(
             attempt_id=attempt_id,
             context=context,
-            started_at=generated_at,
+            started_at=runtime_started_at,
             model_route=generated.model,
             model_call_id=generated.call_id or planned_call_id,
             status=(
