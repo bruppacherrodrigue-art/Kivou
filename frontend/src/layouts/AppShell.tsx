@@ -104,7 +104,9 @@ function ReadyAppShell({ me }: { me: ReturnType<typeof useCurrentUser> }) {
           profileLabel={profileLabel}
           sectorLabel={sectorLabel}
           zoneLabel={zoneLabel}
-          openedSignals={summary.data?.plan?.opened ?? null}
+          planCode={summary.data?.plan?.code ?? null}
+          assignedSignals={summary.data?.plan?.assigned ?? null}
+          openedThisMonth={summary.data?.plan?.opened_this_month ?? null}
           signalQuota={summary.data?.plan?.quota ?? null}
           profileError={Boolean(summary.error)}
           planError={Boolean(summary.error)}
@@ -125,7 +127,9 @@ function ConnectedShell({
   profileLabel,
   sectorLabel,
   zoneLabel,
-  openedSignals,
+  planCode,
+  assignedSignals,
+  openedThisMonth,
   signalQuota,
   profileError,
   planError,
@@ -140,7 +144,9 @@ function ConnectedShell({
   profileLabel: string
   sectorLabel: string
   zoneLabel: string
-  openedSignals: number | null
+  planCode: string | null
+  assignedSignals: number | null
+  openedThisMonth: number | null
   signalQuota: number | null
   profileError: boolean
   planError: boolean
@@ -253,7 +259,7 @@ function ConnectedShell({
         <SidebarFooter className="sidebar-footer">
           <AccountBlock me={me} />
           <div className="sidebar-plan-summary">
-            <strong>{dashboardResource.loading ? t.reference.loading : planError || !dashboardResource.data?.plan ? (locale === 'fr' ? 'Résumé temporairement indisponible' : 'Summary temporarily unavailable') : signalQuota === null && openedSignals !== null ? `${openedSignals} ${locale === 'fr' ? 'signaux ouverts ce mois' : 'signals opened this month'}` : `Plan ${planLabel} · ${openedSignals ?? '—'}/${signalQuota ?? '—'} ${locale === 'fr' ? 'signaux ce mois' : 'signals this month'}`}</strong>
+            <strong>{dashboardResource.loading ? t.reference.loading : planError || !dashboardResource.data?.plan ? (locale === 'fr' ? 'Résumé temporairement indisponible' : 'Summary temporarily unavailable') : planCode === 'discovery' ? `Plan ${planLabel} · ${assignedSignals ?? '—'}/${signalQuota ?? '—'} ${locale === 'fr' ? 'signaux attribués' : 'signals assigned'}` : `Plan ${planLabel} · ${openedThisMonth ?? '—'} ${locale === 'fr' ? 'signaux consultés ce mois' : 'signals viewed this month'}`}</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>
         </SidebarFooter>

@@ -9,6 +9,7 @@ import sqlalchemy as sa
 
 from signals.accounts.icp_input import TargetIcpInput, to_target_icp
 from signals.accounts.schema import target_icp
+from signals.billing import discovery
 from signals.client_value.notice_facts import store_notice_facts
 from signals.connectors.boamp.facts import extract_boamp_notice_facts
 from signals.documents.early_capture import resolve_award_documents
@@ -67,6 +68,7 @@ def _active_targets(connection: sa.Connection) -> tuple[Any, ...]:
     rows = connection.execute(
         sa.select(
             target_icp.c.target_icp_id,
+            target_icp.c.account_id,
             target_icp.c.label,
             target_icp.c.matching_revision,
             target_icp.c.customer_input,
@@ -88,6 +90,7 @@ def _active_targets(connection: sa.Connection) -> tuple[Any, ...]:
                     label=row.label,
                 ),
                 row.matching_revision,
+                row.account_id,
             )
         )
     return tuple(targets)
@@ -155,7 +158,7 @@ class IngestionPipeline:
                 ),
                 as_of=as_of,
             )
-            for profile, target_revision in active_targets:
+            for profile, target_revision, account_id in active_targets:
                 match = self.matching.match(understanding, needs, profile, as_of=as_of)
                 # Eligibility is the approved engine decision. The runtime adds no
                 # threshold, entitlement, or copied interpretation of `show`.
@@ -175,6 +178,12 @@ class IngestionPipeline:
                         linked_to=resolution.linked_to,
                         link_strength=resolution.strength,
                         target_icp_revision=target_revision,
+                    )
+                    discovery.reconcile_initial_backfill(
+                        connection,
+                        account_id=account_id,
+                        as_of=as_of,
+                        now=persisted_at,
                     )
                 delta = result.created or result.updated
                 materialized += delta

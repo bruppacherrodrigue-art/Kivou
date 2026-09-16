@@ -29,7 +29,6 @@ Aucun `POST` : un signal est produit par Kivou, jamais rédigé par un client.
 
 from __future__ import annotations
 
-import dataclasses
 import datetime as dt
 from collections.abc import Mapping
 from decimal import Decimal
@@ -43,7 +42,7 @@ from signals.api.cards import presentation_bindings_for_items, render_unlocked_c
 from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
 from signals.api.notice_projection import project_notice_facts
-from signals.billing import discovery, paywall
+from signals.billing import paywall
 from signals.billing import service as billing
 from signals.billing.access import (
     FeedAccess,
@@ -249,8 +248,9 @@ def list_signals(
             "invalid_history_date_range",
             "la date de début doit précéder la date de fin",
         )
-    # Une transaction, pas une simple lecture : un compte Discovery peut voir
-    # ses trois déblocages écrits ici, une fois pour toutes (§20).
+    # Une transaction reste nécessaire aux limites de plan et à l'analytics.
+    # La lecture du feed ne crée jamais un droit Discovery : le backfill se fait
+    # à l'activation, puis lors des nouvelles ingestions.
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         provisional_profile = service.is_provisional_profile(
@@ -336,7 +336,6 @@ def list_signals(
                 "sort": sort,
             }
         )
-        access = _grant_discovery(connection, session.account_id, access, allowed, now)
         # §2 — une lecture groupée par requête ; le statut de chaque signal se
         # dérive de là, jamais d'un aller-retour en base par carte.
         workflows = workflow_by_signal(connection, account_id=session.account_id)
@@ -576,33 +575,6 @@ def _render(
             ),
         )
     return paywall.locked_teaser(item, lang=lang, status=status)
-
-
-def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, now):
-    """Attribue les trois signaux offerts, si le compte y a encore droit (§20).
-
-    La file d'attente est TOUJOURS le feed par défaut — pas celui que le client
-    a demandé. Faire dépendre les déblocages d'un paramètre de requête
-    permettrait de choisir ses cadeaux en changeant l'URL, et rendrait le
-    résultat non déterministe.
-    """
-    if access.is_paid or discovery.remaining_slots(connection, account_id=account_id) == 0:
-        return access
-    eligible = query.feed_page(
-        connection,
-        account_id=account_id,
-        as_of=access.as_of,
-        freshness=policy.DEFAULT_FRESHNESS,
-        allowed_target_icp_ids=allowed,
-        limit=policy.MAXIMUM_PAGE_SIZE,
-    )
-    candidates = [item for item in eligible.items if (item.signal.award.title or "").strip()]
-    granted = discovery.grant_up_to_limit(
-        connection, account_id=account_id, candidates=candidates, now=now
-    )
-    if not granted:
-        return access
-    return dataclasses.replace(access, granted=access.granted | frozenset(granted))
 
 
 @router.get("/signals/{signal_key}")

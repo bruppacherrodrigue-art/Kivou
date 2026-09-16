@@ -438,10 +438,30 @@ def build_dashboard(
         if item.signal.icp_match_band == "strong" and item.model_fit != "none"
     )
 
+    # Discovery grants are permanent named signals, not a rolling freshness
+    # window. A newly assigned signal must therefore appear in Today even when
+    # its factual status is already aging; weekly/new counters above retain
+    # their ordinary time semantics.
+    priority_scope = scope
+    if access.plan_code == "discovery":
+        priority_scope = feed_query.feed_page(
+            connection,
+            account_id=account_id,
+            as_of=as_of,
+            freshness="all",
+            allowed_target_icp_ids=allowed_target_icp_ids,
+            limit=1,
+            offset=0,
+            status_of=resolve_status,
+            statuses=frozenset({"new"}),
+            admit=access.is_unlocked,
+            consultation_scope=consultation_scope,
+        )
+
     top3_candidates = [
         item
-        for item in scope.matched
-        if item.model_fit != "none"
+        for item in priority_scope.matched
+        if (access.plan_code == "discovery" or item.model_fit != "none")
         and item.display is not None
         and bool((item.signal.award.title or "").strip())
     ]
@@ -577,6 +597,7 @@ def build_dashboard(
         "week": week,
         "scan_truncated": (
             scope.scan_truncated
+            or priority_scope.scan_truncated
             or week_page.counts_truncated
             or follow_up_scan_truncated
             or activity_truncated

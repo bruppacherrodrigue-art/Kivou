@@ -213,8 +213,12 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert first["profile"]["sector_label"].strip(" —")
     assert first["profile"]["zone_labels"] == ["Suisse"]
     assert first["plan"]["name"] == "Pro"
-    assert first["plan"]["opened"] == 0
+    assert first["plan"]["code"] == "pro"
+    assert first["plan"]["assigned"] is None
+    assert first["plan"]["opened_this_month"] == 0
     assert first["plan"]["quota"] is None
+    assert first["plan"]["remaining"] is None
+    assert first["plan"]["availability"] is None
     assert first["plan"]["period_end"] is None
 
     second = _dashboard(client)

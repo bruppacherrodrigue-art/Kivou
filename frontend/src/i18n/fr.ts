@@ -645,7 +645,7 @@ export const fr = {
         remainingOne: 'il reste {count} signal ouvert',
         remainingOther: 'il reste {count} signaux ouverts',
         permanent: 'Ces signaux ouverts sont acquis définitivement. Ils ne se renouvellent pas et n’expirent pas.',
-        noneYet: 'Aucun signal éligible n’a encore été débloqué. Dès qu’un signal correspond à votre profil, il vous sera ouvert.',
+        noneYet: 'Vos signaux sont en préparation. Kivou sélectionne les meilleures opportunités déjà disponibles pour votre profil.',
         lockedRest: 'Les autres opportunités de votre flux restent verrouillées.',
         seePlans: 'Voir les offres'
     },
