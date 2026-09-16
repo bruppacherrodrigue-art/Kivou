@@ -346,10 +346,16 @@ def downgrade() -> None:
         "prospect_target",
         sa.column("instantly_accepted_at", sa.DateTime(timezone=True)),
         sa.column("sent_at", sa.DateTime(timezone=True)),
+        sa.column("delivery_status", sa.String(16)),
     )
     op.execute(
         sa.update(target)
         .where(target.c.instantly_accepted_at.is_not(None))
         .values(sent_at=target.c.instantly_accepted_at)
+    )
+    op.execute(
+        sa.update(target)
+        .where(target.c.delivery_status == "delivered")
+        .values(delivery_status="sent")
     )
     _drop_acceptance_timestamp()

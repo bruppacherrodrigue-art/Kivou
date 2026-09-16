@@ -63,6 +63,42 @@ def test_assisted_link_is_email_bound_and_reconstructed_from_target(
     assert event["prospect_target_id"] == row["target_id"]
     assert event["campaign_ref"] is None
     assert updated["clicked_at"].replace(tzinfo=dt.UTC) == NOW + dt.timedelta(hours=1)
+    assert updated["delivery_status"] == "clicked"
+
+
+def test_local_click_preserves_provider_click_and_terminal_delivery_state(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 2)
+    keyring = AttributionTokenKeyring(
+        current_key_version="current",
+        keys={"current": b"0123456789abcdef0123456789abcdef"},
+    )
+    issuer = AttributionProspectLinkIssuer(public_site_url="https://kivou.eu", keyring=keyring)
+    ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=issuer, clock=lambda: NOW
+    ).prepare(signal(), cycle_ref="cycle-1")
+    with migrated_sqlite_engine.begin() as connection:
+        row = connection.execute(sa.select(prospect_target)).mappings().one()
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == row["target_id"])
+            .values(
+                clicked_at=NOW + dt.timedelta(minutes=1),
+                bounced_at=NOW + dt.timedelta(minutes=2),
+                delivery_status="bounced",
+            )
+        )
+
+    raw_token = urlsplit(row["attribution_url"]).path.removeprefix("/a/")
+    ConversionAttributionService(migrated_sqlite_engine, keyring).record_click(
+        raw_token, at=NOW + dt.timedelta(minutes=3)
+    )
+
+    with migrated_sqlite_engine.connect() as connection:
+        target = connection.execute(sa.select(prospect_target)).mappings().one()
+    assert target["delivery_status"] == "bounced"
+    assert target["clicked_at"].replace(tzinfo=dt.UTC) == NOW + dt.timedelta(minutes=1)
 
 
 def test_visible_unsubscribe_requires_confirmation_and_suppresses_target(

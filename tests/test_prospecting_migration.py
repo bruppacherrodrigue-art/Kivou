@@ -585,6 +585,9 @@ def test_async_prospect_send_round_trip_preserves_acceptance_and_delivery_events
         legacy_sent_at = connection.scalar(
             sa.select(legacy_target.c.sent_at).where(legacy_target.c.target_id == target_id)
         )
+        legacy_delivery_status = connection.scalar(
+            sa.select(legacy_target.c.delivery_status).where(legacy_target.c.target_id == target_id)
+        )
         assert (
             connection.scalar(
                 sa.select(sa.func.count())
@@ -611,6 +614,7 @@ def test_async_prospect_send_round_trip_preserves_acceptance_and_delivery_events
         delivered_at if engine.dialect.name == "postgresql" else delivered_at.replace(tzinfo=None)
     )
     assert legacy_sent_at == expected_accepted_at
+    assert legacy_delivery_status == "sent"
     assert row["instantly_accepted_at"] == expected_accepted_at
     assert row["delivery_status"] == "delivered"
     assert row["sent_at"] == expected_delivered_at

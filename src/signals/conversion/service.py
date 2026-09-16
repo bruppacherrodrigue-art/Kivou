@@ -25,6 +25,26 @@ from signals.persistence.schema import (
     prospect_target,
 )
 
+_DELIVERY_PRECEDENCE = {
+    "not_sent": 0,
+    "delivered": 1,
+    "opened": 2,
+    "clicked": 3,
+    "replied": 4,
+    "bounced": 5,
+    "unsubscribed": 6,
+}
+
+
+def _earliest_timestamp(existing: dt.datetime | None, candidate: dt.datetime) -> dt.datetime:
+    if existing is None:
+        return candidate
+    existing_utc = (
+        existing.replace(tzinfo=dt.UTC) if existing.tzinfo is None else existing.astimezone(dt.UTC)
+    )
+    candidate_utc = candidate.astimezone(dt.UTC)
+    return candidate if candidate_utc < existing_utc else existing
+
 
 @dataclasses.dataclass(frozen=True)
 class ClickResult:
@@ -79,11 +99,15 @@ class ConversionAttributionService:
                 "token_fingerprint": verified.token_fingerprint,
             }
         )
-        existing = connection.execute(
-            sa.select(acquisition_conversion_event).where(
-                acquisition_conversion_event.c.conversion_event_ref == event_ref
+        existing = (
+            connection.execute(
+                sa.select(acquisition_conversion_event).where(
+                    acquisition_conversion_event.c.conversion_event_ref == event_ref
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if existing is not None:
             return ClickResult(
                 conversion_event_ref=event_ref,
@@ -121,12 +145,30 @@ class ConversionAttributionService:
             with connection.begin_nested():
                 connection.execute(sa.insert(acquisition_conversion_event).values(**values))
                 if prospect_target_id is not None:
+                    target = (
+                        connection.execute(
+                            sa.select(
+                                prospect_target.c.clicked_at,
+                                prospect_target.c.delivery_status,
+                            )
+                            .where(prospect_target.c.target_id == prospect_target_id)
+                            .with_for_update()
+                        )
+                        .mappings()
+                        .one()
+                    )
+                    status = str(target["delivery_status"])
                     connection.execute(
                         sa.update(prospect_target)
                         .where(prospect_target.c.target_id == prospect_target_id)
                         .values(
-                            clicked_at=at,
-                            delivery_status="clicked",
+                            clicked_at=_earliest_timestamp(target["clicked_at"], at),
+                            delivery_status=(
+                                "clicked"
+                                if _DELIVERY_PRECEDENCE.get(status, 0)
+                                < _DELIVERY_PRECEDENCE["clicked"]
+                                else status
+                            ),
                             version=prospect_target.c.version + 1,
                             updated_at=at,
                         )
@@ -167,13 +209,16 @@ class ConversionAttributionService:
             verified = self._verify_in_transaction(connection, raw_token=raw_token, at=at)
         except ValueError:
             return None
-        click = connection.execute(
-            sa.select(acquisition_conversion_event).where(
-                acquisition_conversion_event.c.milestone == ConversionMilestone.CLICK.value,
-                acquisition_conversion_event.c.token_fingerprint
-                == verified.token_fingerprint,
+        click = (
+            connection.execute(
+                sa.select(acquisition_conversion_event).where(
+                    acquisition_conversion_event.c.milestone == ConversionMilestone.CLICK.value,
+                    acquisition_conversion_event.c.token_fingerprint == verified.token_fingerprint,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if click is None:
             return None
         clicked_at = _aware(click["occurred_at"])
@@ -322,14 +367,16 @@ class ConversionAttributionService:
         return self.keyring.verify(raw_token, payload=payload, at=at)
 
     @staticmethod
-    def _journey_for_account(
-        connection: sa.Connection, account_id: str
-    ) -> JourneyResult | None:
-        row = connection.execute(
-            sa.select(acquisition_conversion_journey).where(
-                acquisition_conversion_journey.c.account_id == account_id
+    def _journey_for_account(connection: sa.Connection, account_id: str) -> JourneyResult | None:
+        row = (
+            connection.execute(
+                sa.select(acquisition_conversion_journey).where(
+                    acquisition_conversion_journey.c.account_id == account_id
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             return None
         if row["prospect_target_id"] is not None:
