@@ -25,6 +25,7 @@ from signals.engagement.schema import (
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS = "0058_client_location"
+ASYNC_PROSPECT_SEND = "0065_async_prospect_send"
 NOW = dt.datetime(2026, 9, 13, 8, tzinfo=dt.UTC)
 
 
@@ -141,6 +142,170 @@ def populated_0058(engine):
             name: [dict(row) for row in connection.execute(sa.select(table)).mappings()]
             for name, table in tables.items()
         }
+
+
+def test_upgrade_async_prospect_send_rebuilds_delivery_from_events(engine):
+    config = alembic_config(engine)
+    command.upgrade(config, "0064_company_mail_merge")
+    metadata = sa.MetaData()
+    supplier = sa.Table("supplier_directory", metadata, autoload_with=engine)
+    target = sa.Table("prospect_target", metadata, autoload_with=engine)
+    delivery_event = sa.Table("prospect_delivery_event", metadata, autoload_with=engine)
+    accepted_at = NOW - dt.timedelta(days=2)
+    delivered_at = NOW - dt.timedelta(days=1)
+    opened_at = delivered_at + dt.timedelta(hours=1)
+    clicked_at = opened_at + dt.timedelta(hours=1)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(supplier).values(
+                siren="123456789",
+                legal_name="Béton du Bourbonnais",
+                legal_name_observed_at=NOW,
+                family_keys=["ready_mix_concrete"],
+                families_observed_at=NOW,
+                department="03",
+                department_observed_at=NOW,
+                city="Saint-Victor",
+                city_observed_at=NOW,
+                employees=35,
+                employees_observed_at=NOW,
+                domain="beton-bourbonnais.fr",
+                domain_validation_method="name_word",
+                domain_observed_at=NOW,
+                directors=[],
+                professional_email="contact@beton-bourbonnais.fr",
+                email_source="site",
+                email_verification_status="mx_verified",
+                email_contact_name="",
+                email_contact_title="",
+                email_observed_at=NOW,
+                created_at=NOW,
+                updated_at=NOW,
+            )
+        )
+        base = {
+            "version": 1,
+            "cycle_ref": "cycle-1",
+            "procedure_award_key": "notice-1:lot-1",
+            "acquisition_opportunity_id": "a" * 64,
+            "siren": "123456789",
+            "company_name": "Béton du Bourbonnais",
+            "company_city": "Saint-Victor",
+            "company_employees": 35,
+            "vertical": "general_building",
+            "family_key": "ready_mix_concrete",
+            "family_label": "béton prêt à l'emploi",
+            "email_source": "site",
+            "email_verification_status": "mx_verified",
+            "signal_holder": "SAS Exemple",
+            "signal_subject": "Construction d'un groupe scolaire",
+            "signal_amount_minor_units": 125_000_000,
+            "signal_currency": "eur",
+            "signal_location": "Allier",
+            "signal_department": "03",
+            "signal_decision_date": NOW.date(),
+            "signal_source_url": "https://www.boamp.fr/avis/42",
+            "mail_subject": "Construction d'un groupe scolaire",
+            "mail_text": "Bonjour,\n\nVous fournissez du béton prêt à l'emploi ?",
+            "mail_html": "<p>Bonjour,</p><p>Vous fournissez du béton prêt à l'emploi ?</p>",
+            "attribution_url": "https://kivou.eu/a/token",
+            "attribution_payload": {"member_ref": "a" * 64},
+            "attribution_token_fingerprint": "b" * 64,
+            "unsubscribe_url": "https://kivou.eu/unsubscribe/token",
+            "mail_word_count": 8,
+            "mail_contract_status": "passed",
+            "mail_contract_failure": None,
+            "status": "sent",
+            "delivery_status": "sent",
+            "provider_campaign_id": "campaign-1",
+            "sent_at": accepted_at,
+            "opened_at": accepted_at,
+            "clicked_at": accepted_at,
+            "replied_at": accepted_at,
+            "bounced_at": accepted_at,
+            "unsubscribed_at": accepted_at,
+            "reply_classification": "human_reply",
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+        connection.execute(
+            sa.insert(target),
+            [
+                {
+                    **base,
+                    "target_id": "target-without-events",
+                    "opportunity_key": "opportunity-without-events",
+                    "email_address": "without-events@example.test",
+                    "attribution_member_ref": "c" * 64,
+                },
+                {
+                    **base,
+                    "target_id": "target-with-events",
+                    "opportunity_key": "opportunity-with-events",
+                    "email_address": "with-events@example.test",
+                    "attribution_member_ref": "d" * 64,
+                },
+            ],
+        )
+        connection.execute(
+            sa.insert(delivery_event),
+            [
+                {
+                    "event_fingerprint": "email-sent",
+                    "target_id": "target-with-events",
+                    "provider_campaign_id": "campaign-1",
+                    "provider_event_type": "email_sent",
+                    "occurred_at": delivered_at,
+                    "received_at": delivered_at,
+                },
+                {
+                    "event_fingerprint": "email-opened",
+                    "target_id": "target-with-events",
+                    "provider_campaign_id": "campaign-1",
+                    "provider_event_type": "email_opened",
+                    "occurred_at": opened_at,
+                    "received_at": opened_at,
+                },
+                {
+                    "event_fingerprint": "email-clicked",
+                    "target_id": "target-with-events",
+                    "provider_campaign_id": "campaign-1",
+                    "provider_event_type": "email_link_clicked",
+                    "occurred_at": clicked_at,
+                    "received_at": clicked_at,
+                },
+            ],
+        )
+
+    command.upgrade(config, ASYNC_PROSPECT_SEND)
+    migrated_target = sa.Table("prospect_target", sa.MetaData(), autoload_with=engine)
+    with engine.connect() as connection:
+        rows = {
+            row["target_id"]: dict(row)
+            for row in connection.execute(sa.select(migrated_target)).mappings()
+        }
+
+    def stored_time(value: dt.datetime) -> dt.datetime:
+        return value if engine.dialect.name == "postgresql" else value.replace(tzinfo=None)
+
+    assert rows["target-without-events"]["instantly_accepted_at"] == stored_time(accepted_at)
+    assert rows["target-without-events"]["delivery_status"] == "not_sent"
+    assert all(
+        rows["target-without-events"][column] is None
+        for column in (
+            "sent_at",
+            "opened_at",
+            "clicked_at",
+            "replied_at",
+            "bounced_at",
+            "unsubscribed_at",
+        )
+    )
+    assert rows["target-with-events"]["instantly_accepted_at"] == stored_time(accepted_at)
+    assert rows["target-with-events"]["delivery_status"] == "clicked"
+    assert rows["target-with-events"]["sent_at"] == stored_time(delivered_at)
+    assert rows["target-with-events"]["opened_at"] == stored_time(opened_at)
+    assert rows["target-with-events"]["clicked_at"] == stored_time(clicked_at)
 
 
 def test_populated_0058_upgrade_retains_notes_feedback_contacts_and_account_scope(engine):
