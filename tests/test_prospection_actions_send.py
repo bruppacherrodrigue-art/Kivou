@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 
 import pytest
 import sqlalchemy as sa
@@ -14,6 +15,8 @@ from signals.prospection_actions.service import (
     ProspectionActionError,
     ProspectionActions,
 )
+from signals.prospection_actions.worker import WorkerOutcome
+from signals.prospection_actions.worker import main as prospect_send_main
 from signals.supplier_directory.domain_audit import audit_confirmed_domains
 
 
@@ -377,3 +380,27 @@ def test_send_hard_cap_counts_completed_and_reserved_batches(sending) -> None:
 
     assert caught.value.code == "DAILY_SEND_CAP_EXCEEDED"
     assert provider.calls == []
+
+
+def test_prospect_send_cli_stops_on_idle_and_emits_one_safe_summary(capsys) -> None:
+    class Worker:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run_once(self, *, worker_ref: str) -> WorkerOutcome:
+            self.calls += 1
+            assert worker_ref.startswith("prospect-send:")
+            return WorkerOutcome("sent" if self.calls == 1 else "idle")
+
+    worker = Worker()
+
+    assert prospect_send_main(["--limit", "3"], worker_factory=lambda: worker) == 0
+
+    output = capsys.readouterr().out.splitlines()
+    assert len(output) == 1
+    assert json.loads(output[0]) == {
+        "limit": 3,
+        "outcomes": {"idle": 1, "sent": 1},
+        "status": "ok",
+    }
+    assert worker.calls == 2

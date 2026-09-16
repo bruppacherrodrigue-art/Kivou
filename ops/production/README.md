@@ -1645,3 +1645,37 @@ kivou_run_autonomous_recovery() {
 
 kivou_run_autonomous_recovery
 ```
+
+## Worker durable de prospection Founder (activation ultérieure)
+
+Cette unité ne doit pas être installée ni activée pendant la livraison de ce
+SHA. La campagne reste en pause : toute activation exige une autorisation de
+production distincte et la confirmation que `/etc/kivou/acquisition.disabled`
+est absent seulement au moment voulu. Le worker traite au plus 25 cibles par
+batch, sérialise les lancements avec `flock` et laisse les échecs de cible dans
+la file durable ; il ne constitue pas une boucle résidente.
+
+Après revue de la release active, installer les deux fichiers avec les mêmes
+contrôles de propriétaire et de lien que les autres unités, puis uniquement
+avec cette autorisation :
+
+```bash
+set -euo pipefail
+install -o root -g root -m 644 /srv/kivou/app/ops/systemd/kivou-prospect-send.service /etc/systemd/system/kivou-prospect-send.service
+install -o root -g root -m 644 /srv/kivou/app/ops/systemd/kivou-prospect-send.timer /etc/systemd/system/kivou-prospect-send.timer
+systemd-analyze verify /etc/systemd/system/kivou-prospect-send.service /etc/systemd/system/kivou-prospect-send.timer
+systemctl daemon-reload
+systemctl enable --now kivou-prospect-send.timer
+systemctl status --no-pager kivou-prospect-send.timer
+```
+
+Les contrôles sans envoi sont `systemd-analyze verify`, `systemctl cat
+kivou-prospect-send.service` et `systemctl list-timers
+kivou-prospect-send.timer`. Lorsque l'autorisation couvre un batch réel,
+lancer une seule fois `systemctl start kivou-prospect-send.service`, puis lire
+le résumé JSON borné et les journaux avec :
+
+```bash
+journalctl -u kivou-prospect-send.service -n 100 --no-pager
+journalctl -u kivou-prospect-send.timer -n 50 --no-pager
+```

@@ -817,6 +817,16 @@ def test_founder_api_overwrites_trusted_headers_after_shared_proxy_params() -> N
         assert "cloudflare" not in lowered
 
 
+def test_founder_api_has_a_longer_read_timeout_than_the_shared_proxy_default() -> None:
+    https = _only_founder_server("listen 443 ssl http2;")
+    shared_params = "include /etc/nginx/kivou-proxy-params.conf;"
+
+    for selector in (*FOUNDER_ACTION_POST_SELECTORS, "^~ /api/founder/"):
+        directives = _directives(_only_location(https, selector).body)
+        assert directives.count("proxy_read_timeout 120s;") == 1
+        assert directives.index(shared_params) < directives.index("proxy_read_timeout 120s;")
+
+
 def test_founder_nginx_allows_posts_only_on_the_four_action_endpoints() -> None:
     https = _only_founder_server("listen 443 ssl http2;")
     generic = _only_location(https, "^~ /api/founder/")

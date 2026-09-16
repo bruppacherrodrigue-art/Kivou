@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
+import json
+import os
 import sqlite3
 import uuid
 from collections.abc import Callable, Iterator
@@ -24,6 +27,8 @@ from signals.prospection_actions.service import DeliveryTarget
 LEASE = dt.timedelta(minutes=5)
 RETRY_DELAY = dt.timedelta(minutes=1)
 _TERMINAL = ("sent", "failed")
+MAX_BATCH_LIMIT = 25
+DEFAULT_BATCH_LIMIT = MAX_BATCH_LIMIT
 
 
 @dataclass(frozen=True)
@@ -1249,4 +1254,108 @@ class ProspectSendWorker:
         )
 
 
-__all__ = ["ProspectSendWorker", "WorkerOutcome"]
+class _SafeArgumentParser(argparse.ArgumentParser):
+    """Keep process-boundary diagnostics structured and free of input echoes."""
+
+    def error(self, _message: str) -> None:
+        raise ValueError("invalid prospect send worker arguments")
+
+
+def _batch_limit(value: str) -> int:
+    try:
+        limit = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("limit must be an integer") from error
+    if not 1 <= limit <= MAX_BATCH_LIMIT:
+        raise argparse.ArgumentTypeError(f"limit must be between 1 and {MAX_BATCH_LIMIT}")
+    return limit
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = _SafeArgumentParser(
+        prog="python -m signals.prospection_actions.worker",
+        add_help=False,
+    )
+    parser.add_argument("--limit", type=_batch_limit, default=DEFAULT_BATCH_LIMIT)
+    return parser
+
+
+def _run_batch(worker: ProspectSendWorker, *, limit: int, worker_ref: str) -> dict[str, int]:
+    outcomes: dict[str, int] = {}
+    for _ in range(limit):
+        outcome = worker.run_once(worker_ref=worker_ref)
+        status = outcome.status[:64]
+        outcomes[status] = outcomes.get(status, 0) + 1
+        if status == "idle":
+            break
+    return outcomes
+
+
+def _run_production_batch(*, limit: int, worker_ref: str) -> dict[str, int]:
+    """Build one short-lived production composition and always release its resources."""
+
+    import httpx
+
+    from signals.founder_api.actions_composition import build_prospect_send_worker
+    from signals.founder_api.database import create_founder_write_database_engine
+
+    engine: Engine | None = None
+    client: httpx.Client | None = None
+    try:
+        engine = create_founder_write_database_engine()
+        client = httpx.Client(timeout=60.0, follow_redirects=False)
+        worker = build_prospect_send_worker(engine, client=client)
+        return _run_batch(worker, limit=limit, worker_ref=worker_ref)
+    finally:
+        try:
+            if client is not None:
+                client.close()
+        finally:
+            if engine is not None:
+                engine.dispose()
+
+
+def _summary(*, status: str, limit: int | None, outcomes: dict[str, int]) -> str:
+    payload: dict[str, object] = {"outcomes": outcomes, "status": status}
+    if limit is not None:
+        payload["limit"] = limit
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
+def main(
+    argv: list[str] | None = None,
+    *,
+    worker_factory: Callable[[], ProspectSendWorker] | None = None,
+) -> int:
+    """Run a timer-invoked, bounded batch; item failures stay durable and non-fatal."""
+
+    try:
+        arguments = _parser().parse_args(argv)
+    except (SystemExit, ValueError):
+        print(_summary(status="configuration_invalid", limit=None, outcomes={}))
+        return 2
+
+    worker_ref = f"prospect-send:{os.getpid()}"
+    try:
+        if worker_factory is None:
+            outcomes = _run_production_batch(limit=arguments.limit, worker_ref=worker_ref)
+        else:
+            outcomes = _run_batch(worker_factory(), limit=arguments.limit, worker_ref=worker_ref)
+    except Exception:  # noqa: BLE001 - process boundary must not leak provider details
+        print(_summary(status="operational_failure", limit=arguments.limit, outcomes={}))
+        return 1
+    print(_summary(status="ok", limit=arguments.limit, outcomes=outcomes))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover - module entrypoint
+    raise SystemExit(main())
+
+
+__all__ = [
+    "DEFAULT_BATCH_LIMIT",
+    "MAX_BATCH_LIMIT",
+    "ProspectSendWorker",
+    "WorkerOutcome",
+    "main",
+]
