@@ -15,7 +15,7 @@ export function SignalListRow({ item, onOpen }: { item: FeedItem; onOpen: () => 
   const actions = useSignalActions(item.locked ? null : item)
   const status = actions.status ?? item.status
   const rawTitle = item.locked ? item.headline : signalTitle(item)
-  const title = item.locked && item.landing_example_holder ? landingFeedTitle(rawTitle) : rawTitle
+  const title = item.landing_example_holder ? landingFeedTitle(rawTitle) : rawTitle
   const money = item.locked ? item.teaser.amount?.currency ? { value: item.teaser.amount.value, currency: item.teaser.amount.currency } : null : item.contract.amount
   const clock = item.locked ? {
     label: item.teaser.date_kind === 'award'

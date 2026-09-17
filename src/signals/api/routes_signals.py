@@ -595,7 +595,7 @@ def _render(
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
-        return render_unlocked_card(
+        unlocked = render_unlocked_card(
             item,
             lang=lang,
             presentation=presentation,
@@ -607,6 +607,9 @@ def _render(
                 commercial_start_delay_months_by_cpv_prefix
             ),
         )
+        if landing_example_holder is not None:
+            unlocked["landing_example_holder"] = landing_example_holder
+        return unlocked
     locked = paywall.locked_teaser(item, lang=lang, status=status)
     if landing_example_holder is not None:
         locked["landing_example_holder"] = landing_example_holder

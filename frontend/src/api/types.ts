@@ -501,6 +501,7 @@ export interface UnlockedFeedItem {
   commercial_calendar?: CommercialCalendar
   holder_history?: HolderHistory
   local_circuit?: LocalCircuitCompany[]
+  landing_example_holder?: string
 }
 
 export interface LockedFeedItem {

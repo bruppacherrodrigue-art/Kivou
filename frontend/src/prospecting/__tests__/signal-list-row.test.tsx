@@ -122,6 +122,15 @@ test('landing rows use the relevant lot instead of the raw INX notice wording', 
   expect(screen.queryByText(/INX La présente consultation/)).not.toBeInTheDocument()
 })
 
+test('opened landing rows also use the relevant INX lot wording', async () => {
+  mockApi(BASE)
+  const raw = 'INX La présente consultation concerne la construction d’une patinoire communautaire.\\n - Bardage, Façade'
+  renderSignal(<SignalListRow item={item({ landing_example_holder: 'Boussiquet', factual_display: { ...SIGNAL.factual_display, object_short: raw } })} onOpen={vi.fn()} />)
+  await ready()
+  expect(screen.getByRole('button', { name: 'Ouvrir : Bardage, Façade — patinoire communautaire' })).toBeInTheDocument()
+  expect(screen.queryByText(/INX La présente consultation/)).not.toBeInTheDocument()
+})
+
 test.each(['saved', 'contacted', 'ignored'] as UnifiedStatus[])('offers an explicit reversible action for the %s status', async (status) => {
   mockApi(BASE)
   renderSignal(<SignalListRow item={item({ status })} onOpen={vi.fn()} />)

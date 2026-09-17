@@ -998,6 +998,10 @@ def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> 
             )
         )
     items = client.get("/signals", params={"view": "history", "limit": 20}).json()["items"]
+    assert all(
+        item["landing_example_holder"] == "Titulaire Démonstration"
+        for item in items
+    )
     other_key = next(item["signal_id"] for item in items if not item["locked"] and item["signal_id"] != bait_key)
     locked_key = next(item["signal_id"] for item in items if item["locked"])
     assert next(item for item in items if item["locked"])["landing_example_holder"] == (
