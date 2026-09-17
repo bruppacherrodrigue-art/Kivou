@@ -26,6 +26,35 @@ from signals.persistence.schema import (
     supplier_directory,
 )
 
+_DELIVERY_TIMESTAMPS = (
+    "sent_at",
+    "opened_at",
+    "clicked_at",
+    "replied_at",
+    "bounced_at",
+    "unsubscribed_at",
+)
+
+_EVENT_DELIVERY_PROJECTIONS = {
+    ProviderEventType.EMAIL_OPENED.value: ("opened", "opened_at"),
+    ProviderEventType.EMAIL_LINK_CLICKED.value: ("clicked", "clicked_at"),
+    ProviderEventType.LINK_CLICKED.value: ("clicked", "clicked_at"),
+    ProviderEventType.REPLY_RECEIVED.value: ("replied", "replied_at"),
+    ProviderEventType.AUTO_REPLY_RECEIVED.value: ("replied", "replied_at"),
+    ProviderEventType.EMAIL_BOUNCED.value: ("bounced", "bounced_at"),
+    ProviderEventType.LEAD_UNSUBSCRIBED.value: ("unsubscribed", "unsubscribed_at"),
+}
+
+_DELIVERY_PRECEDENCE = {
+    "not_sent": 0,
+    "delivered": 1,
+    "opened": 2,
+    "clicked": 3,
+    "replied": 4,
+    "bounced": 5,
+    "unsubscribed": 6,
+}
+
 
 class AssistedProspectWebhookProjector:
     def __init__(
@@ -46,10 +75,7 @@ class AssistedProspectWebhookProjector:
             return bool(
                 connection.scalar(
                     sa.select(sa.literal(1))
-                    .where(
-                        prospect_target.c.provider_campaign_id
-                        == payload.provider_campaign_id
-                    )
+                    .where(prospect_target.c.provider_campaign_id == payload.provider_campaign_id)
                     .limit(1)
                 )
             )
@@ -90,121 +116,135 @@ class AssistedProspectWebhookProjector:
         if abs(received_at - payload.timestamp.astimezone(dt.UTC)) > dt.timedelta(days=7):
             raise WebhookBindingError("Instantly event timestamp is outside the accepted bound")
         fingerprint = self._fingerprint(payload)
-        with self._engine.begin() as connection:
-            if connection.scalar(
-                sa.select(prospect_delivery_event.c.event_fingerprint).where(
-                    prospect_delivery_event.c.event_fingerprint == fingerprint
+        with self._engine.connect() as connection:
+            if connection.dialect.name == "sqlite":
+                connection.exec_driver_sql("BEGIN IMMEDIATE")
+            else:
+                connection.begin()
+            try:
+                query = sa.select(prospect_target).where(
+                    prospect_target.c.provider_campaign_id == payload.provider_campaign_id
                 )
-            ):
-                return WebhookIngestResult(event_fingerprint=fingerprint, replayed=True)
-            query = sa.select(prospect_target).where(
-                prospect_target.c.provider_campaign_id == payload.provider_campaign_id
-            )
-            if payload.lead_email_transient is not None:
-                query = query.where(
-                    sa.func.lower(prospect_target.c.email_address)
-                    == payload.lead_email_transient.casefold()
+                if payload.lead_email_transient is not None:
+                    query = query.where(
+                        sa.func.lower(prospect_target.c.email_address)
+                        == payload.lead_email_transient.casefold()
+                    )
+                rows = tuple(connection.execute(query.with_for_update().limit(2)).mappings())
+                member_required = payload.event_type not in {
+                    None,
+                    ProviderEventType.CAMPAIGN_COMPLETED,
+                    ProviderEventType.ACCOUNT_ERROR,
+                }
+                if member_required and len(rows) != 1:
+                    raise WebhookBindingError("unknown assisted provider lead binding")
+                row = dict(rows[0]) if len(rows) == 1 else None
+                inserted = insert_if_absent(
+                    connection,
+                    prospect_delivery_event,
+                    {
+                        "event_fingerprint": fingerprint,
+                        "target_id": row["target_id"] if row else None,
+                        "provider_campaign_id": payload.provider_campaign_id,
+                        "provider_event_type": payload.event_type_transport_only,
+                        "occurred_at": payload.timestamp,
+                        "received_at": received_at,
+                    },
+                    index_elements=[prospect_delivery_event.c.event_fingerprint],
                 )
-            rows = tuple(connection.execute(query.limit(2)).mappings())
-            member_required = payload.event_type not in {
-                None,
-                ProviderEventType.CAMPAIGN_COMPLETED,
-                ProviderEventType.ACCOUNT_ERROR,
-            }
-            if member_required and len(rows) != 1:
-                raise WebhookBindingError("unknown assisted provider lead binding")
-            row = dict(rows[0]) if len(rows) == 1 else None
-            inserted = insert_if_absent(
-                connection,
-                prospect_delivery_event,
-                {
-                    "event_fingerprint": fingerprint,
-                    "target_id": row["target_id"] if row else None,
-                    "provider_campaign_id": payload.provider_campaign_id,
-                    "provider_event_type": payload.event_type_transport_only,
-                    "occurred_at": payload.timestamp,
-                    "received_at": received_at,
-                },
-                index_elements=[prospect_delivery_event.c.event_fingerprint],
-            )
-            if not inserted:
-                return WebhookIngestResult(event_fingerprint=fingerprint, replayed=True)
-            if row is not None:
-                values = self._target_values(payload, row, received_at)
-                connection.execute(
-                    sa.update(prospect_target)
-                    .where(prospect_target.c.target_id == row["target_id"])
-                    .values(**values)
-                )
-                if payload.event_type is ProviderEventType.EMAIL_BOUNCED:
-                    connection.execute(
-                        sa.update(supplier_directory)
-                        .where(supplier_directory.c.siren == row["siren"])
-                        .values(
-                            email_verification_status="mx_failed",
-                            reverification_required_at=received_at,
-                            reverification_reason="instantly_bounce",
-                            updated_at=received_at,
+                if row is not None:
+                    events = connection.execute(
+                        sa.select(
+                            prospect_delivery_event.c.event_fingerprint,
+                            prospect_delivery_event.c.provider_event_type,
+                            prospect_delivery_event.c.occurred_at,
                         )
-                    )
-                elif payload.event_type is ProviderEventType.LEAD_UNSUBSCRIBED:
-                    self._suppressions.record_for_email_in_transaction(
-                        connection,
-                        str(row["email_address"]),
-                        source=SuppressionSource.UNSUBSCRIBE,
-                        reason_code=SuppressionReasonCode.UNSUBSCRIBED,
-                        evidence_ref=f"suppression-evidence:{fingerprint}",
-                        received_at=payload.timestamp,
-                    )
+                        .where(prospect_delivery_event.c.target_id == row["target_id"])
+                        .order_by(
+                            prospect_delivery_event.c.occurred_at,
+                            prospect_delivery_event.c.event_fingerprint,
+                        )
+                    ).mappings()
+                    values = self._target_values(row, events, received_at)
                     connection.execute(
-                        sa.update(supplier_directory)
-                        .where(supplier_directory.c.siren == row["siren"])
-                        .values(suppressed_at=received_at, updated_at=received_at)
+                        sa.update(prospect_target)
+                        .where(prospect_target.c.target_id == row["target_id"])
+                        .values(**values)
                     )
-            elif payload.event_type is ProviderEventType.ACCOUNT_ERROR:
-                connection.execute(
-                    sa.update(prospect_target)
-                    .where(
-                        prospect_target.c.provider_campaign_id
-                        == payload.provider_campaign_id
+                    if inserted and payload.event_type is ProviderEventType.EMAIL_BOUNCED:
+                        connection.execute(
+                            sa.update(supplier_directory)
+                            .where(supplier_directory.c.siren == row["siren"])
+                            .values(
+                                email_verification_status="mx_failed",
+                                reverification_required_at=received_at,
+                                reverification_reason="instantly_bounce",
+                                updated_at=received_at,
+                            )
+                        )
+                    elif inserted and payload.event_type is ProviderEventType.LEAD_UNSUBSCRIBED:
+                        self._suppressions.record_for_email_in_transaction(
+                            connection,
+                            str(row["email_address"]),
+                            source=SuppressionSource.UNSUBSCRIBE,
+                            reason_code=SuppressionReasonCode.UNSUBSCRIBED,
+                            evidence_ref=f"suppression-evidence:{fingerprint}",
+                            received_at=payload.timestamp,
+                        )
+                        connection.execute(
+                            sa.update(supplier_directory)
+                            .where(supplier_directory.c.siren == row["siren"])
+                            .values(suppressed_at=received_at, updated_at=received_at)
+                        )
+                elif inserted and payload.event_type is ProviderEventType.ACCOUNT_ERROR:
+                    connection.execute(
+                        sa.update(prospect_target)
+                        .where(
+                            prospect_target.c.provider_campaign_id == payload.provider_campaign_id
+                        )
+                        .values(delivery_error="instantly_account_error", updated_at=received_at)
                     )
-                    .values(delivery_error="instantly_account_error", updated_at=received_at)
-                )
-        return WebhookIngestResult(event_fingerprint=fingerprint, replayed=False)
+                connection.commit()
+            except Exception:
+                connection.rollback()
+                raise
+        return WebhookIngestResult(event_fingerprint=fingerprint, replayed=not inserted)
 
     @staticmethod
     def _target_values(
-        payload: InstantlyWebhookPayload,
         row: dict[str, object],
+        events: sa.MappingResult,
         received_at: dt.datetime,
     ) -> dict[str, object]:
         values: dict[str, object] = {
             "version": int(row["version"]) + 1,
             "updated_at": received_at,
+            "delivery_status": (
+                str(row["delivery_status"])
+                if str(row["delivery_status"]) in _DELIVERY_PRECEDENCE
+                else "not_sent"
+            ),
+            "reply_classification": row.get("reply_classification"),
         }
-        event = payload.event_type
-        if event is ProviderEventType.EMAIL_SENT:
-            values.update(delivery_status="sent", sent_at=row.get("sent_at") or payload.timestamp)
-        elif event is ProviderEventType.EMAIL_OPENED:
-            values.update(delivery_status="opened", opened_at=row.get("opened_at") or payload.timestamp)
-        elif event in {ProviderEventType.EMAIL_LINK_CLICKED, ProviderEventType.LINK_CLICKED}:
-            values.update(delivery_status="clicked", clicked_at=row.get("clicked_at") or payload.timestamp)
-        elif event is ProviderEventType.REPLY_RECEIVED:
-            values.update(
-                delivery_status="replied",
-                replied_at=row.get("replied_at") or payload.timestamp,
-                reply_classification="human_reply",
-            )
-        elif event is ProviderEventType.AUTO_REPLY_RECEIVED:
-            values.update(
-                delivery_status="replied",
-                replied_at=row.get("replied_at") or payload.timestamp,
-                reply_classification="auto_reply",
-            )
-        elif event is ProviderEventType.EMAIL_BOUNCED:
-            values.update(delivery_status="bounced", bounced_at=payload.timestamp)
-        elif event is ProviderEventType.LEAD_UNSUBSCRIBED:
-            values.update(delivery_status="unsubscribed", unsubscribed_at=payload.timestamp)
+        values.update({column: row.get(column) for column in _DELIVERY_TIMESTAMPS})
+        for event in events:
+            event_type = str(event["provider_event_type"])
+            occurred_at = event["occurred_at"]
+            if event_type == ProviderEventType.EMAIL_SENT.value:
+                status, timestamp_column = "delivered", "sent_at"
+            else:
+                projection = _EVENT_DELIVERY_PROJECTIONS.get(event_type)
+                if projection is None:
+                    continue
+                status, timestamp_column = projection
+            if values[timestamp_column] is None or occurred_at < values[timestamp_column]:
+                values[timestamp_column] = occurred_at
+            if event_type == ProviderEventType.REPLY_RECEIVED.value:
+                values["reply_classification"] = "human_reply"
+            elif event_type == ProviderEventType.AUTO_REPLY_RECEIVED.value:
+                values["reply_classification"] = "auto_reply"
+            if _DELIVERY_PRECEDENCE[status] > _DELIVERY_PRECEDENCE[values["delivery_status"]]:
+                values["delivery_status"] = status
         return values
 
 

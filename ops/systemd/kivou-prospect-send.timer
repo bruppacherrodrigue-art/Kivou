@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — relance du worker durable de prospection Founder
+
+[Timer]
+OnBootSec=5s
+OnUnitInactiveSec=5s
+Persistent=true
+AccuracySec=1s
+Unit=kivou-prospect-send.service
+
+[Install]
+WantedBy=timers.target

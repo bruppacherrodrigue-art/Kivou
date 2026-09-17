@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
-import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,7 +15,6 @@ from sqlalchemy.engine import Engine
 
 from signals.company_research.domain import rejected_supplier_domain
 from signals.persistence.schema import (
-    prospect_send_request,
     prospect_target,
     prospect_target_history,
     supplier_directory,
@@ -37,9 +35,26 @@ from signals.prospection_actions.contracts import (
     ProspectTarget,
     RejectCommand,
     RejectionReason,
+    SendRequestProgress,
     SignalSnapshot,
 )
-from signals.supplier_directory.email_quality import is_placeholder_email
+from signals.prospection_actions.queue import (
+    reserve_send,
+    send_fingerprint,
+)
+from signals.prospection_actions.queue import (
+    send_progress as load_send_progress,
+)
+
+# A reusable binding is a cache of the normalized email and rendered provider
+# variables (subject/HTML), not just a target ID. All payload-editing/rejection
+# actions invalidate this cache atomically. Old send items/requests retain their
+# exposure evidence; historical charges and acceptance timestamps remain intact.
+_INVALIDATED_PROVIDER_BINDING = {
+    "instantly_id": None,
+    "provider_campaign_id": None,
+    "delivery_error": None,
+}
 
 
 class EmailVerifier(Protocol):
@@ -212,6 +227,7 @@ def _target(row: dict[str, object]) -> ProspectTarget:
             instantly_credit_units=int(row.get("instantly_credit_units") or 0),
             instantly_request_count=int(row.get("instantly_request_count") or 0),
         ),
+        acceptance_error=row.get("delivery_error"),
         created_at=_aware(row["created_at"]),
         updated_at=_aware(row["updated_at"]),
         approved_at=_aware(row.get("approved_at")),
@@ -325,11 +341,20 @@ class ProspectionActions:
                 render_row = {**row}
                 location = str(row.get("signal_location") or "").strip()
                 department = str(row.get("signal_department") or "").strip()
-                render_row["signal_city"] = location if location and location != department else None
+                render_row["signal_city"] = (
+                    location if location and location != department else None
+                )
                 rendered = self._mail_renderer(render_row)
                 previous = {
                     key: row.get(key)
-                    for key in ("mail_subject", "mail_text", "mail_html", "mail_word_count", "mail_contract_status", "mail_contract_failure")
+                    for key in (
+                        "mail_subject",
+                        "mail_text",
+                        "mail_html",
+                        "mail_word_count",
+                        "mail_contract_status",
+                        "mail_contract_failure",
+                    )
                 }
                 values = {
                     "mail_subject": rendered.subject,
@@ -340,6 +365,7 @@ class ProspectionActions:
                     "mail_contract_failure": rendered.contract_failure,
                     "version": int(row["version"]) + 1,
                     "updated_at": at,
+                    **_INVALIDATED_PROVIDER_BINDING,
                 }
                 connection.execute(
                     sa.update(prospect_target)
@@ -352,7 +378,15 @@ class ProspectionActions:
                     event_type="mail_regenerated_v2",
                     actor=actor,
                     previous=previous,
-                    new={key: values[key] for key in ("mail_subject", "mail_word_count", "mail_contract_status", "mail_contract_failure")},
+                    new={
+                        key: values[key]
+                        for key in (
+                            "mail_subject",
+                            "mail_word_count",
+                            "mail_contract_status",
+                            "mail_contract_failure",
+                        )
+                    },
                     at=at,
                 )
                 count += 1
@@ -629,6 +663,7 @@ class ProspectionActions:
                 mail_contract_failure=rendered.contract_failure,
                 version=int(row["version"]) + 1,
                 updated_at=at,
+                **_INVALIDATED_PROVIDER_BINDING,
             )
             if rendered.contract_status == "failed":
                 values.update(
@@ -705,6 +740,7 @@ class ProspectionActions:
                 "rejected_by": actor,
                 "version": int(row["version"]) + 1,
                 "updated_at": at,
+                **_INVALIDATED_PROVIDER_BINDING,
             }
             connection.execute(
                 sa.update(prospect_target)
@@ -727,16 +763,7 @@ class ProspectionActions:
 
     @staticmethod
     def _send_fingerprint(command) -> str:
-        body = {
-            "request_id": str(command.request_id),
-            "targets": [
-                {"target_id": str(item.target_id), "expected_version": item.expected_version}
-                for item in command.targets
-            ],
-        }
-        return hashlib.sha256(
-            json.dumps(body, separators=(",", ":"), sort_keys=True).encode()
-        ).hexdigest()
+        return send_fingerprint(command)
 
     @staticmethod
     def _send_result(value: dict[str, object]) -> SendResult:
@@ -754,340 +781,50 @@ class ProspectionActions:
             daily_remaining=int(value["daily_remaining"]),
         )
 
-    def send(self, command, *, actor: str) -> SendResult:
-        """Reserve a fully valid batch, then expose one scoped provider permit."""
-
+    def enqueue_send(self, command, *, actor: str) -> SendRequestProgress:
+        """Reserve a valid batch durably without handing it to the provider."""
         at = self._clock()
-        if self._kill_switch_path.exists():
-            raise ProspectionActionError(
-                "KILL_SWITCH_ACTIVE", "l'arrêt d'urgence de l'acquisition est actif"
-            )
-        if self._suppression_checker is None or self._delivery_provider is None:
-            raise RuntimeError("prospection delivery dependencies are not configured")
-        request_id = str(command.request_id)
-        fingerprint = self._send_fingerprint(command)
-        request_day = at.astimezone(dt.UTC).date()
-        target_rows: list[dict[str, object]] = []
-        with self._engine.begin() as connection:
-            existing = (
-                connection.execute(
-                    sa.select(prospect_send_request).where(
-                        prospect_send_request.c.request_id == request_id
-                    )
-                )
-                .mappings()
-                .one_or_none()
-            )
-            if existing is not None:
-                if existing["payload_fingerprint"] != fingerprint:
-                    raise ProspectionActionError(
-                        "REQUEST_ID_CONFLICT", "request_id a déjà un autre contenu"
-                    )
-                if existing["status"] in {"completed", "partial", "failed"}:
-                    if existing["result"] is None:
-                        raise ProspectionActionError(
-                            "INSTANTLY_SEND_FAILED",
-                            "le fournisseur n'a accepté aucune cible",
-                            status_code=502,
-                        )
-                    return self._send_result(dict(existing["result"]))
-                raise ProspectionActionError("REQUEST_ID_CONFLICT", "cet envoi est déjà en cours")
 
-            reserved_today = connection.scalar(
-                sa.select(
-                    sa.func.coalesce(
-                        sa.func.sum(
-                            sa.case(
-                                (
-                                    prospect_send_request.c.status == "started",
-                                    prospect_send_request.c.reserved_count,
-                                ),
-                                else_=prospect_send_request.c.sent_count,
-                            )
-                        ),
-                        0,
-                    )
-                ).where(prospect_send_request.c.request_day == request_day)
-            )
-            if int(reserved_today or 0) + len(command.targets) > 25:
+        def before_reservation() -> None:
+            if self._kill_switch_path.exists():
                 raise ProspectionActionError(
-                    "DAILY_SEND_CAP_EXCEEDED",
-                    "le plafond quotidien de 25 envois est atteint",
-                    target_ids=tuple(str(item.target_id) for item in command.targets),
+                    "KILL_SWITCH_ACTIVE", "l'arrêt d'urgence de l'acquisition est actif"
                 )
+            if self._suppression_checker is None:
+                raise RuntimeError("prospection suppression dependencies are not configured")
 
-            requested_target_ids = tuple(str(item.target_id) for item in command.targets)
-            locked_target_rows = self._locked_rows(
-                connection,
-                sa.select(prospect_target)
-                .where(prospect_target.c.target_id.in_(tuple(sorted(requested_target_ids))))
-                .order_by(prospect_target.c.target_id)
-                .with_for_update(nowait=True),
-                target_ids=requested_target_ids,
-            )
-            targets_by_id = {str(row["target_id"]): row for row in locked_target_rows}
-            for item in command.targets:
-                target_id = str(item.target_id)
-                row = targets_by_id.get(target_id)
-                if row is None:
-                    raise ProspectionActionError(
-                        "TARGET_NOT_FOUND",
-                        "cible introuvable",
-                        target_ids=(target_id,),
-                        status_code=404,
-                    )
-                if int(row["version"]) != item.expected_version:
-                    raise ProspectionActionError(
-                        "TARGET_VERSION_CONFLICT",
-                        "la cible a été modifiée",
-                        target_ids=(target_id,),
-                    )
-                if row["status"] != ProspectStatus.APPROVED.value or row.get("send_request_id"):
-                    raise ProspectionActionError(
-                        "INVALID_TARGET_STATUS",
-                        "toutes les cibles doivent être validées",
-                        target_ids=(target_id,),
-                    )
-                if row["mail_contract_status"] != "passed":
-                    raise ProspectionActionError(
-                        "MAIL_CONTRACT_FAILED",
-                        "le mail ne respecte pas le contrat de rendu",
-                        target_ids=(target_id,),
-                        status_code=422,
-                    )
-                target_rows.append(dict(row))
-
-            requested_sirens = tuple(sorted({str(row["siren"]) for row in target_rows}))
-            locked_directory_rows = self._locked_rows(
-                connection,
-                sa.select(
-                    supplier_directory.c.siren,
-                    supplier_directory.c.domain,
-                    supplier_directory.c.domain_validation_method,
-                    supplier_directory.c.professional_email,
-                    supplier_directory.c.reverification_required_at,
-                    supplier_directory.c.suppressed_at,
-                )
-                .where(supplier_directory.c.siren.in_(requested_sirens))
-                .order_by(supplier_directory.c.siren)
-                .with_for_update(nowait=True),
-                target_ids=requested_target_ids,
-            )
-            directories_by_siren = {
-                str(row["siren"]): row for row in locked_directory_rows
-            }
-            for row in target_rows:
-                target_id = str(row["target_id"])
-                self._validate_live_directory_contact(
-                    row,
-                    directories_by_siren.get(str(row["siren"])),
-                )
-                if is_placeholder_email(row["email_address"]):
-                    raise ProspectionActionError(
-                        "PLACEHOLDER_EMAIL",
-                        "l'adresse est une valeur de démonstration",
-                        target_ids=(target_id,),
-                        status_code=422,
-                    )
-                if row["email_verification_status"] != "mx_verified":
-                    raise ProspectionActionError(
-                        "EMAIL_NOT_MX_VERIFIED",
-                        "l'adresse doit être vérifiée MX",
-                        target_ids=(target_id,),
-                        status_code=422,
-                    )
-                if self._suppression_checker.is_suppressed(
-                    connection, email=str(row["email_address"]), at=at
-                ):
-                    raise ProspectionActionError(
-                        "EMAIL_SUPPRESSED",
-                        "l'adresse est dans la liste de suppression",
-                        target_ids=(target_id,),
-                        status_code=422,
-                    )
-
-            connection.execute(
-                sa.insert(prospect_send_request).values(
-                    request_id=request_id,
-                    payload_fingerprint=fingerprint,
-                    target_ids=[str(item.target_id) for item in command.targets],
-                    request_day=request_day,
-                    reserved_count=len(command.targets),
-                    sent_count=0,
-                    status="started",
-                    created_by=actor,
-                    created_at=at,
-                )
-            )
-            connection.execute(
-                sa.update(prospect_target)
-                .where(prospect_target.c.target_id.in_([row["target_id"] for row in target_rows]))
-                .values(send_request_id=request_id, updated_at=at)
-            )
-
-        if self._kill_switch_path.exists():
-            with self._engine.begin() as connection:
-                connection.execute(
-                    sa.update(prospect_target)
-                    .where(prospect_target.c.send_request_id == request_id)
-                    .values(send_request_id=None, updated_at=at)
-                )
-                connection.execute(
-                    sa.update(prospect_send_request)
-                    .where(prospect_send_request.c.request_id == request_id)
-                    .values(
-                        status="failed",
-                        sent_count=0,
-                        error="kill switch activated before provider handoff",
-                        completed_at=at,
-                    )
-                )
+        reservation = reserve_send(
+            engine=self._engine,
+            command=command,
+            actor=actor,
+            at=at,
+            status="queued",
+            create_items=True,
+            suppression_check=lambda connection, email, checked_at: (
+                self._suppression_checker.is_suppressed(connection, email=email, at=checked_at)
+            ),
+            locked_rows=self._locked_rows,
+            validate_live_directory_contact=self._validate_live_directory_contact,
+            action_error=ProspectionActionError,
+            before_reservation=before_reservation,
+        )
+        if (
+            reservation.existing is not None
+            and reservation.existing["payload_fingerprint"] != reservation.fingerprint
+        ):
             raise ProspectionActionError(
-                "KILL_SWITCH_ACTIVE", "l'arrêt d'urgence de l'acquisition est actif"
+                "SEND_REQUEST_IDEMPOTENCY_CONFLICT",
+                "request_id a déjà un autre contenu",
             )
+        return self.send_progress(reservation.request_id)
 
-        delivery_targets = tuple(
-            DeliveryTarget(
-                target_id=str(row["target_id"]),
-                email=str(row["email_address"]),
-                company_name=str(row["company_name"]),
-                director_name=row.get("director_name"),
-                subject=str(row["mail_subject"]),
-                text=str(row["mail_text"]),
-                html=str(row["mail_html"]),
-            )
-            for row in target_rows
-        )
-        permit = DeliveryPermit(
-            request_id=request_id,
-            target_ids=frozenset(item.target_id for item in delivery_targets),
-            issued_at=at,
-        )
-        try:
-            attempts = self._delivery_provider.deliver(
-                permit=permit, targets=delivery_targets, at=at
-            )
-        except Exception as error:  # noqa: BLE001 - provider boundary becomes audited failure
-            attempts = tuple(
-                DeliveryAttempt(
-                    target_id=item.target_id,
-                    status="failed",
-                    instantly_id=None,
-                    provider_campaign_id=None,
-                    instantly_credit_units=0,
-                    instantly_request_count=0,
-                    error=str(error)[:1000],
-                )
-                for item in delivery_targets
-            )
-        attempts_by_id = {item.target_id: item for item in attempts}
-        if set(attempts_by_id) != set(permit.target_ids):
-            missing = set(permit.target_ids) - set(attempts_by_id)
-            for target_id in missing:
-                attempts_by_id[target_id] = DeliveryAttempt(
-                    target_id=target_id,
-                    status="failed",
-                    instantly_id=None,
-                    provider_campaign_id=None,
-                    instantly_credit_units=0,
-                    instantly_request_count=0,
-                    error="provider result missing",
-                )
-        ordered_attempts = tuple(
-            attempts_by_id[str(row["target_id"])] for row in target_rows
-        )
-        sent_count = sum(item.status == "sent" for item in ordered_attempts)
-        with self._engine.begin() as connection:
-            for row in target_rows:
-                attempt = attempts_by_id[str(row["target_id"])]
-                sent = attempt.status == "sent"
-                values = {
-                    "status": "sent" if sent else "approved",
-                    "delivery_status": "sent" if sent else "not_sent",
-                    "provider_campaign_id": attempt.provider_campaign_id,
-                    "instantly_id": attempt.instantly_id,
-                    "send_request_id": request_id if sent else None,
-                    "sent_at": at if sent else None,
-                    "instantly_credit_units": attempt.instantly_credit_units,
-                    "instantly_request_count": attempt.instantly_request_count,
-                    "delivery_error": attempt.error,
-                    "version": int(row["version"]) + 1,
-                    "updated_at": at,
-                }
-                connection.execute(
-                    sa.update(prospect_target)
-                    .where(
-                        prospect_target.c.target_id == row["target_id"],
-                        prospect_target.c.send_request_id == request_id,
-                    )
-                    .values(**values)
-                )
-                self._history(
-                    connection,
-                    row=row,
-                    event_type="sent" if sent else "send_failed",
-                    actor=actor,
-                    previous={"status": row["status"]},
-                    new={"status": values["status"], "instantly_id": attempt.instantly_id},
-                    at=at,
-                )
-            daily_sent = (
-                int(
-                    connection.scalar(
-                        sa.select(
-                            sa.func.coalesce(sa.func.sum(prospect_send_request.c.sent_count), 0)
-                        ).where(prospect_send_request.c.request_day == request_day)
-                    )
-                    or 0
-                )
-                + sent_count
-            )
-            result = SendResult(
-                request_id=request_id,
-                results=tuple(
-                    SendItemResult(
-                        target_id=item.target_id,
-                        status=item.status,
-                        instantly_id=item.instantly_id,
-                    )
-                    for item in ordered_attempts
-                ),
-                daily_sent_count=daily_sent,
-                daily_remaining=max(0, 25 - daily_sent),
-            )
-            result_json = {
-                "request_id": result.request_id,
-                "results": [item.__dict__ for item in result.results],
-                "daily_sent_count": result.daily_sent_count,
-                "daily_remaining": result.daily_remaining,
-            }
-            request_status = (
-                "completed"
-                if sent_count == len(target_rows)
-                else ("partial" if sent_count else "failed")
-            )
-            failure_message = "; ".join(
-                sorted({item.error for item in attempts if item.error})
-            )[:1000]
-            connection.execute(
-                sa.update(prospect_send_request)
-                .where(prospect_send_request.c.request_id == request_id)
-                .values(
-                    status=request_status,
-                    sent_count=sent_count,
-                    result=result_json if sent_count else None,
-                    error=None if sent_count else failure_message,
-                    completed_at=at,
-                )
-            )
-        if sent_count == 0:
-            raise ProspectionActionError(
-                "INSTANTLY_SEND_FAILED",
-                failure_message or "le fournisseur n'a accepté aucune cible",
-                target_ids=tuple(str(row["target_id"]) for row in target_rows),
-                status_code=502,
-            )
-        return result
+    def send_progress(self, request_id: UUID | str) -> SendRequestProgress:
+        """Return the durable queue state for a send request."""
+        return load_send_progress(self._engine, request_id, action_error=ProspectionActionError)
+
+    def send(self, command, *, actor: str) -> SendRequestProgress:
+        """Compatibility alias for durable asynchronous send admission."""
+        return self.enqueue_send(command, actor=actor)
 
 
 __all__ = [

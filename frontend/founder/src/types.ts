@@ -534,7 +534,7 @@ export interface FounderProspectionActionTarget {
     contract_failure: string | null
   }
   delivery: {
-    status: 'not_sent' | 'sent' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'unsubscribed'
+    status: 'not_sent' | 'delivered' | 'opened' | 'clicked' | 'replied' | 'bounced' | 'unsubscribed'
     instantly_id: string | null
     sent_at: string | null
     opened_at: string | null
@@ -546,6 +546,7 @@ export interface FounderProspectionActionTarget {
     instantly_credit_units: number
     instantly_request_count: number
   }
+  acceptance_error: string | null
   created_at: string
   updated_at: string
   approved_at: string | null
@@ -599,16 +600,22 @@ export interface FounderProspectionRejectionResponse extends FounderProspectionT
   directory_effect: 'email_invalidated' | 'family_review_required' | 'none'
 }
 
-export interface FounderProspectionSendResponse {
-  version: 'founder-prospection-actions-v1'
+export interface FounderProspectionSendProgress {
+  version: 'founder-prospection-send-v2'
   request_id: string
-  results: Array<{
+  status: 'queued' | 'running' | 'waiting' | 'completed' | 'partial' | 'failed'
+  status_url: string
+  total_count: number
+  processed_count: number
+  sent_count: number
+  failed_count: number
+  items: Array<{
     target_id: string
-    status: 'sent' | 'failed'
-    instantly_id: string | null
+    email_address: string
+    status: 'queued' | 'running' | 'verification_pending' | 'sent' | 'failed'
+    error_code: string | null
+    error_message: string | null
   }>
-  daily_sent_count: number
-  daily_remaining: number
 }
 
 export interface FounderTargetingCycle {

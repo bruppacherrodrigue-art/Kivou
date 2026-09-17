@@ -25,6 +25,42 @@ Ouvrir d'abord un shell root dédié avec `sudo -i`. Les blocs sont à copier da
 l'ordre dans ce même shell ; ils n'affichent aucune variable secrète et
 commencent tous en mode Bash strict.
 
+## Récupération exceptionnelle d'un lot d'envoi interrompu
+
+Cette commande est un chemin d'incident, pas une procédure de release et ne
+doit pas être exécutée sans autorisation de production distincte. Elle ne crée
+aucune campagne ni aucun lead Instantly : elle ne reconstruit que les items
+locaux à partir des identifiants déjà persistés. La campagne concernée doit
+rester **pausée** pendant le contrôle et l'application.
+
+Pour l'incident identifié, exécuter d'abord, une seule fois, le dry-run exact :
+
+```bash
+set -euo pipefail
+/srv/kivou/app/.venv/bin/python -m signals.prospection_actions.recovery 7b7a8aea-1111-4111-8111-111111111111 --dry-run
+```
+
+Stop gate : arrêter si la commande échoue, si elle n'émet pas un unique JSON
+borné, ou si les comptes ne sont pas exactement `approved_count=20`,
+`already_sent_count=1`, `existing_lead_count=20` et `create_lead_count=0`.
+Arrêter aussi si un identifiant de campagne/lead manque ou si plusieurs
+campagnes sont signalées. Ne jamais corriger une ligne à la main, ni appeler
+Instantly depuis ce chemin.
+
+Seulement après ce stop gate vert et une seconde autorisation explicite,
+appliquer la même récupération :
+
+```bash
+set -euo pipefail
+/srv/kivou/app/.venv/bin/python -m signals.prospection_actions.recovery 7b7a8aea-1111-4111-8111-111111111111 --apply
+```
+
+Stop gate : l'unique JSON `applied` doit reproduire les quatre comptes du
+dry-run. Ensuite, laisser le worker normal vérifier les leads existants. Il ne
+reprendra la campagne pausée qu'après convergence terminale de tous les items;
+arrêter et escalader à la première erreur du worker ou à toute divergence de
+compte. Ne pas réexécuter `--apply` pour forcer une relance.
+
 ## 1. Vérifier et extraire le SHA exact de `main`
 
 Préconditions : la deploy key GitHub est en lecture seule, son empreinte et le
@@ -1644,4 +1680,38 @@ kivou_run_autonomous_recovery() {
 # KIVOU_AUTONOMOUS_RECOVERY_SOURCE_END
 
 kivou_run_autonomous_recovery
+```
+
+## Worker durable de prospection Founder (activation ultérieure)
+
+Cette unité ne doit pas être installée ni activée pendant la livraison de ce
+SHA. La campagne reste en pause : toute activation exige une autorisation de
+production distincte et la confirmation que `/etc/kivou/acquisition.disabled`
+est absent seulement au moment voulu. Le worker traite au plus 25 cibles par
+batch, sérialise les lancements avec `flock` et laisse les échecs de cible dans
+la file durable ; il ne constitue pas une boucle résidente.
+
+Après revue de la release active, installer les deux fichiers avec les mêmes
+contrôles de propriétaire et de lien que les autres unités, puis uniquement
+avec cette autorisation :
+
+```bash
+set -euo pipefail
+install -o root -g root -m 644 /srv/kivou/app/ops/systemd/kivou-prospect-send.service /etc/systemd/system/kivou-prospect-send.service
+install -o root -g root -m 644 /srv/kivou/app/ops/systemd/kivou-prospect-send.timer /etc/systemd/system/kivou-prospect-send.timer
+systemd-analyze verify /etc/systemd/system/kivou-prospect-send.service /etc/systemd/system/kivou-prospect-send.timer
+systemctl daemon-reload
+systemctl enable --now kivou-prospect-send.timer
+systemctl status --no-pager kivou-prospect-send.timer
+```
+
+Les contrôles sans envoi sont `systemd-analyze verify`, `systemctl cat
+kivou-prospect-send.service` et `systemctl list-timers
+kivou-prospect-send.timer`. Lorsque l'autorisation couvre un batch réel,
+lancer une seule fois `systemctl start kivou-prospect-send.service`, puis lire
+le résumé JSON borné et les journaux avec :
+
+```bash
+journalctl -u kivou-prospect-send.service -n 100 --no-pager
+journalctl -u kivou-prospect-send.timer -n 50 --no-pager
 ```

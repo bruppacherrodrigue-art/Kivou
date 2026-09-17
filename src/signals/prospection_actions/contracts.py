@@ -54,11 +54,11 @@ class EmailSource(StrEnum):
 
 class DeliveryStatus(StrEnum):
     NOT_SENT = "not_sent"
-    SENT = "sent"
+    DELIVERED = "delivered"
+    BOUNCED = "bounced"
     OPENED = "opened"
     CLICKED = "clicked"
     REPLIED = "replied"
-    BOUNCED = "bounced"
     UNSUBSCRIBED = "unsubscribed"
 
 
@@ -133,6 +133,7 @@ class ProspectTarget(_Contract):
     signal: SignalSnapshot
     mail: MailSnapshot
     delivery: DeliverySnapshot
+    acceptance_error: str | None = Field(default=None, max_length=1000)
     created_at: dt.datetime
     updated_at: dt.datetime
     approved_at: dt.datetime | None = None
@@ -198,6 +199,26 @@ class SendCommand(_Contract):
         if len({item.target_id for item in value}) != len(value):
             raise ValueError("send target ids must be unique")
         return value
+
+
+class SendItemProgress(_Contract):
+    target_id: UUID
+    email_address: EmailStr
+    status: Literal["queued", "running", "verification_pending", "sent", "failed"]
+    instantly_id: str | None = None
+    verification_status: int | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+class SendRequestProgress(_Contract):
+    request_id: UUID
+    status: Literal["queued", "running", "waiting", "completed", "partial", "failed"]
+    total_count: int = Field(ge=1, le=25)
+    processed_count: int = Field(ge=0, le=25)
+    sent_count: int = Field(ge=0, le=25)
+    failed_count: int = Field(ge=0, le=25)
+    items: tuple[SendItemProgress, ...]
 
 
 class DailyCounts(_Contract):

@@ -141,7 +141,11 @@ class ProspectPreparationService:
                         prospect_target.c.status,
                     )
                     .where(prospect_target.c.status.in_(("pending_review", "approved")))
-                    .order_by(prospect_target.c.siren, prospect_target.c.created_at, prospect_target.c.target_id)
+                    .order_by(
+                        prospect_target.c.siren,
+                        prospect_target.c.created_at,
+                        prospect_target.c.target_id,
+                    )
                 ).mappings()
             )
             kept_sirens: set[str] = set()
@@ -218,8 +222,8 @@ class ProspectPreparationService:
             recently_contacted = set(
                 connection.execute(
                     sa.select(prospect_target.c.siren).where(
-                        prospect_target.c.sent_at.is_not(None),
-                        prospect_target.c.sent_at > cutoff,
+                        prospect_target.c.instantly_accepted_at.is_not(None),
+                        prospect_target.c.instantly_accepted_at > cutoff,
                     )
                 ).scalars()
             )
@@ -239,9 +243,7 @@ class ProspectPreparationService:
                     ).where(supplier_directory.c.siren == signal.holder_siren)
                 ).first()
                 holder_family_keys = set(
-                    (holder_row[0] or ())
-                    if holder_row and holder_row[1] == "confirmed"
-                    else ()
+                    (holder_row[0] or ()) if holder_row and holder_row[1] == "confirmed" else ()
                 )
                 if not holder_family_keys:
                     # Do not silently target a supplier from the holder's own

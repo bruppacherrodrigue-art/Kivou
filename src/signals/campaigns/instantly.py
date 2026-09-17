@@ -6,6 +6,7 @@ import datetime as dt
 import json
 import re
 from collections.abc import Mapping
+from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Protocol
@@ -71,7 +72,7 @@ def _redacted_error_body(response: httpx.Response) -> str:
         if len(body) >= MAX_PROVIDER_ERROR_RESPONSE_BYTES:
             break
     text = body.decode("utf-8", errors="replace")
-    text = _SENSITIVE_RESPONSE_VALUE.sub(r'\1<masked>', text)
+    text = _SENSITIVE_RESPONSE_VALUE.sub(r"\1<masked>", text)
     return _BEARER_TOKEN.sub("Bearer <masked>", text)
 
 
@@ -92,14 +93,26 @@ class ProviderLead(_ProviderModel):
     status: str | int | None = None
 
 
+@dataclass(frozen=True)
+class ProviderCampaignPage:
+    items: tuple[ProviderCampaign, ...]
+    next_starting_after: object = None
+
+    def __iter__(self):
+        return iter(self.items)
+
+
 class ProviderMutationResult(_ProviderModel):
     provider_identity: str | None = None
     status: str | int | None = None
 
 
 class InstantlyProvider(Protocol):
-    def list_campaigns(self, *, search: str) -> tuple[ProviderCampaign, ...]: ...
+    def list_campaigns(
+        self, *, search: str, starting_after: str | None = None
+    ) -> ProviderCampaignPage: ...
     def get_campaign(self, provider_campaign_id: str) -> ProviderCampaign: ...
+    def get_campaign_status(self, provider_campaign_id: str) -> ProviderCampaign: ...
     def create_campaign(
         self, *, name: str, provider_config: dict[str, object]
     ) -> ProviderCampaign: ...
@@ -119,7 +132,9 @@ class InstantlyProvider(Protocol):
         leads: tuple[dict[str, object], ...],
         verify_leads_on_import: bool = False,
     ) -> object: ...
-    def list_leads(self, *, provider_campaign_id: str) -> object: ...
+    def list_leads(
+        self, *, provider_campaign_id: str, starting_after: str | None = None
+    ) -> object: ...
     def get_lead(self, provider_lead_id: str) -> object: ...
     def pause_lead(self, provider_lead_id: str) -> object: ...
     def list_webhooks(self) -> object: ...
@@ -219,8 +234,10 @@ def _normalize_variants(value: object) -> list[dict[str, object]]:
         raise ValueError("each email step must contain exactly one variant")
     variant = value[0]
     unknown = set(variant) - {"subject", "body", "v_disabled"}
-    if unknown or not isinstance(variant.get("subject"), str) or not isinstance(
-        variant.get("body"), str
+    if (
+        unknown
+        or not isinstance(variant.get("subject"), str)
+        or not isinstance(variant.get("body"), str)
     ):
         raise ValueError("provider email variant shape is unsupported")
     disabled = variant.get("v_disabled", False)
@@ -283,9 +300,7 @@ def _normalize_campaign_schedule(value: object) -> dict[str, object]:
     except ValueError as exc:
         raise ValueError("campaign schedule dates are invalid") from exc
     schedules = value["schedules"]
-    if not isinstance(schedules, list) or len(schedules) != 1 or not isinstance(
-        schedules[0], dict
-    ):
+    if not isinstance(schedules, list) or len(schedules) != 1 or not isinstance(schedules[0], dict):
         raise ValueError("campaign must contain exactly one provider schedule")
     schedule = schedules[0]
     if set(schedule) != {"name", "timing", "days", "timezone"}:
@@ -314,9 +329,10 @@ def _guard_provider_execution_fields(value: dict[str, object]) -> None:
             raise ValueError(f"provider {key} must remain empty")
     if value.get("ai_sdr_id") is not None:
         raise ValueError("provider AI SDR attachment is forbidden")
-    if value.get("core_variables") not in (None, {}) or value.get(
-        "custom_variables"
-    ) not in (None, {}):
+    if value.get("core_variables") not in (None, {}) or value.get("custom_variables") not in (
+        None,
+        {},
+    ):
         raise ValueError("campaign-level provider variables are forbidden")
     if value.get("prioritize_new_leads") not in (None, False):
         raise ValueError("provider lead-priority execution is forbidden")
@@ -350,9 +366,7 @@ def normalize_provider_campaign_config(response: object) -> dict[str, object]:
         for key in _CAMPAIGN_CONFIG_KEYS
         if key not in {"campaign_schedule", "sequences", "auto_variant_select"}
     }
-    normalized["campaign_schedule"] = _normalize_campaign_schedule(
-        response["campaign_schedule"]
-    )
+    normalized["campaign_schedule"] = _normalize_campaign_schedule(response["campaign_schedule"])
     normalized["sequences"] = _normalize_sequences(response["sequences"])
     normalized["auto_variant_select"] = response.get("auto_variant_select")
     return normalized
@@ -575,6 +589,10 @@ class HttpInstantlyProvider:
         self._api_key = api_key
         self._client = client
         self._base_url = base_url.rstrip("/")
+        timeout_values = (client.timeout.connect, client.timeout.read, client.timeout.write)
+        if any(value is None or value > 300 for value in timeout_values):
+            raise ValueError("Instantly HTTP timeouts must be bounded to five minutes")
+        self.mutation_timeout_seconds = int(max(timeout_values))
 
     def _call(
         self,
@@ -596,9 +614,7 @@ class HttpInstantlyProvider:
                 retry_after: int | None = None
                 if response.status_code == 429:
                     raw_retry = response.headers.get("Retry-After")
-                    retry_after = (
-                        int(raw_retry) if raw_retry and raw_retry.isdigit() else None
-                    )
+                    retry_after = int(raw_retry) if raw_retry and raw_retry.isdigit() else None
                 status_map = {
                     401: InstantlyErrorCode.AUTH,
                     402: InstantlyErrorCode.PLAN_REQUIRED,
@@ -676,12 +692,22 @@ class HttpInstantlyProvider:
                 reconciliation_required=mutation,
             ) from exc
 
-    def list_campaigns(self, *, search: str) -> tuple[ProviderCampaign, ...]:
-        value = self._call("GET", "/campaigns", params={"search": search})
-        items = value.get("items", value.get("data", [])) if isinstance(value, dict) else value
-        if not isinstance(items, list):
+    def list_campaigns(
+        self, *, search: str, starting_after: str | None = None
+    ) -> ProviderCampaignPage:
+        params = {"search": search}
+        if starting_after is not None:
+            params["starting_after"] = starting_after
+        value = self._call("GET", "/campaigns", params=params)
+        if (
+            not isinstance(value, dict)
+            or not isinstance(value.get("items"), list)
+            or "next_starting_after" not in value
+        ):
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
-        return tuple(self._campaign(item) for item in items)
+        return ProviderCampaignPage(
+            tuple(self._campaign(item) for item in value["items"]), value["next_starting_after"]
+        )
 
     def get_campaign(self, provider_campaign_id: str) -> ProviderCampaign:
         return self._campaign(
@@ -689,9 +715,11 @@ class HttpInstantlyProvider:
             require_config=True,
         )
 
-    def create_campaign(
-        self, *, name: str, provider_config: dict[str, object]
-    ) -> ProviderCampaign:
+    def get_campaign_status(self, provider_campaign_id: str) -> ProviderCampaign:
+        """Read campaign identity/status without imposing the two-step config contract."""
+        return self._campaign(self._call("GET", f"/campaigns/{provider_campaign_id}"))
+
+    def create_campaign(self, *, name: str, provider_config: dict[str, object]) -> ProviderCampaign:
         body = {"name": name, **_validate_campaign_config(provider_config)}
         return self._campaign(
             self._call("POST", "/campaigns", json_body=body, mutation=True),
@@ -777,9 +805,7 @@ class HttpInstantlyProvider:
         )
 
     def activate_campaign(self, provider_campaign_id: str) -> ProviderMutationResult:
-        value = self._call(
-            "POST", f"/campaigns/{provider_campaign_id}/activate", mutation=True
-        )
+        value = self._call("POST", f"/campaigns/{provider_campaign_id}/activate", mutation=True)
         return self._mutation(value, fallback_identity=provider_campaign_id)
 
     def pause_campaign(self, provider_campaign_id: str) -> ProviderMutationResult:
@@ -845,10 +871,11 @@ class HttpInstantlyProvider:
             mutation=True,
         )
 
-    def list_leads(self, *, provider_campaign_id: str) -> object:
-        value = self._call(
-            "POST", "/leads/list", json_body={"campaign_id": provider_campaign_id}
-        )
+    def list_leads(self, *, provider_campaign_id: str, starting_after: str | None = None) -> object:
+        body = {"campaign": provider_campaign_id}
+        if starting_after is not None:
+            body["starting_after"] = starting_after
+        value = self._call("POST", "/leads/list", json_body=body)
         if not isinstance(value, dict) or not isinstance(value.get("items"), list):
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
         return {
@@ -900,11 +927,7 @@ class HttpInstantlyProvider:
 
 
 def _strict_bounded_int(value: object, *, minimum: int, maximum: int) -> bool:
-    return (
-        isinstance(value, int)
-        and not isinstance(value, bool)
-        and minimum <= value <= maximum
-    )
+    return isinstance(value, int) and not isinstance(value, bool) and minimum <= value <= maximum
 
 
 def _effective_sending_gap_minutes(
@@ -920,13 +943,10 @@ def _effective_sending_gap_minutes(
         minimum=0,
         maximum=1_440,
     )
-    configured_gap_valid = (
-        managed_airmail_sending_gap_minutes is None
-        or _strict_bounded_int(
-            managed_airmail_sending_gap_minutes,
-            minimum=1,
-            maximum=1_440,
-        )
+    configured_gap_valid = managed_airmail_sending_gap_minutes is None or _strict_bounded_int(
+        managed_airmail_sending_gap_minutes,
+        minimum=1,
+        maximum=1_440,
     )
     if not configured_gap_valid:
         return None
@@ -1004,9 +1024,7 @@ def normalize_mailbox_readiness(
             -3: "permanent_suspension",
         },
     )
-    tracking = (
-        str(raw.get("tracking_domain_status", "")).strip().casefold().replace(" ", "_")
-    )
+    tracking = str(raw.get("tracking_domain_status", "")).strip().casefold().replace(" ", "_")
     setup_pending = raw.get("setup_pending")
     daily_limit = raw.get("daily_limit")
     valid_daily_limit = (
@@ -1029,22 +1047,29 @@ def normalize_mailbox_readiness(
         normalized_sending_gap = 0
     else:
         normalized_daily_limit = int(daily_limit)
-        if status in {
-            "connection_error",
-            "soft_bounce_error",
-            "sending_error",
-            "banned",
-        } or warmup in {
-            "banned",
-            "suspended",
-            "error",
-            "spam_folder_unknown",
-            "permanent_suspension",
-        } or tracking in {
-            "invalid",
-            "error",
-            "failed",
-        }:
+        if (
+            status
+            in {
+                "connection_error",
+                "soft_bounce_error",
+                "sending_error",
+                "banned",
+            }
+            or warmup
+            in {
+                "banned",
+                "suspended",
+                "error",
+                "spam_folder_unknown",
+                "permanent_suspension",
+            }
+            or tracking
+            in {
+                "invalid",
+                "error",
+                "failed",
+            }
+        ):
             state = MailboxReadinessState.UNHEALTHY
         elif (
             status in {"paused", "maintenance"}
@@ -1056,8 +1081,7 @@ def normalize_mailbox_readiness(
             status == "active"
             and setup_pending is False
             and warmup in {"active", "completed", "enabled"}
-            and tracking
-            in {"active", "verified", "connected", "not_required", "ctd_active"}
+            and tracking in {"active", "verified", "connected", "not_required", "ctd_active"}
         ):
             state = MailboxReadinessState.READY
         else:
@@ -1068,9 +1092,7 @@ def normalize_mailbox_readiness(
         sending_gap_seconds=normalized_sending_gap * 60,
         observed_at=observed_at,
         valid_until=(
-            observed_at + dt.timedelta(minutes=5)
-            if state is MailboxReadinessState.READY
-            else None
+            observed_at + dt.timedelta(minutes=5) if state is MailboxReadinessState.READY else None
         ),
     )
 
@@ -1088,11 +1110,7 @@ class InstantlyMailboxReadinessSource:
         source = managed_airmail_sending_gaps or {}
         normalized: dict[str, int] = {}
         for account, gap in source.items():
-            if (
-                not isinstance(account, str)
-                or not account.strip()
-                or len(account.strip()) > 320
-            ):
+            if not isinstance(account, str) or not account.strip() or len(account.strip()) > 320:
                 raise ValueError("managed AirMail account binding is invalid")
             if not _strict_bounded_int(gap, minimum=1, maximum=1_440):
                 raise ValueError("managed AirMail cadence is invalid")

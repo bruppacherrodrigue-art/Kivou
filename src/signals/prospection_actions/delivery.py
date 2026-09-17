@@ -1,17 +1,13 @@
-"""Permit-scoped one-message Instantly delivery for Founder-approved targets."""
+"""Small, resumable Instantly operations used by the prospect-send worker."""
 
 from __future__ import annotations
 
 import datetime as dt
-import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
-from signals.prospection_actions.service import (
-    DeliveryAttempt,
-    DeliveryPermit,
-    DeliveryTarget,
-)
+from signals.prospection_actions.service import DeliveryTarget
 
 
 class AssistedInstantlyProvider(Protocol):
@@ -33,29 +29,42 @@ class AssistedInstantlyProvider(Protocol):
 
     def get_lead(self, provider_lead_id: str) -> object: ...
 
+    def list_campaigns(self, *, search: str, starting_after: str | None = None) -> object: ...
+
+    def get_campaign(self, provider_campaign_id: str) -> object: ...
+
+    def get_campaign_status(self, provider_campaign_id: str) -> object: ...
+
+    def list_leads(
+        self, *, provider_campaign_id: str, starting_after: str | None = None
+    ) -> object: ...
+
     def activate_campaign(self, provider_campaign_id: str) -> object: ...
 
 
-@dataclass
-class _ImportedLead:
-    target: DeliveryTarget
-    lead_id: str | None
+_VERIFICATION_ERRORS = {
+    -1: "instantly_email_invalid",
+    -2: "instantly_email_risky",
+    -3: "instantly_email_catch_all",
+    -4: "instantly_email_job_change",
+}
+MAX_RECONCILIATION_PAGES = 20
+
+
+class ReconciliationRequired(RuntimeError):
+    """Remote identity is ambiguous; a worker must never guess a mutation."""
+
+
+@dataclass(frozen=True)
+class Verification:
+    status: str
     verification_status: int | None
-    request_count: int
-    error: str | None = None
+    error_code: str | None = None
 
 
 def _verification_status(response: object) -> int | None:
     value = response.get("verification_status") if isinstance(response, dict) else None
     return value if type(value) is int else None
-
-
-_VERIFICATION_ERRORS = {
-    -1: "instantly_email_verification_invalid",
-    -2: "instantly_email_verification_risky",
-    -3: "instantly_email_verification_catch_all",
-    -4: "instantly_email_verification_job_change",
-}
 
 
 class AssistedInstantlyDelivery:
@@ -65,106 +74,173 @@ class AssistedInstantlyDelivery:
         self._provider = provider
         self._provider_account_id = provider_account_id.strip().casefold()
 
-    def deliver(
-        self,
-        *,
-        permit: DeliveryPermit,
-        targets: tuple[DeliveryTarget, ...],
-        at: dt.datetime,
-    ) -> tuple[DeliveryAttempt, ...]:
-        target_ids = frozenset(item.target_id for item in targets)
-        if not targets or target_ids != permit.target_ids or len(target_ids) != len(targets):
-            raise PermissionError("delivery targets exceed the Founder send permit")
-        if permit.issued_at != at:
-            raise PermissionError("delivery permit is not bound to this send attempt")
+    def ensure_campaign(self, request: Mapping[str, object], *, at: dt.datetime) -> str:
         campaign = self._provider.create_assisted_campaign(
-            name=f"Kivou assisted {at.astimezone(dt.UTC).date()} {permit.request_id[:8]}",
+            name=self.campaign_name(request, at=at),
             provider_account_id=self._provider_account_id,
             execution_date=at.astimezone(dt.UTC).date(),
         )
-        campaign_id = str(campaign.provider_campaign_id)
-        imported: list[_ImportedLead] = []
-        for target in targets:
-            try:
-                response = self._provider.create_lead_or_batch(
-                    provider_campaign_id=campaign_id,
-                    verify_leads_on_import=True,
-                    leads=(
-                        {
-                            "email": target.email,
-                            "custom_variables": {
-                                "kivou_subject": target.subject,
-                                "kivou_envelope": target.html,
-                            },
-                            "skip_if_in_workspace": True,
-                        },
-                    ),
-                )
-                lead_id = response.get("id") if isinstance(response, dict) else None
-                if not lead_id:
-                    raise RuntimeError("Instantly did not return a lead id")
-                imported.append(
-                    _ImportedLead(target, str(lead_id), _verification_status(response), 1)
-                )
-            except Exception as error:  # noqa: BLE001 - one lead failure remains isolated
-                imported.append(
-                    _ImportedLead(target, None, None, 1, str(error)[:1000])
-                )
-        for poll in range(15):
-            pending = [item for item in imported if item.lead_id and item.verification_status in {None, 11, 12}]
-            if not pending:
-                break
-            if poll:
-                time.sleep(2)
-            for item in pending:
-                try:
-                    response = self._provider.get_lead(str(item.lead_id))
-                    item.request_count += 1
-                    item.verification_status = _verification_status(response)
-                    item.error = None
-                except Exception as error:  # noqa: BLE001 - retry the bounded verification poll
-                    item.request_count += 1
-                    item.error = str(error)[:1000]
-        accepted = [
-            DeliveryAttempt(
-                target_id=item.target.target_id,
-                status="sent" if item.verification_status == 1 and not item.error else "failed",
-                instantly_id=item.lead_id,
-                provider_campaign_id=campaign_id,
-                instantly_credit_units=1 if item.lead_id else 0,
-                instantly_request_count=item.request_count,
-                error=(
-                    item.error
-                    or _VERIFICATION_ERRORS.get(item.verification_status)
-                    or (
-                        None
-                        if item.verification_status == 1
-                        else "instantly_email_verification_pending"
-                    )
-                ),
-            )
-            for item in imported
-        ]
-        first = accepted[0]
-        accepted[0] = DeliveryAttempt(
-            **{**first.__dict__, "instantly_request_count": first.instantly_request_count + 1}
+        campaign_id = getattr(campaign, "provider_campaign_id", None)
+        if not campaign_id:
+            raise RuntimeError("Instantly did not return a campaign id")
+        return str(campaign_id)
+
+    def import_target(self, campaign_id: str, target: DeliveryTarget) -> str:
+        response = self._provider.create_lead_or_batch(
+            provider_campaign_id=campaign_id,
+            verify_leads_on_import=True,
+            leads=(
+                {
+                    "email": target.email,
+                    "custom_variables": {
+                        "kivou_subject": target.subject,
+                        "kivou_envelope": target.html,
+                    },
+                    # An old campaign may contain this email with obsolete mail.
+                    # The worker has reconciled absence in this bound campaign;
+                    # workspace-wide skipping would prevent the corrected import.
+                    # https://developer.instantly.ai/api-reference/lead/create-lead
+                    "skip_if_in_workspace": False,
+                },
+            ),
         )
-        successful = [item for item in accepted if item.status == "sent"]
-        if successful:
-            self._provider.activate_campaign(campaign_id)
-            first = successful[0]
-            replacement = DeliveryAttempt(
-                target_id=first.target_id,
-                status=first.status,
-                instantly_id=first.instantly_id,
-                provider_campaign_id=first.provider_campaign_id,
-                instantly_credit_units=first.instantly_credit_units,
-                # Campaign activation is charged to one delivery row; creation was above.
-                instantly_request_count=first.instantly_request_count + 1,
-                error=first.error,
-            )
-            accepted[accepted.index(first)] = replacement
-        return tuple(accepted)
+        lead_id = response.get("id") if isinstance(response, dict) else None
+        if not lead_id:
+            raise RuntimeError("Instantly did not return a lead id")
+        return str(lead_id)
+
+    def verification(self, instantly_id: str) -> Verification:
+        """Read a lead exactly once; scheduling is deliberately the worker's job."""
+        status = _verification_status(self._provider.get_lead(instantly_id))
+        if status == 1:
+            return Verification(status="accepted", verification_status=status)
+        error_code = _VERIFICATION_ERRORS.get(status)
+        if error_code is not None:
+            return Verification(status="failed", verification_status=status, error_code=error_code)
+        return Verification(status="pending", verification_status=status)
+
+    def activate(self, campaign_id: str) -> None:
+        self._provider.activate_campaign(campaign_id)
+
+    def find_campaign(
+        self,
+        request: Mapping[str, object],
+        *,
+        at: dt.datetime,
+        before_read: Callable[[str | None], None] | None = None,
+    ) -> str | None:
+        name = self.campaign_name(request, at=at)
+        matches = []
+        for items in self._pages(
+            lambda **cursor: self._provider.list_campaigns(search=name, **cursor),
+            before_read=before_read,
+        ):
+            for item in items:
+                if not getattr(item, "name", None) or not getattr(
+                    item, "provider_campaign_id", None
+                ):
+                    raise ReconciliationRequired("reconciliation_required: malformed campaigns")
+                if item.name == name:
+                    matches.append(item)
+            if len(matches) > 1:
+                raise ReconciliationRequired("reconciliation_required: multiple campaigns")
+        return str(matches[0].provider_campaign_id) if matches else None
+
+    def find_lead(
+        self,
+        campaign_id: str,
+        email: str,
+        *,
+        before_read: Callable[[str | None], None] | None = None,
+    ) -> str | None:
+        matches = []
+        for items in self._pages(
+            lambda **cursor: self._provider.list_leads(provider_campaign_id=campaign_id, **cursor),
+            before_read=before_read,
+        ):
+            for item in items:
+                if (
+                    not isinstance(item, dict)
+                    or not item.get("id")
+                    or not isinstance(item.get("email"), str)
+                ):
+                    raise ReconciliationRequired("reconciliation_required: malformed leads")
+                if item.get("campaign_id", item.get("campaign")) != campaign_id or (
+                    "campaign" in item and item["campaign"] != campaign_id
+                ):
+                    raise ReconciliationRequired("reconciliation_required: lead campaign mismatch")
+                if item["email"].casefold() == email.casefold():
+                    matches.append(item)
+            if len(matches) > 1:
+                raise ReconciliationRequired("reconciliation_required: multiple leads")
+        return str(matches[0]["id"]) if matches else None
+
+    @staticmethod
+    def _pages(fetch, *, before_read):
+        cursor = None
+        seen = set()
+        for _ in range(MAX_RECONCILIATION_PAGES):
+            if before_read is not None:
+                before_read(cursor)
+            try:
+                response = fetch(**({"starting_after": cursor} if cursor is not None else {}))
+            except Exception as error:
+                raise ReconciliationRequired(
+                    "reconciliation_required: provider read failed"
+                ) from error
+            if isinstance(response, tuple):
+                items, following = response, None
+            elif isinstance(response, dict):
+                if "next_starting_after" not in response or not isinstance(
+                    response.get("items"), list
+                ):
+                    raise ReconciliationRequired("reconciliation_required: malformed pagination")
+                items, following = response["items"], response["next_starting_after"]
+            else:
+                items = getattr(response, "items", None)
+                following = getattr(response, "next_starting_after", None)
+                if not isinstance(items, tuple):
+                    raise ReconciliationRequired("reconciliation_required: malformed pagination")
+            if following is not None and (
+                not isinstance(following, str)
+                or not 1 <= len(following) <= 512
+                or following in seen
+            ):
+                raise ReconciliationRequired("reconciliation_required: malformed pagination")
+            yield items
+            if following is None:
+                return
+            seen.add(following)
+            cursor = following
+        raise ReconciliationRequired("reconciliation_required: pagination limit")
+
+    def campaign_active(self, campaign_id: str) -> bool:
+        """Active or completed proves activation; a paused campaign still needs resume."""
+        read_status = getattr(self._provider, "get_campaign_status", self._provider.get_campaign)
+        campaign = read_status(campaign_id)
+        return str(getattr(campaign, "status", "")).casefold() in {"active", "1", "completed", "3"}
+
+    @staticmethod
+    def campaign_name(request: Mapping[str, object], *, at: dt.datetime) -> str:
+        """Keep one exact remote identity across retries, without prefix collisions."""
+        intent = (request.get("result") or {}).get("accounting", {}).get("campaign:create")
+        request_identity = str(request["request_id"])
+        if isinstance(intent, dict):
+            if "campaign_name" in intent:
+                name = intent["campaign_name"]
+                if not isinstance(name, str) or not 1 <= len(name) <= 256:
+                    raise ReconciliationRequired("reconciliation_required: malformed campaign name")
+                return name
+            # Only an already-persisted legacy create intent may use the old
+            # short name. Never broaden a new request's scan to legacy names.
+            request_identity = request_identity[:8]
+        request_day = request.get("request_day") or at.astimezone(dt.UTC).date()
+        return f"Kivou assisted {request_day} {request_identity}"
 
 
-__all__ = ["AssistedInstantlyDelivery", "AssistedInstantlyProvider"]
+__all__ = [
+    "AssistedInstantlyDelivery",
+    "AssistedInstantlyProvider",
+    "ReconciliationRequired",
+    "Verification",
+]

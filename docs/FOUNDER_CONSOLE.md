@@ -457,10 +457,12 @@ sudo certbot certonly --webroot -w /var/www/certbot -d control.kivou.eu
 ```
 
 Remove only the temporary vhost, then deploy the explicit production SHA. The
-deployment's nginx transaction installs `ops/nginx/kivou-founder-control.conf`,
-validates it with `nginx -t` and reloads nginx only after validation succeeds.
-If nginx validation or reload fails, it restores the prior available and
-enabled nginx state:
+deployment's nginx transaction installs both
+`ops/nginx/kivou-founder-control.conf` and
+`ops/nginx/kivou-founder-proxy-params.conf` at
+`/etc/nginx/kivou-founder-proxy-params.conf`, validates them with `nginx -t`
+and reloads nginx only after validation succeeds.
+If nginx validation or reload fails, it restores the prior Founder nginx state:
 
 ```bash
 sudo rm -- /etc/nginx/sites-enabled/kivou-founder-bootstrap.conf

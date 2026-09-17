@@ -49,6 +49,7 @@ KIVOU_FOUNDER_SYSTEMD_UNIT=${KIVOU_FOUNDER_SYSTEMD_UNIT:-kivou-founder-api.servi
 KIVOU_FOUNDER_SYSTEMD_UNIT_PATH=${KIVOU_FOUNDER_SYSTEMD_UNIT_PATH:-/etc/systemd/system/kivou-founder-api.service}
 KIVOU_FOUNDER_NGINX_AVAILABLE=${KIVOU_FOUNDER_NGINX_AVAILABLE:-/etc/nginx/sites-available/kivou-founder-control.conf}
 KIVOU_FOUNDER_NGINX_ENABLED=${KIVOU_FOUNDER_NGINX_ENABLED:-/etc/nginx/sites-enabled/kivou-founder-control.conf}
+KIVOU_FOUNDER_NGINX_PROXY_PARAMS=${KIVOU_FOUNDER_NGINX_PROXY_PARAMS:-/etc/nginx/kivou-founder-proxy-params.conf}
 KIVOU_FOUNDER_ENV_FILE=${KIVOU_FOUNDER_ENV_FILE:-/etc/kivou/founder.env}
 KIVOU_FOUNDER_ORIGIN_SECRET_FILE=${KIVOU_FOUNDER_ORIGIN_SECRET_FILE:-/etc/kivou/founder-origin-secret.conf}
 KIVOU_FOUNDER_HTPASSWD_FILE=${KIVOU_FOUNDER_HTPASSWD_FILE:-/etc/kivou/founder.htpasswd}
@@ -244,9 +245,12 @@ restore_founder_nginx_path() {
 }
 
 rollback_founder_nginx() {
-  local rollback_dir=$1 available_existed=$2 enabled_existed=$3
+  local rollback_dir=$1 proxy_params_existed=$2 available_existed=$3 enabled_existed=$4
   KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="nettoyage du candidat"
   rm -f -- "$KIVOU_FOUNDER_NGINX_ENABLED.next" || return 1
+  KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="restauration des paramètres Founder"
+  restore_founder_nginx_path \
+    "$KIVOU_FOUNDER_NGINX_PROXY_PARAMS" "$rollback_dir/proxy-params" "$proxy_params_existed" || return 1
   KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE="restauration du site disponible"
   restore_founder_nginx_path \
     "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available" "$available_existed" || return 1
@@ -260,8 +264,8 @@ rollback_founder_nginx() {
 }
 
 fail_founder_nginx_transaction() {
-  local reason=$1 rollback_dir=$2 available_existed=$3 enabled_existed=$4
-  if ! rollback_founder_nginx "$rollback_dir" "$available_existed" "$enabled_existed"; then
+  local reason=$1 rollback_dir=$2 proxy_params_existed=$3 available_existed=$4 enabled_existed=$5
+  if ! rollback_founder_nginx "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"; then
     fail "ROLLBACK NGINX FOUNDER INCOMPLET : $KIVOU_FOUNDER_NGINX_ROLLBACK_FAILURE ; sauvegardes conservées : $rollback_dir ; intervention manuelle requise"
   fi
   rm -rf -- "$rollback_dir" || fail "ROLLBACK NGINX FOUNDER INCOMPLET : nettoyage ; intervention manuelle requise"
@@ -287,10 +291,16 @@ check_founder_health() {
 
 sync_founder_nginx() {
   local source="$KIVOU_RELEASE_DIR/ops/nginx/kivou-founder-control.conf"
-  local rollback_dir available_existed=0 enabled_existed=0
+  local proxy_params_source="$KIVOU_RELEASE_DIR/ops/nginx/kivou-founder-proxy-params.conf"
+  local rollback_dir proxy_params_existed=0 available_existed=0 enabled_existed=0
   [[ -f "$source" && -r "$source" ]] || fail "vhost Founder introuvable : $source"
-  mkdir -p "$(dirname "$KIVOU_FOUNDER_NGINX_AVAILABLE")" "$(dirname "$KIVOU_FOUNDER_NGINX_ENABLED")"
+  [[ -f "$proxy_params_source" && -r "$proxy_params_source" ]] || fail "paramètres nginx Founder introuvables : $proxy_params_source"
+  mkdir -p "$(dirname "$KIVOU_FOUNDER_NGINX_AVAILABLE")" "$(dirname "$KIVOU_FOUNDER_NGINX_ENABLED")" "$(dirname "$KIVOU_FOUNDER_NGINX_PROXY_PARAMS")"
   rollback_dir=$(mktemp -d)
+  if [[ -e "$KIVOU_FOUNDER_NGINX_PROXY_PARAMS" || -L "$KIVOU_FOUNDER_NGINX_PROXY_PARAMS" ]]; then
+    cp -a -- "$KIVOU_FOUNDER_NGINX_PROXY_PARAMS" "$rollback_dir/proxy-params"
+    proxy_params_existed=1
+  fi
   if [[ -e "$KIVOU_FOUNDER_NGINX_AVAILABLE" || -L "$KIVOU_FOUNDER_NGINX_AVAILABLE" ]]; then
     cp -a -- "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$rollback_dir/available"
     available_existed=1
@@ -300,26 +310,30 @@ sync_founder_nginx() {
     enabled_existed=1
   fi
 
+  if ! install -o root -g root -m 0644 "$proxy_params_source" "$KIVOU_FOUNDER_NGINX_PROXY_PARAMS"; then
+    fail_founder_nginx_transaction \
+      "installation des paramètres nginx Founder échouée" "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"
+  fi
   if ! install -o root -g root -m 0644 "$source" "$KIVOU_FOUNDER_NGINX_AVAILABLE"; then
     fail_founder_nginx_transaction \
-      "installation du vhost Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+      "installation du vhost Founder échouée" "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"
   fi
   if ! ln -sfn "$KIVOU_FOUNDER_NGINX_AVAILABLE" "$KIVOU_FOUNDER_NGINX_ENABLED.next"; then
     fail_founder_nginx_transaction \
-      "préparation du lien nginx Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+      "préparation du lien nginx Founder échouée" "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"
   fi
   if ! mv -Tf "$KIVOU_FOUNDER_NGINX_ENABLED.next" "$KIVOU_FOUNDER_NGINX_ENABLED"; then
     fail_founder_nginx_transaction \
-      "activation du lien nginx Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+      "activation du lien nginx Founder échouée" "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"
   fi
 
   if ! nginx -t; then
     fail_founder_nginx_transaction \
-      "validation nginx Founder échouée" "$rollback_dir" "$available_existed" "$enabled_existed"
+      "validation nginx Founder échouée" "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"
   fi
   if ! systemctl reload nginx; then
     fail_founder_nginx_transaction \
-      "rechargement nginx Founder échoué" "$rollback_dir" "$available_existed" "$enabled_existed"
+      "rechargement nginx Founder échoué" "$rollback_dir" "$proxy_params_existed" "$available_existed" "$enabled_existed"
   fi
   rm -rf -- "$rollback_dir"
 }

@@ -1,0 +1,42 @@
+[Unit]
+Description=Kivou — envoi durable de prospection Founder borne
+Documentation=file:/srv/kivou/app/ops/production/README.md
+Wants=network-online.target
+After=network-online.target postgresql.service
+ConditionPathExists=!/etc/kivou/acquisition.disabled
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/founder.env
+EnvironmentFile=/etc/kivou/production.env
+EnvironmentFile=/etc/kivou/acquisition-production.env
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 75 /run/kivou/prospect-send.lock /srv/kivou/app/.venv/bin/python -m signals.prospection_actions.worker --limit 25
+SuccessExitStatus=75
+TimeoutStartSec=20min
+TimeoutStopSec=90s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-prospect-send
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/run/kivou
