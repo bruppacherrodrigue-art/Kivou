@@ -11,6 +11,7 @@ Ce que ces tests tiennent, et qu'aucun autre ne tient :
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -929,7 +930,9 @@ def test_landing_cohort_uses_a_neighbouring_family_in_the_same_department(tmp_pa
     }
 
 
-def test_landing_cohort_expands_the_same_family_to_adjacent_departments(tmp_path) -> None:
+def test_landing_cohort_expands_the_same_family_to_adjacent_departments(
+    tmp_path, caplog
+) -> None:
     engine, service, token, _ = prepared(tmp_path)
     token = family_bait_token(engine, service, token)
     seed_landing_neighbours(
@@ -956,12 +959,18 @@ def test_landing_cohort_expands_the_same_family_to_adjacent_departments(tmp_path
             )
     client = client_for(engine, service, now=CLICKED_AT)
 
+    caplog.set_level(logging.WARNING, logger="signals.ingestion.backfill")
     response = land(client, token.raw_token)
     pin_session_cookie(client, response)
     body = client.get("/signals", params={"view": "history", "limit": 20}).json()
 
     assert len(body["items"]) == 3
     assert body["landing_cohort"]["materialized"] == 3
+    assert {
+        record.expansion_reason
+        for record in caplog.records
+        if record.getMessage() == "landing cohort expanded"
+    } == {"same_family_adjacent_department"}
 
 
 def test_landing_without_a_known_department_does_not_invent_neighbours(tmp_path) -> None:
