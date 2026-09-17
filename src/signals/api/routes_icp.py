@@ -12,6 +12,7 @@ ressources voisines, une adresse à la fois.
 from __future__ import annotations
 
 import datetime as dt
+import secrets
 
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,10 +26,91 @@ from signals.billing import service as billing_service
 from signals.domain.cpv_labels import cpv_divisions
 from signals.domain.subdivisions import FRENCH_DEPARTMENTS, SWISS_CANTONS
 from signals.ingestion.backfill import (
+    materialize_landing_feed_in_transaction,
     rematerialize_target_in_transaction,
+    select_landing_opportunity_in_transaction,
 )
+from signals.supplier_discovery.families import load_supplier_family_catalog
 
 router = APIRouter()
+
+
+def _family_for_profile(profile: service.StoredTargetIcp) -> str | None:
+    summary = f"{profile.label} {profile.customer_input.offer_summary}".casefold()
+    families = tuple(
+        family for group in load_supplier_family_catalog().values() for family in group
+    )
+    for family in families:
+        phrases = (family.key, family.label_fr, *family.object_terms, *family.activity_terms)
+        if any(phrase.casefold() in summary for phrase in phrases):
+            return family.key
+    prefixes = tuple(profile.customer_input.sector_cpv_prefixes)
+    for family in families:
+        if any(
+            selected.startswith(prefix) or prefix.startswith(selected)
+            for selected in prefixes
+            for prefix in family.cpv_prefixes
+        ):
+            return family.key
+    return None
+
+
+def _ensure_discovery_landing(
+    connection,
+    *,
+    account_id: str,
+    profile: service.StoredTargetIcp,
+    now: dt.datetime,
+) -> None:
+    state = billing_service.billing_state(connection, account_id=account_id)
+    if not state.is_discovery or discovery.opened_signal_keys(connection, account_id=account_id):
+        return
+    subdivision = next(iter(profile.customer_input.territory_subdivisions), None)
+    family_key = _family_for_profile(profile)
+    if subdivision is None or family_key is None:
+        return
+    opportunity_key = select_landing_opportunity_in_transaction(
+        connection,
+        family_key=family_key,
+        subdivision=subdivision,
+        as_of=now.date(),
+    )
+    if opportunity_key is None:
+        return
+    service.record_landing_signal(
+        connection,
+        account_id=account_id,
+        opportunity_key=opportunity_key,
+        signal_key=None,
+        token_fingerprint=secrets.token_hex(32),
+        qa=False,
+        now=now,
+    )
+    signal_keys = materialize_landing_feed_in_transaction(
+        connection,
+        target_icp_id=profile.target_icp_id,
+        opportunity_key=opportunity_key,
+        family_key=family_key,
+        as_of=now.date(),
+        materialized_at=now,
+    )
+    if not signal_keys:
+        return
+    service.record_landing_signal(
+        connection,
+        account_id=account_id,
+        opportunity_key=opportunity_key,
+        signal_key=signal_keys[0],
+        token_fingerprint=None,
+        qa=False,
+        now=now,
+    )
+    discovery.grant_landing_cohort(
+        connection,
+        account_id=account_id,
+        signal_keys=signal_keys,
+        now=now,
+    )
 
 
 class TargetIcpCreate(BaseModel):
@@ -111,6 +193,14 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
             now=now,
         )
         stored = service.list_target_icps(connection, account_id=session.account_id)
+        for profile in stored:
+            if profile.status == "active":
+                _ensure_discovery_landing(
+                    connection,
+                    account_id=session.account_id,
+                    profile=profile,
+                    now=now,
+                )
         landing = service.landing_signal(connection, account_id=session.account_id)
         provisional = landing is not None and service.is_provisional_profile(
             connection, account_id=session.account_id
@@ -192,6 +282,12 @@ def create_target_icp(payload: TargetIcpCreate, request: Request) -> TargetIcpRe
             materialized_at=now,
         )
         if stored.status == "active":
+            _ensure_discovery_landing(
+                connection,
+                account_id=session.account_id,
+                profile=stored,
+                now=now,
+            )
             discovery.reconcile_initial_backfill(
                 connection,
                 account_id=session.account_id,
@@ -237,9 +333,7 @@ def update_target_icp(
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         state = billing_service.billing_state(connection, account_id=session.account_id)
-        was_provisional = service.is_provisional_profile(
-            connection, account_id=session.account_id
-        )
+        was_provisional = service.is_provisional_profile(connection, account_id=session.account_id)
         try:
             previous = service.get_target_icp(
                 connection, account_id=session.account_id, target_icp_id=target_icp_id
@@ -303,6 +397,12 @@ def update_target_icp(
         # Prospect landings are active provisionally, so their confirmation is
         # the one active-to-active transition that still counts as activation.
         if stored.status == "active" and (previous.status != "active" or was_provisional):
+            _ensure_discovery_landing(
+                connection,
+                account_id=session.account_id,
+                profile=stored,
+                now=now,
+            )
             discovery.reconcile_initial_backfill(
                 connection,
                 account_id=session.account_id,
@@ -312,9 +412,7 @@ def update_target_icp(
         request.app.state.conversion_milestone_service.observe_activation_in_transaction(
             connection, account_id=session.account_id, observed_at=now
         )
-        provisional = service.is_provisional_profile(
-            connection, account_id=session.account_id
-        )
+        provisional = service.is_provisional_profile(connection, account_id=session.account_id)
     return TargetIcpResponse.of(
         stored,
         max_territories=state.entitlements.max_territories_per_icp,

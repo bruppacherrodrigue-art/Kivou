@@ -54,6 +54,14 @@ export function RedirectIfAuthenticated() {
     const requested = (location.state as { from?: string } | null)?.from
     const selectedPlan = planFromSearch(location.search)
     const enteredFromPlanChoice = location.pathname === '/signup' || location.pathname === '/login'
+    // The public Discovery form creates a temporary session before its own
+    // submit handler opens the selected bait. Let that handler finish instead
+    // of racing it toward the generic authenticated home.
+    if (
+      state.me.temporary_access &&
+      location.pathname === '/signup' &&
+      selectedPlan === 'discovery'
+    ) return <Outlet />
     if (
       state.me.onboarding_status === 'ready_for_signals' &&
       enteredFromPlanChoice &&

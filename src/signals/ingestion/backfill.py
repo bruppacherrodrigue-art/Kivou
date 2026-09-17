@@ -422,6 +422,92 @@ def _landing_matches_selected_trade(
     )
 
 
+def select_landing_opportunity_in_transaction(
+    connection: sa.Connection,
+    *,
+    family_key: str,
+    subdivision: str,
+    as_of: dt.date,
+) -> str | None:
+    """Choose an honest bait for a self-serve profile from persisted awards."""
+
+    family = next(
+        (
+            item
+            for families in load_supplier_family_catalog().values()
+            for item in families
+            if item.key == family_key
+        ),
+        None,
+    )
+    department = _department_code(subdivision)
+    if family is None or department is None:
+        return None
+    effective_date = sa.func.coalesce(
+        contract_award.c.award_date,
+        contract_award.c.contract_notification_date,
+        source_event.c.published_on,
+    )
+    statement = (
+        sa.select(
+            opportunity_representation.c.opportunity_key,
+            sa.func.max(effective_date).label("effective_date"),
+        )
+        .select_from(
+            opportunity_representation.join(
+                contract_award,
+                opportunity_representation.c.award_key == contract_award.c.award_key,
+            ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
+        )
+        .where(
+            effective_date >= as_of - dt.timedelta(days=30),
+            effective_date <= as_of,
+            contract_award.c.amount.is_not(None),
+            contract_award.c.place_of_performance.is_not(None),
+            sa.func.nullif(sa.func.trim(sa.func.coalesce(source_event.c.source_url, "")), "").isnot(
+                None
+            ),
+            sa.func.nullif(sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), "").isnot(
+                None
+            ),
+        )
+        .group_by(opportunity_representation.c.opportunity_key)
+        .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
+        .limit(CANDIDATE_SCAN_CAP)
+    )
+    candidate_keys = tuple(connection.execute(statement).scalars())
+    representatives = dict(zip(candidate_keys, _representatives(connection, candidate_keys)))
+    cached_holders = official_holders_for_opportunities(connection, candidate_keys)
+    nearby = set(department_and_neighbours(department))
+    ranked: list[tuple[int, int, str]] = []
+    for order, key in enumerate(candidate_keys):
+        representative = representatives.get(key)
+        if representative is None:
+            continue
+        event, award = representative
+        if not _has_customer_name(award) and key not in cached_holders:
+            continue
+        place = award.place_of_performance
+        candidate_department = _department_code(
+            location_subdivision(place.model_dump(mode="json") if place else None)
+        )
+        if candidate_department is None:
+            continue
+        understanding = ContractUnderstandingEngine().understand(award, event)
+        prepared = {"award": award, "understanding": understanding}
+        candidate_families = {item.key for item in _landing_families(prepared)}
+        if not _landing_matches_selected_trade(family.key, candidate_families, prepared):
+            continue
+        if candidate_department == department:
+            rank = 0
+        elif candidate_department in nearby:
+            rank = 1
+        else:
+            rank = 2
+        ranked.append((rank, order, key))
+    return min(ranked)[2] if ranked else None
+
+
 def materialize_landing_feed_in_transaction(
     connection: sa.Connection,
     *,
@@ -592,8 +678,4 @@ def materialize_landing_feed_in_transaction(
             invalidation_reason="provisional_landing_cohort_reconciled",
         )
     )
-    return tuple(
-        signal_keys[key]
-        for key, _prepared in prepared_rows[:3]
-        if key in signal_keys
-    )
+    return tuple(signal_keys[key] for key, _prepared in prepared_rows[:3] if key in signal_keys)

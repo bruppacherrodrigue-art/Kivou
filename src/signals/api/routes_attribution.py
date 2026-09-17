@@ -32,22 +32,26 @@ from urllib.parse import quote
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
+from pydantic import BaseModel, ConfigDict, Field
 
 from signals.accounts import service as accounts
 from signals.accounts.icp_input import MonetaryThreshold, TargetIcpInput, offer_for_need
 from signals.accounts.schema import account_landing_signal
 from signals.api.config import ATTRIBUTION_COOKIE_NAME
-from signals.api.dependencies import request_now
-from signals.api.routes_auth import set_session_cookie
+from signals.api.dependencies import enforce_origin, request_now
+from signals.api.errors import api_error
+from signals.api.routes_auth import _me_response, set_session_cookie
 from signals.billing import discovery
 from signals.conversion import qa_token
 from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.cpv_labels import cpv_label
 from signals.domain.french_departments import NUTS3_DEPARTMENTS, location_subdivision
+from signals.domain.subdivisions import FRENCH_DEPARTMENTS
 from signals.engagement import analytics
 from signals.ingestion.backfill import (
     materialize_landing_feed_in_transaction,
+    select_landing_opportunity_in_transaction,
 )
 from signals.persistence.schema import (
     for_you_sentence,
@@ -125,9 +129,7 @@ def _profile_seed(
     if opportunity_key is None:
         return None, (), None
     try:
-        public = resolve_public_acquisition_context_in_transaction(
-            connection, opportunity_key
-        )
+        public = resolve_public_acquisition_context_in_transaction(connection, opportunity_key)
     except AcquisitionSeedNotFound:
         return None, (), None
     award = public.award
@@ -199,6 +201,7 @@ class _LandingContext:
     expires_at: dt.datetime
     qa: bool
     replayed: bool
+    subdivision: str | None = None
 
 
 def _keyring(config) -> AttributionTokenKeyring:
@@ -242,26 +245,19 @@ def _verify_landing(
             token_fingerprint=fingerprint,
             expires_at=payload.expires_at,
             qa=True,
-            replayed=_landing_account_id(
-                connection, token_fingerprint=fingerprint
-            )
-            is not None,
+            replayed=_landing_account_id(connection, token_fingerprint=fingerprint) is not None,
         )
     if service is None:
         raise ValueError("attribution service is unavailable")
     verified = service.verify_in_transaction(connection, raw_token=raw_token, at=now)
     if qa_requested:
         replayed = (
-            _landing_account_id(
-                connection, token_fingerprint=verified.token_fingerprint
-            )
+            _landing_account_id(connection, token_fingerprint=verified.token_fingerprint)
             is not None
         )
         fingerprint = verified.token_fingerprint
     else:
-        click = service.record_click_in_transaction(
-            connection, raw_token=raw_token, at=now
-        )
+        click = service.record_click_in_transaction(connection, raw_token=raw_token, at=now)
         replayed = click.replayed
         fingerprint = click.token_fingerprint
     payload = verified.payload
@@ -279,6 +275,113 @@ def _verify_landing(
         qa=qa_requested,
         replayed=replayed,
     )
+
+
+class DiscoveryPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    zone: str = Field(pattern=r"^FR-(?:0[1-9]|[1-8][0-9]|9[0-5]|2A|2B|97[1-6])$")
+    sector: str = Field(min_length=1, max_length=128)
+
+
+@router.get("/auth/discovery-preview/options")
+def discovery_preview_options() -> dict[str, object]:
+    families = sorted(
+        (
+            {"key": family.key, "label": family.label_fr}
+            for group in load_supplier_family_catalog().values()
+            for family in group
+        ),
+        key=lambda item: str(item["label"]),
+    )
+    return {
+        "zones": [
+            {"code": f"FR-{code}", "label": label} for code, label in FRENCH_DEPARTMENTS.items()
+        ],
+        "sectors": families,
+    }
+
+
+@router.post("/auth/discovery-preview", status_code=201)
+def create_discovery_preview(payload: DiscoveryPreviewRequest, request: Request) -> JSONResponse:
+    """Open the same materialized product proof as a signed prospect link."""
+
+    enforce_origin(request, request.app.state.config)
+    config = request.app.state.config
+    now = request_now(request)
+    family = next(
+        (
+            item
+            for families in load_supplier_family_catalog().values()
+            for item in families
+            if item.key == payload.sector
+        ),
+        None,
+    )
+    if family is None:
+        raise api_error(422, "invalid_input", "sélectionnez un secteur proposé")
+    try:
+        with request.app.state.engine.begin() as connection:
+            opportunity_key = select_landing_opportunity_in_transaction(
+                connection,
+                family_key=family.key,
+                subdivision=payload.zone,
+                as_of=now.date(),
+            )
+            if opportunity_key is None:
+                raise api_error(
+                    503,
+                    "landing_access_unavailable",
+                    "aucun signal récent ne peut être affiché pour ce profil",
+                )
+            context = _LandingContext(
+                opportunity_key=opportunity_key,
+                country="FR",
+                need_ref=family.key,
+                sector_label=family.label_fr,
+                member_ref=None,
+                campaign_ref=None,
+                token_fingerprint=secrets.token_hex(32),
+                expires_at=now + config.session_ttl,
+                qa=False,
+                replayed=False,
+                subdivision=payload.zone,
+            )
+            session, signal_key, _expires_at, _qa = _land(
+                connection,
+                None,
+                raw_token="",
+                context=context,
+                now=now,
+                config=config,
+            )
+            cohort = accounts.landing_cohort(connection, account_id=session.account_id)
+            if signal_key is None or cohort is None or cohort.materialized < 3:
+                raise api_error(
+                    503,
+                    "landing_access_unavailable",
+                    "les premiers signaux ne peuvent pas encore être affichés",
+                )
+            me = _me_response(accounts.current_user(connection, user_id=session.user_id), request)
+    except ValueError as error:
+        raise api_error(
+            503,
+            "landing_access_unavailable",
+            "les premiers signaux ne peuvent pas encore être affichés",
+        ) from error
+    response = JSONResponse(
+        status_code=201,
+        content={
+            "signal_id": signal_key,
+            "landing_cohort": {
+                "expected": cohort.expected,
+                "materialized": cohort.materialized,
+            },
+            "me": me.model_dump(mode="json"),
+        },
+    )
+    set_session_cookie(response, request, session)
+    return response
 
 
 @router.get("/a/{token}", include_in_schema=False)
@@ -347,9 +450,7 @@ def _land(
     Un compte à moitié créé — sans utilisateur, sans journey, sans promesse
     enregistrée — serait un compte que personne ne peut ni ouvrir ni réclamer.
     """
-    account_id = _landing_account_id(
-        connection, token_fingerprint=context.token_fingerprint
-    )
+    account_id = _landing_account_id(connection, token_fingerprint=context.token_fingerprint)
     if account_id is None:
         email = _landing_email(context.token_fingerprint)
         if accounts.user_id_for_email(connection, email=email) is not None:
@@ -369,7 +470,7 @@ def _land(
             session_ttl=config.session_ttl,
         )
         account_id = session.account_id
-        if not context.qa:
+        if context.member_ref is not None:
             service.bind_signup_in_transaction(
                 connection, account_id=account_id, raw_token=raw_token, at=now
             )
@@ -388,11 +489,8 @@ def _land(
     catalog_sector_label, cpv_prefixes, subdivision = _profile_seed(
         connection, context.opportunity_key, context.need_ref
     )
-    sector_label = (
-        context.sector_label
-        if context.qa and context.sector_label is not None
-        else catalog_sector_label
-    )
+    sector_label = context.sector_label or catalog_sector_label
+    subdivision = context.subdivision or subdivision
     profile_input = _draft_icp_input(
         country=context.country,
         need_ref=context.need_ref,

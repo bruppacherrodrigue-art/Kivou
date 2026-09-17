@@ -39,6 +39,8 @@ import type {
   CompanyMembership,
   DirectorySearchPage,
   DirectoryOptions,
+  DiscoveryPreview,
+  DiscoveryPreviewOptions,
   ManualContactInput,
   ManualContactView,
   ProspectingQueryScope,
@@ -62,6 +64,12 @@ export const auth = {
     company_name: string
     locale: Locale
   }) => request<Me>('/auth/signup', { method: 'POST', body: payload }),
+
+  discoveryPreviewOptions: () =>
+    request<DiscoveryPreviewOptions>('/auth/discovery-preview/options'),
+
+  createDiscoveryPreview: (payload: { zone: string; sector: string }) =>
+    request<DiscoveryPreview>('/auth/discovery-preview', { method: 'POST', body: payload }),
 
   login: (payload: { email: string; password: string }) =>
     request<Me>('/auth/login', { method: 'POST', body: payload }),

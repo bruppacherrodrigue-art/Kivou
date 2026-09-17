@@ -217,7 +217,7 @@ describe('parcours d’entrée de la référence connectée', () => {
         <AppRoutes />
         <LocationProbe />
       </>,
-      { route: '/signup?plan=discovery', session: UNAUTHENTICATED, locale: 'en' },
+      { route: '/signup', session: UNAUTHENTICATED, locale: 'en' },
     )
 
     expect(screen.queryByLabelText(/langue/i)).not.toBeInTheDocument()

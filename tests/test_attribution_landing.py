@@ -373,6 +373,89 @@ def test_kqa1_and_kat1_share_the_provisional_product_landing(tmp_path) -> None:
         ) == 0
 
 
+def test_public_discovery_preview_opens_a_three_signal_facade_cohort(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    facade_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("facade-one", "Bardage, Façade — patinoire communautaire", "45443000", 2),
+            ("facade-two", "Couverture métallique et zinguerie", "45261213", 3),
+        ),
+    )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = client.post(
+        "/auth/discovery-preview",
+        headers={"Origin": "https://testserver"},
+        json={"zone": "FR-41", "sector": "facade_cladding"},
+    )
+    pin_session_cookie(client, response)
+
+    assert response.status_code == 201, response.text
+    assert response.json()["signal_id"]
+    assert response.json()["landing_cohort"] == {"expected": 3, "materialized": 3}
+    assert client.get("/me").json()["temporary_access"] is True
+    feed = client.get("/signals", params={"freshness": "all"}).json()
+    assert feed["landing_cohort"]["materialized"] == 3
+    assert len([item for item in feed["items"] if not item["locked"]]) == 3
+
+
+def test_claimed_discovery_activation_backfills_a_landing_cohort_immediately(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    facade_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("facade-one", "Bardage, Façade — patinoire communautaire", "45443000", 2),
+            ("facade-two", "Couverture métallique et zinguerie", "45261213", 3),
+        ),
+    )
+    client = client_for(engine, service, now=CLICKED_AT)
+    signup = client.post(
+        "/auth/signup",
+        headers={"Origin": "https://testserver"},
+        json={
+            "email": "artisan-facade@example.fr",
+            "password": "password-long-enough",
+            "company_name": "Artisan façade",
+            "locale": "fr",
+        },
+    )
+    assert signup.status_code == 201, signup.text
+    pin_session_cookie(client, signup)
+    assert client.get("/me").status_code == 200, (
+        signup.headers.get_list("set-cookie"),
+        client.cookies,
+    )
+
+    created = client.post(
+        "/target-icps",
+        headers={"Origin": "https://testserver"},
+        json={
+            "label": "Bardage métallique",
+            "customer_input": {
+                "offer_summary": "Bardage métallique",
+                "offers": ["specialist_subcontracting"],
+                "territories": ["FR"],
+                "territory_subdivisions": ["FR-41"],
+                "sector_cpv_prefixes": ["45"],
+                "minimum_contract_value": {
+                    "currency": "EUR",
+                    "minimum_amount": 0,
+                    "maximum_amount": None,
+                },
+            },
+        },
+    )
+
+    assert created.status_code == 201
+    feed = client.get("/signals", params={"freshness": "all"}).json()
+    assert len([item for item in feed["items"] if not item["locked"]]) == 3
+    with engine.connect() as connection:
+        assert len(grants(connection, account_id=only_account_id(engine))) == 2
+
+
 def test_qa_prospect_claims_with_a_real_email_and_keeps_the_landing_cohort(tmp_path) -> None:
     engine, attribution, token, _ = prepared(tmp_path)
     token = family_bait_token(engine, attribution, token)

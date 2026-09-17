@@ -183,6 +183,17 @@ export interface TargetIcpOptions {
   sectors: { prefix: string; label: string }[]
 }
 
+export interface DiscoveryPreviewOptions {
+  zones: { code: string; label: string }[]
+  sectors: { key: string; label: string }[]
+}
+
+export interface DiscoveryPreview {
+  signal_id: string
+  landing_cohort: { expected: number; materialized: number }
+  me: Me
+}
+
 // ─── Signal ──────────────────────────────────────────────────────────────────
 
 export interface Identifier {
