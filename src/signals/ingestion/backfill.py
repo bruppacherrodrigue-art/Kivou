@@ -408,7 +408,11 @@ def _landing_matches_selected_trade(
     lot_title = award.lot.title if award.lot and award.lot.title else None
     object_text = lot_title or " ".join(filter(None, (award.title, award.description)))
     named = {family.key for family in families_named_in_object(object_text)}
-    if named == {selected_family_key}:
+    wording_is_specific = selected_family_key != "timber_carpentry" or any(
+        term in object_text.casefold()
+        for term in ("charpente", "ossature bois", "construction bois")
+    )
+    if named == {selected_family_key} and wording_is_specific:
         return True
     cpv_codes = tuple(
         str(value).replace("-", "")
@@ -587,6 +591,27 @@ def materialize_landing_feed_in_transaction(
         )
     )
     if selected_family is not None and bait_department is not None:
+        object_terms = (
+            ("charpente", "ossature bois", "construction bois")
+            if selected_family.key == "timber_carpentry"
+            else selected_family.object_terms
+        )
+        family_prefilter = sa.or_(
+            *(
+                contract_award.c.cpv_main.like(f"{prefix.replace('-', '')}%")
+                for prefix in selected_family.cpv_prefixes
+            ),
+            *(
+                column.ilike(f"%{term}%")
+                for term in object_terms
+                for column in (
+                    contract_award.c.lot_title,
+                    contract_award.c.title,
+                    contract_award.c.description,
+                )
+            ),
+        )
+        base_statement = base_statement.where(family_prefilter)
         recent_rows = connection.execute(
             base_statement.where(
                 effective_date >= as_of - dt.timedelta(days=30),

@@ -1036,6 +1036,35 @@ def test_landing_multilot_uses_the_lot_and_fine_cpv_not_the_notice_title(tmp_pat
     } == {"Bardage métallique du bâtiment communal", "Bardage, Façade"}
 
 
+def test_landing_candidate_cap_applies_after_the_family_prefilter(
+    tmp_path, monkeypatch
+) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = facade_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("green-one", "Aménagement des espaces verts", "45112710", 1),
+            ("green-two", "Entretien des parcs", "45112710", 1),
+            ("facade-one", "Bardage métallique du gymnase", "45262650", 2),
+            ("facade-two", "Façade du centre technique", "45443000", 3),
+        ),
+    )
+    monkeypatch.setattr("signals.ingestion.backfill.CANDIDATE_SCAN_CAP", 2)
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert sum(not item["locked"] for item in body["items"]) == 3
+    assert {item["contract"]["title"] for item in body["items"]} == {
+        "Bardage métallique du bâtiment communal",
+        "Bardage métallique du gymnase",
+        "Façade du centre technique",
+    }
+
+
 def test_landing_locked_stock_prefers_old_local_then_recent_adjacent(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     token = facade_bait_token(engine, service, token)
