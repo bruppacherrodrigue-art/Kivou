@@ -80,6 +80,18 @@ test('temporary landing access shows the bait contact without actionable or sele
   expect(claim).toHaveBeenCalledOnce()
 })
 
+test('temporary landing access keeps a single claim action when other contact fields are reserved', () => {
+  const claim = vi.fn()
+  const upgrade = vi.fn()
+  renderApp(<HolderSummary name="Titulaire Démonstration" claimRequired onClaimAccess={claim} onUpgrade={upgrade}
+    lockedFields={['phone', 'email', 'website']}
+    lockedMessage="Comme pour Boussiquet : dirigeant, téléphone, e-mail, historique des marchés." />, { session: AUTHENTICATED })
+
+  expect(screen.getByRole('button', { name: 'Créer mon accès pour appeler' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Voir ce contact — 49 €/mois' })).not.toBeInTheDocument()
+  expect(screen.queryByText(/Comme pour Boussiquet/)).not.toBeInTheDocument()
+})
+
 test('complete landing demo shows its public history and a qualified fallback calendar', () => {
   renderApp(<SignalContent item={{
     ...UNLOCKED_ITEM,

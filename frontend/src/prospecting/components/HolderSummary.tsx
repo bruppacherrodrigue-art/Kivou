@@ -50,7 +50,7 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
       {people.map((person) => <div key={person.email} className={styles.guide}><strong>{person.name}</strong><span className={styles.caption}>{person.title}</span>{claimRequired ? <span className={styles.textButton}>{person.email}</span> : <a className={styles.textButton} href={`mailto:${person.email}`}>{person.email}</a>}<small className={styles.caption}>{fr ? 'E-mail nominatif vérifié' : 'Verified personal business email'}</small></div>)}
     </div>
     {claimRequired && onClaimAccess && <button className={styles.primary} onClick={onClaimAccess}>{fr ? 'Créer mon accès pour appeler' : 'Create my access to call'}</button>}
-    {available.length > 0 && <div className={styles.lockedData}>
+    {available.length > 0 && !claimRequired && <div className={styles.lockedData}>
       <div className={styles.lockedLines} aria-hidden="true">{available.map((field) => <span key={field} />)}</div>
       <p className={styles.muted}>{lockedMessage ?? <>{fr ? 'Données disponibles : ' : 'Available data: '}{available.map(fieldLabel).join(' · ')}</>}</p>
       {onUpgrade && <button className={styles.soft} onClick={onUpgrade}><LockKeyhole aria-hidden="true" />{fr ? 'Voir ce contact — 49 €/mois' : 'View this contact — €49/month'}</button>}
