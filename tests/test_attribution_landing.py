@@ -11,6 +11,7 @@ Ce que ces tests tiennent, et qu'aucun autre ne tient :
 from __future__ import annotations
 
 import datetime as dt
+from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
@@ -33,7 +34,10 @@ from signals.conversion import qa_token
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement.schema import product_event
-from signals.ingestion.backfill import materialize_landing_opportunity_in_transaction
+from signals.ingestion.backfill import (
+    _landing_families,
+    materialize_landing_opportunity_in_transaction,
+)
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_conversion_journey,
@@ -185,6 +189,22 @@ def seed_landing_neighbours(
                     created_at=CLICKED_AT,
                 )
             )
+
+
+def test_landing_family_falls_back_to_public_cpv_when_trade_domain_is_missing() -> None:
+    families = _landing_families(
+        {
+            "award": SimpleNamespace(
+                title="Travaux de rénovation",
+                description=None,
+                cpv_main=SimpleNamespace(code="45262650"),
+                cpv_additional=(),
+            ),
+            "understanding": SimpleNamespace(trade_domain=None),
+        }
+    )
+
+    assert "facade_cladding" in {family.key for family in families}
 
 
 def test_landing_opens_the_promised_signal_with_a_provisional_profile(tmp_path) -> None:

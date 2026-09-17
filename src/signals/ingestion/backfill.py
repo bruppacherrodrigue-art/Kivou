@@ -375,8 +375,9 @@ def _landing_families(prepared: dict[str, object]):
         if value
     )
     try:
+        trade_domain = understanding.trade_domain
         return families_for_signal(
-            understanding.trade_domain.value,
+            trade_domain.value if trade_domain is not None else "general_building",
             cpv_codes=cpv_codes,
             object_text=object_text,
         )
