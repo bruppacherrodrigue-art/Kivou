@@ -28,7 +28,9 @@ class PreparationPort(Protocol):
     def prepare(self, signal, *, cycle_ref: str) -> PreparationResult: ...
 
 
-def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
+def resolve_assisted_signal(
+    engine, opportunity_key: str, *, required_family_key: str | None = None
+) -> AssistedSignal:
     seed = resolve_acquisition_seed(engine, opportunity_key)
     award = seed.award
     amount = award.value
@@ -71,6 +73,10 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
         cpv_codes=cpv_codes,
         object_text=" ".join(filter(None, (award.title, award.description))),
     )
+    if required_family_key is not None:
+        families = tuple(family for family in families if family.key == required_family_key)
+        if not families:
+            raise ValueError("assisted signal does not match the required family")
     location = (
         (str(place.locality) if place and place.locality else None)
         or subdivision_label(subdivision)
@@ -89,6 +95,7 @@ def resolve_assisted_signal(engine, opportunity_key: str) -> AssistedSignal:
         holder=holder,
         holder_siren=holder_siren,
         holder_family_required=True,
+        target_holder_family=required_family_key is not None,
         subject=title[:998],
         amount_minor_units=int(
             (Decimal(amount.amount) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
@@ -169,10 +176,15 @@ def build_assisted_preparation_action(
     preparation: ProspectPreparationService,
     enrichment_handler: Callable[[AcquisitionActionContext], RuntimeActionResult]
     | None = None,
+    required_family_key: str | None = None,
 ) -> AssistedPreparationAction:
     return AssistedPreparationAction(
         preparation=preparation,
-        signal_resolver=lambda opportunity_key: resolve_assisted_signal(engine, opportunity_key),
+        signal_resolver=lambda opportunity_key: resolve_assisted_signal(
+            engine,
+            opportunity_key,
+            required_family_key=required_family_key,
+        ),
         enrichment_handler=enrichment_handler,
     )
 

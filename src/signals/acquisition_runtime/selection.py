@@ -18,6 +18,7 @@ from signals.persistence.schema import (
     opportunity_representation,
     source_event,
 )
+from signals.supplier_discovery.families import families_for_signal
 
 # Amorçage de production (2026-09-01) : le contrôle Policy est maintenant
 # ASSISTED, exécutable — un cycle peut donc s'arrêter WAITING (accord humain
@@ -83,6 +84,45 @@ def region_subdivision_codes(region: str) -> tuple[str, ...]:
         raise ValueError("production selection requires a known region") from exc
 
 MAX_DYNAMIC_HOLDER_ENRICHMENT = 45
+
+
+def _opportunity_family_keys(
+    engine: Engine, *, opportunity_key: str, vertical: str
+) -> frozenset[str]:
+    with engine.connect() as connection:
+        rows = tuple(
+            connection.execute(
+                sa.select(
+                    contract_award.c.cpv_main,
+                    contract_award.c.cpv_additional,
+                    contract_award.c.lot_title,
+                    contract_award.c.title,
+                    contract_award.c.description,
+                )
+                .select_from(
+                    opportunity_representation.join(
+                        contract_award,
+                        opportunity_representation.c.award_key == contract_award.c.award_key,
+                    )
+                )
+                .where(opportunity_representation.c.opportunity_key == opportunity_key)
+            )
+        )
+    return frozenset(
+        family.key
+        for row in rows
+        for family in families_for_signal(
+            vertical,
+            cpv_codes=tuple(
+                value
+                for value in (row.cpv_main, *(row.cpv_additional or ()))
+                if value
+            ),
+            object_text=" ".join(
+                filter(None, (row.lot_title, row.title, row.description))
+            ),
+        )
+    )
 
 
 def unresolved_dynamic_holder_signal_keys(
@@ -205,6 +245,8 @@ def select_production_opportunity_key(
     observed_at: dt.datetime,
     vertical: str | None = None,
     region: str | None = None,
+    family_key: str | None = None,
+    pinned_opportunity_key: str | None = None,
 ) -> str | None:
     """La plus récente opportunité du pays ni retirée ni en refroidissement.
 
@@ -278,6 +320,16 @@ def select_production_opportunity_key(
             .where(sa.func.date(acquisition_runtime_cycle.c.started_at) == horizon)
         )
         region_codes = _REGION_DEPARTMENTS[region]
+        cycle_filters = (
+            (
+                opportunity_representation.c.opportunity_key.notin_(already_played),
+                opportunity_representation.c.award_key.notin_(played_procedures),
+            )
+            if pinned_opportunity_key is None
+            else (
+                opportunity_representation.c.opportunity_key == pinned_opportunity_key,
+            )
+        )
         published_holder_name = sa.func.nullif(
             sa.func.trim(sa.func.coalesce(materialized_signal.c.winner_name, "")),
             "",
@@ -347,16 +399,32 @@ def select_production_opportunity_key(
                     for_you_sentence.c.model_fit.is_(None),
                     for_you_sentence.c.model_fit != "none",
                 ),
-                opportunity_representation.c.opportunity_key.notin_(already_played),
-                opportunity_representation.c.award_key.notin_(played_procedures),
+                *cycle_filters,
             )
             .group_by(opportunity_representation.c.opportunity_key)
             .order_by(latest.desc(), opportunity_representation.c.opportunity_key.asc())
-            .limit(1)
+            .limit(1 if pinned_opportunity_key else (100 if family_key else 1))
         )
         with engine.connect() as connection:
-            row = connection.execute(statement).first()
-        return None if row is None else str(row.opportunity_key)
+            rows = tuple(connection.execute(statement))
+        if family_key is None:
+            return None if not rows else str(rows[0].opportunity_key)
+        for row in rows:
+            opportunity_key = str(row.opportunity_key)
+            matched_families = _opportunity_family_keys(
+                engine,
+                opportunity_key=opportunity_key,
+                vertical=vertical,
+            )
+            if (
+                matched_families == {family_key}
+                or (
+                    pinned_opportunity_key == opportunity_key
+                    and family_key in matched_families
+                )
+            ):
+                return opportunity_key
+        return None
     statement = (
         sa.select(opportunity_representation.c.opportunity_key, latest)
         .select_from(

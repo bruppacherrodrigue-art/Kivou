@@ -229,6 +229,9 @@ def test_pr7_selection_and_provider_contract_is_explicit() -> None:
             "mode": "dynamic",
             "vertical": "general_building",
             "region": "Auvergne-Rhône-Alpes",
+            "family_key": "timber_carpentry",
+            "email_source": "site",
+            "pinned_opportunity_key": "opportunity-timber-savoie",
             "window_days": 30,
             "minimum_amount": "50000",
             "require_named_holder": True,
@@ -241,6 +244,9 @@ def test_pr7_selection_and_provider_contract_is_explicit() -> None:
     deployment = AcquisitionRuntimeDeployment.model_validate(raw)
     assert deployment.selection is not None
     assert deployment.selection.mode == "dynamic"
+    assert deployment.selection.family_key == "timber_carpentry"
+    assert deployment.selection.email_source == "site"
+    assert deployment.selection.pinned_opportunity_key == "opportunity-timber-savoie"
     assert deployment.providers.mode == "fake"
 
 
