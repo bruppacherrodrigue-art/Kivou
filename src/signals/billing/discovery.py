@@ -321,6 +321,47 @@ def reconcile_initial_backfill(
     return tuple(newly)
 
 
+def grant_landing_cohort(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    signal_keys: tuple[str, ...],
+    now: dt.datetime,
+) -> tuple[str, ...]:
+    """Persist the two selected neighbours so confirmation cannot rotate them."""
+
+    _lock_account(connection, account_id=account_id)
+    bait = next(iter(landing_signal_keys(connection, account_id=account_id)), None)
+    selected = tuple(dict.fromkeys(signal_keys))[:DISCOVERY_GRANT_LIMIT]
+    candidates = tuple(key for key in selected if key != bait)
+    if not candidates:
+        return ()
+    opportunities = dict(
+        connection.execute(
+            sa.select(materialized_signal.c.signal_key, materialized_signal.c.opportunity_key)
+            .where(materialized_signal.c.signal_key.in_(candidates))
+        ).tuples().all()
+    )
+    newly: list[str] = []
+    for key in candidates[: DISCOVERY_GRANT_LIMIT - 1]:
+        opportunity_key = opportunities.get(key)
+        if opportunity_key is None:
+            continue
+        if insert_if_absent(
+            connection,
+            discovery_signal_grant,
+            {
+                "account_id": account_id,
+                "signal_key": key,
+                "opportunity_key": opportunity_key,
+                "granted_at": now,
+                "created_at": now,
+            },
+        ):
+            newly.append(key)
+    return tuple(newly)
+
+
 def grant_up_to_limit(
     connection: sa.Connection,
     *,

@@ -29,7 +29,7 @@ from signals.api.config import ATTRIBUTION_COOKIE_NAME, ApiConfig
 from signals.api.routes_auth import SESSION_COOKIE_NAME
 from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
-from signals.billing.discovery import remaining_slots
+from signals.billing.discovery import grants, remaining_slots
 from signals.companies.schema import saas_company
 from signals.conversion import qa_token
 from signals.conversion.source import AttributionSourceResolver
@@ -718,6 +718,7 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
     }
     account_id = only_account_id(engine)
     with engine.connect() as connection:
+        persisted_neighbours = grants(connection, account_id=account_id)
         profile_id = accounts.list_target_icps(
             connection, account_id=account_id
         )[0].target_icp_id
@@ -737,6 +738,7 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
                 )
             ).scalars()
         )
+    assert len(persisted_neighbours) == 2
     assert active_titles == {
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
         "Réfection de la charpente bois de l'école",

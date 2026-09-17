@@ -423,8 +423,9 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     account_id = client.get("/me").json()["account_id"]
     with engine.connect() as connection:
         landing_keys = account_service.landing_signal_keys(connection, account_id=account_id)
-    assert len(landing_keys) == 3
-    assert promised_key in landing_keys
+        cohort = account_service.landing_cohort(connection, account_id=account_id)
+    assert landing_keys == {promised_key}
+    assert cohort is not None and cohort.materialized == 3
     assert client.patch(
         f'/target-icps/{profile["target_icp_id"]}',
         headers={"Origin": "https://testserver"},

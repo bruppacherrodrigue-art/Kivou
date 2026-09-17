@@ -1109,35 +1109,32 @@ def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSign
 
 
 def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozenset[str]:
-    """Le signal promis et au plus deux voisins du même profil provisoire."""
+    """Le signal promis ; les deux voisins sont des attributions persistées."""
     key = connection.execute(
         sa.select(account_landing_signal.c.signal_key).where(
             account_landing_signal.c.account_id == account_id
         )
     ).scalar_one_or_none()
-    if key is None:
-        return frozenset()
+    return frozenset({key}) if key is not None else frozenset()
+
+
+def _landing_materialized_count(connection: sa.Connection, *, signal_key: str) -> int:
     target_id = connection.scalar(
         sa.select(materialized_signal.c.target_icp_id).where(
-            materialized_signal.c.signal_key == key
+            materialized_signal.c.signal_key == signal_key
         )
     )
     if target_id is None:
-        return frozenset({key})
-    related = connection.execute(
-        sa.select(materialized_signal.c.signal_key)
+        return 1
+    count = connection.scalar(
+        sa.select(sa.func.count())
+        .select_from(materialized_signal)
         .where(
             materialized_signal.c.target_icp_id == target_id,
             materialized_signal.c.invalidated_at.is_(None),
         )
-        .order_by(
-            sa.case((materialized_signal.c.signal_key == key, 0), else_=1),
-            materialized_signal.c.materialized_at.desc(),
-            materialized_signal.c.signal_key,
-        )
-        .limit(LANDING_COHORT_SIZE)
-    ).scalars()
-    return frozenset(related)
+    )
+    return min(LANDING_COHORT_SIZE, int(count or 0))
 
 
 def landing_cohort(connection: sa.Connection, *, account_id: str) -> LandingCohort | None:
@@ -1149,7 +1146,7 @@ def landing_cohort(connection: sa.Connection, *, account_id: str) -> LandingCoho
     return LandingCohort(
         signal_key=landing.signal_key,
         expected=LANDING_COHORT_SIZE,
-        materialized=len(landing_signal_keys(connection, account_id=account_id)),
+        materialized=_landing_materialized_count(connection, signal_key=landing.signal_key),
     )
 
 

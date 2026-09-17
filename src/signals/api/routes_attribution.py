@@ -40,6 +40,7 @@ from signals.accounts.schema import account_landing_signal
 from signals.api.config import ATTRIBUTION_COOKIE_NAME
 from signals.api.dependencies import request_now
 from signals.api.routes_auth import set_session_cookie
+from signals.billing import discovery
 from signals.conversion import qa_token
 from signals.conversion.token import AttributionTokenKeyring
 from signals.domain.cpv_labels import cpv_label
@@ -435,10 +436,11 @@ def _land(
         qa=context.qa,
         now=now,
     )
+    landing_cohort_keys: tuple[str, ...] = ()
     if context.opportunity_key is not None and accounts.is_provisional_profile(
         connection, account_id=account_id
     ):
-        materialize_landing_feed_in_transaction(
+        landing_cohort_keys = materialize_landing_feed_in_transaction(
             connection,
             target_icp_id=profiles[0].target_icp_id,
             opportunity_key=context.opportunity_key,
@@ -512,6 +514,13 @@ def _land(
         qa=context.qa,
         now=now,
     )
+    if landing_cohort_keys:
+        discovery.grant_landing_cohort(
+            connection,
+            account_id=account_id,
+            signal_keys=landing_cohort_keys,
+            now=now,
+        )
 
     properties = {
         "has_signal": signal_key is not None,

@@ -338,7 +338,7 @@ def materialize_landing_opportunity_in_transaction(
     opportunity_key: str,
     as_of: dt.date,
     materialized_at: dt.datetime,
-) -> str | None:
+) -> tuple[str, ...]:
     prepared = _prepare_landing_opportunity(
         connection,
         target_icp_id=target_icp_id,
@@ -404,10 +404,10 @@ def materialize_landing_feed_in_transaction(
         materialized_at=materialized_at,
     )
     if bait is None:
-        return None
+        return ()
     profile, _revision = _target_state(connection, target_icp_id)
     if profile is None:
-        return None
+        return ()
     bait_award = bait["award"]
     bait_event = bait["event"]
     bait_place = bait_award.place_of_performance
@@ -564,4 +564,8 @@ def materialize_landing_feed_in_transaction(
             invalidation_reason="provisional_landing_cohort_reconciled",
         )
     )
-    return signal_keys.get(opportunity_key)
+    return tuple(
+        signal_keys[key]
+        for key, _prepared in prepared_rows[:3]
+        if key in signal_keys
+    )
