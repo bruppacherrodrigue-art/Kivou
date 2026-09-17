@@ -77,6 +77,7 @@
 .contactFacts a{color:var(--pv-ink);text-decoration:none;font-weight:500}
 .contactFacts a:hover{text-decoration:underline}
 .contactFacts small{display:block;color:var(--pv-muted);font-size:12px;font-weight:400}
+.claimProtectedContact{user-select:none;-webkit-user-select:none}
 .guide{padding:16px;border:1px solid var(--pv-line);border-radius:8px;background:#f8faf5;margin-top:16px}
 .guide h4{font-size:14px;font-weight:600;margin:0 0 6px}
 .guide p{font-size:13px;color:var(--pv-muted);margin:4px 0 12px}

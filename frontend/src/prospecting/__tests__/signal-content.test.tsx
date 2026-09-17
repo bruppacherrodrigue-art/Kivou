@@ -66,6 +66,20 @@ test('complete landing demo displays the public director and contact data', () =
   expect(screen.queryByRole('button', { name: /offres/i })).not.toBeInTheDocument()
 })
 
+test('temporary landing access shows the bait contact without actionable or selectable values', () => {
+  const claim = vi.fn()
+  renderApp(<HolderSummary name="Titulaire Démonstration" claimRequired onClaimAccess={claim} directory={{ siren: '562136036', name: 'Titulaire Démonstration', source: 'registre', removal_path: '/contact', fields_locked: false, available_fields: ['directors', 'phone', 'email', 'website'], director_display_name: 'Anna Egli', director_display_title: 'Présidente', phone: '04 76 00 00 00', published_email: 'contact@egli.example', website_url: 'https://egli.example/' }} />, { session: AUTHENTICATED })
+
+  expect(screen.getByText('04 76 00 00 00')).toBeInTheDocument()
+  expect(screen.getByText('contact@egli.example')).toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: '04 76 00 00 00' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: 'contact@egli.example' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('link', { name: /egli\.example/ })).not.toBeInTheDocument()
+  expect(screen.getByText('contact@egli.example').closest('[data-contact-claim-required="true"]')).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Créer mon accès pour appeler' }))
+  expect(claim).toHaveBeenCalledOnce()
+})
+
 test('complete landing demo shows its public history and a qualified fallback calendar', () => {
   renderApp(<SignalContent item={{
     ...UNLOCKED_ITEM,

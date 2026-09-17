@@ -10,11 +10,13 @@ import styles from '../Prospecting.module.css'
 
 export function HolderSummary({ name, href, directory, contacts = [], lookup, lockedFields = [], loading = false,
   onOpenCompany, onUpgrade, onLookup, onEnrich, pending = false, feedback, lockedMessage,
+  claimRequired = false, onClaimAccess,
 }: {
   name: string; href?: string | null; directory?: DirectoryCompany | null; contacts?: NoticeContact[];
   lookup?: CompanyContactLookup | null; lockedFields?: string[]; loading?: boolean;
   onOpenCompany?: () => void; onUpgrade?: () => void; onLookup?: () => void; onEnrich?: () => void;
   pending?: boolean; feedback?: ReactNode; lockedMessage?: string;
+  claimRequired?: boolean; onClaimAccess?: () => void;
 }) {
   const { locale, date, number } = useI18n()
   const fr = locale === 'fr'
@@ -41,10 +43,13 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
     </div>
     {(directory?.naf_label || directory?.city || employees) && <p className={styles.holderSub}>{[directory?.naf_label, directory?.city, employees].filter(Boolean).join(' · ')}</p>}
     {loading && <p className={styles.muted} role="status">{fr ? 'Chargement des données entreprise…' : 'Loading company data…'}</p>}
-    {(phone || email || website) && <DirectoryContactFacts directory={directory} lookup={lookup} />}
-    {director && <p className={styles.holderSub}><strong>{fr ? 'Dirigeant' : 'Director'} :</strong> {director.name}{director.title ? ` · ${director.title}` : ''}</p>}
-    <PublicContactFacts contacts={sourceContacts} />
-    {people.map((person) => <div key={person.email} className={styles.guide}><strong>{person.name}</strong><span className={styles.caption}>{person.title}</span><a className={styles.textButton} href={`mailto:${person.email}`}>{person.email}</a><small className={styles.caption}>{fr ? 'E-mail nominatif vérifié' : 'Verified personal business email'}</small></div>)}
+    <div className={claimRequired ? styles.claimProtectedContact : undefined} data-contact-claim-required={claimRequired || undefined}>
+      {(phone || email || website) && <DirectoryContactFacts directory={directory} lookup={lookup} interactive={!claimRequired} />}
+      {director && <p className={styles.holderSub}><strong>{fr ? 'Dirigeant' : 'Director'} :</strong> {director.name}{director.title ? ` · ${director.title}` : ''}</p>}
+      <PublicContactFacts contacts={sourceContacts} interactive={!claimRequired} />
+      {people.map((person) => <div key={person.email} className={styles.guide}><strong>{person.name}</strong><span className={styles.caption}>{person.title}</span>{claimRequired ? <span className={styles.textButton}>{person.email}</span> : <a className={styles.textButton} href={`mailto:${person.email}`}>{person.email}</a>}<small className={styles.caption}>{fr ? 'E-mail nominatif vérifié' : 'Verified personal business email'}</small></div>)}
+    </div>
+    {claimRequired && onClaimAccess && <button className={styles.primary} onClick={onClaimAccess}>{fr ? 'Créer mon accès pour appeler' : 'Create my access to call'}</button>}
     {available.length > 0 && <div className={styles.lockedData}>
       <div className={styles.lockedLines} aria-hidden="true">{available.map((field) => <span key={field} />)}</div>
       <p className={styles.muted}>{lockedMessage ?? <>{fr ? 'Données disponibles : ' : 'Available data: '}{available.map(fieldLabel).join(' · ')}</>}</p>
