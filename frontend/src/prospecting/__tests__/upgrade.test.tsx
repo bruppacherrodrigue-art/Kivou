@@ -39,6 +39,13 @@ describe('server catalogue upgrade invitation', () => {
     expect(screen.getByTestId('route')).toHaveTextContent('"checkoutAccountId":"acc_1"')
     expect(callsTo('/billing/checkout')).toHaveLength(0)
   })
+  it('offers only Essential for a reserved landing signal', async () => {
+    mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: DISCOVERY_STATUS } })
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'signal' }} planCode="essential" />, { session: AUTHENTICATED })
+    expect(await screen.findByRole('heading', { name: 'Essentiel' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Choisir Essentiel' })).toBeInTheDocument()
+  })
   it('does not offer a second subscription when the server requires management', async () => {
     mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: { ...PRO_STATUS, billing_action: 'manage_subscription' } } })
     renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'signal' }} />, { session: AUTHENTICATED })

@@ -842,11 +842,14 @@ def get_signal(
         # Le compte POSSÈDE ce signal : répondre 404 confondrait « pas à vous »
         # et « pas encore accessible », et empêcherait de dire ce que le
         # paiement débloquerait.
+        upgrade_to = eligible_upgrade_plans(item, access=access)
+        if landing_example_holder is not None and access.plan_code == "discovery":
+            upgrade_to = ("essential",) if "essential" in upgrade_to else ()
         locked = paywall.locked_detail(
             item,
             lang=lang,
             status=status,
-            upgrade_to=eligible_upgrade_plans(item, access=access),
+            upgrade_to=upgrade_to,
         )
         locked["read_at"] = as_of.isoformat()
         locked["language"] = lang

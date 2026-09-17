@@ -60,7 +60,7 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
     </> : undefined}>
     {resource.loading && <p className={styles.loading} role="status">{fr ? 'Chargement du signal…' : 'Loading signal…'}</p>}
     {resource.error != null && <div className={styles.error} role="alert"><p>{fr ? 'Ce signal ne peut pas être ouvert pour le moment.' : 'This signal cannot be opened right now.'}</p><button className={styles.button} onClick={resource.reload}>{fr ? 'Réessayer' : 'Retry'}</button></div>}
-    {detail?.locked && <section className={styles.empty}><h2>{fr ? 'Un marché pour votre prospection' : 'A contract for your prospecting'}</h2><p>{detail.headline}</p>{detail.landing_example_holder && <p>{fr ? `Comme pour ${detail.landing_example_holder} : dirigeant, téléphone, e-mail, historique des marchés.` : `As with ${detail.landing_example_holder}: director, phone, email and contract history.`}</p>}<button onClick={() => setUpgrade(true)} className={styles.primary}>{fr ? 'Voir les offres — 49 €/mois' : 'View plans — €49/month'}</button></section>}
+    {detail?.locked && <section className={styles.empty}><h2>{fr ? 'Un marché pour votre prospection' : 'A contract for your prospecting'}</h2><p>{detail.headline}</p>{detail.landing_example_holder && <p>{fr ? `Comme pour ${detail.landing_example_holder} : dirigeant, téléphone, e-mail, historique des marchés.` : `As with ${detail.landing_example_holder}: director, phone, email and contract history.`}</p>}<button onClick={() => setUpgrade(true)} className={styles.primary}>{fr ? 'Voir ce contact — 49 €/mois' : 'View this contact — €49/month'}</button></section>}
     {item && <SignalContent item={item} holder={<HolderSummary name={item.company.name ?? (fr ? 'Titulaire du marché' : 'Contract holder')} href={item.landing_demo ? null : companyHref}
       directory={item.landing_directory ?? holderProfile?.directory} loading={!item.landing_demo && holder.loading && !!item.company_key} contacts={[
         ...(item.notice_facts?.contacts_locked ? [] : item.notice_facts?.contacts ?? []),
@@ -73,6 +73,6 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
       onEnrich={holderProfile?.capabilities.can_enrich_company ? () => { void enrichment.startEnrichment().catch(() => {}) } : undefined} pending={busy} feedback={item.landing_demo ? undefined : enrichFeedback} lockedMessage={contactWall} />}
       notes={<NotesField store={p.noteStore} identity={{ accountId: p.accountId, kind: 'signal', entityId: item.signal_id }} />} />}
     {actions.error != null && <p className={styles.error} role="alert">{actions.conflict ? (fr ? 'Le statut a changé dans une autre fenêtre.' : 'The status changed in another window.') : (fr ? 'Le statut n’a pas pu être enregistré.' : 'The status could not be saved.')} <button className={styles.textButton} onClick={actions.reload}>{fr ? 'Actualiser' : 'Refresh'}</button></p>}
-    {upgrade && <UpgradeDialog onClose={() => setUpgrade(false)} intent={{ kind: 'signal', signalKey, ...(artifact ? { artifactId: artifact } : {}) }} />}
+    {upgrade && <UpgradeDialog onClose={() => setUpgrade(false)} intent={{ kind: 'signal', signalKey, ...(artifact ? { artifactId: artifact } : {}) }} planCode={detail?.landing_example_holder ? 'essential' : undefined} />}
   </DetailFrame>
 }

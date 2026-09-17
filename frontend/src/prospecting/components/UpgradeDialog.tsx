@@ -9,12 +9,12 @@ import { useResource } from '../../presentation/dashboard/resources'
 import { DetailFrame } from './DetailFrame'
 import styles from '../Prospecting.module.css'
 
-export function UpgradeDialog(props: { onClose: () => void; intent: CheckoutReturnIntent }) {
+export function UpgradeDialog(props: { onClose: () => void; intent: CheckoutReturnIntent; planCode?: 'essential' }) {
   const me = useCurrentUser()
   return <AccountUpgrade key={me.account_id} {...props} accountId={me.account_id} />
 }
 
-function AccountUpgrade({ onClose, intent, accountId }: { onClose: () => void; intent: CheckoutReturnIntent; accountId: string }) {
+function AccountUpgrade({ onClose, intent, accountId, planCode }: { onClose: () => void; intent: CheckoutReturnIntent; accountId: string; planCode?: 'essential' }) {
   const { locale, money, t } = useI18n()
   const fr = locale === 'fr'
   const navigate = useNavigate()
@@ -32,7 +32,7 @@ function AccountUpgrade({ onClose, intent, accountId }: { onClose: () => void; i
     {resource.loading ? <p role="status">{fr ? 'Chargement des offres…' : 'Loading plans…'}</p>
       : resource.error ? <div><p role="alert" className={styles.error}>{fr ? 'Les offres ne sont pas disponibles pour le moment.' : 'Plans are temporarily unavailable.'}</p><button className={styles.button} onClick={() => void resource.retry()}>{fr ? 'Réessayer' : 'Retry'}</button></div>
         : !canChoose ? <Link className={styles.primary} to="/app/billing" state={state}>{fr ? 'Gérer ma facturation' : 'Manage billing'}</Link>
-          : <div className={styles.form}>{resource.data?.catalogue.plans.filter((plan) => plan.purchasable && plan.plan_code !== 'discovery').map((plan) => {
+          : <div className={styles.form}>{resource.data?.catalogue.plans.filter((plan) => plan.purchasable && plan.plan_code !== 'discovery' && (!planCode || plan.plan_code === planCode)).map((plan) => {
             const price = subscriptionPrice(plan)
             if (!price) return null
             const name = t.billing.plans[plan.plan_code]

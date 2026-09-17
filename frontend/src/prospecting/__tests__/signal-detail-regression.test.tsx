@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { RouteHandler } from '../../test/harness'
-import { COMPANY_PROFILE, callsTo, feedPage, mockApi } from '../../test/harness'
+import { CATALOGUE, COMPANY_PROFILE, DISCOVERY_STATUS, LOCKED_ITEM, callsTo, feedPage, mockApi } from '../../test/harness'
 import { SignalContent } from '../components/SignalContent'
 import { BASE, DETAIL, SIGNAL, item, renderFeed, renderSignal, workflow } from './signal-regression-harness'
 
@@ -42,6 +42,23 @@ test('a deep link loads an independently requested detail even when the list is 
   expect(within(dialog).getAllByText('Commune de Villeneuve')).toHaveLength(1)
   expect(within(dialog).getAllByRole('button', { name: 'Fermer' })).toHaveLength(1)
   expect(within(dialog).getByRole('textbox', { name: 'Vos notes sur ce signal' })).toBeInTheDocument()
+})
+
+test('a reserved landing signal opens an Essential-only upgrade', async () => {
+  const locked = { ...LOCKED_ITEM, landing_example_holder: 'Boussiquet' }
+  mockApi({
+    ...BASE,
+    'GET /billing/status': { body: DISCOVERY_STATUS },
+    'GET /billing/plans': { body: CATALOGUE },
+    'GET /signals': { body: feedPage([locked]) },
+    [`GET /signals/${locked.signal_id}`]: { body: { ...locked, access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: ['essential'] } } },
+  })
+  renderFeed(`/app/signals/${locked.signal_id}?target_icp_id=icp_1`)
+  const dialog = await screen.findByRole('dialog', { name: 'Détail du signal' })
+  expect(await within(dialog).findByText('Comme pour Boussiquet : dirigeant, téléphone, e-mail, historique des marchés.')).toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Voir ce contact — 49 €/mois' }))
+  expect(await screen.findByRole('heading', { name: 'Essentiel' })).toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
 })
 
 test.each(['button', 'cancel'])('closing via %s preserves filters, replaces history and returns focus to the opener', async (method) => {

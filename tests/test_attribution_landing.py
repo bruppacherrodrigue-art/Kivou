@@ -800,6 +800,12 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         "Construction d'une ossature bois",
     }
     assert locked["holder_label"] == "Titulaire réservé"
+    locked_detail = client.get(f"/signals/{locked['signal_id']}").json()
+    assert locked_detail["access"] == {
+        "granted": False,
+        "reason": "plan_entitlement_required",
+        "upgrade_to": ["essential"],
+    }
     assert client.get("/billing/status").json()["discovery"] == {
         "granted_signal_count": 3,
         "remaining_slots": 0,

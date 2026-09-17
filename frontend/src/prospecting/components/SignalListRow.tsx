@@ -28,7 +28,7 @@ export function SignalListRow({ item, onOpen }: { item: FeedItem; onOpen: () => 
     <span className={styles.avatar} aria-hidden="true">{item.locked ? <LockKeyhole /> : initials(item.company.name || title)}</span>
     <div className={styles.rowMain}>
       <div className={styles.rowTop}><span className={styles.tag} data-status={status}>{statusLabel(status, fr)}</span>{clock.value && <span>{clock.label} {shortDate(clock.value)}</span>}</div>
-      {item.locked ? <span className={styles.rowTitle}>{title}</span> : <button className={styles.rowTitle} onClick={onOpen} aria-label={`${fr ? 'Ouvrir' : 'Open'} : ${title}`}>{title}</button>}
+      <button className={styles.rowTitle} onClick={onOpen} aria-label={`${fr ? 'Ouvrir' : 'Open'} : ${title}`}>{title}</button>
       <div className={styles.rowMeta}>{item.locked && <strong className={styles.tag}>{item.holder_label}</strong>}{!item.locked && item.company.name && <strong>{item.company.name}</strong>}{!item.locked && item.company.consortium && <span className={styles.tag}>{fr ? 'Groupement' : 'Consortium'}</span>}<span>{item.locked ? (fr ? frenchDepartmentPhrase(lockedDepartment) : lockedDepartment) : signalPlace(item, locale)}</span></div>
       {item.locked && <p className={styles.caption}>{item.landing_example_holder
         ? (fr

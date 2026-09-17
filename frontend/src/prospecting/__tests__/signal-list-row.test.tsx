@@ -78,7 +78,18 @@ test('locked teasers contain no missing-currency amount, national aggregate or w
   expect(row).not.toHaveTextContent(/Territoire métropolitain/i)
   expect(within(row).queryByRole('button', { name: 'Sauvegarder le signal' })).not.toBeInTheDocument()
   expect(within(row).getByText('Titulaire réservé')).toBeInTheDocument()
-  expect(within(row).queryByRole('button')).not.toBeInTheDocument()
+  expect(within(row).getByRole('button', { name: `Ouvrir : ${LOCKED_ITEM.headline}` })).toBeInTheDocument()
+})
+
+test.each(['click', 'keyboard'])('opens a locked landing teaser with %s', async (method) => {
+  mockApi(BASE)
+  const open = vi.fn()
+  renderSignal(<SignalListRow item={{ ...LOCKED_ITEM, landing_example_holder: 'Boussiquet' }} onOpen={open} />)
+  await ready()
+  const title = screen.getByRole('button', { name: `Ouvrir : ${LOCKED_ITEM.headline}` })
+  if (method === 'click') await userEvent.click(title)
+  else { title.focus(); await userEvent.keyboard('{Enter}') }
+  expect(open).toHaveBeenCalledOnce()
 })
 
 test('locked rows offer access options without assuming a subscription is the solution', async () => {

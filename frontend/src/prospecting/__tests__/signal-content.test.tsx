@@ -53,7 +53,7 @@ test('unknown holder guides the next action, and locked values are placeholders 
   rerender(<div />)
   renderApp(<HolderSummary name="GJG FONCIERE" href="/app/companies/cmp_2" lockedFields={['phone', 'workforce']} lockedMessage="Comme pour Démo Bâtiment : dirigeant, téléphone, e-mail, historique des marchés." onUpgrade={open} />, { session: AUTHENTICATED })
   expect(screen.getByText('Comme pour Démo Bâtiment : dirigeant, téléphone, e-mail, historique des marchés.')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Voir les offres — 49 €/mois' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Voir ce contact — 49 €/mois' })).toBeInTheDocument()
   expect(screen.queryByText('0492000000')).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Trouver le bon interlocuteur' })).not.toBeInTheDocument()
 })

@@ -53,7 +53,7 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
     {available.length > 0 && <div className={styles.lockedData}>
       <div className={styles.lockedLines} aria-hidden="true">{available.map((field) => <span key={field} />)}</div>
       <p className={styles.muted}>{lockedMessage ?? <>{fr ? 'Données disponibles : ' : 'Available data: '}{available.map(fieldLabel).join(' · ')}</>}</p>
-      {onUpgrade && <button className={styles.soft} onClick={onUpgrade}><LockKeyhole aria-hidden="true" />{fr ? 'Voir les offres — 49 €/mois' : 'View plans — €49/month'}</button>}
+      {onUpgrade && <button className={styles.soft} onClick={onUpgrade}><LockKeyhole aria-hidden="true" />{fr ? 'Voir ce contact — 49 €/mois' : 'View this contact — €49/month'}</button>}
     </div>}
     {!loading && !hasData && available.length === 0 && <div className={styles.guide}>
       <h4>{fr ? 'Trouver le bon interlocuteur' : 'Find the right contact'}</h4>
