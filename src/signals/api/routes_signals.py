@@ -68,6 +68,7 @@ from signals.client_value.notice_facts import load_award_notice_facts
 from signals.client_value.targeting import context_fingerprint, resolve_scope
 from signals.companies.contracts import WinnerEnrichmentView
 from signals.companies.enrichment import winner_enrichments_for_signals
+from signals.companies.schema import saas_company
 from signals.companies.service import (
     company_keys_for_signals,
 )
@@ -782,6 +783,22 @@ def get_signal(
                         (identifier,) if identifier is not None else (),
                         country=item.display.country,
                     )
+                    if siren is None and company_key is not None:
+                        official_identity = (
+                            connection.execute(
+                                sa.select(
+                                    saas_company.c.official_identifiers,
+                                    saas_company.c.official_country,
+                                ).where(saas_company.c.company_key == company_key)
+                            )
+                            .mappings()
+                            .one_or_none()
+                        )
+                        if official_identity is not None:
+                            siren = exact_french_siren(
+                                official_identity["official_identifiers"],
+                                country=official_identity["official_country"],
+                            )
                     landing_directory = directory_company(
                         connection,
                         siren=siren,

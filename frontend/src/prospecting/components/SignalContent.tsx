@@ -10,6 +10,9 @@ export function SignalContent({ item, holder, notes }: { item: ProspectingSignal
   const fr = locale === 'fr'
   const facts = item.notice_facts
   const calendar = facts?.calendar
+  const awardDate = item.contract.dates.award ?? item.contract.dates.contract_notification
+  const eventDate = awardDate ?? facts?.publication_date ?? item.contract.dates.publication
+  const history = item.holder_history
   const buyerNames = [...new Set(facts?.buyers.length ? facts.buyers.map((buyer) => buyer.name) : [item.contract.buyer?.name].filter((value): value is string => !!value))]
   const source = safeExternal(facts?.source_url) || safeExternal(item.source.url)
   const sourceIdentity = [facts?.source_system || item.source.system, facts?.source_notice_id || item.source.notice_id].filter(Boolean).join(' ')
@@ -25,12 +28,20 @@ export function SignalContent({ item, holder, notes }: { item: ProspectingSignal
     <p className={styles.detailMeta}>{[formatAmount(facts?.awarded_amount ?? item.contract.amount, locale, true), signalPlace(item, locale)].filter(Boolean).join(' · ')}</p>
     {holder}
     {why && <section className={styles.detailSection}><h3>{fr ? 'Pourquoi ça vous concerne' : 'Why this matters to you'}</h3><p>{why}</p></section>}
-    {(facts?.publication_date || durations.length > 0 || calendar?.renewals != null) && <section className={styles.detailSection}>
+    {(eventDate || durations.length > 0 || calendar?.renewals != null) && <section className={styles.detailSection}>
       <h3>{fr ? 'Calendrier' : 'Timeline'}</h3>
-      {facts?.publication_date && <p className={styles.muted}>{fr ? 'Avis publié le' : 'Notice published on'} {date(facts.publication_date)}</p>}
+      {eventDate && <p className={styles.muted}>{awardDate ? (fr ? 'Attribué le' : 'Awarded on') : (fr ? 'Publié le' : 'Published on')} {date(eventDate)}</p>}
       {durations.length > 0 && <dl className={styles.facts}>{durations.map((duration, index) => <div key={`${duration.scope}-${duration.period_kind}-${index}`}><dt>{durationTitle(duration)}</dt><dd>{durationLabel(duration, locale)}</dd>
         {duration.notice_kind === 'contract_notice' && <dd className={styles.muted}>{fr ? 'Selon l’avis de consultation' : 'According to the contract notice'} {safeExternal(duration.source_url) ? <a className={styles.textButton} href={safeExternal(duration.source_url)!} target="_blank" rel="noopener noreferrer">{duration.source_notice_id ?? (fr ? 'Consulter l’avis' : 'Read the notice')} <ExternalLink aria-hidden="true" /></a> : duration.source_notice_id}</dd>}</div>)}</dl>}
       {calendar?.renewals != null && <dl className={styles.facts}><div><dt>{fr ? 'Reconductions possibles' : 'Possible renewals'}</dt><dd>{calendar.renewals}</dd></div></dl>}
+    </section>}
+    {history && <section className={styles.detailSection}>
+      <h3>{fr ? 'Historique des marchés' : 'Contract history'}</h3>
+      <p>{fr
+        ? `${history.last_12_months.awards_count} marché${history.last_12_months.awards_count === 1 ? '' : 's'} attribué${history.last_12_months.awards_count === 1 ? '' : 's'} ces 12 derniers mois`
+        : `${history.last_12_months.awards_count} contract${history.last_12_months.awards_count === 1 ? '' : 's'} awarded in the last 12 months`}</p>
+      {history.last_12_months.total_amounts?.map((amount) => <p key={`${amount.currency}-${amount.value}`} className={styles.muted}>{fr ? 'Montant cumulé : ' : 'Total value: '}{formatAmount(amount, locale, true)}</p>)}
+      {history.last_12_months.recurring_buyers && history.last_12_months.recurring_buyers.length > 0 && <p className={styles.muted}>{fr ? 'Acheteurs récurrents : ' : 'Recurring buyers: '}{history.last_12_months.recurring_buyers.join(', ')}</p>}
     </section>}
     {buyerNames.length > 0 && <section className={styles.detailSection}><h3>{fr ? 'Acheteur' : 'Buyer'}</h3>{buyerNames.map((name) => <p key={name}>{name}</p>)}</section>}
     {(facts?.minimum_amount || facts?.maximum_amount) && <section className={styles.detailSection}><h3>{fr ? 'Cadre du marché' : 'Contract framework'}</h3><dl className={styles.facts}>

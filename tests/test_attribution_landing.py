@@ -30,6 +30,7 @@ from signals.api.routes_auth import SESSION_COOKIE_NAME
 from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
+from signals.companies.schema import saas_company
 from signals.conversion import qa_token
 from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
@@ -809,6 +810,40 @@ def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> 
     response = land(client, token.raw_token)
     pin_session_cookie(client, response)
     bait_key = response.headers["location"].removeprefix("/app/signals/")
+    # Some notices expose an unusable winner identifier even though the
+    # reconciled company already carries an exact register identity.  The
+    # complete demo must prefer that exact identity.
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == bait_key)
+            .values(winner_identifier_scheme="eu", winner_identifier_value="opaque-reference")
+        )
+        signal_identity = connection.execute(
+            sa.select(
+                materialized_signal.c.company_identity_fingerprint,
+                materialized_signal.c.materialization_award_key,
+            ).where(materialized_signal.c.signal_key == bait_key)
+        ).one()
+        connection.execute(
+            sa.insert(saas_company).values(
+                company_key="cmp_landing_demo",
+                identity_fingerprint=signal_identity.company_identity_fingerprint,
+                identity_method="official_identifier",
+                identity_validation={},
+                source_award_key=signal_identity.materialization_award_key,
+                origin_signal_key=bait_key,
+                official_name="Titulaire Démonstration",
+                official_country="FR",
+                official_address=None,
+                official_identifiers=[{"scheme": "SIRET", "value": "56213603600018"}],
+                official_website_url=None,
+                official_source="official_register",
+                official_observed_at=CLICKED_AT,
+                created_at=CLICKED_AT,
+                updated_at=CLICKED_AT,
+            )
+        )
     items = client.get("/signals", params={"view": "history", "limit": 20}).json()["items"]
     other_key = next(item["signal_id"] for item in items if not item["locked"] and item["signal_id"] != bait_key)
     locked_key = next(item["signal_id"] for item in items if item["locked"])

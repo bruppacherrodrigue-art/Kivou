@@ -19,7 +19,7 @@ test('signal gives buyer once, factual calendar, selected-offer reason and notes
   renderApp(<SignalContent item={{ ...UNLOCKED_ITEM, notice_facts: facts, commercial_context: { reason: 'Votre offre de matériaux correspond aux ouvrages béton de ce marché.', offer_category: 'materials_and_components' } }} holder={<div>Titulaire</div>} notes={<textarea aria-label="Vos notes" />} />, { session: AUTHENTICATED })
   expect(screen.getAllByText('Métropole Nice Côte d’Azur')).toHaveLength(1)
   expect(screen.getByText('18 mois')).toBeInTheDocument()
-  expect(screen.getByText(/Avis publié le/)).toHaveTextContent('12 septembre 2026')
+  expect(screen.getByText(/Attribué le/)).toHaveTextContent('4 août 2026')
   expect(screen.queryByText(/BOAMP publié le/)).not.toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Pourquoi ça vous concerne' })).toBeInTheDocument()
   expect(screen.getByRole('textbox', { name: 'Vos notes' })).toBeInTheDocument()
@@ -64,6 +64,26 @@ test('complete landing demo displays the public director and contact data', () =
   expect(screen.getByRole('link', { name: '04 76 00 00 00' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'contact@egli.example' })).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: /offres/i })).not.toBeInTheDocument()
+})
+
+test('complete landing demo shows its public history and a qualified fallback calendar', () => {
+  renderApp(<SignalContent item={{
+    ...UNLOCKED_ITEM,
+    landing_demo: true,
+    notice_facts: null,
+    contract: { ...UNLOCKED_ITEM.contract, dates: { award: null, contract_notification: null, publication: '2026-09-03' } },
+    holder_history: {
+      resolution: 'company_key', source: 'public_awards',
+      last_12_months: { awards_count: 3, total_amounts: [{ value: '1490000', currency: 'EUR' }], recurring_buyers: ['Commune de Blois'] },
+      summary: { consortium_share: '0.0' },
+    },
+  }} holder={null} notes={null} />, { session: AUTHENTICATED })
+  expect(screen.getByRole('heading', { name: 'Calendrier' })).toBeInTheDocument()
+  expect(screen.getByText(/Publié le/)).toHaveTextContent('3 septembre 2026')
+  expect(screen.getByRole('heading', { name: 'Historique des marchés' })).toBeInTheDocument()
+  expect(screen.getByText(/3 marchés attribués/)).toBeInTheDocument()
+  expect(screen.getByText(/1,5 M€/)).toBeInTheDocument()
+  expect(screen.getByText(/Commune de Blois/)).toBeInTheDocument()
 })
 
 test('detail frame labels its modal and closes using its single close control', () => {

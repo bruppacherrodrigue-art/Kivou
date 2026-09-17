@@ -6,10 +6,18 @@ function folded(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-FR')
 }
 
+const REGISTER_PLACE_ALIASES: Record<string, string> = {
+  'loir et cher': 'Loir-et-Cher',
+  'selles sur cher': 'Selles-sur-Cher',
+  'villars les dombes': 'Villars-les-Dombes',
+}
+
 /** Rend les localités issues des registres lisibles sans modifier la donnée source. */
 export function normalCasePlace(value: string | null | undefined): string | null {
   const clean = value?.trim().replace(/\s+/g, ' ')
   if (!clean) return null
+  const alias = REGISTER_PLACE_ALIASES[folded(clean)]
+  if (alias) return alias
 
   let wordIndex = 0
   return clean.split(/([\s'’-]+)/u).map((part) => {
