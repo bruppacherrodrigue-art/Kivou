@@ -304,6 +304,33 @@ def test_assisted_preparation_never_uses_two_lots_of_same_notice_same_day(
     assert second.reason == "PROCEDURE_ALREADY_PREPARED_TODAY"
 
 
+def test_assisted_preparation_never_recreates_rejected_targets(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 5)
+    service = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    )
+    first = service.prepare(signal(), cycle_ref="cycle-first")
+    assert first.prepared == 2
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target).values(
+                status="rejected",
+                rejection_reason="off_topic",
+                rejection_comment="historical target",
+                rejected_at=NOW,
+                rejected_by="founder",
+            )
+        )
+
+    replay = service.prepare(signal(), cycle_ref="cycle-replay")
+
+    assert replay.prepared == 0
+    with migrated_sqlite_engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(prospect_target)) == 2
+
+
 def test_assisted_preparation_skips_contacted_in_last_ninety_days(
     migrated_sqlite_engine,
 ) -> None:
