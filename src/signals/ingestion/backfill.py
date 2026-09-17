@@ -5,6 +5,8 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import logging
+import re
+import unicodedata
 
 import sqlalchemy as sa
 
@@ -385,6 +387,41 @@ def _landing_families(prepared: dict[str, object]):
         return ()
 
 
+def _normalized_landing_object(prepared: dict[str, object]) -> str:
+    award = prepared["award"]
+    value = " ".join(filter(None, (award.title, award.description))).casefold()
+    folded = "".join(
+        character
+        for character in unicodedata.normalize("NFKD", value)
+        if not unicodedata.combining(character)
+    )
+    return " ".join(re.findall(r"[a-z0-9]+", folded))
+
+
+def _landing_matches_selected_trade(
+    selected_family_key: str,
+    candidate_family_keys: set[str],
+    prepared: dict[str, object],
+) -> bool:
+    if selected_family_key in candidate_family_keys:
+        return True
+    if selected_family_key != "facade_cladding":
+        return False
+    wording = f" {_normalized_landing_object(prepared)} "
+    return any(
+        term in wording
+        for term in (
+            " couverture metallique ",
+            " couverture en metal ",
+            " couverture acier ",
+            " bac acier ",
+            " zinguerie ",
+            " habillage metallique ",
+            " enveloppe metallique ",
+        )
+    )
+
+
 def materialize_landing_feed_in_transaction(
     connection: sa.Connection,
     *,
@@ -475,13 +512,6 @@ def materialize_landing_feed_in_transaction(
         bait_event.provenance.source_procedure_id or bait_event.provenance.source_notice_id,
     )
     used_procedures = {procedure}
-    catalog = load_supplier_family_catalog()
-    selected_vertical = next(
-        (vertical for vertical, families in catalog.items() if selected_family in families), None
-    )
-    neighbouring_family_keys = {
-        family.key for family in catalog.get(selected_vertical, ()) if family != selected_family
-    }
     nearby_departments = set(department_and_neighbours(bait_department))
     ranked: list[tuple[int, int, str, dict[str, object], str]] = []
     for order, key in enumerate(candidate_keys):
@@ -513,18 +543,15 @@ def materialize_landing_feed_in_transaction(
         if candidate is None:
             continue
         candidate_family_keys = {family.key for family in _landing_families(candidate)}
-        same_family = selected_family.key in candidate_family_keys
-        neighbouring_family = bool(candidate_family_keys & neighbouring_family_keys)
-        if same_family and department == bait_department:
+        same_trade = _landing_matches_selected_trade(
+            selected_family.key, candidate_family_keys, candidate
+        )
+        if same_trade and department == bait_department:
             rank, reason = 0, "same_family_department"
-        elif same_family and department in nearby_departments:
+        elif same_trade and department in nearby_departments:
             rank, reason = 1, "same_family_adjacent_department"
-        elif neighbouring_family and department == bait_department:
-            rank, reason = 2, "neighbouring_family_department"
-        elif same_family:
+        elif same_trade:
             rank, reason = 3, "same_family_national"
-        elif neighbouring_family:
-            rank, reason = 4, "neighbouring_family_national"
         else:
             continue
         ranked.append((rank, order, key, candidate, reason))

@@ -137,6 +137,49 @@ def family_bait_token(engine, service, token):
     return service.keyring.issue(payload)
 
 
+def facade_bait_token(engine, service, token):
+    """Turn the shared fixture into the Bardage métallique landing contract."""
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_campaign).values(
+                selected_need_category="facade_cladding",
+                selected_need_version="supplier-families-v1",
+            )
+        )
+        bait_awards = sa.select(opportunity_representation.c.award_key).where(
+            opportunity_representation.c.opportunity_key == token.payload.opportunity_key
+        )
+        connection.execute(
+            sa.update(contract_award).values(
+                award_date=CLICKED_AT.date() - dt.timedelta(days=90),
+                contract_notification_date=None,
+            )
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key.in_(bait_awards))
+            .values(
+                title="Bardage métallique du bâtiment communal",
+                description=None,
+                cpv_main="45262650",
+                award_date=None,
+                contract_notification_date=CLICKED_AT.date() - dt.timedelta(days=1),
+                place_of_performance={
+                    "country": "FR",
+                    "subdivision_code": "FR-41",
+                    "subdivision_scheme": "ISO-3166-2",
+                    "locality": None,
+                    "postal_code": "41000",
+                },
+            )
+        )
+    with engine.connect() as connection:
+        payload = AttributionSourceResolver(engine).for_member(
+            connection, token.payload.member_ref
+        )
+    return service.keyring.issue(payload)
+
+
 def seed_landing_neighbours(
     engine, neighbours: tuple[tuple[str, str, str, int], ...]
 ) -> None:
@@ -764,18 +807,34 @@ def test_kat1_replay_repairs_a_legacy_generic_provisional_profile(tmp_path) -> N
     assert repaired["customer_input"]["sector_cpv_prefixes"] == ["452611"]
 
 
-def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) -> None:
+def test_bardage_landing_lists_only_relevant_trade_signals(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
-    token = family_bait_token(engine, service, token)
+    token = facade_bait_token(engine, service, token)
     seed_landing_neighbours(
         engine,
         (
-            ("sanitation", "Travaux d'assainissement et d'eau potable", "45231110", 1),
-            ("roofing", "Réfection de la couverture et de la zinguerie", "45261210", 2),
-            ("timber-one", "Réfection de la charpente bois de l'école", "45261100", 3),
-            ("timber-two", "Construction d'une ossature bois", "45261100", 4),
+            ("facade", "Bardage, Façade — patinoire communautaire", "45443000", 1),
+            ("zinc", "Couverture métallique et zinguerie", "45261210", 2),
+            ("cladding", "Habillage métallique de façade", "45262650", 3),
+            ("terrace", "Étanchéité de terrasse", "45261920", 4),
+            ("green", "Aménagement des espaces verts du Tzen", "45112710", 5),
+            ("joinery", "Menuiseries bois et vestiaires", "45421000", 6),
+            ("timber", "Charpente bois isolée", "45261100", 7),
         ),
     )
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(source_event)
+            .where(
+                source_event.c.event_key.in_(
+                    (
+                        "manual:landing-neighbour-facade:",
+                        "manual:landing-neighbour-joinery:",
+                    )
+                )
+            )
+            .values(source_procedure_id="landing-procedure-multilot-patinoire")
+        )
     client = client_for(engine, service, now=CLICKED_AT)
 
     response = land(client, token.raw_token)
@@ -794,11 +853,7 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
     }
     assert sum(item["locked"] is False for item in body["items"]) == 3
     locked = next(item for item in body["items"] if item["locked"])
-    assert locked["headline"] in {
-        "Réfection de la couverture et de la zinguerie",
-        "Réfection de la charpente bois de l'école",
-        "Construction d'une ossature bois",
-    }
+    assert locked["headline"] == "Habillage métallique de façade"
     assert locked["holder_label"] == "Titulaire réservé"
     locked_detail = client.get(f"/signals/{locked['signal_id']}").json()
     assert locked_detail["access"] == {
@@ -835,10 +890,10 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         )
     assert len(persisted_neighbours) == 2
     assert active_titles == {
-        "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
-        "Réfection de la charpente bois de l'école",
-        "Construction d'une ossature bois",
-        "Réfection de la couverture et de la zinguerie",
+        "Bardage métallique du bâtiment communal",
+        "Bardage, Façade — patinoire communautaire",
+        "Couverture métallique et zinguerie",
+        "Habillage métallique de façade",
     }
 
 
@@ -974,7 +1029,7 @@ def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> 
     assert locked["landing_example_holder"] == "Titulaire Démonstration"
 
 
-def test_landing_cohort_uses_a_neighbouring_family_in_the_same_department(tmp_path) -> None:
+def test_landing_cohort_does_not_fill_with_a_neighbouring_family(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     token = family_bait_token(engine, service, token)
     seed_landing_neighbours(
@@ -990,11 +1045,12 @@ def test_landing_cohort_uses_a_neighbouring_family_in_the_same_department(tmp_pa
     pin_session_cookie(client, response)
     body = client.get("/signals", params={"view": "history", "limit": 20}).json()
 
-    assert len(body["items"]) == 3
+    assert len(body["items"]) == 2
+    assert body["profile_total_30d"] == 2
     assert body["landing_cohort"] == {
         "signal_id": response.headers["location"].removeprefix("/app/signals/"),
         "expected": 3,
-        "materialized": 3,
+        "materialized": 2,
     }
     account_id = only_account_id(engine)
     with engine.connect() as connection:
@@ -1019,7 +1075,6 @@ def test_landing_cohort_uses_a_neighbouring_family_in_the_same_department(tmp_pa
         )
     assert active_titles == {
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
-        "Réfection complète de la couverture",
         "Réfection de la charpente bois",
     }
 
