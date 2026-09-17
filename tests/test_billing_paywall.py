@@ -343,6 +343,7 @@ def test_a_locked_teaser_never_names_the_company(alice, engine):
         "event",
         "context",
         "headline",
+        "holder_label",
         "teaser",
     }
     assert "presentation" not in item
@@ -404,9 +405,10 @@ def test_the_exact_amount_is_replaced_by_an_order_of_magnitude(alice, engine):
     assert "934877" not in str(item)
 
 
-def test_the_locked_headline_names_no_company(alice, engine):
+def test_the_locked_headline_shows_the_object_but_names_no_company(alice, engine):
     item = locked_item(alice, engine)
-    assert item["headline"] == "Un marché public vient d'être attribué."
+    assert item["headline"] == "MP 2026.01.821 - Location de bus sur la période 2026 - 2031"
+    assert item["holder_label"] == "Titulaire réservé"
     assert "Egli" not in item["headline"]
     # La phrase a un sujet : rendre le gabarit nommé avec un nom vide
     # produirait « vient de remporter un marché public. », sans sujet.
@@ -433,6 +435,7 @@ def test_the_detail_of_a_locked_signal_never_returns_the_full_card(alice, engine
         "event",
         "context",
         "headline",
+        "holder_label",
         "teaser",
         "access",
         "read_at",

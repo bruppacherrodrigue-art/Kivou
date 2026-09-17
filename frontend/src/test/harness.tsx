@@ -386,6 +386,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
 
 export const LOCKED_ITEM: LockedFeedItem = {
   locked: true,
+  holder_label: 'Titulaire réservé',
   signal_id: 'sig_locked_1',
   status: 'new',
   target_icp_id: 'icp_1',

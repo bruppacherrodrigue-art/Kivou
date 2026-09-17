@@ -402,6 +402,20 @@ def list_signals(
                 "curseur historique invalide",
             ) from error
 
+        profile_total_30d = None
+        if access.plan_code == "discovery":
+            volume = query.history_page(
+                connection,
+                account_id=session.account_id,
+                as_of=as_of,
+                allowed_target_icp_ids=allowed,
+                date_from=as_of - dt.timedelta(days=29),
+                limit=1,
+                status_of=resolve_status,
+                statuses=None,
+            )
+            profile_total_30d = sum(volume.status_counts.values())
+
         unlocked_items = tuple(item for item in page.items if access.is_unlocked(item))
         presentation_bindings = presentation_bindings_for_items(connection, unlocked_items)
         presentations = published_for_signals(
@@ -479,6 +493,7 @@ def list_signals(
             for item in page.items
         ],
         "total_returned": len(page.items),
+        "profile_total_30d": profile_total_30d,
         "page": page_payload,
         "excluded": {
             "without_display_name": page.excluded_without_display_name,

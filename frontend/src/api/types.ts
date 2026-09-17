@@ -526,6 +526,7 @@ export interface LockedFeedItem {
     plausible_need_count: number
   }
   headline: string
+  holder_label: string
   teaser: {
     date: string | null
     department: string | null
@@ -548,6 +549,7 @@ export interface FeedPage {
   scope?: ProspectingProjectionScope
   items: FeedItem[]
   total_returned: number
+  profile_total_30d?: number | null
   page: {
     limit: number
     offset: number

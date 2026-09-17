@@ -142,8 +142,10 @@ def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]
             "currency": award.currency,
             "plausible_need_count": len(item.signal.plausible_needs or []),
         },
-        # La phrase décrit l'ÉVÉNEMENT, jamais l'entreprise.
-        "headline": LOCKED_HEADLINE[recency_status][lang],
+        # L'objet officiel est public et permet d'évaluer la pertinence sans
+        # révéler le titulaire, qui reste la valeur réservée.
+        "headline": " ".join((award.title or LOCKED_HEADLINE[recency_status][lang]).split()),
+        "holder_label": "Titulaire réservé" if lang == "fr" else "Reserved holder",
         "teaser": {
             "date": date.isoformat() if date else None,
             "department": department_label(subdivision) if subdivision else None,

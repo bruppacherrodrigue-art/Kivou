@@ -22,14 +22,14 @@ export function SignalListRow({ item, onOpen }: { item: FeedItem; onOpen: () => 
     <span className={styles.avatar} aria-hidden="true">{item.locked ? <LockKeyhole /> : initials(item.company.name || title)}</span>
     <div className={styles.rowMain}>
       <div className={styles.rowTop}><span className={styles.tag} data-status={status}>{statusLabel(status, fr)}</span>{clock.value && <span>{clock.label} {shortDate(clock.value)}</span>}</div>
-      <button className={styles.rowTitle} onClick={onOpen} aria-label={`${fr ? 'Ouvrir' : 'Open'} : ${title}`}>{title}</button>
-      <div className={styles.rowMeta}>{!item.locked && item.company.name && <strong>{item.company.name}</strong>}{!item.locked && item.company.consortium && <span className={styles.tag}>{fr ? 'Groupement' : 'Consortium'}</span>}<span>{item.locked ? visiblePlaceName(item.teaser.department) : signalPlace(item, locale)}</span></div>
+      {item.locked ? <span className={styles.rowTitle}>{title}</span> : <button className={styles.rowTitle} onClick={onOpen} aria-label={`${fr ? 'Ouvrir' : 'Open'} : ${title}`}>{title}</button>}
+      <div className={styles.rowMeta}>{item.locked && <strong className={styles.tag}>{item.holder_label}</strong>}{!item.locked && item.company.name && <strong>{item.company.name}</strong>}{!item.locked && item.company.consortium && <span className={styles.tag}>{fr ? 'Groupement' : 'Consortium'}</span>}<span>{item.locked ? visiblePlaceName(item.teaser.department) : signalPlace(item, locale)}</span></div>
       {item.locked && <p className={styles.caption}>{fr ? 'Découvrez les possibilités d’accès à ce signal.' : 'Explore access to this signal.'}</p>}
       {actions.error != null && <p className={styles.error} role="alert">{actions.conflict ? (fr ? 'Ce signal a été modifié dans une autre fenêtre.' : 'This signal changed in another window.') : (fr ? 'L’action n’a pas été enregistrée.' : 'The action was not saved.')} <button className={styles.textButton} onClick={actions.reload}>{fr ? 'Actualiser' : 'Refresh'}</button></p>}
     </div>
     <div className={styles.rowAside}>
       {money && <span className={styles.money}>{formatAmount(money, locale, true)}</span>}
-      {item.locked ? <button className={styles.soft} onClick={onOpen}><LockKeyhole aria-hidden="true" />{fr ? 'Découvrir' : 'Discover'}</button> : <div className={styles.actions}>
+      {!item.locked && <div className={styles.actions}>
         <button className={styles.iconButton} disabled={actions.pending} aria-label={status === 'saved' ? (fr ? 'Rétablir comme nouveau' : 'Mark as new') : (fr ? 'Sauvegarder le signal' : 'Save signal')} aria-pressed={status === 'saved'} onClick={() => act(status === 'saved' ? 'new' : 'saved')}><Bookmark aria-hidden="true" fill={status === 'saved' ? 'currentColor' : 'none'} /></button>
         <button className={styles.iconButton} disabled={actions.pending} aria-label={status === 'contacted' || status === 'ignored' ? (fr ? 'Rétablir le signal' : 'Restore signal') : (fr ? 'Ignorer le signal' : 'Ignore signal')} onClick={() => act(status === 'contacted' || status === 'ignored' ? 'new' : 'ignored')}>{status === 'contacted' ? <Check aria-hidden="true" /> : status === 'ignored' ? <RotateCcw aria-hidden="true" /> : <X aria-hidden="true" />}</button>
       </div>}

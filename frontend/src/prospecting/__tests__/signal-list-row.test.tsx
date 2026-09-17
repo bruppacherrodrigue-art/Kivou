@@ -77,7 +77,8 @@ test('locked teasers contain no missing-currency amount, national aggregate or w
   expect(row).not.toHaveTextContent('950')
   expect(row).not.toHaveTextContent(/Territoire métropolitain/i)
   expect(within(row).queryByRole('button', { name: 'Sauvegarder le signal' })).not.toBeInTheDocument()
-  expect(within(row).getByRole('button', { name: 'Découvrir' })).toBeInTheDocument()
+  expect(within(row).getByText('Titulaire réservé')).toBeInTheDocument()
+  expect(within(row).queryByRole('button')).not.toBeInTheDocument()
 })
 
 test('locked rows offer access options without assuming a subscription is the solution', async () => {

@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
-import { DISCOVERY_STATUS, callsTo, feedPage, mockApi } from '../../test/harness'
+import { DISCOVERY_STATUS, LOCKED_ITEM, callsTo, feedPage, mockApi } from '../../test/harness'
 import { BASE, DETAIL, SIGNAL, item, renderFeed, workflow } from './signal-regression-harness'
 
 afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
@@ -56,7 +56,7 @@ test('count truncation is visibly qualified independently of next-page availabil
   renderFeed()
   await row()
   expect(screen.getByRole('tab', { name: /^Nouveaux\s+12\+$/ })).toBeInTheDocument()
-  expect(screen.getByText('1 signal sur cette page')).toBeInTheDocument()
+  expect(screen.getByText('1 marché attribué correspondant à votre profil ces 30 jours')).toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Page suivante' })).not.toBeInTheDocument()
 })
 
@@ -86,6 +86,22 @@ test('a complete provisional landing has no waiting row', async () => {
   expect(screen.queryByText('Vos prochains signaux arriveront ici')).not.toBeInTheDocument()
 })
 
+test('discovery shows the real 30-day volume and non-clickable locked rows', async () => {
+  const locked = { ...LOCKED_ITEM, headline: 'Réfection du bardage métallique', holder_label: 'Titulaire réservé' as const }
+  mockApi({
+    ...BASE,
+    'GET /billing/status': { body: DISCOVERY_STATUS },
+    'GET /signals': { body: feedPage([SIGNAL, item({ signal_id: 'second' }), item({ signal_id: 'third' }), locked], { profile_total_30d: 20 }) },
+  })
+  renderFeed()
+
+  expect(await screen.findByText('20 marchés attribués correspondant à votre profil ces 30 jours')).toBeInTheDocument()
+  const lockedRow = screen.getByText('Réfection du bardage métallique').closest('article')!
+  expect(within(lockedRow).getByText('Titulaire réservé')).toBeInTheDocument()
+  expect(within(lockedRow).queryByRole('button')).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '7 autres marchés — voir les offres' })).toHaveAttribute('href', '/tarifs')
+})
+
 test('a list failure is announced and retried explicitly', async () => {
   let failed = true
   mockApi({ ...BASE, 'GET /signals': () => failed ? { status: 500, body: { detail: 'unavailable' } } : { body: feedPage([SIGNAL]) } })
@@ -98,13 +114,11 @@ test('a list failure is announced and retried explicitly', async () => {
   expect(callsTo('/signals', 'GET')).toHaveLength(2)
 })
 
-test('an empty new segment guides the user to saved signals', async () => {
+test('an empty new segment states what the product is monitoring', async () => {
   mockApi({ ...BASE, 'GET /signals': { body: feedPage([]) } })
   renderFeed()
-  expect(await screen.findByRole('heading', { name: 'Vous êtes à jour' })).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('button', { name: 'Voir les sauvegardés' }))
-  await waitFor(() => expect(lastFeed().search.getAll('status')).toEqual(['saved']))
-  expect(await screen.findByRole('heading', { name: 'Aucun signal dans cette sélection' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Nous surveillons Matériaux — Occitanie en votre département' })).toBeInTheDocument()
+  expect(screen.getByText('Vos prochains marchés arriveront ici, en général 8 à 12 par mois.')).toBeInTheDocument()
 })
 
 test('an underfilled Discovery feed explains 0/3 instead of claiming it is up to date', async () => {

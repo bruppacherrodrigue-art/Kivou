@@ -72,6 +72,15 @@ export function SignalsFeed() {
     if (data?.counts_available) setCachedCounts({ key: countsKey, counts: data.counts, truncated: data.counts_truncated })
   }, [data, countsKey])
   const counts = data?.counts_available ? { counts: data.counts, truncated: data.counts_truncated } : cachedCounts?.key === countsKey ? cachedCounts : null
+  const visibleItems = data && discovery
+    ? [...data.items.filter((item) => !item.locked).slice(0, 3), ...data.items.filter((item) => item.locked).slice(0, 10)]
+    : data?.items ?? []
+  const profileTotal = data?.profile_total_30d ?? data?.total_returned ?? 0
+  const remainingMarkets = Math.max(0, profileTotal - 13)
+  const profile = p.profile ?? p.profiles[0] ?? null
+  const family = profile?.label ?? (fr ? 'votre secteur' : 'your sector')
+  const subdivision = profile?.customer_input.territory_subdivisions?.[0]
+  const zone = p.targetOptions.zones.find((item) => item.code === subdivision)?.label ?? subdivision ?? (fr ? 'votre département' : 'your area')
   const labels = fr ? { new: 'Nouveaux', saved: 'Sauvegardés', contacted: 'Contactés', ignored: 'Ignorés', all: 'Tous' } : { new: 'New', saved: 'Saved', contacted: 'Contacted', ignored: 'Ignored', all: 'All' }
   return <main className={styles.workspace} data-page="signals">
     <header className={styles.heading}><div><p className={styles.eyebrow}>{fr ? 'Votre prospection' : 'Your prospecting'}</p><h1>{fr ? 'Signaux' : 'Signals'}</h1><p>{fr ? 'Les marchés à transformer en conversations commerciales.' : 'Turn relevant contracts into sales conversations.'}</p></div></header>
@@ -82,18 +91,19 @@ export function SignalsFeed() {
       <div className={styles.toolbar}><label className={styles.search}><Search aria-hidden="true" /><input type="search" maxLength={120} disabled={!canSearch} aria-describedby={!canSearch ? 'signal-search-access' : undefined} aria-label={fr ? 'Rechercher un signal' : 'Search signals'} placeholder={fr ? 'Entreprise, marché, mot-clé…' : 'Company, contract, keyword…'} value={canSearch ? search : ''} onChange={(event) => setSearch(event.target.value)} /></label>
         <select value={sort} aria-label={fr ? 'Trier les signaux' : 'Sort signals'} onChange={(event) => update({ sort: event.target.value })}><option value="recent">{fr ? 'Les plus récents' : 'Most recent'}</option><option value="amount">{fr ? 'Montant décroissant' : 'Highest amount'}</option></select></div>
       {!canSearch && <p className={styles.muted} id="signal-search-access">{fr ? 'La recherche par mot-clé est disponible avec un abonnement.' : 'Keyword search is available with a subscription.'}</p>}
-      {data && <div className={styles.resultMeta}><span>{number(data.items.length)} {fr ? data.items.length === 1 ? 'signal sur cette page' : 'signaux sur cette page' : data.items.length === 1 ? 'signal on this page' : 'signals on this page'}</span>{discovery && <span>{number(discovery.granted_signal_count)}/{number(discovery.limit)} {fr ? 'signaux attribués' : 'signals assigned'}</span>}{data.history_access?.scope === 'grants_only' && <span>{fr ? 'Votre sélection Découverte' : 'Your Discovery selection'}</span>}{data.page.scan_truncated && <span>{fr ? 'Affinez votre recherche pour explorer davantage de résultats.' : 'Refine your search to explore more results.'}</span>}</div>}
+      {data && <div className={styles.resultMeta}><span>{fr ? `${number(profileTotal)} ${profileTotal === 1 ? 'marché attribué correspondant' : 'marchés attribués correspondant'} à votre profil ces 30 jours` : `${number(profileTotal)} awarded ${profileTotal === 1 ? 'contract' : 'contracts'} matching your profile in the last 30 days`}</span>{discovery && <span>{number(discovery.granted_signal_count)}/{number(discovery.limit)} {fr ? 'signaux attribués' : 'signals assigned'}</span>}{data.page.scan_truncated && <span>{fr ? 'Affinez votre recherche pour explorer davantage de résultats.' : 'Refine your search to explore more results.'}</span>}</div>}
       {resource.loading && <div className={styles.loading} role="status">{fr ? 'Chargement des signaux…' : 'Loading signals…'}<div className={styles.skeleton} /><div className={styles.skeleton} /></div>}
       {resource.error != null && <div className={styles.empty} role="alert"><h2>{fr ? 'Vos signaux ne sont pas chargés' : 'Your signals could not load'}</h2><button className={styles.button} onClick={resource.reload}>{fr ? 'Réessayer' : 'Retry'}</button></div>}
-      {data?.items.map((item) => <SignalListRow key={item.signal_id} item={item} onOpen={() => {
+      {visibleItems.map((item) => <SignalListRow key={item.signal_id} item={item} onOpen={() => {
         const next = new URLSearchParams(location.search)
         next.delete('presentation_artifact_id')
         if (!item.locked && item.presentation?.artifact_id) next.set('presentation_artifact_id', item.presentation.artifact_id)
         navigate(signalDetailPath(item.signal_id, next.toString()))
       }} />)}
+      {data && remainingMarkets > 0 && <p className={styles.waitingRow}><Link to="/tarifs">{fr ? `${number(remainingMarkets)} autres marchés — voir les offres` : `${number(remainingMarkets)} other contracts — view plans`}</Link></p>}
       {landingPending && <div className={styles.waitingRow} role="status"><span className={styles.waitingDot} aria-hidden="true" /><span>{fr ? 'Vos prochains signaux arriveront ici' : 'Your next signals will appear here'}</span></div>}
       {discoveryProgressVisible && discoveryProgress && <div className={styles.waitingRow} role="status"><span className={styles.waitingDot} aria-hidden="true" /><span>{discoveryProgress}</span></div>}
-      {data && data.items.length === 0 && !landingPending && !discoveryProgressVisible && <div className={styles.empty}><h2>{status === 'new' ? (fr ? 'Vous êtes à jour' : 'You’re up to date') : (fr ? 'Aucun signal dans cette sélection' : 'No signals in this selection')}</h2><p>{status === 'new' ? (fr ? 'Retrouvez vos marchés sauvegardés pour poursuivre vos échanges.' : 'Return to your saved contracts to continue your conversations.') : (fr ? 'Vos prochaines actions apparaîtront ici.' : 'Your next actions will appear here.')}</p><button className={styles.soft} onClick={() => update({ status: status === 'new' ? 'saved' : 'all', q: null })}>{status === 'new' ? (fr ? 'Voir les sauvegardés' : 'View saved') : (fr ? 'Voir tous les signaux' : 'View all signals')}</button></div>}
+      {data && data.items.length === 0 && !landingPending && !discoveryProgressVisible && <div className={styles.empty}><h2>{status === 'new' ? (fr ? `Nous surveillons ${family} en ${zone}` : `We monitor ${family} in ${zone}`) : (fr ? 'Aucun signal dans cette sélection' : 'No signals in this selection')}</h2><p>{status === 'new' ? (fr ? 'Vos prochains marchés arriveront ici, en général 8 à 12 par mois.' : 'Your next contracts will appear here, usually 8 to 12 per month.') : (fr ? 'Vos prochaines actions apparaîtront ici.' : 'Your next actions will appear here.')}</p></div>}
       {data && (cursor || data.page.has_more) && <footer className={styles.footer}><button className={styles.button} disabled={!cursor} onClick={() => update({ cursor: null })}><ArrowLeft aria-hidden="true" />{fr ? 'Première page' : 'First page'}</button><button className={styles.button} disabled={!data.page.has_more || !data.page.next_cursor} onClick={() => update({ cursor: data.page.next_cursor ?? null })}>{fr ? 'Page suivante' : 'Next page'}<ArrowRight aria-hidden="true" /></button></footer>}
     </section>
     {signalKey && <SignalDetail key={signalKey} signalKey={signalKey} onClose={() => {

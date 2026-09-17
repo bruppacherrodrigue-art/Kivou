@@ -548,9 +548,6 @@ def materialize_landing_feed_in_transaction(
                     "expansion_reason": reason,
                 },
             )
-        if len(prepared_rows) == 3:
-            break
-
     signal_keys: dict[str, str] = {}
     for key, prepared in prepared_rows:
         signal_keys[key] = materialize_signal(connection, **prepared).signal_key

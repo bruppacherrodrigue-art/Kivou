@@ -640,7 +640,8 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
     pin_session_cookie(client, response)
     body = client.get("/signals", params={"view": "history", "limit": 20}).json()
 
-    assert len(body["items"]) == 3
+    assert len(body["items"]) == 4
+    assert body["profile_total_30d"] == 4
     assert body["landing_cohort"] == {
         "signal_id": response.headers["location"].removeprefix("/app/signals/"),
         "expected": 3,
@@ -649,7 +650,14 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
     assert response.headers["location"].removeprefix("/app/signals/") in {
         item["signal_id"] for item in body["items"]
     }
-    assert all(item["locked"] is False for item in body["items"])
+    assert sum(item["locked"] is False for item in body["items"]) == 3
+    locked = next(item for item in body["items"] if item["locked"])
+    assert locked["headline"] in {
+        "Réfection de la couverture et de la zinguerie",
+        "Réfection de la charpente bois de l'école",
+        "Construction d'une ossature bois",
+    }
+    assert locked["holder_label"] == "Titulaire réservé"
     assert client.get("/billing/status").json()["discovery"] == {
         "granted_signal_count": 3,
         "remaining_slots": 0,
@@ -680,6 +688,7 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
         "Réfection de la charpente bois de l'école",
         "Construction d'une ossature bois",
+        "Réfection de la couverture et de la zinguerie",
     }
 
 
