@@ -650,6 +650,11 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         item["signal_id"] for item in body["items"]
     }
     assert all(item["locked"] is False for item in body["items"])
+    assert client.get("/billing/status").json()["discovery"] == {
+        "granted_signal_count": 3,
+        "remaining_slots": 0,
+        "limit": 3,
+    }
     account_id = only_account_id(engine)
     with engine.connect() as connection:
         profile_id = accounts.list_target_icps(
@@ -678,7 +683,7 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
     }
 
 
-def test_landing_cohort_keeps_one_exact_neighbour_and_reports_the_shortfall(tmp_path) -> None:
+def test_landing_cohort_uses_a_neighbouring_family_in_the_same_department(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     token = family_bait_token(engine, service, token)
     seed_landing_neighbours(
@@ -694,11 +699,11 @@ def test_landing_cohort_keeps_one_exact_neighbour_and_reports_the_shortfall(tmp_
     pin_session_cookie(client, response)
     body = client.get("/signals", params={"view": "history", "limit": 20}).json()
 
-    assert len(body["items"]) == 2
+    assert len(body["items"]) == 3
     assert body["landing_cohort"] == {
         "signal_id": response.headers["location"].removeprefix("/app/signals/"),
         "expected": 3,
-        "materialized": 2,
+        "materialized": 3,
     }
     account_id = only_account_id(engine)
     with engine.connect() as connection:
@@ -723,8 +728,44 @@ def test_landing_cohort_keeps_one_exact_neighbour_and_reports_the_shortfall(tmp_
         )
     assert active_titles == {
         "26A0076 LOT 01 CHARPENTE / ISOLATION / COUVERTURE / ZINGUERIE",
+        "Réfection complète de la couverture",
         "Réfection de la charpente bois",
     }
+
+
+def test_landing_cohort_expands_the_same_family_to_adjacent_departments(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("timber-ain", "Charpente bois dans l’Ain", "45261100", 1),
+            ("timber-rhone", "Charpente bois dans le Rhône", "45261100", 2),
+        ),
+    )
+    with engine.begin() as connection:
+        for suffix, subdivision in (("timber-ain", "FR-01"), ("timber-rhone", "FR-69")):
+            connection.execute(
+                sa.update(contract_award)
+                .where(contract_award.c.award_key == f"landing-award-{suffix}")
+                .values(
+                    place_of_performance={
+                        "country": "FR",
+                        "subdivision_code": subdivision,
+                        "subdivision_scheme": "ISO-3166-2",
+                        "locality": None,
+                        "postal_code": None,
+                    }
+                )
+            )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert len(body["items"]) == 3
+    assert body["landing_cohort"]["materialized"] == 3
 
 
 def test_landing_without_a_known_department_does_not_invent_neighbours(tmp_path) -> None:
@@ -823,7 +864,7 @@ def _materialize_promise(engine, *, opportunity_key: str, target_icp_id: str) ->
     return signal_key
 
 
-def test_a_materialized_promise_lands_on_the_signal_and_costs_no_discovery_slot(
+def test_a_materialized_promise_counts_as_one_of_three_discovery_signals(
     tmp_path,
 ) -> None:
     engine, service, token, _ = prepared(tmp_path)
@@ -853,10 +894,9 @@ def test_a_materialized_promise_lands_on_the_signal_and_costs_no_discovery_slot(
         access = feed_access(connection, account_id=account_id, as_of=CLICKED_AT.date())
         slots = remaining_slots(connection, account_id=account_id)
     assert promise["signal_key"] == signal_key
-    # Ouvert nominativement, et sans consommer une des trois places offertes :
-    # la promesse est antérieure au compte, la facturer serait la reprendre.
+    # Ouvert nominativement et compté dans les trois signaux visibles promis.
     assert signal_key in access.granted
-    assert slots == DISCOVERY_GRANT_LIMIT
+    assert slots == DISCOVERY_GRANT_LIMIT - 1
 
 
 def test_an_expired_link_opens_nothing_at_all(tmp_path) -> None:

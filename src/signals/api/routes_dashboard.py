@@ -125,7 +125,10 @@ def get_dashboard(
                 key=lambda profile: (profile.created_at, profile.target_icp_id),
             )
         billing_state = billing.billing_state(connection, account_id=session.account_id)
-        grants = discovery.grants(connection, account_id=session.account_id)
+        remaining_discovery = discovery.remaining_slots(
+            connection, account_id=session.account_id
+        )
+        assigned_discovery = catalogue.DISCOVERY_GRANT_LIMIT - remaining_discovery
         entitlements = catalogue.entitlements_for(billing_state.plan_code)
         discovery_plan = billing_state.plan_code == "discovery"
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -161,19 +164,15 @@ def get_dashboard(
         result["plan"] = {
             "code": billing_state.plan_code,
             "name": _PLAN_NAMES.get(billing_state.plan_code, billing_state.plan_code),
-            "assigned": len(grants) if discovery_plan else None,
+            "assigned": assigned_discovery if discovery_plan else None,
             "opened_this_month": None if discovery_plan else paid_opened,
             "quota": entitlements.granted_signals or None,
-            "remaining": discovery.remaining_slots(
-                connection, account_id=session.account_id
-            )
-            if discovery_plan
-            else None,
+            "remaining": remaining_discovery if discovery_plan else None,
             "availability": (
                 "complete"
-                if len(grants) >= (entitlements.granted_signals or 0)
+                if assigned_discovery >= (entitlements.granted_signals or 0)
                 else "partial"
-                if grants
+                if assigned_discovery
                 else "preparing"
             )
             if discovery_plan

@@ -102,7 +102,6 @@ def billing_status(request: Request) -> dict[str, Any]:
         # avoir à recopier `TERMINAL_STATUSES` pour savoir si proposer un
         # paiement facturerait un compte qui en porte déjà un.
         action = service.billing_action(connection, account_id=session.account_id)
-        grants = discovery.grants(connection, account_id=session.account_id)
         remaining = discovery.remaining_slots(connection, account_id=session.account_id)
         # #29 — l'écran doit pouvoir dire « vous descendrez le 1er » sans
         # laisser croire que c'est déjà fait : `plan_code` ci-dessus reste la
@@ -137,7 +136,7 @@ def billing_status(request: Request) -> dict[str, Any]:
         "scheduled_plan_change": pending,
         "entitlements": catalogue.customer_safe_entitlements(state.entitlements),
         "discovery": {
-            "granted_signal_count": len(grants),
+            "granted_signal_count": catalogue.DISCOVERY_GRANT_LIMIT - remaining,
             "remaining_slots": remaining,
             "limit": catalogue.DISCOVERY_GRANT_LIMIT,
         },

@@ -83,12 +83,18 @@ def grants(connection: sa.Connection, *, account_id: str) -> tuple[Grant, ...]:
 
 
 def remaining_slots(connection: sa.Connection, *, account_id: str) -> int:
-    used = connection.execute(
-        sa.select(sa.func.count())
-        .select_from(discovery_signal_grant)
-        .where(discovery_signal_grant.c.account_id == account_id)
-    ).scalar_one()
-    return max(0, DISCOVERY_GRANT_LIMIT - used)
+    return max(
+        0,
+        DISCOVERY_GRANT_LIMIT - len(opened_signal_keys(connection, account_id=account_id)),
+    )
+
+
+def opened_signal_keys(connection: sa.Connection, *, account_id: str) -> frozenset[str]:
+    """The three Discovery signals visible to the account, bait included."""
+
+    return granted_signal_keys(connection, account_id=account_id) | landing_signal_keys(
+        connection, account_id=account_id
+    )
 
 
 def _lock_account(connection: sa.Connection, *, account_id: str) -> None:
@@ -198,7 +204,7 @@ def preview_initial_backfill(
     from signals.billing import service as billing_service
 
     state = billing_service.billing_state(connection, account_id=account_id)
-    existing = tuple(sorted(granted_signal_keys(connection, account_id=account_id)))
+    existing = tuple(sorted(opened_signal_keys(connection, account_id=account_id)))
     if not state.is_discovery or len(existing) >= DISCOVERY_GRANT_LIMIT:
         return BackfillPreview(account_id, state.plan_code, existing, (), ())
 
@@ -232,10 +238,8 @@ def preview_initial_backfill(
         source_has_url = bool((item.signal.event.source_url or "").strip()) or evidence_has_url
         if (
             item.display is None
-            or item.signal.icp_match_decision != "show"
             or not (item.signal.award.title or "").strip()
             or not source_has_url
-            or evidence_count == 0
             or item.event_date is None
             or item.status in {"invalid_award_date", "award_date_unknown"}
         ):
@@ -247,8 +251,7 @@ def preview_initial_backfill(
         )
     )
     eligible_keys = tuple(item.signal.signal_key for item, _count in eligible)
-    landing = landing_signal_keys(connection, account_id=account_id)
-    already_open = frozenset(existing) | landing
+    already_open = frozenset(existing)
     proposed = tuple(
         key
         for key in eligible_keys
@@ -336,12 +339,9 @@ def grant_up_to_limit(
     if slots <= 0:
         return ()
 
-    # Le signal d'atterrissage est déjà ouvert par `feed_access` : le compter
-    # ici lui ferait consommer une des trois places offertes, alors qu'il a été
-    # promis au prospect avant même la création du compte.
-    already = granted_signal_keys(connection, account_id=account_id) | landing_signal_keys(
-        connection, account_id=account_id
-    )
+    # Le signal d'atterrissage est déjà ouvert par `feed_access` et compte dans
+    # les trois signaux visibles : seules deux autres places restent à remplir.
+    already = opened_signal_keys(connection, account_id=account_id)
     newly: list[str] = []
     for item in candidates:
         if slots <= 0:

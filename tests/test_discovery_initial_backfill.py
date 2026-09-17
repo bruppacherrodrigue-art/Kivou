@@ -395,7 +395,7 @@ def test_paid_account_access_is_unchanged_and_creates_no_discovery_grants(
     assert all(item["locked"] is False for item in items)
 
 
-def test_backfill_excludes_incomplete_unproven_invalid_and_unusable_candidates(
+def test_backfill_accepts_displayable_official_signals_without_attached_evidence(
     migrated_sqlite_engine,
 ):
     _persist_candidates(migrated_sqlite_engine, count=7)
@@ -418,7 +418,7 @@ def test_backfill_excludes_incomplete_unproven_invalid_and_unusable_candidates(
             .order_by(materialized_signal.c.signal_key)
         ).all()
         assert len(rows) == 7
-        no_title, no_proof, no_holder, invalid_date, *valid = rows
+        no_title, no_proof, no_holder, invalid_date, hidden_decision, *valid = rows
 
         connection.execute(
             sa.update(contract_award)
@@ -429,6 +429,11 @@ def test_backfill_excludes_incomplete_unproven_invalid_and_unusable_candidates(
             sa.delete(evidence).where(
                 evidence.c.award_key == no_proof.materialization_award_key
             )
+        )
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == hidden_decision.signal_key)
+            .values(icp_match_decision="hide")
         )
         connection.execute(
             sa.update(materialized_signal)
@@ -453,12 +458,15 @@ def test_backfill_excludes_incomplete_unproven_invalid_and_unusable_candidates(
         )
         excluded = {
             no_title.signal_key,
-            no_proof.signal_key,
             no_holder.signal_key,
             invalid_date.signal_key,
         }
         assert excluded.isdisjoint(preview.eligible_signal_keys)
-        assert set(preview.proposed_signal_keys) == {row.signal_key for row in valid}
+        assert no_proof.signal_key in preview.eligible_signal_keys
+        assert hidden_decision.signal_key in preview.eligible_signal_keys
+        assert set(preview.proposed_signal_keys).issubset(
+            {no_proof.signal_key, hidden_decision.signal_key, *(row.signal_key for row in valid)}
+        )
 
         discovery.reconcile_initial_backfill(
             connection,
@@ -467,9 +475,7 @@ def test_backfill_excludes_incomplete_unproven_invalid_and_unusable_candidates(
             now=MATERIALIZED_AT + dt.timedelta(minutes=1),
         )
 
-    assert set(_grant_keys(migrated_sqlite_engine, account_id)) == {
-        row.signal_key for row in valid
-    }
+    assert len(_grant_keys(migrated_sqlite_engine, account_id)) == 3
 
 
 def test_candidate_ranking_is_relevance_first_and_deterministic(migrated_sqlite_engine):

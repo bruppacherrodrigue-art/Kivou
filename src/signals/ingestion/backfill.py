@@ -26,6 +26,7 @@ from signals.persistence.schema import (
 )
 from signals.recency import assess_recency
 from signals.supplier_discovery.families import (
+    department_and_neighbours,
     families_for_signal,
     families_named_in_object,
     load_supplier_family_catalog,
@@ -441,29 +442,17 @@ def materialize_landing_feed_in_transaction(
             source_event.c.source_country == bait_event.provenance.source_country,
             effective_date >= as_of - dt.timedelta(days=30),
             effective_date <= as_of,
-            contract_award.c.amount >= 50000,
+            contract_award.c.amount.is_not(None),
+            contract_award.c.place_of_performance.is_not(None),
+            sa.func.nullif(sa.func.trim(sa.func.coalesce(source_event.c.source_url, "")), "").isnot(
+                None
+            ),
             sa.func.nullif(sa.func.trim(sa.func.coalesce(contract_award.c.title, "")), "").isnot(
                 None
             ),
         )
     )
     if selected_family is not None and bait_department is not None:
-        statement = statement.where(
-            sa.or_(
-                *(
-                    contract_award.c.cpv_main.startswith(prefix)
-                    for prefix in selected_family.cpv_prefixes
-                ),
-                *(
-                    sa.func.lower(
-                        sa.func.coalesce(contract_award.c.title, "")
-                        + " "
-                        + sa.func.coalesce(contract_award.c.description, "")
-                    ).contains(term.casefold())
-                    for term in selected_family.object_terms
-                ),
-            )
-        )
         candidate_keys = tuple(
             connection.execute(
                 statement.group_by(opportunity_representation.c.opportunity_key)
@@ -485,8 +474,16 @@ def materialize_landing_feed_in_transaction(
         bait_event.provenance.source_procedure_id or bait_event.provenance.source_notice_id,
     )
     used_procedures = {procedure}
-    prepared_rows: list[tuple[str, dict[str, object]]] = [(opportunity_key, bait)]
-    for key in candidate_keys:
+    catalog = load_supplier_family_catalog()
+    selected_vertical = next(
+        (vertical for vertical, families in catalog.items() if selected_family in families), None
+    )
+    neighbouring_family_keys = {
+        family.key for family in catalog.get(selected_vertical, ()) if family != selected_family
+    }
+    nearby_departments = set(department_and_neighbours(bait_department))
+    ranked: list[tuple[int, int, str, dict[str, object], str]] = []
+    for order, key in enumerate(candidate_keys):
         representative = representatives.get(key)
         if representative is None:
             continue
@@ -495,7 +492,7 @@ def materialize_landing_feed_in_transaction(
         department = _department_code(
             location_subdivision(place.model_dump(mode="json") if place else None)
         )
-        if department != bait_department:
+        if department is None:
             continue
         if not _has_customer_name(award) and key not in cached_holders:
             continue
@@ -514,12 +511,43 @@ def materialize_landing_feed_in_transaction(
         )
         if candidate is None:
             continue
-        if selected_family is None or selected_family.key not in {
-            family.key for family in _landing_families(candidate)
-        }:
+        candidate_family_keys = {family.key for family in _landing_families(candidate)}
+        same_family = selected_family.key in candidate_family_keys
+        neighbouring_family = bool(candidate_family_keys & neighbouring_family_keys)
+        if same_family and department == bait_department:
+            rank, reason = 0, "same_family_department"
+        elif same_family and department in nearby_departments:
+            rank, reason = 1, "same_family_adjacent_department"
+        elif neighbouring_family and department == bait_department:
+            rank, reason = 2, "neighbouring_family_department"
+        elif same_family:
+            rank, reason = 3, "same_family_national"
+        elif neighbouring_family:
+            rank, reason = 4, "neighbouring_family_national"
+        else:
+            continue
+        ranked.append((rank, order, key, candidate, reason))
+
+    prepared_rows: list[tuple[str, dict[str, object]]] = [(opportunity_key, bait)]
+    for rank, _order, key, candidate, reason in sorted(ranked):
+        event = candidate["event"]
+        procedure = (
+            event.provenance.source_system,
+            event.provenance.source_procedure_id or event.provenance.source_notice_id,
+        )
+        if procedure in used_procedures:
             continue
         prepared_rows.append((key, candidate))
         used_procedures.add(procedure)
+        if rank:
+            logger.info(
+                "landing cohort expanded",
+                extra={
+                    "target_icp_id": target_icp_id,
+                    "opportunity_key": key,
+                    "expansion_reason": reason,
+                },
+            )
         if len(prepared_rows) == 3:
             break
 
