@@ -166,6 +166,45 @@ def test_assisted_preparation_builds_up_to_twenty_five_final_pending_targets(
     assert "Vous fournissez " + "ou réalisez" not in "\n".join(row["mail_text"] for row in rows)
 
 
+def test_site_only_preparation_projects_proven_model_email_as_site(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 3)
+    evidence_url = "https://fournisseur-1.fr/contact"
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000001")
+            .values(
+                website_url="https://fournisseur-1.fr",
+                email_evidence_url=evidence_url,
+                enrichment_evidence={
+                    "candidate_pages": [
+                        {
+                            "url": evidence_url,
+                            "status_code": 200,
+                            "published_emails": ["contact1@fournisseur-1.fr"],
+                        }
+                    ]
+                },
+            )
+        )
+
+    result = ProspectPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        site_email_only=True,
+        clock=lambda: NOW,
+    ).prepare(signal(), cycle_ref="cycle-site-only")
+
+    assert result.prepared == 1
+    with migrated_sqlite_engine.connect() as connection:
+        row = connection.execute(sa.select(prospect_target)).mappings().one()
+    assert row["siren"] == "100000001"
+    assert row["email_source"] == "site"
+    assert row["email_evidence_url"] == evidence_url
+
+
 def test_assisted_preparation_persists_contract_failure_as_blocked_pending_review(
     migrated_sqlite_engine,
 ) -> None:
@@ -392,6 +431,35 @@ def test_assisted_preparation_excludes_holder_family(migrated_sqlite_engine) -> 
     with migrated_sqlite_engine.connect() as connection:
         families = set(connection.execute(sa.select(prospect_target.c.family_key)).scalars())
     assert families == {"reinforcement_steel"}
+
+
+def test_strict_family_preparation_targets_the_promised_holder_family(
+    migrated_sqlite_engine,
+) -> None:
+    seed_directory(migrated_sqlite_engine, 20, eligible_department_count=20)
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000002")
+            .values(family_confirmation_status="confirmed")
+        )
+
+    result = ProspectPreparationService(
+        migrated_sqlite_engine, link_issuer=Links(), clock=lambda: NOW
+    ).prepare(
+        signal(
+            holder_siren="100000002",
+            holder_family_required=True,
+            target_holder_family=True,
+            families=(("ready_mix_concrete", "Béton prêt à l'emploi"),),
+        ),
+        cycle_ref="cycle-strict-holder-family",
+    )
+
+    assert result.prepared == 8
+    with migrated_sqlite_engine.connect() as connection:
+        families = set(connection.execute(sa.select(prospect_target.c.family_key)).scalars())
+    assert families == {"ready_mix_concrete"}
 
 
 def test_assisted_preparation_suspends_when_holder_family_is_unknown(

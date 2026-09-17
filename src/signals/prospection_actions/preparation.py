@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.engine import Engine
 
+from signals.client_value.directory import published_email_evidence
 from signals.companies.schema import winner_enrichment_job
 from signals.domain.french_departments import DEPARTMENTS
 from signals.persistence.schema import (
@@ -46,6 +47,7 @@ class AssistedSignal(BaseModel):
     holder: str = Field(min_length=1, max_length=512)
     holder_siren: str | None = Field(default=None, pattern=r"^\d{9}$")
     holder_family_required: bool = False
+    target_holder_family: bool = False
     subject: str = Field(min_length=1, max_length=998)
     amount_minor_units: int = Field(ge=5_000_000)
     currency: str = Field(pattern=r"^(eur|chf)$")
@@ -90,11 +92,13 @@ class ProspectPreparationService:
         *,
         link_issuer: ProspectLinkIssuer,
         mail_renderer: Callable[[dict[str, object]], RenderedProspectMail] = render_prospect_mail,
+        site_email_only: bool = False,
         clock=lambda: dt.datetime.now(dt.UTC),
     ) -> None:
         self._engine = engine
         self._link_issuer = link_issuer
         self._mail_renderer = mail_renderer
+        self._site_email_only = site_email_only
         self._clock = clock
 
     def prepare(self, signal: AssistedSignal, *, cycle_ref: str) -> PreparationResult:
@@ -293,6 +297,15 @@ class ProspectPreparationService:
             )
             eligible: list[tuple[dict[str, object], str]] = []
             for row in directory_rows:
+                if self._site_email_only:
+                    site_email = published_email_evidence(row)
+                    if site_email is None:
+                        continue
+                    row.update(
+                        professional_email=site_email[0],
+                        email_source="site",
+                        email_evidence_url=site_email[1],
+                    )
                 if is_placeholder_email(row["professional_email"]):
                     connection.execute(
                         sa.update(supplier_directory)
@@ -321,8 +334,10 @@ class ProspectPreparationService:
                 family_key = next((key for key in matches if key not in review), None)
                 if family_key is None:
                     continue
-                if holder_family_keys and set(row.get("family_keys") or ()).intersection(
-                    holder_family_keys
+                if (
+                    not signal.target_holder_family
+                    and holder_family_keys
+                    and set(row.get("family_keys") or ()).intersection(holder_family_keys)
                 ):
                     continue
                 eligible.append((row, family_key))

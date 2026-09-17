@@ -279,6 +279,70 @@ def test_dynamic_selection_accepts_unknown_model_fit(tmp_path) -> None:
     ) == "opportunity-dynamic"
 
 
+def test_dynamic_selection_requires_the_configured_supplier_family(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    _seed_dynamic_siret_holder(engine, resolved_name="PAUL BROCHIER", model_fit=None)
+
+    assert (
+        select_production_opportunity_key(
+            engine,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            family_key="timber_carpentry",
+            observed_at=NOW,
+        )
+        is None
+    )
+
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(contract_award).values(title="Charpente bois d'un équipement public")
+        )
+
+    assert (
+        select_production_opportunity_key(
+            engine,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            family_key="timber_carpentry",
+            observed_at=NOW,
+        )
+        == "opportunity-dynamic"
+    )
+
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(contract_award).values(title="Charpente bois et bardage métallique")
+        )
+
+    assert (
+        select_production_opportunity_key(
+            engine,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            family_key="timber_carpentry",
+            observed_at=NOW,
+        )
+        is None
+    )
+
+    assert (
+        select_production_opportunity_key(
+            engine,
+            country="FR",
+            vertical="general_building",
+            region="Auvergne-Rhône-Alpes",
+            family_key="timber_carpentry",
+            pinned_opportunity_key="opportunity-dynamic",
+            observed_at=NOW,
+        )
+        == "opportunity-dynamic"
+    )
+
+
 def test_dynamic_selection_accepts_missing_for_you_row_as_unknown_fit(tmp_path) -> None:
     engine = _engine(tmp_path)
     _seed_dynamic_siret_holder(engine, resolved_name="PAUL BROCHIER", with_for_you=False)

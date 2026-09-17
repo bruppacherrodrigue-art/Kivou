@@ -625,6 +625,8 @@ def build_runtime_execution_composition(
                     if runtime_config.deployment.qa_scope.region is not None
                     else None
                 ),
+                family_key=selection.family_key,
+                pinned_opportunity_key=selection.pinned_opportunity_key,
                 observed_at=observed_at,
             )
         if selected is None:
@@ -789,9 +791,11 @@ def build_runtime_execution_composition(
                         public_site_url=links.public_app_url,
                         keyring=attribution_keyring,
                     ),
+                    site_email_only=selection.email_source == "site",
                     clock=clock,
                 ),
                 enrichment_handler=enrichment_handler,
+                required_family_key=selection.family_key,
             )
         )
     registry = AcquisitionActionRegistry(handlers)

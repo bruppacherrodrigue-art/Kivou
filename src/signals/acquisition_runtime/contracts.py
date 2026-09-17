@@ -266,6 +266,9 @@ class RuntimeSelection(_FrozenModel):
     allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(default=(), max_length=8)
     vertical: OpaqueRef | None = None
     region: RegionName | None = None
+    family_key: OpaqueRef | None = None
+    email_source: Literal["site"] | None = None
+    pinned_opportunity_key: OpaqueRef | None = None
     window_days: Literal[30] = 30
     minimum_amount: Decimal = Field(default=Decimal("50000"), ge=Decimal("50000"))
     require_named_holder: Literal[True] = True
@@ -277,7 +280,16 @@ class RuntimeSelection(_FrozenModel):
         if self.mode == "fixed":
             if not self.allowed_opportunity_keys:
                 raise ValueError("selection.fixed requires allowed_opportunity_keys")
-            if self.vertical is not None or self.region is not None:
+            if any(
+                value is not None
+                for value in (
+                    self.vertical,
+                    self.region,
+                    self.family_key,
+                    self.email_source,
+                    self.pinned_opportunity_key,
+                )
+            ):
                 raise ValueError("selection.fixed forbids vertical and region")
         elif not self.vertical or not self.region:
             raise ValueError("selection.dynamic requires vertical and region")
