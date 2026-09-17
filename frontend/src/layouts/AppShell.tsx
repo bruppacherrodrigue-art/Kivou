@@ -267,7 +267,7 @@ function ConnectedShell({
 
       <SidebarInset as={['overview', 'signals', 'companies'].includes(activeView) ? 'div' : 'main'} className="dashboard-workspace">
         {me.temporary_access && <aside className="account-claim-banner" aria-label={locale === 'fr' ? 'Accès temporaire' : 'Temporary access'}>
-          <p>{locale === 'fr' ? 'Votre accès est temporaire. Créez votre mot de passe pour retrouver vos signaux' : 'Your access is temporary. Create your password to return to your signals'}</p>
+          <p>{locale === 'fr' ? 'Votre accès est temporaire. Entrez votre e-mail pour retrouver ces signaux.' : 'Your access is temporary. Enter your email to return to these signals.'}</p>
           <Link className="account-claim-button" to="/app/create-access" state={{ returnTo: `${pathname}${search}` }}>{locale === 'fr' ? 'Créer mon accès' : 'Create my access'}</Link>
         </aside>}
         <header className={`topbar${['overview', 'signals', 'companies'].includes(activeView) ? ' prospecting-topbar' : ''}`}>
@@ -286,7 +286,7 @@ function ConnectedShell({
           </>)}
         </header>
 
-        {me.provisional_profile && <aside className={prospectingStyles.guide} aria-label={locale === 'fr' ? 'Profil provisoire' : 'Provisional profile'}><p>{locale === 'fr' ? 'Personnalisez vos signaux avec votre profil cible.' : 'Personalise your signals with your target profile.'}</p><Link className={prospectingStyles.textButton} to="/app/confirm-profile">{locale === 'fr' ? 'Confirmer mon profil' : 'Confirm my profile'}</Link></aside>}
+        {me.provisional_profile && !me.temporary_access && <aside className={prospectingStyles.guide} aria-label={locale === 'fr' ? 'Profil provisoire' : 'Provisional profile'}><p>{locale === 'fr' ? 'Personnalisez vos signaux avec votre profil cible.' : 'Personalise your signals with your target profile.'}</p><Link className={prospectingStyles.textButton} to="/app/confirm-profile">{locale === 'fr' ? 'Confirmer mon profil' : 'Confirm my profile'}</Link></aside>}
         <Outlet context={dashboardResource} />
       </SidebarInset>
     </>

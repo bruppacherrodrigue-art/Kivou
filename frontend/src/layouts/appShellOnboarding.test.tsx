@@ -107,11 +107,15 @@ it('keeps account creation visible in the app banner and account menu', async ()
     ...ME,
     account_display_name: 'Compte à confirmer',
     email: 'landing+abc@landing.kivou.invalid',
+    onboarding_status: 'icp_incomplete',
+    provisional_profile: true,
     temporary_access: true,
-    claim_email: 'prospect@example.test',
+    claim_email: null,
   })
-  expect(await screen.findByText('Votre accès est temporaire. Créez votre mot de passe pour retrouver vos signaux')).toBeInTheDocument()
+  expect(await screen.findByText('Votre accès est temporaire. Entrez votre e-mail pour retrouver ces signaux.')).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Créer mon accès' })).toHaveAttribute('href', '/app/create-access')
+  expect(screen.queryByRole('link', { name: 'Confirmer mon profil' })).not.toBeInTheDocument()
+  expect(screen.queryByText('Personnalisez vos signaux avec votre profil cible.')).not.toBeInTheDocument()
   expect(document.querySelector('.sidebar-account-link')).toHaveAttribute('href', '/app/create-access')
   expect(errors).not.toHaveBeenCalled()
 })
