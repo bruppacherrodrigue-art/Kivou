@@ -49,8 +49,7 @@ describe('shell Kivou', () => {
     await screen.findByRole('heading', { name: 'Vos priorités commerciales' })
     const summary = document.querySelector<HTMLElement>('.sidebar-plan-summary')!
     expect(summary).toHaveTextContent('Plan Découverte')
-    expect(summary).toHaveTextContent('0/3 signaux attribués')
-    expect(summary).not.toHaveTextContent('ce mois')
+    expect(summary).toHaveTextContent('0/3 signaux ce mois')
     expect(summary).toHaveTextContent('Routes et génie civil')
     expect(summary).toHaveTextContent('France')
     expect(summary).not.toHaveTextContent(/\bFR\b/)

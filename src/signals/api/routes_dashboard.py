@@ -146,12 +146,15 @@ def get_dashboard(
             {
                 "name": active_profile.label,
                 "sector_label": _sector_label(
-                    cpv_label(
-                        active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"),
-                        lang=lang,
+                    active_profile.customer_input.offer_summary
+                    or (
+                        cpv_label(
+                            active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"),
+                            lang=lang,
+                        )
+                        if active_profile.customer_input.sector_cpv_prefixes
+                        else active_profile.label
                     )
-                    if active_profile.customer_input.sector_cpv_prefixes
-                    else active_profile.customer_input.offer_summary or active_profile.label
                 ),
                 "zone_labels": _unique_zone_labels(
                     active_profile.customer_input.territory_subdivisions

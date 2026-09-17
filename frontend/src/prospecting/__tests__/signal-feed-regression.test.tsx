@@ -131,7 +131,7 @@ test('an underfilled Discovery feed explains 0/3 instead of claiming it is up to
   renderFeed()
 
   expect(await screen.findByText('Vos 3 signaux sont en préparation. Kivou sélectionne les meilleures opportunités disponibles.')).toBeInTheDocument()
-  expect(screen.getByText('0/3 signaux attribués')).toBeInTheDocument()
+  expect(screen.getByText('0/3 signaux ce mois')).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Vous êtes à jour' })).not.toBeInTheDocument()
 })
 
@@ -144,7 +144,7 @@ test('a partial Discovery feed reports two assigned signals and the remaining on
   renderFeed()
 
   expect(await screen.findByText('2 de vos 3 signaux sont disponibles. Kivou prépare le suivant.')).toBeInTheDocument()
-  expect(screen.getByText('2/3 signaux attribués')).toBeInTheDocument()
+  expect(screen.getByText('2/3 signaux ce mois')).toBeInTheDocument()
   expect(screen.getAllByRole('article')).toHaveLength(2)
 })
 

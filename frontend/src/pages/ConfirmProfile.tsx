@@ -179,7 +179,7 @@ export function ConfirmProfile() {
               : 'Tous les montants de marché, sans minimum. Vous pourrez affiner vos critères dans votre profil cible.'}</p>
             {errors.general ? <p className="form-error profile-submit-error" role="alert">{errors.general}</p> : null}
             <Button type="submit" className="profile-submit" disabled={submitting}>{submitting ? 'Enregistrement de votre profil…' : 'Recevoir mes signaux'}{!submitting && <ArrowRight aria-hidden="true" />}</Button>
-            <p className="profile-reassurance"><Check aria-hidden="true" /> Votre ciblage reste modifiable à tout moment.</p>
+            <p className="profile-reassurance"><Check aria-hidden="true" /> Votre profil cible reste modifiable à tout moment.</p>
           </form>}
     </AuthShell>
   )

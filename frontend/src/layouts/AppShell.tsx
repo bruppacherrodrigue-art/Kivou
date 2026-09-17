@@ -259,7 +259,7 @@ function ConnectedShell({
         <SidebarFooter className="sidebar-footer">
           <AccountBlock me={me} />
           <div className="sidebar-plan-summary">
-            <strong>{dashboardResource.loading ? t.reference.loading : planError || !dashboardResource.data?.plan ? (locale === 'fr' ? 'Résumé temporairement indisponible' : 'Summary temporarily unavailable') : planCode === 'discovery' ? `Plan ${planLabel} · ${assignedSignals ?? '—'}/${signalQuota ?? '—'} ${locale === 'fr' ? 'signaux attribués' : 'signals assigned'}` : `Plan ${planLabel} · ${openedThisMonth ?? '—'} ${locale === 'fr' ? 'signaux consultés ce mois' : 'signals viewed this month'}`}</strong>
+            <strong>{dashboardResource.loading ? t.reference.loading : planError || !dashboardResource.data?.plan ? (locale === 'fr' ? 'Résumé temporairement indisponible' : 'Summary temporarily unavailable') : planCode === 'discovery' ? `Plan ${planLabel} · ${assignedSignals ?? '—'}/${signalQuota ?? '—'} ${locale === 'fr' ? 'signaux ce mois' : 'signals this month'}` : `Plan ${planLabel} · ${openedThisMonth ?? '—'} ${locale === 'fr' ? 'signaux consultés ce mois' : 'signals viewed this month'}`}</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>
         </SidebarFooter>
@@ -286,7 +286,7 @@ function ConnectedShell({
           </>)}
         </header>
 
-        {me.provisional_profile && <aside className={prospectingStyles.guide} aria-label={locale === 'fr' ? 'Profil provisoire' : 'Provisional profile'}><p>{locale === 'fr' ? 'Personnalisez vos opportunités avec votre profil commercial.' : 'Personalise your opportunities with your sales profile.'}</p><Link className={prospectingStyles.textButton} to="/app/confirm-profile">{locale === 'fr' ? 'Confirmer mon profil' : 'Confirm my profile'}</Link></aside>}
+        {me.provisional_profile && <aside className={prospectingStyles.guide} aria-label={locale === 'fr' ? 'Profil provisoire' : 'Provisional profile'}><p>{locale === 'fr' ? 'Personnalisez vos signaux avec votre profil cible.' : 'Personalise your signals with your target profile.'}</p><Link className={prospectingStyles.textButton} to="/app/confirm-profile">{locale === 'fr' ? 'Confirmer mon profil' : 'Confirm my profile'}</Link></aside>}
         <Outlet context={dashboardResource} />
       </SidebarInset>
     </>

@@ -383,6 +383,7 @@ def test_kqa1_prefills_the_sector_wording_carried_by_the_token(tmp_path) -> None
     assert profile["label"] == "Bardage métallique"
     assert profile["customer_input"]["offer_summary"] == "Bardage métallique"
     assert profile["customer_input"]["sector_cpv_prefixes"] == ["452611"]
+    assert client.get("/dashboard").json()["profile"]["sector_label"] == "Bardage métallique"
 
 
 def test_kqa1_normalizes_a_boamp_nuts_department_before_prefilling_profile(

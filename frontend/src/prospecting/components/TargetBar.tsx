@@ -15,8 +15,8 @@ export function TargetBar({ independent = false }: { independent?: boolean }) {
   const fr = locale === 'fr'
   const [editing, setEditing] = useState(false)
   if (independent) return <div className={styles.targetBar}><div className={styles.targetSummary}><Target aria-hidden="true" /><span>{fr ? 'Annuaire complet · Explorez les entreprises au-delà de votre profil cible.' : 'Full directory · Explore companies beyond your target profile.'}</span></div></div>
-  if (p.profilesError != null) return <div className={styles.error} role="alert">{fr ? 'Votre ciblage ne peut pas être chargé.' : 'Your targeting could not load.'}<button className={styles.textButton} onClick={() => void p.refreshProfiles()}>{fr ? 'Réessayer' : 'Retry'}</button></div>
-  if (!p.profile || !p.selection) return p.profilesLoading ? <p className={styles.muted} role="status">{fr ? 'Chargement du ciblage…' : 'Loading targeting…'}</p> : null
+  if (p.profilesError != null) return <div className={styles.error} role="alert">{fr ? 'Votre profil cible ne peut pas être chargé.' : 'Your target profile could not load.'}<button className={styles.textButton} onClick={() => void p.refreshProfiles()}>{fr ? 'Réessayer' : 'Retry'}</button></div>
+  if (!p.profile || !p.selection) return p.profilesLoading ? <p className={styles.muted} role="status">{fr ? 'Chargement du profil cible…' : 'Loading target profile…'}</p> : null
   const selection = p.selection
   const offer = selection.offerCategory ? t.offers[selection.offerCategory as OfferKind] : null
   const zone = selection.subdivisionCode ? p.targetOptions.zones.find((item) => item.code === selection.subdivisionCode)?.label ?? selection.subdivisionCode : null
