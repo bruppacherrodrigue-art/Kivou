@@ -335,6 +335,35 @@ def test_kqa1_and_kat1_prefill_the_same_family_profile(tmp_path) -> None:
         assert profile["customer_input"]["offer_summary"] == "Bois et charpente"
 
 
+def test_kqa1_prefills_the_sector_wording_carried_by_the_token(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    family_token = family_bait_token(engine, service, token)
+    qa_raw = qa_token.issue(
+        qa_token.QaTokenPayload(
+            opportunity_key=family_token.payload.opportunity_key,
+            wedge=family_token.payload.wedge,
+            country="FR",
+            sector="Bardage métallique",
+            need="timber_carpentry",
+            issued_at=NOW,
+            expires_at=NOW + dt.timedelta(days=7),
+        ),
+        keyring=AttributionTokenKeyring(
+            current_key_version="attribution-test-v1",
+            keys={"attribution-test-v1": TOKEN_SECRET},
+        ),
+    )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = client.get(f"/a/{qa_raw}", follow_redirects=False)
+    pin_session_cookie(client, response)
+    profile = client.get("/target-icps").json()[0]
+
+    assert profile["label"] == "Bardage métallique"
+    assert profile["customer_input"]["offer_summary"] == "Bardage métallique"
+    assert profile["customer_input"]["sector_cpv_prefixes"] == ["452611"]
+
+
 def test_kqa1_normalizes_a_boamp_nuts_department_before_prefilling_profile(
     tmp_path,
 ) -> None:

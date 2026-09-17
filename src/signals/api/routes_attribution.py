@@ -268,7 +268,9 @@ def _verify_landing(
         opportunity_key=payload.opportunity_key,
         country=payload.country,
         need_ref=payload.need_ref,
-        sector_label=payload.sector_ref,
+        # The regular attribution token carries an opaque sector fingerprint,
+        # never client copy. Only kqa1 carries an explicit display label.
+        sector_label=None,
         member_ref=payload.member_ref,
         campaign_ref=payload.campaign_ref,
         token_fingerprint=fingerprint,
@@ -382,8 +384,13 @@ def _land(
     was_provisional = bool(profiles) and accounts.is_provisional_profile(
         connection, account_id=account_id
     )
-    sector_label, cpv_prefixes, subdivision = _profile_seed(
+    catalog_sector_label, cpv_prefixes, subdivision = _profile_seed(
         connection, context.opportunity_key, context.need_ref
+    )
+    sector_label = (
+        context.sector_label
+        if context.qa and context.sector_label is not None
+        else catalog_sector_label
     )
     profile_input = _draft_icp_input(
         country=context.country,
