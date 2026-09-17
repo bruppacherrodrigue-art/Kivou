@@ -238,6 +238,9 @@ class ProspectPreparationService:
                     )
                 ).scalars()
             )
+            historical_target_ids = set(
+                connection.execute(sa.select(prospect_target.c.target_id)).scalars()
+            )
             holder_family_keys: set[str] = set()
             if signal.holder_family_required:
                 holder_row = connection.execute(
@@ -321,6 +324,12 @@ class ProspectPreparationService:
                 if row["siren"] in recently_contacted:
                     continue
                 if row["siren"] in queued_sirens:
+                    continue
+                email = str(row["professional_email"]).casefold()
+                target_id = str(
+                    uuid5(NAMESPACE_URL, f"kivou:prospect:{signal.opportunity_key}:{email}")
+                )
+                if target_id in historical_target_ids:
                     continue
                 matches = sorted(
                     (
