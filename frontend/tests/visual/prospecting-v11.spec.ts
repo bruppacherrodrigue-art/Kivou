@@ -175,7 +175,7 @@ for (const viewport of [{ name: 'desktop', width: 1440, height: 1000 }, { name: 
       await expect(drawer.getByRole('status')).toContainText('Enregistré')
       if (paid) await expect(drawer.getByRole('link', { name: '04 93 12 34 56' })).toBeVisible()
       else {
-        await expect(drawer.getByRole('button', { name: 'Débloquer les données entreprise' })).toBeVisible()
+        await expect(drawer.getByRole('button', { name: 'Voir ce contact — 49 €/mois' })).toBeVisible()
         await expect(drawer).not.toContainText('contact@example.com')
       }
       await drawer.locator('h2').scrollIntoViewIfNeeded()
