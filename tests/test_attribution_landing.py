@@ -323,6 +323,94 @@ def test_kqa1_and_kat1_share_the_provisional_product_landing(tmp_path) -> None:
         ) == 0
 
 
+def test_qa_prospect_claims_with_a_real_email_and_keeps_the_landing_cohort(tmp_path) -> None:
+    engine, attribution, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, attribution, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("timber-one", "Réfection de la charpente bois", "45261100", 1),
+            ("timber-two", "Construction d'une ossature bois", "45261100", 2),
+        ),
+    )
+    qa_raw = qa_token.issue(
+        qa_token.QaTokenPayload(
+            opportunity_key=token.payload.opportunity_key,
+            wedge=token.payload.wedge,
+            country="FR",
+            sector="Bois et charpente",
+            need="timber_carpentry",
+            issued_at=NOW,
+            expires_at=NOW + dt.timedelta(days=7),
+        ),
+        keyring=AttributionTokenKeyring(
+            current_key_version="attribution-test-v1",
+            keys={"attribution-test-v1": TOKEN_SECRET},
+        ),
+    )
+    client = client_for(engine, attribution, now=CLICKED_AT)
+    landed = land(client, qa_raw)
+    pin_session_cookie(client, landed)
+
+    before_me = client.get("/me").json()
+    before_feed = client.get("/signals", params={"view": "history", "limit": 20}).json()
+    before_ids = [item["signal_id"] for item in before_feed["items"] if not item["locked"]]
+    assert before_me["claim_email"] is None
+    assert before_me["temporary_access"] is True
+    assert len(before_ids) == 3
+
+    claimed = client.post(
+        "/auth/claim-access",
+        headers={"Origin": "https://testserver"},
+        json={"email": "claire@acme.test", "password": "une-phrase-secrete"},
+    )
+
+    assert claimed.status_code == 200, claimed.text
+    assert claimed.json()["temporary_access"] is False
+    assert claimed.json()["email"] == "claire@acme.test"
+    assert claimed.json()["claim_email"] is None
+    after_feed = client.get("/signals", params={"view": "history", "limit": 20}).json()
+    assert [item["signal_id"] for item in after_feed["items"] if not item["locked"]] == before_ids
+    assert after_feed["landing_cohort"] == before_feed["landing_cohort"]
+
+
+@pytest.mark.parametrize(
+    ("email", "expected_status", "expected_code"),
+    [
+        ("landing+other@landing.kivou.invalid", 422, "invalid_claim_email"),
+        ("already@acme.test", 409, "email_already_used"),
+    ],
+)
+def test_qa_claim_rejects_a_temporary_or_already_used_email(
+    tmp_path, email: str, expected_status: int, expected_code: str
+) -> None:
+    engine, attribution, token, _ = prepared(tmp_path)
+    if email == "already@acme.test":
+        with engine.begin() as connection:
+            accounts.sign_up(
+                connection,
+                email=email,
+                password="une-autre-phrase-secrete",
+                company_name="Compte existant",
+                locale="fr",
+                now=CLICKED_AT,
+                session_ttl=dt.timedelta(days=1),
+            )
+    client = client_for(engine, attribution, now=CLICKED_AT)
+    landed = land(client, token.raw_token)
+    pin_session_cookie(client, landed)
+
+    claimed = client.post(
+        "/auth/claim-access",
+        headers={"Origin": "https://testserver"},
+        json={"email": email, "password": "une-phrase-secrete"},
+    )
+
+    assert claimed.status_code == expected_status
+    assert claimed.json()["detail"]["code"] == expected_code
+    assert client.get("/me").json()["temporary_access"] is True
+
+
 def test_kqa1_and_kat1_prefill_the_same_family_profile(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     family_token = family_bait_token(engine, service, token)

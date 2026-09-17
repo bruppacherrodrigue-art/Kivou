@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import re
 import secrets
 from typing import Any, Protocol
 
@@ -59,6 +60,10 @@ class EmailAlreadyUsed(AccountError):
 
 class LandingAccessUnavailable(AccountError):
     code = "landing_access_unavailable"
+
+
+class InvalidClaimEmail(AccountError):
+    code = "invalid_claim_email"
 
 
 class InvalidCredentials(AccountError):
@@ -151,6 +156,11 @@ def normalize_email(email: str) -> str:
 
 def is_temporary_email(email: str) -> bool:
     return normalize_email(email).endswith(f"@{TEMPORARY_EMAIL_DOMAIN}")
+
+
+def is_valid_claim_email(email: str) -> bool:
+    normalized = normalize_email(email)
+    return bool(re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", normalized))
 
 
 def _identifier(prefix: str) -> str:
@@ -502,7 +512,11 @@ def current_user(connection: sa.Connection, *, user_id: str) -> CurrentUser:
         *row,
         provisional_profile=is_provisional_profile(connection, account_id=row.account_id),
         temporary_access=temporary_access,
-        claim_email=(str(claim_target.email_address) if claim_target is not None else None),
+        claim_email=(
+            str(claim_target.email_address)
+            if claim_target is not None and not is_temporary_email(str(claim_target.email_address))
+            else None
+        ),
     )
 
 
@@ -539,6 +553,7 @@ def claim_landing_access(
     *,
     user_id: str,
     password: str,
+    email: str | None,
     now: dt.datetime,
 ) -> LandingAccessClaim | None:
     """Replace a landing-only identity with its verified prospect address.
@@ -562,9 +577,16 @@ def claim_landing_access(
         return None
 
     target = _landing_claim_target(connection, account_id=row.account_id)
-    if target is None:
-        raise LandingAccessUnavailable("adresse du prospect introuvable")
-    normalized = normalize_email(target.email_address)
+    target_email = (
+        str(target.email_address)
+        if target is not None and not is_temporary_email(str(target.email_address))
+        else None
+    )
+    if target_email is None and not email:
+        raise LandingAccessUnavailable("adresse durable requise")
+    normalized = normalize_email(target_email or email or "")
+    if not is_valid_claim_email(normalized) or is_temporary_email(normalized):
+        raise InvalidClaimEmail("adresse temporaire interdite")
     existing = connection.scalar(
         sa.select(auth_user.c.user_id).where(
             auth_user.c.email_normalized == normalized,
@@ -590,8 +612,17 @@ def claim_landing_access(
     connection.execute(
         sa.update(account)
         .where(account.c.account_id == row.account_id)
-        .values(display_name=str(target.company_name).strip(), updated_at=now)
+        .values(
+            display_name=(
+                str(target.company_name).strip()
+                if target is not None
+                else normalized.partition("@")[0]
+            ),
+            updated_at=now,
+        )
     )
+    if target is None:
+        return None
     return LandingAccessClaim(
         account_id=row.account_id,
         email=normalized,

@@ -63,6 +63,9 @@ class ClaimAccessRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     password: Password
+    # `.test` is intentionally accepted for browser/API regression tests.
+    # Domain validity and the reserved landing domain are checked by the service.
+    email: str | None = Field(default=None, min_length=3, max_length=320)
 
 
 class InternalCapabilities(BaseModel):
@@ -218,6 +221,7 @@ def claim_access(
                 connection,
                 user_id=session.user_id,
                 password=payload.password,
+                email=str(payload.email) if payload.email is not None else None,
                 now=now,
             )
             user = service.current_user(connection, user_id=session.user_id)
@@ -236,6 +240,12 @@ def claim_access(
             409,
             error.code,
             "un compte utilise déjà cette adresse ; connectez-vous ou réinitialisez son mot de passe",
+        ) from error
+    except service.InvalidClaimEmail as error:
+        raise api_error(
+            422,
+            error.code,
+            "utilisez une adresse e-mail professionnelle durable",
         ) from error
     except service.LandingAccessUnavailable as error:
         raise api_error(

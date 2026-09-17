@@ -66,8 +66,11 @@ export const auth = {
   login: (payload: { email: string; password: string }) =>
     request<Me>('/auth/login', { method: 'POST', body: payload }),
 
-  claimAccess: (password: string) =>
-    request<Me>('/auth/claim-access', { method: 'POST', body: { password } }),
+  claimAccess: (password: string, email?: string) =>
+    request<Me>('/auth/claim-access', {
+      method: 'POST',
+      body: email ? { password, email } : { password },
+    }),
 
   logout: () => {
     notifySignOutStarted()
