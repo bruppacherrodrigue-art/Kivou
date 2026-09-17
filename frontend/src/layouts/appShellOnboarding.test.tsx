@@ -94,7 +94,7 @@ it.each([
 ])('retains the real provider for ready/provisional access ($onboarding_status/$provisional_profile)', async (me) => {
   const errors = renderRoute('/app/signals', me)
   await screen.findByRole('tab', { name: /^Nouveaux/ })
-  await screen.findByRole('heading', { name: 'Vous êtes à jour' })
+  await screen.findByRole('heading', { name: 'Nous surveillons Matériaux — Occitanie dans votre département' })
   expect(screen.getByTestId('onboarding-location')).toHaveTextContent('/app/signals')
   expect(document.querySelector('.dashboard-provider')).toBeInTheDocument()
   expect(callsTo('/signals', 'GET').length).toBeGreaterThan(0)

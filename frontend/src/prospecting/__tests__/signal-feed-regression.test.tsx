@@ -86,7 +86,7 @@ test('a complete provisional landing has no waiting row', async () => {
   expect(screen.queryByText('Vos prochains signaux arriveront ici')).not.toBeInTheDocument()
 })
 
-test('discovery shows the real 30-day volume and non-clickable locked rows', async () => {
+test('discovery shows the real 30-day volume and opens locked rows without exposing the holder', async () => {
   const locked = { ...LOCKED_ITEM, headline: 'Réfection du bardage métallique', holder_label: 'Titulaire réservé' as const }
   mockApi({
     ...BASE,
@@ -99,7 +99,7 @@ test('discovery shows the real 30-day volume and non-clickable locked rows', asy
   expect(await screen.findByText('20 marchés attribués correspondant à votre profil ces 30 jours')).toBeInTheDocument()
   const lockedRow = screen.getByText('Réfection du bardage métallique').closest('article')!
   expect(within(lockedRow).getByText('Titulaire réservé')).toBeInTheDocument()
-  expect(within(lockedRow).queryByRole('button')).not.toBeInTheDocument()
+  expect(within(lockedRow).getByRole('button', { name: 'Ouvrir : Réfection du bardage métallique' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: '7 autres marchés — voir les offres' })).toHaveAttribute('href', '/tarifs')
 })
 
