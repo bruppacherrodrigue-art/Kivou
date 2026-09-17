@@ -2,7 +2,7 @@ import { Bookmark, Check, LockKeyhole, RotateCcw, X } from 'lucide-react'
 import type { FeedItem, UnifiedStatus } from '../../api/types'
 import { useI18n } from '../../i18n'
 import { frenchDepartmentPhrase, visiblePlaceName } from '../../presentation/locationText'
-import { formatAmount, initials, signalClock, signalPlace, signalTitle } from '../adapters'
+import { formatAmount, initials, landingFeedTitle, signalClock, signalPlace, signalTitle } from '../adapters'
 import { useSignalActions } from '../useSignalActions'
 import styles from '../Prospecting.module.css'
 
@@ -14,7 +14,8 @@ export function SignalListRow({ item, onOpen }: { item: FeedItem; onOpen: () => 
   const fr = locale === 'fr'
   const actions = useSignalActions(item.locked ? null : item)
   const status = actions.status ?? item.status
-  const title = item.locked ? item.headline : signalTitle(item)
+  const rawTitle = item.locked ? item.headline : signalTitle(item)
+  const title = item.locked && item.landing_example_holder ? landingFeedTitle(rawTitle) : rawTitle
   const money = item.locked ? item.teaser.amount?.currency ? { value: item.teaser.amount.value, currency: item.teaser.amount.currency } : null : item.contract.amount
   const clock = item.locked ? {
     label: item.teaser.date_kind === 'award'

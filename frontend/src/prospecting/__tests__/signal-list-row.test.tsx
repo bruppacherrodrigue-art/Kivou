@@ -113,6 +113,15 @@ test('locked rows distinguish an award date from a publication fallback', async 
   expect(screen.getByText(/Publié le/)).toBeInTheDocument()
 })
 
+test('landing rows use the relevant lot instead of the raw INX notice wording', async () => {
+  mockApi(BASE)
+  const raw = 'INX La présente consultation concerne la construction d’une patinoire communautaire\n - Bardage, Façade'
+  renderSignal(<SignalListRow item={{ ...LOCKED_ITEM, headline: raw, landing_example_holder: 'Boussiquet' }} onOpen={vi.fn()} />)
+  await ready()
+  expect(screen.getByRole('button', { name: 'Ouvrir : Bardage, Façade — patinoire communautaire' })).toBeInTheDocument()
+  expect(screen.queryByText(/INX La présente consultation/)).not.toBeInTheDocument()
+})
+
 test.each(['saved', 'contacted', 'ignored'] as UnifiedStatus[])('offers an explicit reversible action for the %s status', async (status) => {
   mockApi(BASE)
   renderSignal(<SignalListRow item={item({ status })} onOpen={vi.fn()} />)

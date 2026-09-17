@@ -47,6 +47,18 @@ export function signalTitle(item: ProspectingSignal): string {
   return item.notice_facts?.title || item.factual_display.object_short || item.contract.lot_title || item.contract.title || item.factual_display.headline
 }
 
+export function landingFeedTitle(value: string): string {
+  const withNewlines = value.replace(/\\n/g, '\n')
+  const inx = withNewlines.match(/^INX\s+La présente consultation concerne\s+(.+?)(?:\r?\n\s*-\s*|\s+-\s+)([^\n]+)$/i)
+  if (!inx) return withNewlines.replace(/\s+/g, ' ').trim()
+  const procedure = inx[1]
+    .replace(/^(?:la\s+)?construction d['’](?:un|une)\s+/i, '')
+    .replace(/^(?:la|le|les)\s+/i, '')
+    .replace(/[.\s]+$/, '')
+  const lot = inx[2].replace(/\s+/g, ' ').replace(/[.\s]+$/, '').trim()
+  return `${lot} — ${procedure}`
+}
+
 export function signalClock(item: ProspectingSignal, locale: Locale): { label: string; value: string | null } {
   const dates = item.contract.dates
   if (dates.award) return { label: locale === 'fr' ? 'Attribué le' : 'Awarded on', value: dates.award }
