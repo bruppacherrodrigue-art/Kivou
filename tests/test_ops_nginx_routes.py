@@ -19,6 +19,8 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("POST", "/unsubscribe/{token}"),
         ("GET", "/account/export"),
         ("POST", "/auth/claim-access"),
+        ("POST", "/auth/discovery-preview"),
+        ("GET", "/auth/discovery-preview/options"),
         ("POST", "/auth/login"),
         ("POST", "/auth/logout"),
         ("POST", "/auth/password-reset/confirm"),
