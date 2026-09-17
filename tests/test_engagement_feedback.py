@@ -26,6 +26,7 @@ from engagement_helpers import (
     make_app,
     make_engine,
     pay,
+    reconcile_discovery,
     seed,
     signed_up,
 )
@@ -342,7 +343,8 @@ def test_a_locked_discovery_teaser_cannot_receive_feedback(alice, engine):
 
 def test_an_unlocked_discovery_grant_can_receive_feedback(alice, engine):
     icp = icp_of(alice)
-    seed(engine, icp, count=5)
+    keys = seed(engine, icp, count=5)
+    assert len(reconcile_discovery(engine, alice, signal_keys=keys)) == 3
     items = alice.get("/signals?limit=50").json()["items"]
     unlocked = next(item["signal_id"] for item in items if not item["locked"])
 

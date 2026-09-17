@@ -35,6 +35,7 @@ from engagement_helpers import (
     make_app,
     make_engine,
     pay,
+    reconcile_discovery,
     seed,
     seed_rich,
     signed_up,
@@ -291,8 +292,8 @@ def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@ne
 def test_a_discovery_account_receives_one_signal_without_extra_prose(app, engine, mailer):
     client = signed_up(app)
     icp = icp_of(client)
-    seed(engine, icp, count=5)
-    assert client.get("/signals").status_code == 200
+    keys = seed(engine, icp, count=5)
+    assert len(reconcile_discovery(engine, client, signal_keys=keys)) == 3
 
     report = cycle(engine, mailer)
     assert len(mailer.sent) == 1

@@ -27,6 +27,12 @@ function TodayDashboard() {
   const selected = new URLSearchParams(location.search).get('signal')
   const replies = useProspectingResource('today-replies', (signal) => companies.list({ ...p.query, contact_status: ['replied'], sort: 'recent', limit: 3 }, { signal }))
   const data = resource.data
+  const discoveryPending = Boolean(data?.plan.code === 'discovery' && data.plan.quota != null && data.plan.assigned != null && data.plan.assigned < data.plan.quota)
+  const discoveryProgress = data?.plan.code === 'discovery' && data.plan.quota != null && data.plan.assigned != null
+    ? data.plan.assigned === 0
+      ? (fr ? `Vos ${number(data.plan.quota)} signaux sont en préparation. Kivou sélectionne les meilleures opportunités disponibles.` : `Your ${number(data.plan.quota)} signals are being prepared. Kivou is selecting the best available opportunities.`)
+      : (fr ? `${number(data.plan.assigned)} de vos ${number(data.plan.quota)} signaux ${data.plan.assigned === 1 ? 'est disponible' : 'sont disponibles'}. Kivou prépare ${data.plan.remaining === 1 ? 'le suivant' : 'les suivants'}.` : `${number(data.plan.assigned)} of your ${number(data.plan.quota)} signals ${data.plan.assigned === 1 ? 'is' : 'are'} available. Kivou is preparing ${data.plan.remaining === 1 ? 'the next one' : 'the remaining signals'}.`)
+    : null
   const link = (path: string, additions: Record<string, string> = {}) => {
     const params = new URLSearchParams(location.search)
     params.delete('signal'); params.delete('presentation_artifact_id'); params.delete('cursor')
@@ -46,7 +52,8 @@ function TodayDashboard() {
       <div className={styles.sectionHeading}><h2>{fr ? 'Vos priorités commerciales' : 'Your sales priorities'}</h2><Link className={styles.textButton} to={link('/app/signals')}>{fr ? 'Tous les signaux' : 'All signals'} <ArrowRight aria-hidden="true" /></Link></div>
       <section className={styles.panel} aria-label={fr ? 'Signaux prioritaires' : 'Priority signals'}>
         {data.top3.length > 0 ? data.top3.map((item) => <SignalListRow key={item.signal_id} item={item} onOpen={() => openSignal(item.signal_id, item.presentation?.artifact_id)} />)
-          : <div className={styles.empty}><Sparkles aria-hidden="true" /><h3>{fr ? 'Vous êtes à jour' : 'You’re up to date'}</h3><p>{fr ? 'C’est le moment de reprendre vos échanges ou d’explorer de nouvelles entreprises.' : 'Now is a good time to follow up or explore new companies.'}</p><Link className={styles.soft} to={link('/app/signals', { status: 'saved' })}>{fr ? 'Reprendre mes signaux sauvegardés' : 'Return to saved signals'}</Link></div>}
+          : !discoveryPending && <div className={styles.empty}><Sparkles aria-hidden="true" /><h3>{fr ? 'Vous êtes à jour' : 'You’re up to date'}</h3><p>{fr ? 'C’est le moment de reprendre vos échanges ou d’explorer de nouvelles entreprises.' : 'Now is a good time to follow up or explore new companies.'}</p><Link className={styles.soft} to={link('/app/signals', { status: 'saved' })}>{fr ? 'Reprendre mes signaux sauvegardés' : 'Return to saved signals'}</Link></div>}
+        {discoveryPending && discoveryProgress && <div className={styles.waitingRow} role="status"><span className={styles.waitingDot} aria-hidden="true" /><span>{discoveryProgress}</span></div>}
       </section>
       <div className={styles.sectionHeading} style={{ marginTop: 32 }}><h2>{fr ? 'Faites avancer vos échanges' : 'Move your conversations forward'}</h2><Link className={styles.textButton} to={link('/app/companies')}>{fr ? 'Ma prospection' : 'My prospects'} <ArrowRight aria-hidden="true" /></Link></div>
       <div className={styles.followupGrid}>

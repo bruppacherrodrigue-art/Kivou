@@ -24,6 +24,7 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from billing_helpers import FakeStripe, subscribe
+from engagement_helpers import reconcile_discovery
 from fastapi.testclient import TestClient
 from feed_helpers import (
     COMPLETE_ICP_INPUT,
@@ -240,11 +241,11 @@ def test_a_discovery_granted_signal_never_produces_a_payment_recommendation(
 ):
     """Un cadeau ne se reprend pas parce qu'il a vieilli — ni ne se refacture."""
     icp = icp_of(alice)
-    # La file d'attente des déblocages est TOUJOURS le feed par défaut : un
-    # signal déjà ancien n'y figure pas et ne serait jamais offert. Le cadeau
-    # se fait donc quand le signal est frais — c'est ensuite qu'il vieillit.
+    # Cette fixture matérialise directement après l'activation et contourne le
+    # hook d'ingestion. Rejouer explicitement ce hook, puis laisser vieillir le
+    # signal, prouve qu'un grant permanent n'est jamais repris ni refacturé.
     signal = a_signal(engine, icp, award_date=RECENT_AWARD_DATE)
-    assert alice.get("/signals").status_code == 200
+    assert reconcile_discovery(engine, alice, signal_keys=(signal,)) == (signal,)
     assert detail(alice, signal)["locked"] is False, "le premier signal est offert"
 
     clock.move_to(NOW.date() + dt.timedelta(days=2_000))

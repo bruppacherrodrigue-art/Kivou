@@ -638,7 +638,7 @@ export const en: Dictionary = {
         remainingOne: '{count} unlock left',
         remainingOther: '{count} unlocks left',
         permanent: 'These unlocks are yours for good. They do not renew and they do not expire.',
-        noneYet: 'No eligible signal has been unlocked yet. As soon as one matches your profile, it will be opened to you.',
+        noneYet: 'Your signals are being prepared. Kivou is selecting the best opportunities already available for your profile.',
         lockedRest: 'The other opportunities in your stream stay locked.',
         seePlans: 'See plans'
     },

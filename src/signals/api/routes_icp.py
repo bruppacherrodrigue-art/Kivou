@@ -20,6 +20,7 @@ from signals.accounts import service
 from signals.accounts.icp_input import TargetIcpInput
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
+from signals.billing import discovery
 from signals.billing import service as billing_service
 from signals.domain.cpv_labels import cpv_divisions
 from signals.domain.subdivisions import FRENCH_DEPARTMENTS, SWISS_CANTONS
@@ -190,6 +191,13 @@ def create_target_icp(payload: TargetIcpCreate, request: Request) -> TargetIcpRe
             as_of=now.date(),
             materialized_at=now,
         )
+        if stored.status == "active":
+            discovery.reconcile_initial_backfill(
+                connection,
+                account_id=session.account_id,
+                as_of=now.date(),
+                now=now,
+            )
         request.app.state.conversion_milestone_service.observe_activation_in_transaction(
             connection, account_id=session.account_id, observed_at=now
         )
@@ -288,6 +296,18 @@ def update_target_icp(
                 target_icp_id=stored.target_icp_id,
                 as_of=now.date(),
                 materialized_at=now,
+            )
+        # A profile edit must not rescan the existing corpus and manufacture a
+        # fresh Discovery allocation. The historical scan runs at the first
+        # activation; later acquisitions fill any remaining lifetime slots.
+        # Prospect landings are active provisionally, so their confirmation is
+        # the one active-to-active transition that still counts as activation.
+        if stored.status == "active" and (previous.status != "active" or was_provisional):
+            discovery.reconcile_initial_backfill(
+                connection,
+                account_id=session.account_id,
+                as_of=now.date(),
+                now=now,
             )
         request.app.state.conversion_milestone_service.observe_activation_in_transaction(
             connection, account_id=session.account_id, observed_at=now

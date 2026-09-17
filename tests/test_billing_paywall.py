@@ -36,6 +36,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.billing import discovery
 from signals.billing.schema import discovery_signal_grant
 from signals.persistence.schema import contract_award, materialized_signal
 
@@ -116,7 +117,14 @@ def account_of(client: TestClient) -> str:
 
 
 def seed(engine, icp: str, *, count: int) -> list[str]:
-    """`count` signaux réels, tous `recent_award` à la date de lecture."""
+    """`count` signaux réels et explicitement éligibles au test de paywall.
+
+    Les avis SIMAP couvrent plusieurs métiers et le profil de référence de
+    ces tests n'est pas leur objet. Certains sortent donc légitimement du
+    moteur avec ``insufficient_data``. Le backfill Discovery exige désormais
+    une décision ``show`` ; cette fabrique neutralise seulement cette dimension
+    pour que la suite continue de tester le verrouillage, pas le matching.
+    """
     keys = []
     with engine.begin() as connection:
         for index in range(count):
@@ -124,11 +132,35 @@ def seed(engine, icp: str, *, count: int) -> list[str]:
             award = awards[0].model_copy(
                 update={"award_date": AWARDED_FROM - dt.timedelta(days=index)}
             )
-            keys.append(materialize(connection, event, award, target_icp_id=icp).signal_key)
+            signal_key = materialize(connection, event, award, target_icp_id=icp).signal_key
+            mark_eligible(connection, signal_key)
+            keys.append(signal_key)
     return keys
 
 
+def mark_eligible(connection: sa.Connection, signal_key: str) -> None:
+    connection.execute(
+        sa.update(materialized_signal)
+        .where(materialized_signal.c.signal_key == signal_key)
+        .values(
+            icp_match_decision="show",
+            icp_match_band="strong",
+            icp_match_normalized_score=100,
+        )
+    )
+
+
 def feed(client: TestClient, **params) -> dict:
+    # These paywall tests materialize directly, bypassing the production
+    # ingestion hook that completes a Discovery allocation. Invoke that hook
+    # explicitly so the HTTP GET remains side-effect free in production.
+    with client.app.state.engine.begin() as connection:
+        discovery.reconcile_initial_backfill(
+            connection,
+            account_id=account_of(client),
+            as_of=READ_ON,
+            now=NOW,
+        )
     query = "&".join(f"{name}={value}" for name, value in params.items())
     response = client.get(f"/signals?{query}" if query else "/signals")
     assert response.status_code == 200, response.text
@@ -160,13 +192,21 @@ def test_a_discovery_account_unlocks_exactly_three_signals(alice, engine):
     assert len(unlocked) == 3
 
 
-def test_the_three_unlocked_signals_are_the_first_of_the_default_ordering(alice, engine):
+def test_the_three_unlocked_signals_follow_the_deterministic_backfill_ranking(
+    alice, engine
+):
     icp = icp_of(alice)
     expected = seed(engine, icp, count=7)
+    with engine.connect() as connection:
+        ranked = discovery.preview_initial_backfill(
+            connection,
+            account_id=account_of(alice),
+            as_of=READ_ON,
+        ).proposed_signal_keys
 
     items = feed(alice, limit=50)["items"]
     unlocked = [item["signal_id"] for item in items if not item["locked"]]
-    assert unlocked == [item["signal_id"] for item in items[:3]]
+    assert set(unlocked) == set(ranked)
     assert set(unlocked) <= set(expected)
 
 
@@ -208,12 +248,13 @@ def test_the_remaining_slots_fill_later_when_new_signals_appear(alice, engine, c
     with engine.begin() as connection:
         for name in ("33885-03", "34794-02"):
             event, awards = simap_award(name)
-            materialize(
+            signal = materialize(
                 connection,
                 event,
                 awards[0].model_copy(update={"award_date": AWARDED_FROM}),
                 target_icp_id=icp,
             )
+            mark_eligible(connection, signal.signal_key)
     unlocked = [item for item in feed(alice, limit=50)["items"] if not item["locked"]]
     assert len(unlocked) == 3
     assert alice.get("/billing/status").json()["discovery"]["remaining_slots"] == 0

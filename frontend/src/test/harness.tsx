@@ -142,7 +142,7 @@ export const DASHBOARD: DashboardResponse = {
   week: { new: 0, saved: 0, contacted: 0, replied: 0 },
   scan_truncated: false,
   profile: { name: 'Matériaux — Occitanie', sector_label: 'Matériaux', zone_labels: ['Occitanie'] },
-  plan: { name: 'Découverte', opened: 0, quota: 5, period_end: '2026-09-30T23:59:59Z' },
+  plan: { code: 'discovery', name: 'Découverte', assigned: 0, opened_this_month: null, quota: 3, remaining: 3, availability: 'preparing', period_end: '2026-09-30T23:59:59Z' },
 }
 export const UNAUTHENTICATED: SessionState = {
   status: 'unauthenticated',

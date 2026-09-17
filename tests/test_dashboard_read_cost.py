@@ -203,8 +203,12 @@ def test_discovery_keeps_independent_activity_truncation(historical_account, mon
     assert expected["to_follow_up"] == []
     calls = _record_feed_calls(monkeypatch)
     assert _read(client, profile) == expected
-    assert calls[-1] == ("all", None)
-    assert len(calls) == 3
+    assert calls == [
+        ("new", None),
+        ("all", None),
+        ("all", NOW.date() - dt.timedelta(days=7)),
+        ("all", None),
+    ]
 
 
 def test_other_accounts_activity_does_not_trigger_an_empty_scope_scan(

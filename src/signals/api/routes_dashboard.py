@@ -127,6 +127,7 @@ def get_dashboard(
         billing_state = billing.billing_state(connection, account_id=session.account_id)
         grants = discovery.grants(connection, account_id=session.account_id)
         entitlements = catalogue.entitlements_for(billing_state.plan_code)
+        discovery_plan = billing_state.plan_code == "discovery"
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         paid_opened = (
             connection.scalar(
@@ -158,9 +159,25 @@ def get_dashboard(
             else None
         )
         result["plan"] = {
+            "code": billing_state.plan_code,
             "name": _PLAN_NAMES.get(billing_state.plan_code, billing_state.plan_code),
-            "opened": len(grants) if billing_state.plan_code == "discovery" else paid_opened,
+            "assigned": len(grants) if discovery_plan else None,
+            "opened_this_month": None if discovery_plan else paid_opened,
             "quota": entitlements.granted_signals or None,
+            "remaining": discovery.remaining_slots(
+                connection, account_id=session.account_id
+            )
+            if discovery_plan
+            else None,
+            "availability": (
+                "complete"
+                if len(grants) >= (entitlements.granted_signals or 0)
+                else "partial"
+                if grants
+                else "preparing"
+            )
+            if discovery_plan
+            else None,
             "period_end": (
                 billing_state.current_period_end.isoformat()
                 if billing_state.current_period_end is not None

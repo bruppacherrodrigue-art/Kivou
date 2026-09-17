@@ -20,7 +20,9 @@ from feed_helpers import (
 
 from signals.alerts.gateway import AlertDeliveryError, AlertMessage, DeliveryResult
 from signals.api import ApiConfig, create_app
+from signals.billing import discovery
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import materialized_signal
 
 READ_ON = dt.date(2026, 8, 25)
 NOW = dt.datetime.combine(READ_ON, dt.time(9, 0), tzinfo=dt.UTC)
@@ -134,6 +136,40 @@ def signed_up(app, email: str = "alice@negoce-romand.ch", locale: str = "fr") ->
 
 def account_of(client: TestClient) -> str:
     return client.get("/me").json()["account_id"]
+
+
+def reconcile_discovery(
+    engine,
+    client: TestClient,
+    *,
+    signal_keys: tuple[str, ...] | list[str],
+    now: dt.datetime = NOW,
+) -> tuple[str, ...]:
+    """Simulate post-ingestion reconciliation for access-focused fixtures.
+
+    These suites exercise access, alerts and engagement rather than matching.
+    Their cross-trade SIMAP fixtures legitimately materialize as
+    ``insufficient_data``; make only the supplied rows eligible so the tests do
+    not weaken Discovery's production relevance gate.
+    """
+
+    account_id = account_of(client)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key.in_(signal_keys))
+            .values(
+                icp_match_decision="show",
+                icp_match_band="strong",
+                icp_match_normalized_score=100,
+            )
+        )
+        return discovery.reconcile_initial_backfill(
+            connection,
+            account_id=account_id,
+            as_of=now.date(),
+            now=now,
+        )
 
 
 def icp_of(client: TestClient, label: str = "Intrants") -> str:
