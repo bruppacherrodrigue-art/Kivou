@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from signals.conversion.token import AttributionTokenKeyring
 
 _DOMAIN = b"kivou:qa-attribution:v1\0"
+_PRODUCT_ATTRIBUTION_ORIGIN = "https://kivou.eu/a"
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
 
 
@@ -72,6 +73,12 @@ def issue(payload: QaTokenPayload, *, keyring: AttributionTokenKeyring) -> str:
     return f"{signed}.{_b64(signature)}"
 
 
+def issue_url(payload: QaTokenPayload, *, keyring: AttributionTokenKeyring) -> str:
+    """Mint the canonical product URL for a QA landing token."""
+
+    return f"{_PRODUCT_ATTRIBUTION_ORIGIN}/{issue(payload, keyring=keyring)}"
+
+
 def verify(
     raw: str, *, keyring: AttributionTokenKeyring, at: dt.datetime
 ) -> QaTokenPayload:
@@ -97,4 +104,4 @@ def fingerprint(raw: str) -> str:
     return hashlib.sha256(_DOMAIN + raw.encode("ascii")).hexdigest()
 
 
-__all__ = ["QaTokenPayload", "fingerprint", "issue", "verify"]
+__all__ = ["QaTokenPayload", "fingerprint", "issue", "issue_url", "verify"]

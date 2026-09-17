@@ -793,6 +793,53 @@ class ProspectionActions:
             if self._suppression_checker is None:
                 raise RuntimeError("prospection suppression dependencies are not configured")
 
+        def prepare_target(
+            connection: sa.Connection, row: dict[str, object], issued_at: dt.datetime
+        ) -> dict[str, object]:
+            link = self._link_issuer.issue(
+                row=row,
+                email=str(row["email_address"]),
+                at=issued_at,
+            )
+            values: dict[str, object] = {
+                "attribution_url": link.url,
+                "attribution_member_ref": link.member_ref,
+                "attribution_payload": link.payload,
+                "attribution_token_fingerprint": link.token_fingerprint,
+                "updated_at": issued_at,
+                **_INVALIDATED_PROVIDER_BINDING,
+            }
+            if link.unsubscribe_url is not None:
+                values["unsubscribe_url"] = link.unsubscribe_url
+            render_row = {**row, **values}
+            render_row["signal_city"] = (
+                render_row.get("signal_location")
+                if render_row.get("signal_location") != render_row.get("signal_department")
+                else None
+            )
+            rendered = self._mail_renderer(render_row)
+            if rendered.contract_status != "passed":
+                raise ProspectionActionError(
+                    "MAIL_CONTRACT_FAILED",
+                    "le mail ne respecte pas le contrat de rendu",
+                    target_ids=(str(row["target_id"]),),
+                    status_code=422,
+                )
+            values.update(
+                mail_subject=rendered.subject,
+                mail_text=rendered.text,
+                mail_html=rendered.html,
+                mail_word_count=rendered.word_count,
+                mail_contract_status=rendered.contract_status,
+                mail_contract_failure=rendered.contract_failure,
+            )
+            connection.execute(
+                sa.update(prospect_target)
+                .where(prospect_target.c.target_id == row["target_id"])
+                .values(**values)
+            )
+            return {**row, **values}
+
         reservation = reserve_send(
             engine=self._engine,
             command=command,
@@ -807,6 +854,7 @@ class ProspectionActions:
             validate_live_directory_contact=self._validate_live_directory_contact,
             action_error=ProspectionActionError,
             before_reservation=before_reservation,
+            prepare_target=prepare_target,
         )
         if (
             reservation.existing is not None

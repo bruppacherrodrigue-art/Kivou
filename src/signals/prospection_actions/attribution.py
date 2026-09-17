@@ -10,6 +10,8 @@ from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.prospection_actions.service import IssuedProspectLink
 
+CANONICAL_PRODUCT_ORIGIN = "https://kivou.eu"
+
 
 class AttributionProspectLinkIssuer:
     def __init__(
@@ -27,6 +29,9 @@ class AttributionProspectLinkIssuer:
     def issue(
         self, *, row: dict[str, object], email: str, at: dt.datetime
     ) -> IssuedProspectLink:
+        opportunity_key = str(row.get("opportunity_key") or "").strip()
+        if not opportunity_key:
+            raise ValueError("opportunity_key is required for an attribution link")
         member_ref = semantic_fingerprint(
             {
                 "kind": "assisted-prospect-member-v1",
@@ -53,7 +58,7 @@ class AttributionProspectLinkIssuer:
             ),
             need_ref=family_key,
             need_version="supplier-families-v1",
-            opportunity_key=str(row["opportunity_key"]),
+            opportunity_key=opportunity_key,
             issued_at=at,
             expires_at=at + dt.timedelta(days=30),
         )
@@ -68,4 +73,4 @@ class AttributionProspectLinkIssuer:
         )
 
 
-__all__ = ["AttributionProspectLinkIssuer"]
+__all__ = ["CANONICAL_PRODUCT_ORIGIN", "AttributionProspectLinkIssuer"]

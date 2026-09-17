@@ -34,6 +34,7 @@ ErrorFactory = Callable[..., Exception]
 LockedRows = Callable[..., tuple[sa.RowMapping, ...]]
 DirectoryValidator = Callable[[dict[str, object], sa.RowMapping | None], None]
 SuppressionCheck = Callable[[sa.Connection, str, dt.datetime], bool]
+PrepareTarget = Callable[[sa.Connection, dict[str, object], dt.datetime], dict[str, object]]
 
 _POSTGRES_QUOTA_LOCK_NAMESPACE = 61_408
 
@@ -136,6 +137,7 @@ def reserve_send(
     validate_live_directory_contact: DirectoryValidator,
     action_error: ErrorFactory,
     before_reservation: Callable[[], None] | None = None,
+    prepare_target: PrepareTarget | None = None,
 ) -> SendReservation:
     """Atomically validate and reserve a complete batch, or return its existing request."""
     request_id = str(command.request_id)
@@ -219,6 +221,13 @@ def reserve_send(
                     "toutes les cibles doivent être validées",
                     target_ids=(target_id,),
                 )
+            if not str(row.get("opportunity_key") or "").strip():
+                raise action_error(
+                    "MISSING_OPPORTUNITY_KEY",
+                    "le signal promis doit avoir une opportunity_key",
+                    target_ids=(target_id,),
+                    status_code=422,
+                )
             if row["mail_contract_status"] != "passed":
                 raise action_error(
                     "MAIL_CONTRACT_FAILED",
@@ -276,6 +285,9 @@ def reserve_send(
                     target_ids=(target_id,),
                     status_code=422,
                 )
+
+        if prepare_target is not None:
+            target_rows = [prepare_target(connection, row, at) for row in target_rows]
 
         request_values: dict[str, object] = {
             "request_id": request_id,

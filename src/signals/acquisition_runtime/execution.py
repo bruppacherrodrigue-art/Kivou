@@ -109,7 +109,10 @@ from signals.model_runtime.config import routes_from_environment
 from signals.persistence.database import create_database_engine
 from signals.policy.contracts import AutonomyMode, PolicyControlSnapshot, Scope
 from signals.policy.store import PolicyStore
-from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
+from signals.prospection_actions.attribution import (
+    CANONICAL_PRODUCT_ORIGIN,
+    AttributionProspectLinkIssuer,
+)
 from signals.prospection_actions.preparation import ProspectPreparationService
 from signals.supervisor.contracts import SupervisorLimits
 from signals.supervisor.hermes import HermesSupervisorAdapter
@@ -597,6 +600,8 @@ def build_runtime_execution_composition(
 
     if allow_qa_provider_mutations and runtime_config.deployment.is_production:
         raise RuntimeExecutionConfigurationError("QA_PROVIDER_MUTATIONS_FORBIDDEN_IN_PRODUCTION")
+    if runtime_config.deployment.is_production and links.public_app_url != CANONICAL_PRODUCT_ORIGIN:
+        raise RuntimeExecutionConfigurationError("PRODUCT_ATTRIBUTION_ORIGIN_NOT_CANONICAL")
     now = clock()
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")

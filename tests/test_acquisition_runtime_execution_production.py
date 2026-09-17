@@ -397,6 +397,19 @@ def test_production_without_eligible_opportunity_fails_closed(
     assert "NO_ELIGIBLE_OPPORTUNITY" in str(error.value)
 
 
+def test_production_refuses_a_noncanonical_product_origin(production_arguments) -> None:
+    production_arguments["links"] = RuntimeLinkConfiguration(
+        public_app_url="https://staging.kivou.eu",
+        attribution_hmac_key=b"synthetic-attribution-key",
+        attribution_key_version="attribution-v1",
+    )
+
+    with pytest.raises(RuntimeExecutionConfigurationError) as error:
+        build_runtime_execution_composition(**production_arguments)
+
+    assert "PRODUCT_ATTRIBUTION_ORIGIN_NOT_CANONICAL" in str(error.value)
+
+
 def test_production_composition_uses_the_selected_opportunity(
     production_arguments, seeded_french_opportunity
 ) -> None:

@@ -300,6 +300,43 @@ def test_send_is_idempotent_and_persists_delivery_cost(sending) -> None:
     assert request["sent_count"] == 0
 
 
+def test_send_mints_a_fresh_signal_link_and_renders_the_exact_url(sending) -> None:
+    actions, provider, engine, _tmp = sending
+    approve(actions)
+
+    actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
+    with engine.connect() as connection:
+        target = connection.execute(sa.select(prospect_target)).mappings().one()
+
+    attribution_url = str(target["attribution_url"])
+    assert attribution_url == "https://kivou.eu/a/kat1.key.reissued.signature"
+    assert "https://kivou.eu/a/kat1.key.old.signature" not in target["mail_text"]
+    assert "https://kivou.eu/a/kat1.key.old.signature" not in target["mail_html"]
+    assert target["mail_text"].count(attribution_url) == 1
+    assert target["mail_html"].count(attribution_url) == 1
+    assert provider.calls == []
+
+
+def test_send_refuses_a_target_without_an_opportunity_key(sending) -> None:
+    actions, provider, engine, _tmp = sending
+    approve(actions)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == TARGET_ID)
+            .values(opportunity_key="")
+        )
+
+    with pytest.raises(ProspectionActionError) as caught:
+        actions.enqueue_send(command(), actor="rodrigue@kivou.eu")
+
+    assert caught.value.code == "MISSING_OPPORTUNITY_KEY"
+    assert caught.value.status_code == 422
+    assert provider.calls == []
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(prospect_send_request)) == 0
+
+
 def test_send_locks_batch_targets_then_directories_in_sorted_order_and_keeps_payload_order(
     sending,
 ) -> None:

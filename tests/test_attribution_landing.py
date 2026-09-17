@@ -345,6 +345,13 @@ def test_kqa1_and_kat1_share_the_provisional_product_landing(tmp_path) -> None:
             keys={"attribution-test-v1": TOKEN_SECRET},
         ),
     )
+    assert qa_token.issue_url(
+        payload,
+        keyring=AttributionTokenKeyring(
+            current_key_version="v1",
+            keys={"v1": TOKEN_SECRET},
+        ),
+    ).startswith("https://kivou.eu/a/kqa1.v1.")
     client = client_for(engine, service, now=CLICKED_AT)
 
     response = land(client, raw)

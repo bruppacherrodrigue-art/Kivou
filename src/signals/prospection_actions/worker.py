@@ -361,6 +361,14 @@ class ProspectSendWorker:
                 campaign_id=str(campaign_id or ""),
                 status=final_status,
             )
+        if not str(claim.target.get("opportunity_key") or "").strip():
+            return self._failed(
+                claim,
+                campaign_id="",
+                instantly_id="",
+                verification_status=None,
+                error_code="missing_opportunity_key",
+            )
         campaign_id = claim.request.get("provider_campaign_id") or claim.target.get(
             "provider_campaign_id"
         )

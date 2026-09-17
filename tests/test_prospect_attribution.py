@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from urllib.parse import urlsplit
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from test_assisted_prospect_preparation import NOW, seed_directory, signal
@@ -48,6 +49,7 @@ def test_assisted_link_is_email_bound_and_reconstructed_from_target(
     raw_token = urlsplit(row["attribution_url"]).path.removeprefix("/a/")
     verified = keyring.verify(raw_token, payload=payload, at=NOW + dt.timedelta(hours=1))
     assert prepared.prepared == 1
+    assert row["attribution_url"].startswith("https://kivou.eu/a/kat1.")
     assert verified.payload.opportunity_key == "boamp-2026-42"
     assert verified.payload.member_ref == row["attribution_member_ref"]
     assert row["email_address"] not in row["attribution_url"]
@@ -64,6 +66,29 @@ def test_assisted_link_is_email_bound_and_reconstructed_from_target(
     assert event["campaign_ref"] is None
     assert updated["clicked_at"].replace(tzinfo=dt.UTC) == NOW + dt.timedelta(hours=1)
     assert updated["delivery_status"] == "clicked"
+
+
+def test_assisted_link_refuses_a_missing_opportunity_key() -> None:
+    issuer = AttributionProspectLinkIssuer(
+        public_site_url="https://kivou.eu",
+        keyring=AttributionTokenKeyring(
+            current_key_version="current",
+            keys={"current": b"0123456789abcdef0123456789abcdef"},
+        ),
+    )
+
+    with pytest.raises(ValueError, match="opportunity_key"):
+        issuer.issue(
+            row={
+                "target_id": "target-1",
+                "family_key": "facade_cladding",
+                "acquisition_opportunity_id": "a" * 64,
+                "vertical": "building_envelope",
+                "opportunity_key": " ",
+            },
+            email="artisan@example.test",
+            at=NOW,
+        )
 
 
 def test_local_click_preserves_provider_click_and_terminal_delivery_state(

@@ -12,7 +12,10 @@ from signals.campaigns.runtime_webhook import load_instantly_webhook_runtime_con
 from signals.contact_discovery.deliverability import EmailMxVerifier
 from signals.conversion.token import AttributionTokenKeyring
 from signals.founder_api.acquisition_actions import FounderAcquisitionLauncher
-from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
+from signals.prospection_actions.attribution import (
+    CANONICAL_PRODUCT_ORIGIN,
+    AttributionProspectLinkIssuer,
+)
 from signals.prospection_actions.delivery import AssistedInstantlyDelivery
 from signals.prospection_actions.service import ProspectionActions
 from signals.prospection_actions.suppression import EmailSuppressionChecker
@@ -30,6 +33,8 @@ def build_prospection_actions(
     webhook = load_instantly_webhook_runtime_config(required=True)
     assert webhook is not None
     links = load_runtime_link_config()
+    if links.public_app_url != CANONICAL_PRODUCT_ORIGIN:
+        raise RuntimeError("l'URL produit canonique doit être https://kivou.eu")
     mailbox = connectivity.deployment.mailboxes[0]
     provider = HttpInstantlyProvider(
         api_key=connectivity.instantly_api_key.get_secret_value(),
@@ -39,7 +44,7 @@ def build_prospection_actions(
         engine,
         email_verifier=EmailMxVerifier(),
         link_issuer=AttributionProspectLinkIssuer(
-            public_site_url=links.public_app_url,
+            public_site_url=CANONICAL_PRODUCT_ORIGIN,
             keyring=AttributionTokenKeyring(
                 current_key_version=links.attribution_key_version,
                 keys={links.attribution_key_version: links.attribution_hmac_key},

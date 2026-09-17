@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 
 import pytest
 import sqlalchemy as sa
@@ -43,11 +44,13 @@ class LinkIssuer:
 
     def issue(self, *, row, email: str, at: dt.datetime) -> IssuedProspectLink:
         self.calls.append(email)
+        member_ref = hashlib.sha256(f"member:{email}".encode()).hexdigest()
+        token_fingerprint = hashlib.sha256(f"token:{email}".encode()).hexdigest()
         return IssuedProspectLink(
             url="https://kivou.eu/a/kat1.key.reissued.signature",
-            member_ref="b" * 64,
-            token_fingerprint="c" * 64,
-            payload={"member_ref": "b" * 64, "email_nonce": email, "issued_at": at.isoformat()},
+            member_ref=member_ref,
+            token_fingerprint=token_fingerprint,
+            payload={"member_ref": member_ref, "email_nonce": email, "issued_at": at.isoformat()},
         )
 
 

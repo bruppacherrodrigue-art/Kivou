@@ -129,6 +129,21 @@ def worker_fixture(migrated_sqlite_engine, tmp_path):
     return build
 
 
+def test_worker_fails_closed_before_provider_when_opportunity_key_disappears(
+    worker_fixture,
+) -> None:
+    worker, provider, engine = worker_fixture(verification_status=1)
+    with engine.begin() as connection:
+        connection.execute(sa.update(prospect_target).values(opportunity_key=""))
+
+    outcome = worker.run_once(worker_ref="worker-a", now=NOW)
+
+    assert outcome.status == "failed"
+    assert provider.create_campaign_calls == []
+    assert provider.create_lead_calls == []
+    assert send_item(engine)["error_code"] == "missing_opportunity_key"
+
+
 def test_worker_reads_pending_verification_once_and_reschedules(worker_fixture):
     worker, provider, engine = worker_fixture(verification_status=12)
 
