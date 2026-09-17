@@ -1,4 +1,4 @@
-import type { CompanyDossierResponse, CompanyPublicContact, Money, UnlockedFeedItem } from '../api/types'
+import type { CompanyDossierResponse, CompanyPublicContact, DirectoryCompany, Money, UnlockedFeedItem } from '../api/types'
 
 export interface NoticeDuration {
   value: string
@@ -41,6 +41,9 @@ export interface NoticeFacts {
 export type ProspectingSignal = UnlockedFeedItem & {
   notice_facts?: NoticeFacts | null
   commercial_context?: { reason: string; offer_category: string | null; zone_label?: string | null }
+  landing_demo?: boolean
+  landing_example_holder?: string
+  landing_directory?: DirectoryCompany
 }
 
 export type Dossier = CompanyDossierResponse

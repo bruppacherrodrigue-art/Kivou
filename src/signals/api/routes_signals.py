@@ -52,14 +52,17 @@ from signals.billing.access import (
     feed_access,
     filter_is_available,
 )
+from signals.billing.catalogue import entitlements_for
 from signals.card_intelligence.contracts import PublishedCardPresentation
 from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.client_value.capabilities import project_directory
 from signals.client_value.company_contacts import suppressed_notice_sirens
+from signals.client_value.company_identity import exact_french_siren
 from signals.client_value.company_name import normalize_holder_name
-from signals.client_value.directory import local_circuit
+from signals.client_value.directory import directory_company, local_circuit
 from signals.client_value.history import department_for_place, history_for_company
 from signals.client_value.notice_facts import load_award_notice_facts
 from signals.client_value.targeting import context_fingerprint, resolve_scope
@@ -621,6 +624,9 @@ def get_signal(
     circuit = ()
     landing_signal_key = None
     landing_mail_reason = None
+    landing_demo = False
+    landing_example_holder = None
+    landing_directory = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         landing = service.landing_signal(connection, account_id=session.account_id)
@@ -648,6 +654,20 @@ def get_signal(
             as_of=as_of,
             allowed_target_icp_ids=allowed,
         )
+        landing_item = (
+            query.owned_signal(
+                connection,
+                account_id=session.account_id,
+                signal_key=landing_signal_key,
+                as_of=as_of,
+                allowed_target_icp_ids=allowed,
+            )
+            if landing_signal_key is not None
+            else None
+        )
+        landing_demo = landing_signal_key == signal_key
+        if landing_item is not None and landing_item.display is not None:
+            landing_example_holder = normalize_holder_name(landing_item.display.name)
         consultation = resolve_scope(
             connection,
             account_id=session.account_id,
@@ -691,12 +711,15 @@ def get_signal(
                 )
                 if persisted_facts is not None:
                     notice_facts = project_notice_facts(
-                        persisted_facts, entitlements=access.entitlements,
+                        persisted_facts,
+                        entitlements=(
+                            entitlements_for("essential")
+                            if landing_demo
+                            else access.entitlements
+                        ),
                         suppressed_sirens=suppressed_notice_sirens(connection, (persisted_facts,)),
                     )
-                if signal_key in service.landing_signal_keys(
-                    connection, account_id=session.account_id
-                ):
+                if landing_demo:
                     service.mark_landing_step(
                         connection,
                         account_id=session.account_id,
@@ -746,6 +769,30 @@ def get_signal(
                 client_place = (
                     item.signal.award.client_location or item.signal.award.place_of_performance
                 )
+                if landing_demo and item.display is not None:
+                    identifier = (
+                        {
+                            "scheme": item.display.identifier_scheme,
+                            "value": item.display.identifier_value,
+                        }
+                        if item.display.identifier_scheme and item.display.identifier_value
+                        else None
+                    )
+                    siren = exact_french_siren(
+                        (identifier,) if identifier is not None else (),
+                        country=item.display.country,
+                    )
+                    landing_directory = directory_company(
+                        connection,
+                        siren=siren,
+                        legal_name=item.display.name,
+                        department=department_for_place(client_place),
+                        include_public_contact=True,
+                    )
+                    landing_directory = project_directory(
+                        landing_directory,
+                        entitlements=entitlements_for("essential"),
+                    )
                 place = client_place or {}
                 circuit = local_circuit(
                     connection,
@@ -770,6 +817,8 @@ def get_signal(
         locked["read_at"] = as_of.isoformat()
         locked["language"] = lang
         locked["scope"] = consultation.payload()
+        if landing_example_holder is not None:
+            locked["landing_example_holder"] = landing_example_holder
         return locked
 
     detail = view.signal_detail(
@@ -788,6 +837,11 @@ def get_signal(
     detail["status_revision"] = workflow.revision if workflow else 0
     detail["scope"] = consultation.payload()
     detail["outside_consultation_scope"] = not consultation.matches(item.signal)
+    detail["landing_demo"] = landing_demo
+    if landing_example_holder is not None:
+        detail["landing_example_holder"] = landing_example_holder
+    if landing_directory is not None:
+        detail["landing_directory"] = landing_directory
     if notice_facts is not None:
         detail["notice_facts"] = notice_facts
     if company_key is not None:

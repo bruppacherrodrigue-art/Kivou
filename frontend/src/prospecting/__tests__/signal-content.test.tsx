@@ -51,10 +51,19 @@ test('unknown holder guides the next action, and locked values are placeholders 
   expect(open).toHaveBeenCalledOnce()
   // Separate mounted view keeps the normal providers provided by renderApp.
   rerender(<div />)
-  renderApp(<HolderSummary name="GJG FONCIERE" href="/app/companies/cmp_2" lockedFields={['phone', 'workforce']} onUpgrade={open} />, { session: AUTHENTICATED })
-  expect(screen.getByRole('button', { name: 'Débloquer les données entreprise' })).toBeInTheDocument()
+  renderApp(<HolderSummary name="GJG FONCIERE" href="/app/companies/cmp_2" lockedFields={['phone', 'workforce']} lockedMessage="Comme pour Démo Bâtiment : dirigeant, téléphone, e-mail, historique des marchés." onUpgrade={open} />, { session: AUTHENTICATED })
+  expect(screen.getByText('Comme pour Démo Bâtiment : dirigeant, téléphone, e-mail, historique des marchés.')).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Voir les offres — 49 €/mois' })).toBeInTheDocument()
   expect(screen.queryByText('0492000000')).not.toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Trouver le bon interlocuteur' })).not.toBeInTheDocument()
+})
+
+test('complete landing demo displays the public director and contact data', () => {
+  renderApp(<HolderSummary name="Titulaire Démonstration" directory={{ siren: '562136036', name: 'Titulaire Démonstration', source: 'registre', removal_path: '/contact', fields_locked: false, available_fields: ['directors', 'phone', 'email', 'website'], director_display_name: 'Anna Egli', director_display_title: 'Présidente', phone: '04 76 00 00 00', published_email: 'contact@egli.example', website_url: 'https://egli.example/' }} />, { session: AUTHENTICATED })
+  expect(screen.getByText(/Anna Egli/)).toHaveTextContent('Dirigeant : Anna Egli · Présidente')
+  expect(screen.getByRole('link', { name: '04 76 00 00 00' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'contact@egli.example' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /offres/i })).not.toBeInTheDocument()
 })
 
 test('detail frame labels its modal and closes using its single close control', () => {

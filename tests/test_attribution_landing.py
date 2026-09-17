@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from test_assisted_prospect_preparation import seed_directory
 from test_assisted_prospect_preparation import signal as assisted_signal
 from test_conversion_attribution import NOW, prepared
+from test_saas_company_api import _insert_directory_company
 
 from signals.accounts import service as accounts
 from signals.accounts.schema import account, account_landing_signal, target_icp
@@ -42,6 +43,7 @@ from signals.persistence.schema import (
     opportunity_representation,
     prospect_target,
     source_event,
+    supplier_directory,
 )
 from signals.prospection_actions.attribution import AttributionProspectLinkIssuer
 from signals.prospection_actions.preparation import ProspectPreparationService
@@ -690,6 +692,101 @@ def test_landing_cohort_contains_the_bait_and_two_distinct_procedures(tmp_path) 
         "Construction d'une ossature bois",
         "Réfection de la couverture et de la zinguerie",
     }
+
+
+def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = family_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("timber-one", "Réfection de la charpente bois de l'école", "45261100", 3),
+            ("timber-two", "Construction d'une ossature bois", "45261100", 4),
+            ("timber-three", "Extension en structure bois", "45261100", 5),
+        ),
+    )
+    with engine.begin() as connection:
+        bait_awards = sa.select(opportunity_representation.c.award_key).where(
+            opportunity_representation.c.opportunity_key == token.payload.opportunity_key
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key.in_(bait_awards))
+            .values(
+                awardee_parties=[
+                    {
+                        "name": "Titulaire Démonstration",
+                        "members": [
+                            {
+                                "organization": {
+                                    "legal_name": "Titulaire Démonstration",
+                                    "identifiers": [
+                                        {"scheme": "SIREN", "value": "562136036"}
+                                    ],
+                                    "country": "FR",
+                                    "address": None,
+                                    "website": None,
+                                },
+                                "role": "sole",
+                            }
+                        ],
+                    }
+                ]
+            )
+        )
+        _insert_directory_company(
+            connection,
+            siren="562136036",
+            name="Titulaire Démonstration",
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "562136036")
+            .values(
+                director_display_name="Anna Egli",
+                director_source="registre",
+                director_observed_at=CLICKED_AT,
+                phone="04 76 00 00 00",
+                phone_source="site",
+                phone_observed_at=CLICKED_AT,
+                professional_email="contact@egli.example",
+                email_source="site",
+                email_evidence_url="https://egli.example/contact",
+                email_observed_at=CLICKED_AT,
+            )
+        )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    bait_key = response.headers["location"].removeprefix("/app/signals/")
+    items = client.get("/signals", params={"view": "history", "limit": 20}).json()["items"]
+    other_key = next(item["signal_id"] for item in items if not item["locked"] and item["signal_id"] != bait_key)
+    locked_key = next(item["signal_id"] for item in items if item["locked"])
+
+    other = client.get(f"/signals/{other_key}").json()
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(account_landing_signal.c.signal_opened_at)) is None
+    assert other["landing_demo"] is False
+    assert other["landing_example_holder"] == "Titulaire Démonstration"
+
+    bait = client.get(f"/signals/{bait_key}").json()
+    assert bait["landing_demo"] is True
+    assert bait["landing_example_holder"] == "Titulaire Démonstration"
+    assert bait["landing_directory"]["fields_locked"] is False
+    assert bait["landing_directory"]["director_display_name"] == "Anna Egli"
+    assert bait["landing_directory"]["phone"] == "04 76 00 00 00"
+    assert bait["landing_directory"]["published_email"] == "contact@egli.example"
+    with engine.connect() as connection:
+        opened_at = connection.scalar(sa.select(account_landing_signal.c.signal_opened_at))
+    assert opened_at is not None
+
+    assert client.get(f"/signals/{bait_key}").status_code == 200
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(account_landing_signal.c.signal_opened_at)) == opened_at
+
+    locked = client.get(f"/signals/{locked_key}").json()
+    assert locked["landing_example_holder"] == "Titulaire Démonstration"
 
 
 def test_landing_cohort_uses_a_neighbouring_family_in_the_same_department(tmp_path) -> None:

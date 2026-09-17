@@ -27,7 +27,7 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
   const resource = useProspectingResource('signal-detail', (signal) => signals.detail(signalKey, { ...p.query, presentation_artifact_id: artifact }, { signal }), { signalKey, artifact }, true, { allowWithoutScope: true })
   const detail = resource.data
   const item: ProspectingSignal | null = detail && !detail.locked ? detail : null
-  const holder = useProspectingResource('signal-holder', (signal) => companies.dossier(item!.company_key!, { signal }), { companyKey: item?.company_key ?? null }, !!item?.company_key, { scopeIndependent: true })
+  const holder = useProspectingResource('signal-holder', (signal) => companies.dossier(item!.company_key!, { signal }), { companyKey: item?.company_key ?? null }, !!item?.company_key && !item?.landing_demo, { scopeIndependent: true })
   const actions = useSignalActions(item)
   const enrichment = useCompanyEnrichment(holder.data, { initialLookup: holder.data?.contact_lookup, initialDirectoryEnrichment: holder.data?.directory_enrichment })
   const holderProfile = enrichment.dossier ?? holder.data
@@ -36,6 +36,9 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
   const status = actions.status ?? item?.status ?? 'new'
   const clock = item ? signalClock(item, locale) : null
   const companyHref = item?.company_key ? `/app/companies/${encodeURIComponent(item.company_key)}${location.search}` : null
+  const contactWall = item?.landing_example_holder
+    ? `${fr ? 'Comme pour' : 'As with'} ${item.landing_example_holder} : ${fr ? 'dirigeant, téléphone, e-mail, historique des marchés.' : 'director, phone, email and contract history.'}`
+    : undefined
   const action = (next: 'new' | 'saved' | 'ignored' | 'contacted') => { void actions.setStatus(next).catch(() => {}) }
   const busy = enrichment.state === 'requesting' || enrichment.state === 'polling'
   const enrichFeedback = <>
@@ -55,16 +58,16 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
     </> : undefined}>
     {resource.loading && <p className={styles.loading} role="status">{fr ? 'Chargement du signal…' : 'Loading signal…'}</p>}
     {resource.error != null && <div className={styles.error} role="alert"><p>{fr ? 'Ce signal ne peut pas être ouvert pour le moment.' : 'This signal cannot be opened right now.'}</p><button className={styles.button} onClick={resource.reload}>{fr ? 'Réessayer' : 'Retry'}</button></div>}
-    {detail?.locked && <section className={styles.empty}><h2>{fr ? 'Un marché pour votre prospection' : 'A contract for your prospecting'}</h2><p>{detail.headline}</p><button onClick={() => setUpgrade(true)} className={styles.primary}>{fr ? 'Voir mes possibilités d’accès' : 'View access options'}</button></section>}
-    {item && <SignalContent item={item} holder={<HolderSummary name={item.company.name ?? (fr ? 'Titulaire du marché' : 'Contract holder')} href={companyHref}
-      directory={holderProfile?.directory} loading={holder.loading && !!item.company_key} contacts={[
+    {detail?.locked && <section className={styles.empty}><h2>{fr ? 'Un marché pour votre prospection' : 'A contract for your prospecting'}</h2><p>{detail.headline}</p>{detail.landing_example_holder && <p>{fr ? `Comme pour ${detail.landing_example_holder} : dirigeant, téléphone, e-mail, historique des marchés.` : `As with ${detail.landing_example_holder}: director, phone, email and contract history.`}</p>}<button onClick={() => setUpgrade(true)} className={styles.primary}>{fr ? 'Voir les offres — 49 €/mois' : 'View plans — €49/month'}</button></section>}
+    {item && <SignalContent item={item} holder={<HolderSummary name={item.company.name ?? (fr ? 'Titulaire du marché' : 'Contract holder')} href={item.landing_demo ? null : companyHref}
+      directory={item.landing_directory ?? holderProfile?.directory} loading={!item.landing_demo && holder.loading && !!item.company_key} contacts={[
         ...(item.notice_facts?.contacts_locked ? [] : item.notice_facts?.contacts ?? []),
         ...(holderProfile?.capabilities.can_view_company_data && !holderProfile.contacts_locked ? holderProfile.public_contacts ?? [] : []),
       ]}
-      lockedFields={[...(item.notice_facts?.contacts_locked ? item.notice_facts.available_contact_fields : []), ...(holderProfile?.contacts_locked ? holderProfile.available_contact_fields ?? [] : []), ...(!holderProfile?.capabilities.can_view_company_data && holderProfile && 'available_fields' in holderProfile ? holderProfile.available_fields ?? [] : [])]} lookup={lookup}
-      onOpenCompany={companyHref ? () => navigate(companyHref) : undefined} onUpgrade={() => setUpgrade(true)}
+      lockedFields={item.landing_demo ? [] : [...(item.notice_facts?.contacts_locked ? item.notice_facts.available_contact_fields : []), ...(holderProfile?.contacts_locked ? holderProfile.available_contact_fields ?? [] : []), ...(!holderProfile?.capabilities.can_view_company_data && holderProfile && 'available_fields' in holderProfile ? holderProfile.available_fields ?? [] : [])]} lookup={item.landing_demo ? null : lookup}
+      onOpenCompany={!item.landing_demo && companyHref ? () => navigate(companyHref) : undefined} onUpgrade={() => setUpgrade(true)}
       onLookup={holderProfile?.capabilities.can_lookup_contact ? () => { void enrichment.startLookup().catch(() => {}) } : undefined}
-      onEnrich={holderProfile?.capabilities.can_enrich_company ? () => { void enrichment.startEnrichment().catch(() => {}) } : undefined} pending={busy} feedback={enrichFeedback} />}
+      onEnrich={holderProfile?.capabilities.can_enrich_company ? () => { void enrichment.startEnrichment().catch(() => {}) } : undefined} pending={busy} feedback={item.landing_demo ? undefined : enrichFeedback} lockedMessage={contactWall} />}
       notes={<NotesField store={p.noteStore} identity={{ accountId: p.accountId, kind: 'signal', entityId: item.signal_id }} />} />}
     {actions.error != null && <p className={styles.error} role="alert">{actions.conflict ? (fr ? 'Le statut a changé dans une autre fenêtre.' : 'The status changed in another window.') : (fr ? 'Le statut n’a pas pu être enregistré.' : 'The status could not be saved.')} <button className={styles.textButton} onClick={actions.reload}>{fr ? 'Actualiser' : 'Refresh'}</button></p>}
     {upgrade && <UpgradeDialog onClose={() => setUpgrade(false)} intent={{ kind: 'signal', signalKey, ...(artifact ? { artifactId: artifact } : {}) }} />}

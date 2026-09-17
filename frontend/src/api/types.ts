@@ -607,6 +607,9 @@ export type UnlockedDetail = UnlockedFeedItem & {
   read_at: string
   language: string
   interaction: Interaction | null
+  landing_demo?: boolean
+  landing_example_holder?: string
+  landing_directory?: DirectoryCompany
 }
 
 export type LockedDetail = LockedFeedItem & {
@@ -614,6 +617,7 @@ export type LockedDetail = LockedFeedItem & {
   access: { granted: false; reason: string; upgrade_to: PurchasablePlan[] }
   read_at: string
   language: string
+  landing_example_holder?: string
 }
 
 export type SignalDetail = UnlockedDetail | LockedDetail

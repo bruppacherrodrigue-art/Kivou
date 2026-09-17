@@ -9,12 +9,12 @@ import { DirectoryContactFacts, PublicContactFacts, distinctPublicContacts, usab
 import styles from '../Prospecting.module.css'
 
 export function HolderSummary({ name, href, directory, contacts = [], lookup, lockedFields = [], loading = false,
-  onOpenCompany, onUpgrade, onLookup, onEnrich, pending = false, feedback,
+  onOpenCompany, onUpgrade, onLookup, onEnrich, pending = false, feedback, lockedMessage,
 }: {
   name: string; href?: string | null; directory?: DirectoryCompany | null; contacts?: NoticeContact[];
   lookup?: CompanyContactLookup | null; lockedFields?: string[]; loading?: boolean;
   onOpenCompany?: () => void; onUpgrade?: () => void; onLookup?: () => void; onEnrich?: () => void;
-  pending?: boolean; feedback?: ReactNode;
+  pending?: boolean; feedback?: ReactNode; lockedMessage?: string;
 }) {
   const { locale, date, number } = useI18n()
   const fr = locale === 'fr'
@@ -23,9 +23,12 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
   const website = !directory?.fields_locked && (safeExternal(directory?.website_url) || safeExternal(lookup?.organization?.website_url))
   const people = lookup?.state === 'ready' ? lookup.contacts?.filter((person) => person.email_status === 'verified' && usableEmail(person.email)) ?? [] : []
   const sourceContacts = distinctPublicContacts(contacts)
-  const hasData = !!(phone || email || website || sourceContacts.length || people.length)
   const available = [...new Set([...(directory?.fields_locked ? directory.available_fields ?? [] : []), ...lockedFields])]
   const workforce = directory?.workforce
+  const director = directory?.director_display_name
+    ? { name: directory.director_display_name, title: directory.director_display_title }
+    : directory?.directors?.[0]
+  const hasData = !!(phone || email || website || director || sourceContacts.length || people.length)
   const employees = workforce ? workforce.precision === 'range' && workforce.minimum !== null
     ? `${number(workforce.minimum)}–${number(workforce.maximum)} ${fr ? 'salariés' : 'employees'}`
     : `${fr ? 'Environ' : 'About'} ${number(workforce.maximum)} ${fr ? 'salariés' : 'employees'}` : null
@@ -39,12 +42,13 @@ export function HolderSummary({ name, href, directory, contacts = [], lookup, lo
     {(directory?.naf_label || directory?.city || employees) && <p className={styles.holderSub}>{[directory?.naf_label, directory?.city, employees].filter(Boolean).join(' · ')}</p>}
     {loading && <p className={styles.muted} role="status">{fr ? 'Chargement des données entreprise…' : 'Loading company data…'}</p>}
     {(phone || email || website) && <DirectoryContactFacts directory={directory} lookup={lookup} />}
+    {director && <p className={styles.holderSub}><strong>{fr ? 'Dirigeant' : 'Director'} :</strong> {director.name}{director.title ? ` · ${director.title}` : ''}</p>}
     <PublicContactFacts contacts={sourceContacts} />
     {people.map((person) => <div key={person.email} className={styles.guide}><strong>{person.name}</strong><span className={styles.caption}>{person.title}</span><a className={styles.textButton} href={`mailto:${person.email}`}>{person.email}</a><small className={styles.caption}>{fr ? 'E-mail nominatif vérifié' : 'Verified personal business email'}</small></div>)}
     {available.length > 0 && <div className={styles.lockedData}>
       <div className={styles.lockedLines} aria-hidden="true">{available.map((field) => <span key={field} />)}</div>
-      <p className={styles.muted}>{fr ? 'Données disponibles : ' : 'Available data: '}{available.map(fieldLabel).join(' · ')}</p>
-      {onUpgrade && <button className={styles.soft} onClick={onUpgrade}><LockKeyhole aria-hidden="true" />{fr ? 'Débloquer les données entreprise' : 'Unlock company data'}</button>}
+      <p className={styles.muted}>{lockedMessage ?? <>{fr ? 'Données disponibles : ' : 'Available data: '}{available.map(fieldLabel).join(' · ')}</>}</p>
+      {onUpgrade && <button className={styles.soft} onClick={onUpgrade}><LockKeyhole aria-hidden="true" />{fr ? 'Voir les offres — 49 €/mois' : 'View plans — €49/month'}</button>}
     </div>}
     {!loading && !hasData && available.length === 0 && <div className={styles.guide}>
       <h4>{fr ? 'Trouver le bon interlocuteur' : 'Find the right contact'}</h4>
