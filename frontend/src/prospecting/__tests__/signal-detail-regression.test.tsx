@@ -2,7 +2,7 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 import type { RouteHandler } from '../../test/harness'
-import { CATALOGUE, COMPANY_PROFILE, DISCOVERY_STATUS, LOCKED_ITEM, callsTo, feedPage, mockApi } from '../../test/harness'
+import { AUTHENTICATED, CATALOGUE, COMPANY_PROFILE, DISCOVERY_STATUS, LOCKED_ITEM, ME, callsTo, feedPage, mockApi } from '../../test/harness'
 import { SignalContent } from '../components/SignalContent'
 import { BASE, DETAIL, SIGNAL, item, renderFeed, renderSignal, workflow } from './signal-regression-harness'
 
@@ -59,6 +59,60 @@ test('a reserved landing signal opens an Essential-only upgrade', async () => {
   await userEvent.click(within(dialog).getByRole('button', { name: 'Voir ce contact — 49 €/mois' }))
   expect(await screen.findByRole('heading', { name: 'Essentiel' })).toBeInTheDocument()
   expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+})
+
+test('all opened landing contacts require claim while the account is temporary', async () => {
+  const openedLanding = {
+    ...DETAIL,
+    company_key: null,
+    landing_demo: false,
+    landing_example_holder: 'Boussiquet',
+    landing_directory: {
+      siren: '562136036', name: 'Nebihu', source: 'registre', removal_path: '/contact',
+      fields_locked: false, available_fields: ['directors', 'phone', 'email', 'website'],
+      director_display_name: 'Anna Egli', director_display_title: 'Présidente',
+      phone: '04 76 00 00 00', published_email: 'contact@nebihu.example',
+      website_url: 'https://nebihu.example/',
+    },
+  }
+  mockApi({ ...BASE, [`GET ${detailPath}`]: { body: openedLanding } })
+  const temporary = { status: 'authenticated' as const, me: { ...ME, email: 'landing+qa@landing.kivou.invalid', temporary_access: true } }
+  renderFeed(`/app/signals/${SIGNAL.signal_id}?target_icp_id=icp_1`, temporary)
+
+  const dialog = await opened()
+  expect(within(dialog).getByText('04 76 00 00 00')).toBeVisible()
+  expect(within(dialog).getByText('contact@nebihu.example')).toBeVisible()
+  expect(within(dialog).getByText('nebihu.example')).toBeVisible()
+  expect(within(dialog).queryByRole('link', { name: '04 76 00 00 00' })).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('link', { name: 'contact@nebihu.example' })).not.toBeInTheDocument()
+  expect(within(dialog).queryByRole('link', { name: /nebihu\.example/ })).not.toBeInTheDocument()
+  const claim = within(dialog).getByRole('button', { name: 'Créer mon accès pour appeler' })
+  expect(within(dialog).getAllByRole('button', { name: 'Créer mon accès pour appeler' })).toHaveLength(1)
+  await userEvent.click(claim)
+  expect(screen.getByTestId('signal-location')).toHaveTextContent('/app/create-access')
+})
+
+test('opened landing contacts become actionable after claim', async () => {
+  const openedLanding = {
+    ...DETAIL,
+    company_key: null,
+    landing_demo: false,
+    landing_example_holder: 'Boussiquet',
+    landing_directory: {
+      siren: '562136036', name: 'Chemolle', source: 'registre', removal_path: '/contact',
+      fields_locked: false, available_fields: ['phone', 'email', 'website'],
+      phone: '04 76 00 00 00', published_email: 'contact@chemolle.example',
+      website_url: 'https://chemolle.example/',
+    },
+  }
+  mockApi({ ...BASE, [`GET ${detailPath}`]: { body: openedLanding } })
+  renderFeed(`/app/signals/${SIGNAL.signal_id}?target_icp_id=icp_1`, AUTHENTICATED)
+
+  const dialog = await opened()
+  expect(within(dialog).getByRole('link', { name: '04 76 00 00 00' })).toHaveAttribute('href', 'tel:0476000000')
+  expect(within(dialog).getByRole('link', { name: 'contact@chemolle.example' })).toHaveAttribute('href', 'mailto:contact@chemolle.example')
+  expect(within(dialog).getByRole('link', { name: 'chemolle.example' })).toHaveAttribute('href', 'https://chemolle.example/')
+  expect(within(dialog).queryByRole('button', { name: 'Créer mon accès pour appeler' })).not.toBeInTheDocument()
 })
 
 test.each(['button', 'cancel'])('closing via %s preserves filters, replaces history and returns focus to the opener', async (method) => {

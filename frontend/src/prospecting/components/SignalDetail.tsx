@@ -68,7 +68,7 @@ export function SignalDetail({ signalKey, onClose }: { signalKey: string; onClos
       ]}
       lockedFields={item.landing_demo ? [] : [...(item.notice_facts?.contacts_locked ? item.notice_facts.available_contact_fields : []), ...(holderProfile?.contacts_locked ? holderProfile.available_contact_fields ?? [] : []), ...(!holderProfile?.capabilities.can_view_company_data && holderProfile && 'available_fields' in holderProfile ? holderProfile.available_fields ?? [] : [])]} lookup={item.landing_demo ? null : lookup}
       onOpenCompany={!item.landing_demo && companyHref ? () => navigate(companyHref) : undefined} onUpgrade={() => setUpgrade(true)}
-      claimRequired={Boolean(item.landing_demo && me.temporary_access)} onClaimAccess={() => navigate('/app/create-access', { state: { returnTo: `${location.pathname}${location.search}` } })}
+      claimRequired={Boolean(me.temporary_access && !item.locked)} onClaimAccess={() => navigate('/app/create-access', { state: { returnTo: `${location.pathname}${location.search}` } })}
       onLookup={holderProfile?.capabilities.can_lookup_contact ? () => { void enrichment.startLookup().catch(() => {}) } : undefined}
       onEnrich={holderProfile?.capabilities.can_enrich_company ? () => { void enrichment.startEnrichment().catch(() => {}) } : undefined} pending={busy} feedback={item.landing_demo ? undefined : enrichFeedback} lockedMessage={contactWall} />}
       notes={<NotesField store={p.noteStore} identity={{ accountId: p.accountId, kind: 'signal', entityId: item.signal_id }} />} />}

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Route, Routes, useLocation, useNavigationType } from 'react-router-dom'
 import type { UnifiedStatus, UnlockedFeedItem } from '../../api/types'
+import type { SessionState } from '../../auth/SessionProvider'
 import { SignalsFeed } from '../../pages/SignalsFeed'
 import { AUTHENTICATED, ICP, PRO_STATUS, UNLOCKED_DETAIL, UNLOCKED_ITEM, feedPage, renderApp } from '../../test/harness'
 import { ProspectingProvider, useProspecting } from '../ProspectingProvider'
@@ -35,9 +36,9 @@ export function renderSignal(ui: ReactNode, locale: 'fr' | 'en' = 'fr') {
   return renderApp(<ProspectingProvider><NavigationProbe />{ui}</ProspectingProvider>, { session: AUTHENTICATED, locale, route: '/app/signals?target_icp_id=icp_1' })
 }
 
-export function renderFeed(route = '/app/signals?target_icp_id=icp_1') {
+export function renderFeed(route = '/app/signals?target_icp_id=icp_1', session: SessionState = AUTHENTICATED) {
   return renderApp(<ProspectingProvider><NavigationProbe /><Routes>
     <Route path="/app/signals" element={<SignalsFeed />} />
     <Route path="/app/signals/:signalKey" element={<SignalsFeed />} />
-  </Routes></ProspectingProvider>, { session: AUTHENTICATED, route })
+  </Routes></ProspectingProvider>, { session, route })
 }
