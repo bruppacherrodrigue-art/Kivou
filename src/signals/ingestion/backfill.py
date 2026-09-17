@@ -405,6 +405,11 @@ def _landing_matches_selected_trade(
         for families in load_supplier_family_catalog().values()
         for family in families
     )
+    lot_title = award.lot.title if award.lot and award.lot.title else None
+    object_text = lot_title or " ".join(filter(None, (award.title, award.description)))
+    named = {family.key for family in families_named_in_object(object_text)}
+    if named == {selected_family_key}:
+        return True
     cpv_codes = tuple(
         str(value).replace("-", "")
         for value in (
@@ -425,10 +430,7 @@ def _landing_matches_selected_trade(
             key for length, key in cpv_matches if length == finest
         }
 
-    lot_title = award.lot.title if award.lot and award.lot.title else None
-    object_text = lot_title or " ".join(filter(None, (award.title, award.description)))
-    named = {family.key for family in families_named_in_object(object_text)}
-    return named == {selected_family_key}
+    return False
 
 
 def select_landing_opportunity_in_transaction(

@@ -1268,7 +1268,7 @@ def test_landing_cohort_does_not_fill_with_a_neighbouring_family(tmp_path) -> No
         engine,
         (
             ("roofing-only", "Réfection complète de la couverture", "45261210", 1),
-            ("timber-only", "Réfection de la charpente bois", "45261100", 2),
+            ("timber-only", "Réfection de la charpente bois", "45261920", 2),
         ),
     )
     client = client_for(engine, service, now=CLICKED_AT)
