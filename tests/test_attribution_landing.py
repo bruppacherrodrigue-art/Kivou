@@ -931,8 +931,8 @@ def test_bardage_landing_lists_only_relevant_trade_signals(tmp_path) -> None:
     pin_session_cookie(client, response)
     body = client.get("/signals", params={"view": "history", "limit": 20}).json()
 
-    assert len(body["items"]) == 4
-    assert body["profile_total_30d"] == 4
+    assert len(body["items"]) == 3
+    assert body["profile_total_30d"] == 3
     assert body["landing_cohort"] == {
         "signal_id": response.headers["location"].removeprefix("/app/signals/"),
         "expected": 3,
@@ -942,15 +942,7 @@ def test_bardage_landing_lists_only_relevant_trade_signals(tmp_path) -> None:
         item["signal_id"] for item in body["items"]
     }
     assert sum(item["locked"] is False for item in body["items"]) == 3
-    locked = next(item for item in body["items"] if item["locked"])
-    assert locked["headline"] == "Habillage métallique de façade"
-    assert locked["holder_label"] == "Titulaire réservé"
-    locked_detail = client.get(f"/signals/{locked['signal_id']}").json()
-    assert locked_detail["access"] == {
-        "granted": False,
-        "reason": "plan_entitlement_required",
-        "upgrade_to": ["essential"],
-    }
+    assert all(item["locked"] is False for item in body["items"])
     assert client.get("/billing/status").json()["discovery"] == {
         "granted_signal_count": 3,
         "remaining_slots": 0,
@@ -982,9 +974,64 @@ def test_bardage_landing_lists_only_relevant_trade_signals(tmp_path) -> None:
     assert active_titles == {
         "Bardage métallique du bâtiment communal",
         "Bardage, Façade — patinoire communautaire",
-        "Couverture métallique et zinguerie",
         "Habillage métallique de façade",
     }
+
+
+def test_landing_multilot_uses_the_lot_and_fine_cpv_not_the_notice_title(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = facade_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            (
+                "multilot-vestiaires",
+                "Patinoire : CHARPENTE BARDAGE COUVERTURE, vestiaires et espaces verts",
+                "45421000",
+                1,
+            ),
+            (
+                "multilot-bardage",
+                "Patinoire : CHARPENTE BARDAGE COUVERTURE, vestiaires et espaces verts",
+                "45443000",
+                2,
+            ),
+            (
+                "multilot-green",
+                "Patinoire : CHARPENTE BARDAGE COUVERTURE, vestiaires et espaces verts",
+                "45112710",
+                3,
+            ),
+        ),
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(source_event)
+            .where(source_event.c.event_key.like("manual:landing-neighbour-multilot-%"))
+            .values(source_procedure_id="landing-procedure-strict-multilot")
+        )
+        for suffix, lot_title in (
+            ("multilot-vestiaires", "Menuiseries intérieures et vestiaires"),
+            ("multilot-bardage", "Bardage, Façade"),
+            ("multilot-green", "Aménagement des espaces verts"),
+        ):
+            connection.execute(
+                sa.update(contract_award)
+                .where(contract_award.c.award_key == f"landing-award-{suffix}")
+                .values(lot_identifier=suffix, lot_title=lot_title)
+            )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert {item["headline"] for item in body["items"] if item["locked"]} == set()
+    assert {
+        item["contract"]["lot_title"] or item["contract"]["title"]
+        for item in body["items"]
+        if not item["locked"]
+    } == {"Bardage métallique du bâtiment communal", "Bardage, Façade"}
 
 
 def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> None:

@@ -5,8 +5,6 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import logging
-import re
-import unicodedata
 
 import sqlalchemy as sa
 
@@ -387,39 +385,50 @@ def _landing_families(prepared: dict[str, object]):
         return ()
 
 
-def _normalized_landing_object(prepared: dict[str, object]) -> str:
-    award = prepared["award"]
-    value = " ".join(filter(None, (award.title, award.description))).casefold()
-    folded = "".join(
-        character
-        for character in unicodedata.normalize("NFKD", value)
-        if not unicodedata.combining(character)
-    )
-    return " ".join(re.findall(r"[a-z0-9]+", folded))
-
-
 def _landing_matches_selected_trade(
     selected_family_key: str,
     candidate_family_keys: set[str],
     prepared: dict[str, object],
 ) -> bool:
-    if selected_family_key in candidate_family_keys:
-        return True
-    if selected_family_key != "facade_cladding":
-        return False
-    wording = f" {_normalized_landing_object(prepared)} "
-    return any(
-        term in wording
-        for term in (
-            " couverture metallique ",
-            " couverture en metal ",
-            " couverture acier ",
-            " bac acier ",
-            " zinguerie ",
-            " habillage metallique ",
-            " enveloppe metallique ",
-        )
+    """Match one acquisition family from facts belonging to this exact lot.
+
+    A notice title may enumerate every lot in a procedure.  Fine CPV codes are
+    therefore authoritative when they identify a catalog family, with the most
+    specific prefix winning where catalog prefixes overlap.  Wording is only a
+    fallback and must name one unambiguous family in the lot title itself.
+    """
+
+    del candidate_family_keys  # Kept in the signature for the two bounded callers.
+    award = prepared["award"]
+    catalog = tuple(
+        family
+        for families in load_supplier_family_catalog().values()
+        for family in families
     )
+    cpv_codes = tuple(
+        str(value).replace("-", "")
+        for value in (
+            award.cpv_main.code if award.cpv_main else None,
+            *(str(code) for code in award.cpv_additional),
+        )
+        if value
+    )
+    cpv_matches = tuple(
+        (len(prefix.replace("-", "")), family.key)
+        for family in catalog
+        for prefix in family.cpv_prefixes
+        if any(code.startswith(prefix.replace("-", "")) for code in cpv_codes)
+    )
+    if cpv_matches:
+        finest = max(length for length, _key in cpv_matches)
+        return selected_family_key in {
+            key for length, key in cpv_matches if length == finest
+        }
+
+    lot_title = award.lot.title if award.lot and award.lot.title else None
+    object_text = lot_title or " ".join(filter(None, (award.title, award.description)))
+    named = {family.key for family in families_named_in_object(object_text)}
+    return named == {selected_family_key}
 
 
 def select_landing_opportunity_in_transaction(
