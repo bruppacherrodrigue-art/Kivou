@@ -83,11 +83,11 @@ test('locked teasers contain no missing-currency amount, national aggregate or w
 
 test('locked rows offer access options without assuming a subscription is the solution', async () => {
   mockApi(BASE)
-  renderSignal(<SignalListRow item={LOCKED_ITEM} onOpen={vi.fn()} />)
+  renderSignal(<SignalListRow item={{ ...LOCKED_ITEM, landing_example_holder: 'Boussiquet' }} onOpen={vi.fn()} />)
   await ready()
   const row = screen.getByRole('article')
   expect(row).toHaveTextContent('dans la Haute-Garonne')
-  expect(row).toHaveTextContent('Découvrez les possibilités d’accès à ce signal.')
+  expect(row).toHaveTextContent('Comme pour Boussiquet : dirigeant, téléphone, e-mail, historique des marchés.')
   expect(row).not.toHaveTextContent(/abonnement/i)
 })
 

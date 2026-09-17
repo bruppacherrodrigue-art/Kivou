@@ -311,6 +311,18 @@ def list_signals(
                 limit=access.entitlements.max_active_icps,
             )
         )
+        landing_example_holder = None
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        if landing is not None:
+            landing_item = query.owned_signal(
+                connection,
+                account_id=session.account_id,
+                signal_key=landing.signal_key,
+                as_of=as_of,
+                allowed_target_icp_ids=allowed,
+            )
+            if landing_item is not None and landing_item.display is not None:
+                landing_example_holder = normalize_holder_name(landing_item.display.name)
         consultation = resolve_scope(
             connection,
             account_id=session.account_id,
@@ -489,6 +501,7 @@ def list_signals(
                     commercial_start_delay_months_by_cpv_prefix=(
                         request.app.state.config.commercial_start_delay_months_by_cpv_prefix
                     ),
+                    landing_example_holder=landing_example_holder,
                 ),
                 "status_revision": workflows[item.signal.signal_key].revision
                 if item.signal.signal_key in workflows
@@ -578,6 +591,7 @@ def _render(
     status: str,
     generated_for_you_enabled: bool,
     commercial_start_delay_months_by_cpv_prefix: Mapping[str, int],
+    landing_example_holder: str | None,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
@@ -593,7 +607,10 @@ def _render(
                 commercial_start_delay_months_by_cpv_prefix
             ),
         )
-    return paywall.locked_teaser(item, lang=lang, status=status)
+    locked = paywall.locked_teaser(item, lang=lang, status=status)
+    if landing_example_holder is not None:
+        locked["landing_example_holder"] = landing_example_holder
+    return locked
 
 
 @router.get("/signals/{signal_key}")

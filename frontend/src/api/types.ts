@@ -527,6 +527,7 @@ export interface LockedFeedItem {
   }
   headline: string
   holder_label: string
+  landing_example_holder?: string
   teaser: {
     date: string | null
     date_kind: 'award' | 'publication'

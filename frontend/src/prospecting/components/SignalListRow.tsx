@@ -30,7 +30,11 @@ export function SignalListRow({ item, onOpen }: { item: FeedItem; onOpen: () => 
       <div className={styles.rowTop}><span className={styles.tag} data-status={status}>{statusLabel(status, fr)}</span>{clock.value && <span>{clock.label} {shortDate(clock.value)}</span>}</div>
       {item.locked ? <span className={styles.rowTitle}>{title}</span> : <button className={styles.rowTitle} onClick={onOpen} aria-label={`${fr ? 'Ouvrir' : 'Open'} : ${title}`}>{title}</button>}
       <div className={styles.rowMeta}>{item.locked && <strong className={styles.tag}>{item.holder_label}</strong>}{!item.locked && item.company.name && <strong>{item.company.name}</strong>}{!item.locked && item.company.consortium && <span className={styles.tag}>{fr ? 'Groupement' : 'Consortium'}</span>}<span>{item.locked ? (fr ? frenchDepartmentPhrase(lockedDepartment) : lockedDepartment) : signalPlace(item, locale)}</span></div>
-      {item.locked && <p className={styles.caption}>{fr ? 'Découvrez les possibilités d’accès à ce signal.' : 'Explore access to this signal.'}</p>}
+      {item.locked && <p className={styles.caption}>{item.landing_example_holder
+        ? (fr
+          ? `Comme pour ${item.landing_example_holder} : dirigeant, téléphone, e-mail, historique des marchés.`
+          : `As with ${item.landing_example_holder}: director, phone, email and contract history.`)
+        : (fr ? 'Découvrez les possibilités d’accès à ce signal.' : 'Explore access to this signal.')}</p>}
       {actions.error != null && <p className={styles.error} role="alert">{actions.conflict ? (fr ? 'Ce signal a été modifié dans une autre fenêtre.' : 'This signal changed in another window.') : (fr ? 'L’action n’a pas été enregistrée.' : 'The action was not saved.')} <button className={styles.textButton} onClick={actions.reload}>{fr ? 'Actualiser' : 'Refresh'}</button></p>}
     </div>
     <div className={styles.rowAside}>
