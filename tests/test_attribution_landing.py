@@ -969,7 +969,8 @@ def test_landing_cohort_expands_the_same_family_to_adjacent_departments(
     assert {
         record.expansion_reason
         for record in caplog.records
-        if record.getMessage() == "landing cohort expanded"
+        if record.getMessage()
+        == "landing cohort expanded: same_family_adjacent_department"
     } == {"same_family_adjacent_department"}
 
 

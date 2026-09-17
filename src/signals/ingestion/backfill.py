@@ -542,7 +542,8 @@ def materialize_landing_feed_in_transaction(
         used_procedures.add(procedure)
         if rank:
             logger.warning(
-                "landing cohort expanded",
+                "landing cohort expanded: %s",
+                reason,
                 extra={
                     "target_icp_id": target_icp_id,
                     "opportunity_key": key,
