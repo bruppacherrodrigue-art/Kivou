@@ -108,7 +108,7 @@ def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]
     feed_copy.check_language(lang)
     recency_status = item.status
     award = item.signal.award
-    date = item.event_date
+    date = award.award_date or award.contract_notification_date or item.event_date
     place = award.place_of_performance or {}
     subdivision = location_subdivision(place)
     rounded_amount = None

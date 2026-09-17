@@ -624,6 +624,7 @@ export type UnlockedDetail = UnlockedFeedItem & {
   landing_demo?: boolean
   landing_example_holder?: string
   landing_directory?: DirectoryCompany
+  landing_history_offer?: boolean
 }
 
 export type LockedDetail = LockedFeedItem & {

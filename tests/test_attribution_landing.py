@@ -380,7 +380,7 @@ def test_public_discovery_preview_opens_a_three_signal_facade_cohort(tmp_path) -
         engine,
         (
             ("facade-one", "Bardage, Façade — patinoire communautaire", "45443000", 2),
-            ("facade-two", "Couverture métallique et zinguerie", "45261213", 3),
+            ("facade-two", "Habillage métallique de façade", "45262650", 3),
         ),
     )
     client = client_for(engine, service, now=CLICKED_AT)
@@ -408,7 +408,7 @@ def test_claimed_discovery_activation_backfills_a_landing_cohort_immediately(tmp
         engine,
         (
             ("facade-one", "Bardage, Façade — patinoire communautaire", "45443000", 2),
-            ("facade-two", "Couverture métallique et zinguerie", "45261213", 3),
+            ("facade-two", "Habillage métallique de façade", "45262650", 3),
         ),
     )
     client = client_for(engine, service, now=CLICKED_AT)
@@ -943,6 +943,8 @@ def test_bardage_landing_lists_only_relevant_trade_signals(tmp_path) -> None:
     }
     assert sum(item["locked"] is False for item in body["items"]) == 3
     assert all(item["locked"] is False for item in body["items"])
+    bait_detail = client.get(response.headers["location"].removeprefix("/app")).json()
+    assert bait_detail["landing_history_offer"] is True
     assert client.get("/billing/status").json()["discovery"] == {
         "granted_signal_count": 3,
         "remaining_slots": 0,
@@ -1032,6 +1034,95 @@ def test_landing_multilot_uses_the_lot_and_fine_cpv_not_the_notice_title(tmp_pat
         for item in body["items"]
         if not item["locked"]
     } == {"Bardage métallique du bâtiment communal", "Bardage, Façade"}
+
+
+def test_landing_locked_stock_prefers_old_local_then_recent_adjacent(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = facade_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("local-open-one", "Bardage du gymnase", "45262650", 2),
+            ("local-open-two", "Façade du groupe scolaire", "45262650", 3),
+            ("local-old", "Habillage métallique de la mairie", "45262650", 45),
+            ("adjacent", "Bardage du centre technique", "45262650", 4),
+            ("national", "Façade métallique de la médiathèque", "45262650", 5),
+        ),
+    )
+    with engine.begin() as connection:
+        for suffix, subdivision in (("adjacent", "FR-37"), ("national", "FR-29")):
+            connection.execute(
+                sa.update(contract_award)
+                .where(contract_award.c.award_key == f"landing-award-{suffix}")
+                .values(
+                    place_of_performance={
+                        "country": "FR",
+                        "subdivision_code": subdivision,
+                        "subdivision_scheme": "ISO-3166-2",
+                        "locality": None,
+                        "postal_code": None,
+                    }
+                )
+            )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert sum(not item["locked"] for item in body["items"]) == 3
+    locked = [item for item in body["items"] if item["locked"]]
+    assert {item["headline"] for item in locked} == {
+        "Habillage métallique de la mairie",
+        "Bardage du centre technique",
+    }
+    older = next(item for item in locked if item["headline"].startswith("Habillage"))
+    adjacent = next(item for item in locked if item["headline"].startswith("Bardage"))
+    assert older["teaser"]["date"] == (
+        CLICKED_AT.date() - dt.timedelta(days=45)
+    ).isoformat()
+    assert older["teaser"]["department"] == "Loir-et-Cher"
+    assert adjacent["teaser"]["department"] == "Indre-et-Loire"
+    assert body["profile_total_30d"] == 4
+
+
+def test_landing_locked_stock_uses_recent_national_only_as_last_resort(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    token = facade_bait_token(engine, service, token)
+    seed_landing_neighbours(
+        engine,
+        (
+            ("local-open-one", "Bardage du gymnase", "45262650", 2),
+            ("local-open-two", "Façade du groupe scolaire", "45262650", 3),
+            ("local-old", "Habillage métallique de la mairie", "45262650", 45),
+            ("national", "Façade métallique de la médiathèque", "45262650", 5),
+        ),
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == "landing-award-national")
+            .values(
+                place_of_performance={
+                    "country": "FR",
+                    "subdivision_code": "FR-29",
+                    "subdivision_scheme": "ISO-3166-2",
+                    "locality": None,
+                    "postal_code": None,
+                }
+            )
+        )
+    client = client_for(engine, service, now=CLICKED_AT)
+
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    body = client.get("/signals", params={"view": "history", "limit": 20}).json()
+
+    assert {item["headline"] for item in body["items"] if item["locked"]} == {
+        "Habillage métallique de la mairie",
+        "Façade métallique de la médiathèque",
+    }
+    assert body["profile_total_30d"] == 4
 
 
 def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> None:

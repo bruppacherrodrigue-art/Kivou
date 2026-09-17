@@ -112,6 +112,14 @@ test('complete landing demo shows its public history and a qualified fallback ca
   expect(screen.getByText(/Commune de Blois/)).toBeInTheDocument()
 })
 
+test('landing detail without reserved signals offers holder history once', () => {
+  const upgrade = vi.fn()
+  renderApp(<SignalContent item={{ ...UNLOCKED_ITEM, landing_demo: true, landing_history_offer: true }} holder={null} notes={null} onUpgrade={upgrade} />, { session: AUTHENTICATED })
+
+  fireEvent.click(screen.getByRole('button', { name: 'Voir l’historique de ce titulaire et les nouveaux marchés — 49 €/mois' }))
+  expect(upgrade).toHaveBeenCalledOnce()
+})
+
 test('detail frame labels its modal and closes using its single close control', () => {
   const close = vi.fn()
   renderApp(<DetailFrame title="Détail du signal" onClose={close}><p>Détail</p></DetailFrame>, { session: AUTHENTICATED })

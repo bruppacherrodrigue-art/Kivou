@@ -83,7 +83,7 @@ from signals.engagement.status import (
 )
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
-from signals.persistence.schema import prospect_target
+from signals.persistence.schema import materialized_signal, prospect_target
 from signals.personalization.for_you import client_safe_sentence
 from signals.personalization.prospect_mail import (
     prospect_relevance_sentence,
@@ -425,7 +425,7 @@ def list_signals(
                 account_id=session.account_id,
                 as_of=as_of,
                 allowed_target_icp_ids=allowed,
-                date_from=as_of - dt.timedelta(days=29),
+                date_from=as_of - dt.timedelta(days=30),
                 limit=1,
                 status_of=resolve_status,
                 statuses=None,
@@ -648,6 +648,7 @@ def get_signal(
     landing_demo = False
     landing_example_holder = None
     landing_directory = None
+    landing_history_offer = False
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         landing = service.landing_signal(connection, account_id=session.account_id)
@@ -787,6 +788,20 @@ def get_signal(
                     ),
                     as_of=as_of,
                 )
+                if (
+                    landing_demo
+                    and access.plan_code == "discovery"
+                ):
+                    active_keys = set(
+                        connection.execute(
+                            sa.select(materialized_signal.c.signal_key).where(
+                                materialized_signal.c.target_icp_id
+                                == item.signal.target_icp_id,
+                                materialized_signal.c.invalidated_at.is_(None),
+                            )
+                        ).scalars()
+                    )
+                    landing_history_offer = not (active_keys - access.granted)
                 client_place = (
                     item.signal.award.client_location or item.signal.award.place_of_performance
                 )
@@ -882,6 +897,8 @@ def get_signal(
         detail["landing_example_holder"] = landing_example_holder
     if landing_directory is not None:
         detail["landing_directory"] = landing_directory
+    if landing_history_offer:
+        detail["landing_history_offer"] = True
     if notice_facts is not None:
         detail["notice_facts"] = notice_facts
     if company_key is not None:

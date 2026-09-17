@@ -558,8 +558,9 @@ def materialize_landing_feed_in_transaction(
     effective_date = sa.func.coalesce(
         contract_award.c.award_date,
         contract_award.c.contract_notification_date,
+        source_event.c.published_on,
     )
-    statement = (
+    base_statement = (
         sa.select(
             opportunity_representation.c.opportunity_key,
             sa.func.max(effective_date).label("effective_date"),
@@ -573,8 +574,6 @@ def materialize_landing_feed_in_transaction(
         .where(
             opportunity_representation.c.opportunity_key != opportunity_key,
             source_event.c.source_country == bait_event.provenance.source_country,
-            effective_date >= as_of - dt.timedelta(days=30),
-            effective_date <= as_of,
             contract_award.c.amount.is_not(None),
             contract_award.c.place_of_performance.is_not(None),
             sa.func.nullif(sa.func.trim(sa.func.coalesce(source_event.c.source_url, "")), "").isnot(
@@ -586,29 +585,60 @@ def materialize_landing_feed_in_transaction(
         )
     )
     if selected_family is not None and bait_department is not None:
-        candidate_keys = tuple(
-            connection.execute(
-                statement.group_by(opportunity_representation.c.opportunity_key)
-                .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
-                .limit(CANDIDATE_SCAN_CAP)
-            ).scalars()
+        recent_rows = connection.execute(
+            base_statement.where(
+                effective_date >= as_of - dt.timedelta(days=30),
+                effective_date <= as_of,
+            )
+            .group_by(opportunity_representation.c.opportunity_key)
+            .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
+            .limit(CANDIDATE_SCAN_CAP)
+        ).all()
+        local_subdivisions = (
+            f"FR-{bait_department}",
+            *(
+                subdivision
+                for subdivision, department in NUTS3_DEPARTMENTS.items()
+                if department == bait_department
+            ),
         )
+        older_local_rows = connection.execute(
+            base_statement.where(
+                effective_date >= as_of - dt.timedelta(days=90),
+                effective_date < as_of - dt.timedelta(days=30),
+                contract_award.c.place_of_performance["subdivision_code"]
+                .as_string()
+                .in_(local_subdivisions),
+            )
+            .group_by(opportunity_representation.c.opportunity_key)
+            .order_by(sa.desc("effective_date"), opportunity_representation.c.opportunity_key)
+            .limit(CANDIDATE_SCAN_CAP)
+        ).all()
+        candidate_dates = {
+            row.opportunity_key: row.effective_date
+            for row in (*recent_rows, *older_local_rows)
+        }
+        candidate_keys = tuple(candidate_dates)
     else:
         # Without the selected mail family or the bait department, Kivou cannot
         # honestly claim that another signal belongs to the promised cohort.
         candidate_keys = ()
+        candidate_dates = {}
     representatives = {
         key: representative
         for key, representative in zip(candidate_keys, _representatives(connection, candidate_keys))
     }
     cached_holders = official_holders_for_opportunities(connection, candidate_keys)
-    procedure = (
+    bait_procedure = (
         bait_event.provenance.source_system,
         bait_event.provenance.source_procedure_id or bait_event.provenance.source_notice_id,
     )
-    used_procedures = {procedure}
+    used_procedures = {bait_procedure}
     nearby_departments = set(department_and_neighbours(bait_department))
-    ranked: list[tuple[int, int, str, dict[str, object], str]] = []
+    recent_local: list[tuple[int, str, dict[str, object], str, tuple[str, str]]] = []
+    older_local: list[tuple[int, str, dict[str, object], str, tuple[str, str]]] = []
+    recent_adjacent: list[tuple[int, str, dict[str, object], str, tuple[str, str]]] = []
+    recent_national: list[tuple[int, str, dict[str, object], str, tuple[str, str]]] = []
     for order, key in enumerate(candidate_keys):
         representative = representatives.get(key)
         if representative is None:
@@ -622,11 +652,11 @@ def materialize_landing_feed_in_transaction(
             continue
         if not _has_customer_name(award) and key not in cached_holders:
             continue
-        procedure = (
+        procedure_key = (
             event.provenance.source_system,
             event.provenance.source_procedure_id or event.provenance.source_notice_id,
         )
-        if procedure in used_procedures:
+        if procedure_key in used_procedures:
             continue
         candidate = _prepare_landing_opportunity(
             connection,
@@ -641,37 +671,82 @@ def materialize_landing_feed_in_transaction(
         same_trade = _landing_matches_selected_trade(
             selected_family.key, candidate_family_keys, candidate
         )
-        if same_trade and department == bait_department:
-            rank, reason = 0, "same_family_department"
-        elif same_trade and department in nearby_departments:
-            rank, reason = 1, "same_family_adjacent_department"
-        elif same_trade:
-            rank, reason = 3, "same_family_national"
-        else:
+        if not same_trade:
             continue
-        ranked.append((rank, order, key, candidate, reason))
-
-    prepared_rows: list[tuple[str, dict[str, object]]] = [(opportunity_key, bait)]
-    for rank, _order, key, candidate, reason in sorted(ranked):
-        event = candidate["event"]
-        procedure = (
-            event.provenance.source_system,
-            event.provenance.source_procedure_id or event.provenance.source_notice_id,
-        )
-        if procedure in used_procedures:
-            continue
-        prepared_rows.append((key, candidate))
-        used_procedures.add(procedure)
-        if rank:
-            logger.warning(
-                "landing cohort expanded: %s",
-                reason,
-                extra={
-                    "target_icp_id": target_icp_id,
-                    "opportunity_key": key,
-                    "expansion_reason": reason,
-                },
+        candidate_date = candidate_dates[key]
+        row = (order, key, candidate, "same_family_department", procedure_key)
+        if candidate_date < as_of - dt.timedelta(days=30):
+            if department == bait_department:
+                older_local.append(
+                    (
+                        order,
+                        key,
+                        candidate,
+                        "same_family_department_31_90_days",
+                        procedure_key,
+                    )
+                )
+        elif department == bait_department:
+            recent_local.append(row)
+        elif department in nearby_departments:
+            recent_adjacent.append(
+                (order, key, candidate, "same_family_adjacent_department", procedure_key)
             )
+        else:
+            recent_national.append(
+                (order, key, candidate, "same_family_national", procedure_key)
+            )
+
+    opened_rows: list[tuple[str, dict[str, object], str]] = []
+    locked_rows: list[tuple[str, dict[str, object], str]] = []
+    selected_keys: set[str] = set()
+
+    def append_from(
+        candidates: list[tuple[int, str, dict[str, object], str, tuple[str, str]]],
+        destination: list[tuple[str, dict[str, object], str]],
+        *,
+        maximum: int,
+    ) -> None:
+        for _order, key, candidate, reason, procedure_key in candidates:
+            if len(destination) >= maximum:
+                return
+            if key in selected_keys or procedure_key in used_procedures:
+                continue
+            destination.append((key, candidate, reason))
+            selected_keys.add(key)
+            used_procedures.add(procedure_key)
+            if reason != "same_family_department":
+                logger.warning(
+                    "landing cohort expanded: %s",
+                    reason,
+                    extra={
+                        "target_icp_id": target_icp_id,
+                        "opportunity_key": key,
+                        "expansion_reason": reason,
+                    },
+                )
+
+    append_from(recent_local, opened_rows, maximum=2)
+    if len(opened_rows) < 2:
+        append_from(recent_adjacent, opened_rows, maximum=2)
+    if len(opened_rows) < 2:
+        append_from(recent_national, opened_rows, maximum=2)
+
+    same_department_30d = 1 + len(
+        {row[4] for row in recent_local if row[4] != bait_procedure}
+    )
+    append_from(recent_local, locked_rows, maximum=10)
+    if same_department_30d <= 3:
+        append_from(older_local, locked_rows, maximum=10)
+        append_from(recent_adjacent, locked_rows, maximum=10)
+        if len(locked_rows) < 2:
+            append_from(recent_national, locked_rows, maximum=2)
+
+    prepared_rows: list[tuple[str, dict[str, object]]] = [
+        (opportunity_key, bait),
+        *((key, candidate) for key, candidate, _reason in opened_rows),
+        *((key, candidate) for key, candidate, _reason in locked_rows),
+    ]
     signal_keys: dict[str, str] = {}
     for key, prepared in prepared_rows:
         signal_keys[key] = materialize_signal(connection, **prepared).signal_key

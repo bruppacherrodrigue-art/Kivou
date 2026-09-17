@@ -5,7 +5,7 @@ import { durationLabel, formatAmount, safeExternal, signalPlace, signalTitle } f
 import type { NoticeDuration, ProspectingSignal } from '../models'
 import styles from '../Prospecting.module.css'
 
-export function SignalContent({ item, holder, notes }: { item: ProspectingSignal; holder: ReactNode; notes: ReactNode }) {
+export function SignalContent({ item, holder, notes, onUpgrade }: { item: ProspectingSignal; holder: ReactNode; notes: ReactNode; onUpgrade?: () => void }) {
   const { locale, date } = useI18n()
   const fr = locale === 'fr'
   const facts = item.notice_facts
@@ -42,6 +42,9 @@ export function SignalContent({ item, holder, notes }: { item: ProspectingSignal
         : `${history.last_12_months.awards_count} contract${history.last_12_months.awards_count === 1 ? '' : 's'} awarded in the last 12 months`}</p>
       {history.last_12_months.total_amounts?.map((amount) => <p key={`${amount.currency}-${amount.value}`} className={styles.muted}>{fr ? 'Montant cumulé : ' : 'Total value: '}{formatAmount(amount, locale, true)}</p>)}
       {history.last_12_months.recurring_buyers && history.last_12_months.recurring_buyers.length > 0 && <p className={styles.muted}>{fr ? 'Acheteurs récurrents : ' : 'Recurring buyers: '}{history.last_12_months.recurring_buyers.join(', ')}</p>}
+    </section>}
+    {item.landing_history_offer && onUpgrade && <section className={styles.detailSection}>
+      <button className={styles.primary} onClick={onUpgrade}>{fr ? 'Voir l’historique de ce titulaire et les nouveaux marchés — 49 €/mois' : 'View this holder’s history and new contracts — €49/month'}</button>
     </section>}
     {buyerNames.length > 0 && <section className={styles.detailSection}><h3>{fr ? 'Acheteur' : 'Buyer'}</h3>{buyerNames.map((name) => <p key={name}>{name}</p>)}</section>}
     {(facts?.minimum_amount || facts?.maximum_amount) && <section className={styles.detailSection}><h3>{fr ? 'Cadre du marché' : 'Contract framework'}</h3><dl className={styles.facts}>
