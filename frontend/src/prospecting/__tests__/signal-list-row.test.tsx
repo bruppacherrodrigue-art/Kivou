@@ -86,8 +86,20 @@ test('locked rows offer access options without assuming a subscription is the so
   renderSignal(<SignalListRow item={LOCKED_ITEM} onOpen={vi.fn()} />)
   await ready()
   const row = screen.getByRole('article')
+  expect(row).toHaveTextContent('dans la Haute-Garonne')
   expect(row).toHaveTextContent('Découvrez les possibilités d’accès à ce signal.')
   expect(row).not.toHaveTextContent(/abonnement/i)
+})
+
+test('locked rows distinguish an award date from a publication fallback', async () => {
+  mockApi(BASE)
+  const { unmount } = renderSignal(<SignalListRow item={{ ...LOCKED_ITEM, teaser: { ...LOCKED_ITEM.teaser, date_kind: 'award' } }} onOpen={vi.fn()} />)
+  await ready()
+  expect(screen.getByText(/Attribué le/)).toBeInTheDocument()
+  unmount()
+  renderSignal(<SignalListRow item={{ ...LOCKED_ITEM, teaser: { ...LOCKED_ITEM.teaser, date_kind: 'publication' } }} onOpen={vi.fn()} />)
+  await ready()
+  expect(screen.getByText(/Publié le/)).toBeInTheDocument()
 })
 
 test.each(['saved', 'contacted', 'ignored'] as UnifiedStatus[])('offers an explicit reversible action for the %s status', async (status) => {

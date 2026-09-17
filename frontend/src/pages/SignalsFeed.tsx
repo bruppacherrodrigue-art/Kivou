@@ -9,6 +9,7 @@ import { signalDetailPath } from '../prospecting/routeState'
 import { SignalListRow } from '../prospecting/components/SignalListRow'
 import { SignalDetail } from '../prospecting/components/SignalDetail'
 import { TargetBar } from '../prospecting/components/TargetBar'
+import { frenchDepartmentPhrase } from '../presentation/locationText'
 import styles from '../prospecting/Prospecting.module.css'
 
 export interface ActivationNavigationState { activationCompleted?: boolean; returnToCompany?: { companyKey: string; name?: string } }
@@ -81,9 +82,12 @@ export function SignalsFeed() {
   const family = profile?.label ?? (fr ? 'votre secteur' : 'your sector')
   const subdivision = profile?.customer_input.territory_subdivisions?.[0]
   const zone = p.targetOptions.zones.find((item) => item.code === subdivision)?.label ?? subdivision ?? (fr ? 'votre département' : 'your area')
+  const zonePhrase = fr
+    ? (subdivision ? frenchDepartmentPhrase(zone) : 'dans votre département')
+    : `in ${zone}`
   const labels = fr ? { new: 'Nouveaux', saved: 'Sauvegardés', contacted: 'Contactés', ignored: 'Ignorés', all: 'Tous' } : { new: 'New', saved: 'Saved', contacted: 'Contacted', ignored: 'Ignored', all: 'All' }
   return <main className={styles.workspace} data-page="signals">
-    <header className={styles.heading}><div><p className={styles.eyebrow}>{fr ? 'Votre prospection' : 'Your prospecting'}</p><h1>{fr ? 'Signaux' : 'Signals'}</h1><p>{fr ? 'Les marchés à transformer en conversations commerciales.' : 'Turn relevant contracts into sales conversations.'}</p></div></header>
+    <header className={styles.heading}><div><p className={styles.eyebrow}>{fr ? 'Votre prospection' : 'Your prospecting'}</p><h1>{fr ? 'Signaux' : 'Signals'}</h1><p>{fr ? 'Les marchés attribués dans votre zone et votre secteur' : 'Awarded contracts in your area and sector'}</p></div></header>
     <TargetBar />
     {!p.profilesLoading && p.profiles.length === 0 && <section className={styles.guide}><h2>{fr ? 'Votre prochaine opportunité commence par votre cible' : 'Your next opportunity starts with your target'}</h2><Link to="/app/icps" className={styles.primary}>{fr ? 'Configurer mon profil cible' : 'Set up my target profile'}</Link></section>}
     <section className={styles.panel} aria-label={fr ? 'Liste des signaux' : 'Signal list'}>
@@ -103,7 +107,7 @@ export function SignalsFeed() {
       {data && remainingMarkets > 0 && <p className={styles.waitingRow}><Link to="/tarifs">{fr ? `${number(remainingMarkets)} autres marchés — voir les offres` : `${number(remainingMarkets)} other contracts — view plans`}</Link></p>}
       {landingPending && <div className={styles.waitingRow} role="status"><span className={styles.waitingDot} aria-hidden="true" /><span>{fr ? 'Vos prochains signaux arriveront ici' : 'Your next signals will appear here'}</span></div>}
       {discoveryProgressVisible && discoveryProgress && <div className={styles.waitingRow} role="status"><span className={styles.waitingDot} aria-hidden="true" /><span>{discoveryProgress}</span></div>}
-      {data && data.items.length === 0 && !landingPending && !discoveryProgressVisible && <div className={styles.empty}><h2>{status === 'new' ? (fr ? `Nous surveillons ${family} en ${zone}` : `We monitor ${family} in ${zone}`) : (fr ? 'Aucun signal dans cette sélection' : 'No signals in this selection')}</h2><p>{status === 'new' ? (fr ? 'Vos prochains marchés arriveront ici, en général 8 à 12 par mois.' : 'Your next contracts will appear here, usually 8 to 12 per month.') : (fr ? 'Vos prochaines actions apparaîtront ici.' : 'Your next actions will appear here.')}</p></div>}
+      {data && data.items.length === 0 && !landingPending && !discoveryProgressVisible && <div className={styles.empty}><h2>{status === 'new' ? (fr ? `Nous surveillons ${family} ${zonePhrase}` : `We monitor ${family} ${zonePhrase}`) : (fr ? 'Aucun signal dans cette sélection' : 'No signals in this selection')}</h2><p>{status === 'new' ? (fr ? 'Vos prochains marchés arriveront ici, en général 8 à 12 par mois.' : 'Your next contracts will appear here, usually 8 to 12 per month.') : (fr ? 'Vos prochaines actions apparaîtront ici.' : 'Your next actions will appear here.')}</p></div>}
       {data && (cursor || data.page.has_more) && <footer className={styles.footer}><button className={styles.button} disabled={!cursor} onClick={() => update({ cursor: null })}><ArrowLeft aria-hidden="true" />{fr ? 'Première page' : 'First page'}</button><button className={styles.button} disabled={!data.page.has_more || !data.page.next_cursor} onClick={() => update({ cursor: data.page.next_cursor ?? null })}>{fr ? 'Page suivante' : 'Next page'}<ArrowRight aria-hidden="true" /></button></footer>}
     </section>
     {signalKey && <SignalDetail key={signalKey} signalKey={signalKey} onClose={() => {

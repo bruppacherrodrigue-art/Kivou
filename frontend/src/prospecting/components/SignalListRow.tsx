@@ -1,7 +1,7 @@
 import { Bookmark, Check, LockKeyhole, RotateCcw, X } from 'lucide-react'
 import type { FeedItem, UnifiedStatus } from '../../api/types'
 import { useI18n } from '../../i18n'
-import { visiblePlaceName } from '../../presentation/locationText'
+import { frenchDepartmentPhrase, visiblePlaceName } from '../../presentation/locationText'
 import { formatAmount, initials, signalClock, signalPlace, signalTitle } from '../adapters'
 import { useSignalActions } from '../useSignalActions'
 import styles from '../Prospecting.module.css'
@@ -16,14 +16,20 @@ export function SignalListRow({ item, onOpen }: { item: FeedItem; onOpen: () => 
   const status = actions.status ?? item.status
   const title = item.locked ? item.headline : signalTitle(item)
   const money = item.locked ? item.teaser.amount?.currency ? { value: item.teaser.amount.value, currency: item.teaser.amount.currency } : null : item.contract.amount
-  const clock = item.locked ? { label: fr ? 'Publié le' : 'Published on', value: item.teaser.date } : signalClock(item, locale)
+  const clock = item.locked ? {
+    label: item.teaser.date_kind === 'award'
+      ? (fr ? 'Attribué le' : 'Awarded on')
+      : (fr ? 'Publié le' : 'Published on'),
+    value: item.teaser.date,
+  } : signalClock(item, locale)
+  const lockedDepartment = item.locked ? visiblePlaceName(item.teaser.department) : null
   const act = (next: UnifiedStatus) => { void actions.setStatus(next).catch(() => {}) }
   return <article className={styles.signalRow} data-signal-id={item.signal_id}>
     <span className={styles.avatar} aria-hidden="true">{item.locked ? <LockKeyhole /> : initials(item.company.name || title)}</span>
     <div className={styles.rowMain}>
       <div className={styles.rowTop}><span className={styles.tag} data-status={status}>{statusLabel(status, fr)}</span>{clock.value && <span>{clock.label} {shortDate(clock.value)}</span>}</div>
       {item.locked ? <span className={styles.rowTitle}>{title}</span> : <button className={styles.rowTitle} onClick={onOpen} aria-label={`${fr ? 'Ouvrir' : 'Open'} : ${title}`}>{title}</button>}
-      <div className={styles.rowMeta}>{item.locked && <strong className={styles.tag}>{item.holder_label}</strong>}{!item.locked && item.company.name && <strong>{item.company.name}</strong>}{!item.locked && item.company.consortium && <span className={styles.tag}>{fr ? 'Groupement' : 'Consortium'}</span>}<span>{item.locked ? visiblePlaceName(item.teaser.department) : signalPlace(item, locale)}</span></div>
+      <div className={styles.rowMeta}>{item.locked && <strong className={styles.tag}>{item.holder_label}</strong>}{!item.locked && item.company.name && <strong>{item.company.name}</strong>}{!item.locked && item.company.consortium && <span className={styles.tag}>{fr ? 'Groupement' : 'Consortium'}</span>}<span>{item.locked ? (fr ? frenchDepartmentPhrase(lockedDepartment) : lockedDepartment) : signalPlace(item, locale)}</span></div>
       {item.locked && <p className={styles.caption}>{fr ? 'Découvrez les possibilités d’accès à ce signal.' : 'Explore access to this signal.'}</p>}
       {actions.error != null && <p className={styles.error} role="alert">{actions.conflict ? (fr ? 'Ce signal a été modifié dans une autre fenêtre.' : 'This signal changed in another window.') : (fr ? 'L’action n’a pas été enregistrée.' : 'The action was not saved.')} <button className={styles.textButton} onClick={actions.reload}>{fr ? 'Actualiser' : 'Refresh'}</button></p>}
     </div>

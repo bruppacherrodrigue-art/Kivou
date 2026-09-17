@@ -1,6 +1,6 @@
 import type { Money } from '../api/types'
 import type { Locale } from '../i18n'
-import { normalCasePlace } from '../presentation/locationText'
+import { frenchDepartmentPhrase, normalCasePlace } from '../presentation/locationText'
 import type { Dossier, NoticeDuration, ProspectingSignal } from './models'
 
 export function formatAmount(money: Money | null | undefined, locale: Locale, compact = false): string | null {
@@ -61,7 +61,7 @@ export function signalPlace(item: ProspectingSignal, locale: Locale = 'fr'): str
   const subdivision = normalCasePlace(place?.subdivision_label)
   if (locality && subdivision && locality !== subdivision) return `${locality} (${subdivision})`
   if (locality) return locality
-  if (subdivision) return locale === 'fr' ? `en ${subdivision}` : subdivision
+  if (subdivision) return locale === 'fr' ? frenchDepartmentPhrase(subdivision) : subdivision
   return null
 }
 

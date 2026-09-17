@@ -44,3 +44,25 @@ export function visiblePlaceName(value: string | null | undefined): string | nul
   if (/^(?:(?:[a-z]{2,4}[- ]?)?\d{2,8}|[a-z]{2}\d[a-z0-9]{2,5})$/i.test(place)) return null
   return place
 }
+
+const EN_DEPARTMENTS = new Set(['corse-du-sud', 'haute-corse', 'savoie', 'haute-savoie'])
+const PLURAL_DEPARTMENTS = /^(?:alpes|ardennes|bouches|cotes|deux|hautes|hauts|landes|pyrenees|vosges)\b/
+const FEMININE_DEPARTMENTS = new Set([
+  'charente', 'charente-maritime', 'correze', 'cote-d-or', 'creuse', 'dordogne', 'drome',
+  'gironde', 'haute-garonne', 'haute-loire', 'haute-marne', 'haute-saone', 'haute-vienne',
+  'loire', 'loire-atlantique', 'manche', 'marne', 'mayenne', 'meurthe-et-moselle',
+  'meuse', 'moselle', 'nievre', 'saone-et-loire', 'sarthe', 'seine-et-marne',
+  'seine-maritime', 'somme', 'vendee', 'vienne',
+])
+
+/** Ajoute la préposition usuelle au nom d'un département français. */
+export function frenchDepartmentPhrase(value: string | null | undefined): string | null {
+  const department = visiblePlaceName(value)
+  if (!department) return null
+  const key = folded(department)
+  if (EN_DEPARTMENTS.has(key)) return `en ${department}`
+  if (PLURAL_DEPARTMENTS.test(key)) return `dans les ${department}`
+  if (FEMININE_DEPARTMENTS.has(key)) return `dans la ${department}`
+  if (/^[aeiouyh]/.test(key)) return `dans l’${department}`
+  return `dans le ${department}`
+}

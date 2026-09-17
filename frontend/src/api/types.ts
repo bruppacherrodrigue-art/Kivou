@@ -529,6 +529,7 @@ export interface LockedFeedItem {
   holder_label: string
   teaser: {
     date: string | null
+    date_kind: 'award' | 'publication'
     department: string | null
     amount: { value: string; currency: string | null } | null
   }

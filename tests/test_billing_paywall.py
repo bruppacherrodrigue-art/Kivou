@@ -390,6 +390,7 @@ def test_a_locked_teaser_gives_safe_conversion_context(alice, engine):
     assert item["context"]["country"] == "CH"
     assert item["context"]["contract_magnitude"]
     assert isinstance(item["context"]["plausible_need_count"], int)
+    assert item["teaser"]["date_kind"] in {"award", "publication"}
 
 
 def test_the_exact_amount_is_replaced_by_an_order_of_magnitude(alice, engine):

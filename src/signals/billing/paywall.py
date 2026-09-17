@@ -148,6 +148,11 @@ def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]
         "holder_label": "Titulaire réservé" if lang == "fr" else "Reserved holder",
         "teaser": {
             "date": date.isoformat() if date else None,
+            "date_kind": (
+                "award"
+                if award.award_date is not None or award.contract_notification_date is not None
+                else "publication"
+            ),
             "department": department_label(subdivision) if subdivision else None,
             "amount": rounded_amount,
         },

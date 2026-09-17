@@ -42,8 +42,12 @@ test('omits missing or invalid money instead of guessing a currency or showing N
 test('uses readable locality and subdivision names without leaking a subdivision code', () => {
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'DRAGUIGNAN', subdivision_label: 'VAR', subdivision_code: 'FR-83', postal_code: null } } })).toBe('Draguignan (Var)')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'SAINT-ONDRAS', subdivision_label: 'ISÈRE', subdivision_code: 'FR-38', postal_code: null } } })).toBe('Saint-Ondras (Isère)')
+  expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'SELLES-SUR-CHER', subdivision_label: 'LOIR-ET-CHER', subdivision_code: 'FR-41', postal_code: null } } })).toBe('Selles-sur-Cher (Loir-et-Cher)')
+  expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: 'VILLARS-LES-DOMBES', subdivision_label: 'AIN', subdivision_code: 'FR-01', postal_code: null } } })).toBe('Villars-les-Dombes (Ain)')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: null, locality: null, subdivision_label: null, subdivision_code: 'FR-83', postal_code: null } } })).toBeNull()
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: null, subdivision_label: 'SAVOIE', subdivision_code: 'FR-73', postal_code: null } } })).toBe('en Savoie')
+  expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: null, subdivision_label: 'RHÔNE', subdivision_code: 'FR-69', postal_code: null } } })).toBe('dans le Rhône')
+  expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: { country: 'FR', locality: null, subdivision_label: 'ALPES-MARITIMES', subdivision_code: 'FR-06', postal_code: null } } })).toBe('dans les Alpes-Maritimes')
   expect(signalPlace({ ...UNLOCKED_ITEM, contract: { ...UNLOCKED_ITEM.contract, location: null } })).toBeNull()
 })
 

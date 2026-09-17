@@ -409,6 +409,7 @@ export const LOCKED_ITEM: LockedFeedItem = {
   headline: 'Un marché public vient d’être attribué.',
   teaser: {
     date: '2026-08-02',
+    date_kind: 'award',
     department: 'Haute-Garonne',
     amount: { value: '1240000', currency: 'EUR' },
   },

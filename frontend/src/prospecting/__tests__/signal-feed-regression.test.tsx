@@ -95,6 +95,7 @@ test('discovery shows the real 30-day volume and non-clickable locked rows', asy
   })
   renderFeed()
 
+  expect(screen.getByText('Les marchés attribués dans votre zone et votre secteur')).toBeInTheDocument()
   expect(await screen.findByText('20 marchés attribués correspondant à votre profil ces 30 jours')).toBeInTheDocument()
   const lockedRow = screen.getByText('Réfection du bardage métallique').closest('article')!
   expect(within(lockedRow).getByText('Titulaire réservé')).toBeInTheDocument()
@@ -117,7 +118,7 @@ test('a list failure is announced and retried explicitly', async () => {
 test('an empty new segment states what the product is monitoring', async () => {
   mockApi({ ...BASE, 'GET /signals': { body: feedPage([]) } })
   renderFeed()
-  expect(await screen.findByRole('heading', { name: 'Nous surveillons Matériaux — Occitanie en votre département' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Nous surveillons Matériaux — Occitanie dans votre département' })).toBeInTheDocument()
   expect(screen.getByText('Vos prochains marchés arriveront ici, en général 8 à 12 par mois.')).toBeInTheDocument()
 })
 
