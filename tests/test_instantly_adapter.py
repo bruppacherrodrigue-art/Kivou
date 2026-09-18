@@ -564,6 +564,15 @@ def test_campaign_page_retains_cursor_for_complete_reconciliation():
     assert observed[0].url.params["starting_after"] == "previous-page"
 
 
+def test_campaign_page_treats_omitted_cursor_as_terminal():
+    provider = _provider(lambda _request: httpx.Response(200, json={"items": []}))
+
+    page = provider.list_campaigns(search="Kivou")
+
+    assert tuple(page) == ()
+    assert page.next_starting_after is None
+
+
 def test_official_patch_lead_has_no_contractual_pause_mutation() -> None:
     requests: list[httpx.Request] = []
 

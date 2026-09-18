@@ -702,11 +702,11 @@ class HttpInstantlyProvider:
         if (
             not isinstance(value, dict)
             or not isinstance(value.get("items"), list)
-            or "next_starting_after" not in value
         ):
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
         return ProviderCampaignPage(
-            tuple(self._campaign(item) for item in value["items"]), value["next_starting_after"]
+            tuple(self._campaign(item) for item in value["items"]),
+            value.get("next_starting_after"),
         )
 
     def get_campaign(self, provider_campaign_id: str) -> ProviderCampaign:
