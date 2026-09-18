@@ -20,6 +20,7 @@ from signals.prospection_actions.preparation import (
 from signals.supplier_discovery.families import (
     department_from_subdivision,
     families_for_signal,
+    load_supplier_family_catalog,
 )
 from signals.supplier_discovery.seed import resolve_acquisition_seed
 
@@ -67,7 +68,21 @@ def resolve_assisted_signal(
         )
         if value
     )
-    vertical = seed.understanding.trade_domain.value
+    if required_family_key is None:
+        if seed.understanding.trade_domain is None:
+            raise ValueError("assisted signal has no materialized trade domain")
+        vertical = seed.understanding.trade_domain.value
+    else:
+        vertical = next(
+            (
+                catalog_vertical
+                for catalog_vertical, catalog_families in load_supplier_family_catalog().items()
+                if required_family_key in {family.key for family in catalog_families}
+            ),
+            None,
+        )
+        if vertical is None:
+            raise ValueError("assisted signal requires an unknown supplier family")
     families = families_for_signal(
         vertical,
         cpv_codes=cpv_codes,
