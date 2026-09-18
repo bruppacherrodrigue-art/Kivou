@@ -524,11 +524,20 @@ class FounderProspectionReadService:
                 .group_by(acquisition_contact.c.role_tier)
             ).all()
             email_counts = {int(level): int(count) for level, count in email_level_rows}
+            prepared_family_keys = tuple(
+                str(value)
+                for value in connection.execute(
+                    sa.select(prospect_target.c.family_key)
+                    .where(prospect_target.c.cycle_ref == cycle["cycle_ref"])
+                    .distinct()
+                    .order_by(prospect_target.c.family_key)
+                ).scalars()
+            )
         profile = discovery["search_profile"] if discovery is not None else {}
         if not isinstance(profile, Mapping):
             profile = {}
         family_values = profile.get("supplier_family_keys", ())
-        family_keys = (
+        family_keys = prepared_family_keys or (
             tuple(str(value) for value in family_values)
             if isinstance(family_values, (list, tuple))
             else ()

@@ -697,6 +697,47 @@ def test_targeting_uses_the_latest_cycle_and_its_existing_journals() -> None:
                 "correlation_id": "contact-correlation-prospection",
             },
         )
+        connection.execute(
+            sa.insert(prospect_target),
+            {
+                "target_id": "60ac046c-b6a6-4e8b-83bb-0d1f14e84b71",
+                "version": 1,
+                "cycle_ref": "cycle-prospection",
+                "opportunity_key": "opp-prospection",
+                "procedure_award_key": "award-prospection",
+                "siren": "100000030",
+                "company_name": "BÉTON ENTREPRISE 30",
+                "company_city": "LYON",
+                "company_employees": 40,
+                "vertical": "general_building",
+                "family_key": "timber_carpentry",
+                "family_label": "Charpente bois et ossature bois",
+                "email_address": "contact30@example.test",
+                "email_source": "site",
+                "email_verification_status": "mx_verified",
+                "signal_holder": "SAS TITULAIRE",
+                "signal_subject": "Lot 3 charpente bois",
+                "signal_amount_minor_units": 46_686_590,
+                "signal_currency": "EUR",
+                "signal_location": "Drôme",
+                "signal_decision_date": NOW.date(),
+                "signal_source_url": "https://example.test/award-prospection",
+                "mail_subject": "Lot 3 charpente bois",
+                "mail_text": "Bonjour,\n\nUn marché de charpente bois vous concerne.",
+                "mail_html": "<p>Un marché de charpente bois vous concerne.</p>",
+                "attribution_url": "https://kivou.eu/a/targeting-family",
+                "attribution_member_ref": "d" * 64,
+                "attribution_payload": {},
+                "attribution_token_fingerprint": "e" * 64,
+                "unsubscribe_url": "https://kivou.eu/unsubscribe/targeting-family",
+                "mail_word_count": 8,
+                "status": "rejected",
+                "rejection_reason": "other",
+                "delivery_status": "not_sent",
+                "created_at": cycle_started_at + dt.timedelta(minutes=2),
+                "updated_at": cycle_completed_at,
+            },
+        )
 
     result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(
         now=NOW,
@@ -710,11 +751,7 @@ def test_targeting_uses_the_latest_cycle_and_its_existing_journals() -> None:
     assert result.targeting.signal.title == "INSTALLATION CHANTIER - GROS-OEUVRE"
     assert result.targeting.signal.amount_minor_units == 46_686_590
     assert result.targeting.signal.currency == "EUR"
-    assert result.targeting.family_keys == (
-        "ready_mix_concrete",
-        "reinforcement_steel",
-        "subcontracted_structural_work",
-    )
+    assert result.targeting.family_keys == ("timber_carpentry",)
     assert result.targeting.sirene_account_count == 75
     assert result.targeting.confirmed_domain_count == 1
     assert [item.count for item in result.targeting.email_counts_by_level] == [0, 1, 0, 0]
