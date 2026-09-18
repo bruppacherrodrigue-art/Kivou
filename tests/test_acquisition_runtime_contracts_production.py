@@ -61,6 +61,58 @@ def test_production_allows_twenty_five_supplier_candidates_per_cycle() -> None:
     assert deployment.limits.maximum_suppliers == 25
 
 
+def test_production_catalog_selection_is_region_bound_and_site_only() -> None:
+    deployment = AcquisitionRuntimeDeployment.model_validate(
+        _production_document(
+            qa_scope={**PRODUCTION_SCOPE, "vertical": None},
+            selection={
+                "mode": "catalog",
+                "allowed_opportunity_keys": [],
+                "region": "Auvergne-Rhône-Alpes",
+                "email_source": "site",
+            },
+        )
+    )
+
+    assert deployment.selection is not None
+    assert deployment.selection.mode == "catalog"
+    assert deployment.selection.region == "Auvergne-Rhône-Alpes"
+    assert deployment.selection.email_source == "site"
+    assert deployment.selection.vertical is None
+    assert deployment.selection.family_key is None
+    assert deployment.selection.pinned_opportunity_key is None
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("vertical", "technical_installation"),
+        ("family_key", "electrical"),
+        ("pinned_opportunity_key", "opp-electrical"),
+        ("allowed_opportunity_keys", ["opp-electrical"]),
+        ("email_source", None),
+    ),
+)
+def test_production_catalog_selection_rejects_single_pair_fields(
+    field: str, value: object
+) -> None:
+    selection: dict[str, object] = {
+        "mode": "catalog",
+        "allowed_opportunity_keys": [],
+        "region": "Auvergne-Rhône-Alpes",
+        "email_source": "site",
+        field: value,
+    }
+
+    with pytest.raises(ValidationError):
+        AcquisitionRuntimeDeployment.model_validate(
+            _production_document(
+                qa_scope={**PRODUCTION_SCOPE, "vertical": None},
+                selection=selection,
+            )
+        )
+
+
 @pytest.mark.parametrize(
     "field, value",
     [

@@ -262,7 +262,7 @@ class RuntimeQaScope(_FrozenModel):
 
 
 class RuntimeSelection(_FrozenModel):
-    mode: Literal["fixed", "dynamic"] = "fixed"
+    mode: Literal["fixed", "dynamic", "catalog"] = "fixed"
     allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(default=(), max_length=8)
     vertical: OpaqueRef | None = None
     region: RegionName | None = None
@@ -291,8 +291,25 @@ class RuntimeSelection(_FrozenModel):
                 )
             ):
                 raise ValueError("selection.fixed forbids vertical and region")
-        elif not self.vertical or not self.region:
-            raise ValueError("selection.dynamic requires vertical and region")
+        elif self.mode == "dynamic":
+            if not self.vertical or not self.region:
+                raise ValueError("selection.dynamic requires vertical and region")
+        elif (
+            not self.region
+            or self.email_source != "site"
+            or self.allowed_opportunity_keys
+            or any(
+                value is not None
+                for value in (
+                    self.vertical,
+                    self.family_key,
+                    self.pinned_opportunity_key,
+                )
+            )
+        ):
+            raise ValueError(
+                "selection.catalog requires region and site without a pinned pair"
+            )
         return self
 
 
@@ -359,11 +376,12 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
                 any(item is not None for item in qa_bindings)
                 or self.qa_only
                 or self.qa_provider_mutations_capable
-                or selection.mode != "dynamic"
+                or selection.mode not in {"dynamic", "catalog"}
                 or selection.allowed_opportunity_keys
                 or self.providers.mode != "live"
-                or not self.qa_scope.vertical
                 or not self.qa_scope.region
+                or (selection.mode == "dynamic" and not self.qa_scope.vertical)
+                or (selection.mode == "catalog" and self.qa_scope.vertical is not None)
             ):
                 raise ValueError("production runtime forbids every QA binding")
             return self

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -56,6 +57,27 @@ def test_production_configuration_loads_without_any_recipient(tmp_path) -> None:
     assert config.qa_recipient is None
     assert config.qa_recipient_hmac_key is None
     assert config.deployment.is_production is True
+
+
+def test_committed_production_targeting_uses_the_full_site_catalog() -> None:
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "ops"
+        / "host"
+        / "acquisition-runtime.production.json"
+    )
+    config = load_runtime_config(_environment(path))
+    selection = config.deployment.selection
+
+    assert config.deployment.mode.value == "ASSISTED"
+    assert config.deployment.qa_scope.vertical is None
+    assert selection is not None
+    assert selection.mode == "catalog"
+    assert selection.region == "Auvergne-Rhône-Alpes"
+    assert selection.email_source == "site"
+    assert selection.vertical is None
+    assert selection.family_key is None
+    assert selection.pinned_opportunity_key is None
 
 
 @pytest.mark.parametrize(
