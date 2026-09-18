@@ -531,6 +531,15 @@ def test_lead_list_uses_official_post_endpoint_and_campaign_filter() -> None:
     assert json.loads(observed[0].content) == {"campaign": campaign_id}
 
 
+def test_lead_list_treats_omitted_cursor_as_terminal() -> None:
+    listed = _provider(
+        lambda _request: httpx.Response(200, json={"items": []})
+    ).list_leads(provider_campaign_id="campaign-1")
+
+    assert listed["items"] == []
+    assert listed["next_starting_after"] is None
+
+
 @pytest.mark.parametrize(
     "binding", [{}, {"campaign": "foreign"}, {"campaign": "foreign", "campaign_id": "expected"}]
 )
