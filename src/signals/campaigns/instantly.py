@@ -880,6 +880,7 @@ class HttpInstantlyProvider:
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
         return {
             **value,
+            "next_starting_after": value.get("next_starting_after"),
             "items": [self._normalize_lead(item) for item in value["items"]],
         }
 
