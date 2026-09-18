@@ -49,7 +49,7 @@ describe('paywall commercial du signal verrouillé', () => {
     expect(screen.getByRole('dialog')).toHaveAttribute('data-plan-count', '1')
   })
 
-  it('reste piloté par le catalogue lorsqu’un troisième plan achetable y apparaît', async () => {
+  it('reste limité aux deux offres du site même si une réponse contient un troisième plan', async () => {
     const scale = {
       ...CATALOGUE.plans[2],
       plan_code: 'scale',
@@ -63,10 +63,8 @@ describe('paywall commercial du signal verrouillé', () => {
 
     expect(await screen.findByRole('heading', { name: 'Essential' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Pro' })).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Scale' })).toBeVisible()
-    const scaleCard = screen.getByRole('heading', { name: 'Scale' }).closest('section')!
-    expect(within(scaleCard).getByText(/^199.*€$/)).toBeVisible()
-    expect(screen.getByRole('dialog')).toHaveAttribute('data-plan-count', '3')
+    expect(screen.queryByRole('heading', { name: 'Scale' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-plan-count', '2')
   })
 
   it('n’annonce pas trois signaux utilisés lorsque le compteur serveur dit le contraire', async () => {

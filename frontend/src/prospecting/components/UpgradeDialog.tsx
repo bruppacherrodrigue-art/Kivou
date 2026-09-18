@@ -22,7 +22,7 @@ const COPY = {
     loading: 'Chargement des offres…', unavailable: 'Les offres ne sont pas disponibles pour le moment.', retry: 'Réessayer',
     manage: 'Gérer ma facturation', recommended: 'Recommandé', perMonth: '/ mois',
     opening: 'Ouverture du paiement…', choose: 'Choisir {plan} — {price}/mois',
-    essential: 'Pour prospecter un marché précis.', pro: 'Pour suivre plusieurs marchés et agir plus vite.', other: 'Pour étendre votre prospection.',
+    essential: 'Pour prospecter un marché précis.', pro: 'Pour suivre plusieurs marchés et agir plus vite.',
     oneProfile: '1 profil cible', profiles: '{count} profils cibles', oneTerritory: '1 territoire', territories: 'Plusieurs territoires',
     signalsOne: 'Signaux correspondant à votre profil', signalsOther: 'Signaux correspondant à vos profils',
     evidence: 'Preuves et sources complètes', weekly: 'Alertes hebdomadaires', daily: 'Alertes quotidiennes', priority: 'Alertes prioritaires',
@@ -35,7 +35,7 @@ const COPY = {
     available: 'Your Discovery access does not cover this signal. Subscribe to access the next signals and their evidence.',
     loading: 'Loading plans…', unavailable: 'Plans are temporarily unavailable.', retry: 'Retry', manage: 'Manage billing', recommended: 'Recommended', perMonth: '/ month',
     opening: 'Opening checkout…', choose: 'Choose {plan} — {price}/month',
-    essential: 'For prospecting one specific contract.', pro: 'For tracking several markets and acting faster.', other: 'For expanding your prospecting.',
+    essential: 'For prospecting one specific contract.', pro: 'For tracking several markets and acting faster.',
     oneProfile: '1 target profile', profiles: '{count} target profiles', oneTerritory: '1 territory', territories: 'Multiple territories',
     signalsOne: 'Signals matching your profile', signalsOther: 'Signals matching your profiles', evidence: 'Complete evidence and sources', weekly: 'Weekly alerts', daily: 'Daily alerts', priority: 'Priority alerts',
     history: '{count} days of history', advanced: 'Advanced filters', reassurance: 'Secure payment · Monthly subscription · Cancel from your billing portal',
@@ -50,8 +50,7 @@ export function UpgradeDialog(props: { onClose: () => void; intent: CheckoutRetu
 
 function planName(code: string) {
   if (code === 'essential') return 'Essential'
-  if (code === 'pro') return 'Pro'
-  return code.charAt(0).toUpperCase() + code.slice(1)
+  return 'Pro'
 }
 
 function benefits(plan: CataloguePlan, copy: typeof COPY.fr | typeof COPY.en) {
@@ -84,7 +83,8 @@ function AccountUpgrade({ onClose, intent, accountId, upgradeTo }: { onClose: ()
   const resource = useResource(load)
   const target = validateCheckoutReturn(intent)
   const plans = useMemo(() => resource.data?.catalogue.plans.filter((plan) => {
-    if (!plan.purchasable || plan.plan_code === 'discovery' || !subscriptionPrice(plan)) return false
+    if (plan.plan_code !== 'essential' && plan.plan_code !== 'pro') return false
+    if (!plan.purchasable || !subscriptionPrice(plan)) return false
     return !upgradeTo || upgradeTo.includes(plan.plan_code)
   }) ?? [], [resource.data, upgradeTo])
   const canChoose = resource.data?.status.billing_action === 'choose_plan'
@@ -130,7 +130,7 @@ function AccountUpgrade({ onClose, intent, accountId, upgradeTo }: { onClose: ()
             const price = subscriptionPrice(plan)!
             const name = planName(plan.plan_code)
             const formattedPrice = money(price.amount_minor_units, price.currency.toUpperCase())
-            const description = plan.plan_code === 'essential' ? copy.essential : plan.plan_code === 'pro' ? copy.pro : copy.other
+            const description = plan.plan_code === 'essential' ? copy.essential : copy.pro
             return <section className={`${styles.paywallPlan} ${plan.recommended ? styles.paywallRecommended : ''}`} key={plan.plan_code}>
               <div className={styles.paywallPlanHead}><h3>{name}</h3>{plan.recommended && <span className={styles.paywallBadge}>{copy.recommended}</span>}</div>
               <p className={styles.paywallPrice}><strong>{formattedPrice}</strong> <span>{copy.perMonth}</span></p>
