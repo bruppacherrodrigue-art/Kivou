@@ -268,11 +268,7 @@ class AssistedCatalogPreparationService:
                 if signal.holder_siren is not None and siren == signal.holder_siren:
                     work.refused["holder"] += 1
                     continue
-                site_email = (
-                    published_email_evidence(row)
-                    if row.get("email_source") == "site"
-                    else None
-                )
+                site_email = published_email_evidence(row)
                 if (
                     site_email is None
                     or is_placeholder_email(site_email[0])

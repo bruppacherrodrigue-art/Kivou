@@ -337,7 +337,7 @@ def test_catalog_preparation_distinguishes_no_site_in_geo_from_history_exclusion
     assert family.zero_reason == "no_site_in_geo"
 
 
-def test_catalog_preparation_rejects_model_discovered_email_even_with_page_evidence(
+def test_catalog_preparation_projects_proven_model_email_as_site(
     migrated_sqlite_engine,
 ) -> None:
     seed_supplier(
@@ -386,9 +386,11 @@ def test_catalog_preparation_rejects_model_discovered_email_even_with_page_evide
         }
     )
 
-    assert result.prepared == 0
-    assert result.families[0].refused_by_reason == {"non_site_email": 1}
-    assert result.families[0].zero_reason == "no_site_in_geo"
+    assert result.prepared == 1
+    row = queued_rows(migrated_sqlite_engine, result.target_ids)[0]
+    assert row["email_source"] == "site"
+    assert row["email_evidence_url"] == evidence_url
+    assert result.families[0].refused_by_reason == {}
 
 
 def test_catalog_preparation_rejects_placeholder_site_email(
