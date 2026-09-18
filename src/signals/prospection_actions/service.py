@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -38,6 +37,11 @@ from signals.prospection_actions.contracts import (
     SendRequestProgress,
     SignalSnapshot,
 )
+from signals.prospection_actions.link_contracts import (
+    IssuedProspectLink,
+    ProspectLinkIssuer,
+    history_id,
+)
 from signals.prospection_actions.queue import (
     reserve_send,
     send_fingerprint,
@@ -59,21 +63,6 @@ _INVALIDATED_PROVIDER_BINDING = {
 
 class EmailVerifier(Protocol):
     def verify(self, email: str) -> bool: ...
-
-
-@dataclass(frozen=True)
-class IssuedProspectLink:
-    url: str
-    member_ref: str
-    token_fingerprint: str
-    payload: dict[str, object]
-    unsubscribe_url: str | None = None
-
-
-class ProspectLinkIssuer(Protocol):
-    def issue(
-        self, *, row: dict[str, object], email: str, at: dt.datetime
-    ) -> IssuedProspectLink: ...
 
 
 class SuppressionChecker(Protocol):
@@ -235,10 +224,7 @@ def _target(row: dict[str, object]) -> ProspectTarget:
     )
 
 
-def _history_id(target_id: str, version: int, event_type: str) -> str:
-    return hashlib.sha256(
-        f"prospect-history\0{target_id}\0{version}\0{event_type}".encode()
-    ).hexdigest()
+_history_id = history_id
 
 
 def _postgresql_sqlstate(error: sa.exc.OperationalError) -> str | None:

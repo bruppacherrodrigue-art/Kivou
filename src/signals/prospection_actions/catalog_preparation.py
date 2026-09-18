@@ -23,13 +23,13 @@ from signals.persistence.schema import (
     supplier_directory,
 )
 from signals.personalization.prospect_mail import RenderedProspectMail, render_prospect_mail
-from signals.prospection_actions.preparation import (
+from signals.prospection_actions.link_contracts import ProspectLinkIssuer, history_id
+from signals.prospection_actions.preparation_contracts import (
     CONTACT_COOLDOWN,
     DAILY_PENDING_CAP,
     AssistedSignal,
-    _director,
+    director,
 )
-from signals.prospection_actions.service import ProspectLinkIssuer, _history_id
 from signals.supplier_discovery.families import department_and_neighbours
 
 _ACTIVE_STATUSES = ("pending_review", "approved")
@@ -190,7 +190,7 @@ class AssistedCatalogPreparationService:
                 connection.execute(sa.insert(prospect_target).values(**values))
                 connection.execute(
                     sa.insert(prospect_target_history).values(
-                        history_id=_history_id(str(values["target_id"]), 1, "prepared"),
+                        history_id=history_id(str(values["target_id"]), 1, "prepared"),
                         target_id=values["target_id"],
                         event_type="prepared",
                         actor="acquisition-runtime",
@@ -287,7 +287,7 @@ class AssistedCatalogPreparationService:
                 )
             candidates.sort(
                 key=lambda item: (
-                    0 if _director(item.directory)[0] else 1,
+                    0 if director(item.directory)[0] else 1,
                     department_order.get(
                         str(item.directory.get("department") or ""), len(department_order)
                     ),
@@ -355,7 +355,7 @@ class AssistedCatalogPreparationService:
         signal = candidate.signal
         directory = candidate.directory
         email = str(directory["professional_email"]).casefold()
-        director_name, director_title = _director(directory)
+        director_name, director_title = director(directory)
         labels = dict(signal.families)
         values: dict[str, object] = {
             "target_id": candidate.target_id,

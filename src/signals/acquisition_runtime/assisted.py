@@ -12,10 +12,9 @@ from signals.acquisition_runtime.selection import resolved_holder_for_opportunit
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.domain.award_dates import attribution_date
 from signals.domain.subdivisions import subdivision_label
-from signals.prospection_actions.preparation import (
+from signals.prospection_actions.preparation_contracts import (
     AssistedSignal,
     PreparationResult,
-    ProspectPreparationService,
 )
 from signals.supplier_discovery.families import (
     department_from_subdivision,
@@ -188,7 +187,7 @@ class AssistedPreparationAction:
 def build_assisted_preparation_action(
     engine,
     *,
-    preparation: ProspectPreparationService,
+    preparation: PreparationPort,
     enrichment_handler: Callable[[AcquisitionActionContext], RuntimeActionResult]
     | None = None,
     required_family_key: str | None = None,

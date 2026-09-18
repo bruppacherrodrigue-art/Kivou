@@ -8,7 +8,7 @@ from signals.conversion.contracts import AttributionTokenPayload
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
-from signals.prospection_actions.service import IssuedProspectLink
+from signals.prospection_actions.link_contracts import IssuedProspectLink
 
 CANONICAL_PRODUCT_ORIGIN = "https://kivou.eu"
 

@@ -8,9 +8,8 @@ import json
 import os
 import uuid
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
-from urllib.parse import urlsplit
 
 import httpx
 from sqlalchemy.engine import Engine
@@ -54,6 +53,10 @@ from signals.acquisition_runtime.contracts import (
     RuntimeStageStatus,
 )
 from signals.acquisition_runtime.fake_providers import build_fake_apollo_components
+from signals.acquisition_runtime.links import (
+    RuntimeLinkConfiguration,
+    load_runtime_link_config,
+)
 from signals.acquisition_runtime.registry import (
     AcquisitionActionHandler,
     AcquisitionActionRegistry,
@@ -121,9 +124,6 @@ from signals.supervisor.runtime import HealthState, SupervisorSettings
 from signals.supplier_directory.store import SupplierDirectoryStore
 from signals.supplier_discovery.contracts import SupplierTargetingConfig
 
-_PUBLIC_APP_URL = "KIVOU_PUBLIC_APP_URL"
-_ATTRIBUTION_KEY = "KIVOU_ATTRIBUTION_HMAC_KEY"
-_ATTRIBUTION_KEY_VERSION = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 _APOLLO_LOCATION_BY_QA_COUNTRY = {
     "CH": "Switzerland",
     "FR": "France",
@@ -151,35 +151,6 @@ def _qa_bound_opportunity_key(
         return None
     key = control.qa_signal_ref.removeprefix(prefix)
     return key or None
-
-
-@dataclass(frozen=True)
-class RuntimeLinkConfiguration:
-    public_app_url: str
-    attribution_hmac_key: bytes = field(repr=False)
-    attribution_key_version: str
-
-    def __post_init__(self) -> None:
-        # Les deux seules origines publiques légitimes. La liste est fermée à
-        # dessein : un hôte de préproduction oublié ou un domaine usurpé ne
-        # doit jamais signer de liens d'attribution.
-        allowed = {"https://staging.kivou.eu", "https://kivou.eu"}
-        parsed = urlsplit(self.public_app_url)
-        if (
-            parsed.scheme != "https"
-            or parsed.port is not None
-            or parsed.username
-            or parsed.password
-            or parsed.path not in {"", "/"}
-            or parsed.query
-            or parsed.fragment
-            or self.public_app_url.rstrip("/") not in allowed
-            or len(self.attribution_hmac_key) < 16
-            or not self.attribution_key_version
-            or len(self.attribution_key_version) > 100
-        ):
-            raise RuntimeExecutionConfigurationError("LINKS_NOT_CONFIGURED")
-        object.__setattr__(self, "public_app_url", self.public_app_url.rstrip("/"))
 
 
 class DomainCompositionSurface:
@@ -326,29 +297,6 @@ class RuntimeExecutionComposition:
     runner: AcquisitionRuntimeRunner
     capability: RuntimeCapabilityEvidence
     config_fingerprint: str
-
-
-def _required(source: Mapping[str, str], name: str) -> str:
-    value = source.get(name)
-    if value is None or not value.strip():
-        raise RuntimeExecutionConfigurationError("LINKS_NOT_CONFIGURED")
-    return value.strip()
-
-
-def load_runtime_link_config(
-    environ: Mapping[str, str] | None = None,
-) -> RuntimeLinkConfiguration:
-    source = os.environ if environ is None else environ
-    try:
-        return RuntimeLinkConfiguration(
-            public_app_url=_required(source, _PUBLIC_APP_URL),
-            attribution_hmac_key=_required(source, _ATTRIBUTION_KEY).encode("utf-8"),
-            attribution_key_version=_required(source, _ATTRIBUTION_KEY_VERSION),
-        )
-    except RuntimeExecutionConfigurationError:
-        raise
-    except (TypeError, ValueError):
-        raise RuntimeExecutionConfigurationError("LINKS_NOT_CONFIGURED") from None
 
 
 def _exact_scope(

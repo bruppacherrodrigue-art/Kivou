@@ -12,6 +12,7 @@ from collections.abc import Callable
 
 import sqlalchemy as sa
 
+from signals.acquisition_runtime.config import RuntimeConfigurationError
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeDependencyState,
@@ -23,11 +24,11 @@ from signals.acquisition_runtime.events import configure_acquisition_runtime_log
 from signals.acquisition_runtime.shadow_store import latest_shadow_mails
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.persistence.database import create_database_engine
-from signals.persistence.schema import prospect_target
-from signals.prospection_actions.day import prospection_day_bounds
+from signals.prospection_actions.catalog_preparation import CatalogPreparationResult
 from signals.prospection_actions.stats import assisted_stats
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
+CatalogPreparationExecutor = Callable[[], CatalogPreparationResult]
 RuntimeDependencyExecutor = Callable[[], tuple[RuntimeStageDependency, ...]]
 _EXPECTED_DEPENDENCY_COUNT = 11
 _SINCE_RE = re.compile(r"^(?P<value>[1-9]\d{0,3})(?P<unit>[hd])$")
@@ -88,6 +89,14 @@ def _default_execute(allow_qa_provider_mutations: bool) -> RuntimeRunResult:
     return execute_runtime_run_once(allow_qa_provider_mutations=allow_qa_provider_mutations)
 
 
+def _default_prepare_catalog() -> CatalogPreparationResult:
+    from signals.acquisition_runtime.catalog_composition import (
+        execute_assisted_catalog_preparation,
+    )
+
+    return execute_assisted_catalog_preparation()
+
+
 def _default_check_dependencies() -> tuple[RuntimeStageDependency, ...]:
     from signals.acquisition_runtime.execution import (
         execute_runtime_dependency_check,
@@ -122,6 +131,7 @@ def main(
     argv: list[str] | None = None,
     *,
     execute: RuntimeExecutor | None = None,
+    prepare_catalog: CatalogPreparationExecutor | None = None,
     check_dependencies: RuntimeDependencyExecutor | None = None,
 ) -> int:
     configure_acquisition_runtime_logging()
@@ -198,66 +208,32 @@ def main(
         if not 1 <= arguments.max_signals <= 5:
             print("status=INVALID_ARGUMENTS", file=sys.stderr)
             return 2
-        run = execute or _default_execute
-        engine = create_database_engine()
-        before = 0
+        prepare = prepare_catalog or _default_prepare_catalog
         try:
-            day_start, day_end = prospection_day_bounds(dt.datetime.now(dt.UTC))
-            with engine.connect() as connection:
-                before = int(
-                    connection.scalar(
-                        sa.select(sa.func.count()).select_from(prospect_target).where(
-                            prospect_target.c.created_at >= day_start,
-                            prospect_target.c.created_at < day_end,
-                            prospect_target.c.status.in_(("pending_review", "approved")),
-                        )
-                    )
-                    or 0
-                )
-        except (OSError, sa.exc.SQLAlchemyError, ValueError):
-            print("status=QUEUE_UNAVAILABLE")
+            result = prepare()
+        except (RuntimeExecutionConfigurationError, RuntimeConfigurationError):
+            print("status=CONFIGURATION_INVALID", file=sys.stderr)
+            return 2
+        except (OSError, sa.exc.SQLAlchemyError, RuntimeError, ValueError):
+            print("status=CATALOG_PREPARATION_FAILED", file=sys.stderr)
             return 1
-        prepared_runs = 0
-        last_reason = None
-        for _ in range(arguments.max_signals):
-            try:
-                result = run(False)
-            except RuntimeExecutionConfigurationError as error:
-                last_reason = error.code
-                if error.code == "NO_ELIGIBLE_OPPORTUNITY":
-                    break
-                print("status=CONFIGURATION_INVALID", file=sys.stderr)
-                return 2
-            except (RuntimeError, ValueError):
-                print("status=CONFIGURATION_INVALID", file=sys.stderr)
-                return 2
-            except Exception:  # noqa: BLE001 - no provider/config detail crosses the CLI
-                print("status=RUNTIME_FAILED", file=sys.stderr)
-                return 1
-            prepared_runs += 1
-            last_reason = result.reason_code
-            try:
-                with engine.connect() as connection:
-                    current = int(
-                        connection.scalar(
-                            sa.select(sa.func.count()).select_from(prospect_target).where(
-                                prospect_target.c.created_at >= day_start,
-                                prospect_target.c.created_at < day_end,
-                                prospect_target.c.status.in_(("pending_review", "approved")),
-                            )
-                        )
-                        or 0
-                    )
-            except (OSError, sa.exc.SQLAlchemyError):
-                print("status=QUEUE_UNAVAILABLE")
-                return 1
-            if current >= 25 or current == before:
-                break
-            before = current
         print(
-            f"status=QUEUE_PREPARED runs={prepared_runs} pending={before}"
-            + (f" reason={last_reason}" if last_reason else "")
+            f"status=CATALOG_PREPARED prepared={result.prepared} "
+            f"active={result.active_after} cycle_ref={result.cycle_ref or 'none'}"
         )
+        for family in result.families:
+            refused = ",".join(
+                f"{reason}:{count}"
+                for reason, count in sorted(family.refused_by_reason.items())
+            ) or "none"
+            opportunities = ",".join(family.opportunity_keys) or "none"
+            print(
+                f"family={family.family_key} eligible={family.eligible} "
+                f"queued={family.queued} refused={refused} "
+                f"deferred={family.deferred_global_cap} "
+                f"opportunities={opportunities} "
+                f"zero_reason={family.zero_reason or 'none'}"
+            )
         return 0
 
     assert arguments.command == "run-once"

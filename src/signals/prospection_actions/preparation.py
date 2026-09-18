@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
-import re
 from collections.abc import Callable
-from dataclasses import dataclass
 from uuid import NAMESPACE_URL, uuid5
 
 import sqlalchemy as sa
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.engine import Engine
 
 from signals.client_value.directory import published_email_evidence
@@ -23,66 +20,25 @@ from signals.persistence.schema import (
 )
 from signals.personalization.prospect_mail import RenderedProspectMail, render_prospect_mail
 from signals.prospection_actions.day import prospection_day, prospection_day_bounds
-from signals.prospection_actions.service import ProspectLinkIssuer, _history_id
+from signals.prospection_actions.link_contracts import ProspectLinkIssuer, history_id
+from signals.prospection_actions.preparation_contracts import (
+    CONTACT_COOLDOWN,
+    DAILY_PENDING_CAP,
+    DAILY_SIGNAL_CAP,
+    LARGE_SIGNAL_LIMIT,
+    SMALL_SIGNAL_LIMIT,
+    SMALL_SIGNAL_MAX_MINOR_UNITS,
+    AssistedSignal,
+    PreparationResult,
+    director,
+)
 from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import (
     department_and_neighbours,
     load_supplier_family_catalog,
 )
 
-DAILY_PENDING_CAP = 25
-DAILY_SIGNAL_CAP = 5
-CONTACT_COOLDOWN = dt.timedelta(days=30)
-SMALL_SIGNAL_LIMIT = 5
-LARGE_SIGNAL_LIMIT = 8
-SMALL_SIGNAL_MAX_MINOR_UNITS = 10_000_000
-
-
-class AssistedSignal(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
-
-    opportunity_key: str = Field(min_length=1, max_length=256)
-    acquisition_opportunity_id: str = Field(min_length=1, max_length=64)
-    procedure_key: str = Field(min_length=1, max_length=256)
-    holder: str = Field(min_length=1, max_length=512)
-    holder_siren: str | None = Field(default=None, pattern=r"^\d{9}$")
-    holder_family_required: bool = False
-    target_holder_family: bool = False
-    subject: str = Field(min_length=1, max_length=998)
-    amount_minor_units: int = Field(ge=5_000_000)
-    currency: str = Field(pattern=r"^(eur|chf)$")
-    location: str = Field(min_length=1, max_length=512)
-    city: str | None = Field(default=None, min_length=1, max_length=512)
-    department: str = Field(pattern=r"^(?:\d{2,3}|2[AB])$")
-    decision_date: dt.date
-    source_url: str = Field(min_length=8, max_length=2048)
-    vertical: str = Field(min_length=1, max_length=100)
-    families: tuple[tuple[str, str], ...] = Field(min_length=1, max_length=5)
-
-    @field_validator("holder")
-    @classmethod
-    def holder_is_a_named_company(cls, value: str) -> str:
-        digits = re.sub(r"\D", "", value)
-        if len(digits) in {9, 14} and not re.sub(r"[\d\s.-]", "", value):
-            raise ValueError("holder must be a named company")
-        return value
-
-
-@dataclass(frozen=True)
-class PreparationResult:
-    prepared: int
-    status: str
-    target_ids: tuple[str, ...] = ()
-    reason: str | None = None
-    directory_candidates: int = 0
-    enrichment_required: bool = False
-
-
-def _director(row: dict[str, object]) -> tuple[str | None, str | None]:
-    selected = str(row.get("director_display_name") or "").strip()
-    if selected:
-        return selected, str(row.get("email_contact_title") or "Dirigeant")
-    return None, None
+_director = director
 
 
 class ProspectPreparationService:
@@ -173,7 +129,7 @@ class ProspectPreparationService:
                 )
                 connection.execute(
                     sa.insert(prospect_target_history).values(
-                        history_id=_history_id(target_id, 2, "rejected-duplicate-siren"),
+                        history_id=history_id(target_id, 2, "rejected-duplicate-siren"),
                         target_id=target_id,
                         event_type="rejected_duplicate_siren",
                         actor="acquisition-runtime",
@@ -209,7 +165,10 @@ class ProspectPreparationService:
                     reason="PROCEDURE_ALREADY_PREPARED_TODAY",
                 )
             distinct_signals = {row.opportunity_key for row in daily}
-            if signal.opportunity_key not in distinct_signals and len(distinct_signals) >= 5:
+            if (
+                signal.opportunity_key not in distinct_signals
+                and len(distinct_signals) >= DAILY_SIGNAL_CAP
+            ):
                 return PreparationResult(
                     prepared=0,
                     status="pending_review",
@@ -431,7 +390,7 @@ class ProspectPreparationService:
                 connection.execute(sa.insert(prospect_target).values(**values))
                 connection.execute(
                     sa.insert(prospect_target_history).values(
-                        history_id=_history_id(target_id, 1, "prepared"),
+                        history_id=history_id(target_id, 1, "prepared"),
                         target_id=target_id,
                         event_type="prepared",
                         actor="acquisition-runtime",

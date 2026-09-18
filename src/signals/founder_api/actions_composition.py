@@ -6,7 +6,7 @@ import httpx
 from sqlalchemy.engine import Engine
 
 from signals.acquisition_connectivity.config import load_connectivity_config
-from signals.acquisition_runtime.execution import load_runtime_link_config
+from signals.acquisition_runtime.links import load_runtime_link_config
 from signals.campaigns.instantly import HttpInstantlyProvider
 from signals.campaigns.runtime_webhook import load_instantly_webhook_runtime_config
 from signals.contact_discovery.deliverability import EmailMxVerifier

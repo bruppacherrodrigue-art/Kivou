@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 import fcntl
 import os
 import threading
@@ -143,6 +144,44 @@ def test_prepare_refuses_the_zurich_daily_cap(
     assert caught.value.status_code == 429
     assert caught.value.code == "DAILY_PENDING_CAP_REACHED"
     assert caught.value.message == "La file du jour a atteint son plafond de 25 cibles."
+
+
+def test_prepare_cap_includes_active_rows_from_previous_days(
+    migrated_sqlite_engine,
+    tmp_path,
+) -> None:
+    seed(migrated_sqlite_engine)
+    with migrated_sqlite_engine.begin() as connection:
+        original = dict(connection.execute(sa.select(prospect_target)).mappings().one())
+        rows = []
+        for index in range(1, 25):
+            row = dict(original)
+            row.update(
+                target_id=f"10000000-0000-0000-0000-{index:012d}",
+                opportunity_key=f"old-opportunity-{index}",
+                email_address=f"old-contact-{index}@example.fr",
+                attribution_member_ref=f"{index + 100:064x}",
+                created_at=NOW - dt.timedelta(days=2),
+                updated_at=NOW - dt.timedelta(days=2),
+            )
+            rows.append(row)
+        connection.execute(
+            sa.update(prospect_target).values(
+                created_at=NOW - dt.timedelta(days=2),
+                updated_at=NOW - dt.timedelta(days=2),
+            )
+        )
+        connection.execute(sa.insert(prospect_target), rows)
+
+    with pytest.raises(FounderAcquisitionLaunchError) as caught:
+        _launcher(
+            migrated_sqlite_engine,
+            tmp_path,
+            popen=lambda *_args, **_options: pytest.fail("must not launch"),
+        ).prepare()
+
+    assert caught.value.status_code == 429
+    assert caught.value.code == "DAILY_PENDING_CAP_REACHED"
 
 
 def test_prepare_refuses_the_acquisition_kill_switch(

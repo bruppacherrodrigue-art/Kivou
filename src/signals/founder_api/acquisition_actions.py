@@ -17,7 +17,6 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
 from signals.persistence.schema import prospect_target
-from signals.prospection_actions.day import prospection_day_bounds
 from signals.prospection_actions.preparation import DAILY_PENDING_CAP
 
 
@@ -70,7 +69,7 @@ class FounderAcquisitionLauncher:
         self._popen = popen
 
     def prepare(self) -> FounderAcquisitionLaunch:
-        prepared = self._prepared_today()
+        prepared = self._active_queue_count()
         if prepared >= DAILY_PENDING_CAP:
             raise FounderAcquisitionLaunchError(
                 status_code=429,
@@ -115,16 +114,14 @@ class FounderAcquisitionLauncher:
             prepared_today_count=prepared,
         )
 
-    def _prepared_today(self) -> int:
-        day_start, day_end = prospection_day_bounds(self._clock())
+    def _active_queue_count(self) -> int:
         with self._engine.connect() as connection:
             return int(
                 connection.scalar(
                     sa.select(sa.func.count())
                     .select_from(prospect_target)
                     .where(
-                        prospect_target.c.created_at >= day_start,
-                        prospect_target.c.created_at < day_end,
+                        prospect_target.c.status.in_(("pending_review", "approved")),
                     )
                 )
                 or 0

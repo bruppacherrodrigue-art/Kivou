@@ -17,6 +17,10 @@ from signals.acquisition_runtime.contracts import (
     RuntimeRunStatus,
     RuntimeStageDependency,
 )
+from signals.prospection_actions.catalog_preparation import (
+    CatalogFamilyResult,
+    CatalogPreparationResult,
+)
 
 
 def _execute(result: RuntimeRunResult) -> tuple[Callable[[bool], RuntimeRunResult], list[bool]]:
@@ -36,6 +40,51 @@ def _ready_dependencies() -> tuple[RuntimeStageDependency, ...]:
             status=RuntimeDependencyState.READY,
         )
         for stage in AcquisitionRuntimeStage
+    )
+
+
+def test_prepare_queue_runs_one_catalog_without_the_legacy_cycle(capsys) -> None:
+    result = CatalogPreparationResult(
+        prepared=2,
+        active_before=3,
+        active_after=5,
+        cycle_ref="c" * 64,
+        target_ids=("target-1", "target-2"),
+        families=(
+            CatalogFamilyResult(
+                family_key="electrical",
+                eligible=3,
+                queued=2,
+                refused_by_reason={"holder": 1},
+                deferred_global_cap=0,
+                opportunity_keys=("opp-electrical",),
+                zero_reason=None,
+            ),
+            CatalogFamilyResult(
+                family_key="insulation",
+                eligible=0,
+                queued=0,
+                refused_by_reason={},
+                deferred_global_cap=0,
+                opportunity_keys=(),
+                zero_reason="no_site_in_geo",
+            ),
+        ),
+    )
+
+    code = main(
+        ["prepare-queue"],
+        execute=lambda _allow: pytest.fail("legacy acquisition cycle must not run"),
+        prepare_catalog=lambda: result,
+    )
+
+    assert code == 0
+    assert capsys.readouterr().out == (
+        f"status=CATALOG_PREPARED prepared=2 active=5 cycle_ref={'c' * 64}\n"
+        "family=electrical eligible=3 queued=2 refused=holder:1 deferred=0 "
+        "opportunities=opp-electrical zero_reason=none\n"
+        "family=insulation eligible=0 queued=0 refused=none deferred=0 "
+        "opportunities=none zero_reason=no_site_in_geo\n"
     )
 
 
