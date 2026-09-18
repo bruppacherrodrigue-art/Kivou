@@ -616,14 +616,17 @@ describe('confirmation du retour de paiement', () => {
 })
 
 describe('retour au signal qui a déclenché l’achat', () => {
-  it('propose de revenir au signal quand une intention valide existe', async () => {
+  it('revient automatiquement au signal après confirmation des droits', async () => {
     saveCheckoutIntent('sig_locked_1')
     statusSequence([paid])
     openSuccess()
 
-    const cta = await screen.findByRole('link', { name: 'Revenir à ce signal' })
-    expect(cta).toHaveAttribute('href', '/app/signals/sig_locked_1')
-    expect(screen.getByRole('link', { name: 'Voir tous mes signaux' })).toBeInTheDocument()
+    await waitFor(() => expect(readCheckoutIntent()).toBeNull())
+    expect(callsTo('/billing/checkout-return')).toContainEqual(
+      expect.objectContaining({ method: 'POST', body: { outcome: 'success' } }),
+    )
+    expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeVisible()
+    expect(screen.queryByText('Accès payant actif')).not.toBeInTheDocument()
   })
 
   it('propose le feed quand aucune intention n’existe', async () => {
@@ -634,8 +637,7 @@ describe('retour au signal qui a déclenché l’achat', () => {
     expect(screen.queryByRole('link', { name: 'Revenir à ce signal' })).not.toBeInTheDocument()
   })
 
-  it('efface l’intention en repartant vers le signal', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+  it('efface l’intention avant le retour automatique vers le signal', async () => {
     saveCheckoutIntent('sig_locked_1')
     mockApi({
       'GET /billing/status': paid,
@@ -643,8 +645,8 @@ describe('retour au signal qui a déclenché l’achat', () => {
     })
     openSuccess()
 
-    await user.click(await screen.findByRole('link', { name: 'Revenir à ce signal' }))
-    expect(readCheckoutIntent()).toBeNull()
+    await waitFor(() => expect(readCheckoutIntent()).toBeNull())
+    expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeVisible()
   })
 
   it('ne propose aucun retour tant que le serveur n’a pas confirmé', async () => {
@@ -670,13 +672,17 @@ describe('retour au signal qui a déclenché l’achat', () => {
 })
 
 describe('annulation', () => {
-  it('efface l’intention et n’annonce aucun échec', async () => {
+  it('conserve le contexte du signal et n’annonce aucun échec', async () => {
     saveCheckoutIntent('sig_locked_1')
     mockApi({})
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/cancel' })
 
     expect(await screen.findByText('Retour depuis le parcours de paiement')).toBeInTheDocument()
-    await waitFor(() => expect(readCheckoutIntent()).toBeNull())
+    await waitFor(() => expect(callsTo('/billing/checkout-return')).toContainEqual(
+      expect.objectContaining({ method: 'POST', body: { outcome: 'cancel' } }),
+    ))
+    expect(screen.getByRole('link', { name: 'Revenir à ce signal' })).toHaveAttribute('href', '/app/signals/sig_locked_1')
+    expect(readCheckoutIntent()).toBe('sig_locked_1')
 
     const page = document.body.textContent ?? ''
     expect(page).not.toMatch(/échec|refus|erreur de paiement/i)

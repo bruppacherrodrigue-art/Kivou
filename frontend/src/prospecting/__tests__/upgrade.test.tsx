@@ -1,57 +1,138 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { useLocation } from 'react-router-dom'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { PlanCatalogue } from '../../api/types'
+import { readCheckoutReturn } from '../../billing/checkoutIntent'
 import { AUTHENTICATED, CATALOGUE, DISCOVERY_STATUS, PRO_STATUS, callsTo, mockApi, renderApp } from '../../test/harness'
 import { UpgradeDialog } from '../components/UpgradeDialog'
 
 afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
-function Probe() { const location = useLocation(); return <output data-testid="route">{JSON.stringify({ path: location.pathname, search: location.search, state: location.state })}</output> }
-describe('server catalogue upgrade invitation', () => {
-  it.each([
-    { locale: 'fr' as const, currency: 'eur' as const, essential: 4900, pro: 9900, labels: ['49 €', '99 €'] },
-    { locale: 'en' as const, currency: 'eur' as const, essential: 4950, pro: 9975, labels: ['€49.50', '€99.75'] },
-  ])('renders catalogue minor units exactly once in $locale/$currency', async ({ locale, currency, essential, pro, labels }) => {
-    const catalogue = { ...CATALOGUE, currencies: ['chf', currency], plans: CATALOGUE.plans.map(plan => ({
-      ...plan,
-      monthly_price: plan.plan_code === 'discovery' ? {} : {
-        chf: { currency: 'chf', amount_minor_units: 8888 },
-        [currency]: { currency, amount_minor_units: plan.plan_code === 'essential' ? essential : pro },
-      },
-    })) }
-    mockApi({ 'GET /billing/plans': { body: catalogue }, 'GET /billing/status': { body: DISCOVERY_STATUS } })
-    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'company', companyKey: 'requested-alias' }} />, { session: AUTHENTICATED, locale })
-    const essentialHeading = await screen.findByRole('heading', { name: locale === 'fr' ? 'Essentiel' : 'Essential' })
-    const proHeading = screen.getByRole('heading', { name: 'Pro' })
-    for (const [index, heading] of [essentialHeading, proHeading].entries()) {
-      const section = heading.closest('section')!
-      expect(within(section).getByText(text => text.replace(/[\u00a0\u202f]/g, ' ') === `${labels[index]} / ${locale === 'fr' ? 'mois' : 'month'}`)).toBeVisible()
-    }
-    expect(document.body).not.toHaveTextContent('CHF')
-    expect(callsTo('/billing/checkout')).toHaveLength(0)
-    expect(callsTo('/billing/portal')).toHaveLength(0)
+
+const checkout = {
+  body: { checkout_url: 'https://checkout.stripe.test/cs_paywall', plan: 'pro', currency: 'eur' },
+}
+
+function setup(catalogue: PlanCatalogue = CATALOGUE, status = DISCOVERY_STATUS) {
+  mockApi({
+    'GET /billing/plans': { body: catalogue },
+    'GET /billing/status': { body: status },
+    'POST /billing/checkout': checkout,
   })
-  it('requires an explicit plan choice and carries the company intent without starting payment', async () => {
-    mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: DISCOVERY_STATUS } })
-    renderApp(<><UpgradeDialog onClose={vi.fn()} intent={{ kind: 'company', companyKey: 'requested-alias' }} /><Probe /></>, { session: AUTHENTICATED, route: '/app/companies/requested-alias' })
-    fireEvent.click(await screen.findByRole('button', { name: 'Choisir Essentiel' }))
-    expect(screen.getByTestId('route')).toHaveTextContent('"path":"/app/billing"')
-    expect(screen.getByTestId('route')).toHaveTextContent('"checkoutIntent":{"kind":"company","companyKey":"requested-alias"}')
-    expect(screen.getByTestId('route')).toHaveTextContent('"checkoutAccountId":"acc_1"')
-    expect(callsTo('/billing/checkout')).toHaveLength(0)
+}
+
+describe('paywall commercial du signal verrouillé', () => {
+  it('présente Essential et Pro depuis le catalogue, avec le recommandé fourni par le serveur', async () => {
+    setup()
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42' }} upgradeTo={['essential', 'pro']} />, { session: AUTHENTICATED })
+
+    expect(await screen.findByRole('heading', { name: 'Continuez votre prospection' })).toBeVisible()
+    expect(screen.getAllByText('SIGNAL VERROUILLÉ').length).toBeGreaterThan(0)
+    expect(screen.getByText('Vous avez utilisé vos 3 signaux Découverte. Passez à un abonnement pour accéder aux prochaines opportunités et à leurs preuves.')).toBeVisible()
+    const essential = screen.getByRole('heading', { name: 'Essential' }).closest('section')!
+    const pro = screen.getByRole('heading', { name: 'Pro' }).closest('section')!
+    expect(within(essential).getByText(/^49.*€$/)).toBeVisible()
+    expect(within(essential).getByText('/ mois')).toBeVisible()
+    expect(within(pro).getByText(/^99.*€$/)).toBeVisible()
+    expect(within(pro).getByText('Recommandé')).toBeVisible()
+    expect(within(essential).getByText('1 profil cible')).toBeVisible()
+    expect(within(pro).getByText('3 profils cibles')).toBeVisible()
+    expect(document.body).not.toHaveTextContent('(s)')
   })
-  it('offers only Essential for a reserved landing signal', async () => {
-    mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: DISCOVERY_STATUS } })
-    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'signal' }} planCode="essential" />, { session: AUTHENTICATED })
-    expect(await screen.findByRole('heading', { name: 'Essentiel' })).toBeInTheDocument()
+
+  it('adapte la présentation à l’unique plan réellement disponible', async () => {
+    setup()
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42' }} upgradeTo={['essential']} />, { session: AUTHENTICATED })
+
+    expect(await screen.findByRole('heading', { name: 'Essential' })).toBeVisible()
     expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Choisir Essentiel' })).toBeInTheDocument()
+    expect(screen.queryByText('Choisir une offre')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-plan-count', '1')
   })
-  it('does not offer a second subscription when the server requires management', async () => {
-    mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: { ...PRO_STATUS, billing_action: 'manage_subscription' } } })
-    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'signal' }} />, { session: AUTHENTICATED })
-    await screen.findByRole('link', { name: 'Gérer ma facturation' })
-    expect(screen.getByRole('heading', { name: 'Votre prospection, avec les bons accès.' })).toBeInTheDocument()
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Choisir Essentiel' })).not.toBeInTheDocument())
-    expect(callsTo('/billing/checkout')).toHaveLength(0)
+
+  it('reste piloté par le catalogue lorsqu’un troisième plan achetable y apparaît', async () => {
+    const scale = {
+      ...CATALOGUE.plans[2],
+      plan_code: 'scale',
+      recommended: false,
+      monthly_price: { eur: { currency: 'eur', amount_minor_units: 19900 } },
+      entitlements: { ...CATALOGUE.plans[2].entitlements, max_active_icps: 8 },
+    }
+    const catalogue = { ...CATALOGUE, plans: [...CATALOGUE.plans, scale] } as unknown as PlanCatalogue
+    setup(catalogue)
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42' }} />, { session: AUTHENTICATED })
+
+    expect(await screen.findByRole('heading', { name: 'Essential' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Pro' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Scale' })).toBeVisible()
+    const scaleCard = screen.getByRole('heading', { name: 'Scale' }).closest('section')!
+    expect(within(scaleCard).getByText(/^199.*€$/)).toBeVisible()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-plan-count', '3')
+  })
+
+  it('n’annonce pas trois signaux utilisés lorsque le compteur serveur dit le contraire', async () => {
+    setup(CATALOGUE, { ...DISCOVERY_STATUS, discovery: { ...DISCOVERY_STATUS.discovery, granted_signal_count: 1, remaining_slots: 2 } })
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42' }} />, { session: AUTHENTICATED })
+
+    await screen.findByRole('heading', { name: 'Continuez votre prospection' })
+    expect(document.body).not.toHaveTextContent('utilisé vos 3 signaux')
+    expect(document.body).toHaveTextContent('Votre accès Découverte ne couvre pas ce signal')
+  })
+
+  it('ferme avec la croix, Échap ou Continuer avec Découverte et place le focus dans la fenêtre', async () => {
+    const onClose = vi.fn()
+    setup()
+    renderApp(<UpgradeDialog onClose={onClose} intent={{ kind: 'signal', signalKey: 'sig-42' }} />, { session: AUTHENTICATED })
+    const close = await screen.findByRole('button', { name: 'Fermer' })
+    expect(close).toHaveFocus()
+    await userEvent.click(screen.getByRole('button', { name: 'Continuer avec Découverte' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
+    expect(onClose).toHaveBeenCalledTimes(2)
+    await userEvent.click(close)
+    expect(onClose).toHaveBeenCalledTimes(3)
+  })
+
+  it('ouvre Stripe directement, conserve le signal et bloque les doubles clics', async () => {
+    let release!: (value: typeof checkout) => void
+    const pending = new Promise<typeof checkout>((resolve) => { release = resolve })
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    mockApi({
+      'GET /billing/plans': { body: CATALOGUE },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'POST /billing/checkout': () => pending,
+    })
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42', artifactId: 'artifact-7' }} />, { session: AUTHENTICATED })
+
+    const button = await screen.findByRole('button', { name: /Choisir Pro — 99.*€\/mois/ })
+    act(() => { fireEvent.click(button); fireEvent.click(button) })
+    expect(callsTo('/billing/checkout')).toHaveLength(1)
+    expect(button).toBeDisabled()
+    expect(button).toHaveTextContent('Ouverture du paiement…')
+
+    await act(async () => { release(checkout); await pending })
+    expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'pro', currency: 'eur' })
+    expect(readCheckoutReturn('acc_1')).toEqual({ kind: 'signal', signalKey: 'sig-42', artifactId: 'artifact-7' })
+    expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_paywall')
+  })
+
+  it('affiche une erreur exploitable et permet de réessayer', async () => {
+    mockApi({
+      'GET /billing/plans': { body: CATALOGUE },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'POST /billing/checkout': { status: 503, body: { detail: { code: 'billing_unavailable' } } },
+    })
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42' }} />, { session: AUTHENTICATED })
+
+    await userEvent.click(await screen.findByRole('button', { name: /Choisir Essential — 49.*€\/mois/ }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Facturation indisponible')
+    expect(screen.getByRole('button', { name: /Choisir Essential — 49.*€\/mois/ })).toBeEnabled()
+  })
+
+  it('renvoie vers la gestion de facturation quand le serveur interdit une nouvelle souscription', async () => {
+    setup(CATALOGUE, PRO_STATUS)
+    renderApp(<UpgradeDialog onClose={vi.fn()} intent={{ kind: 'signal', signalKey: 'sig-42' }} />, { session: AUTHENTICATED })
+    expect(await screen.findByRole('link', { name: 'Gérer ma facturation' })).toBeVisible()
+    await waitFor(() => expect(callsTo('/billing/checkout')).toHaveLength(0))
   })
 })

@@ -711,6 +711,17 @@ def get_signal(
             # le mur payant. Un signal d'un autre compte n'existe pas ici, donc
             # rien n'est écrit — l'analytique ne doit pas devenir un annuaire.
             unlocked = access.is_unlocked(item)
+            event_properties: dict[str, Any] = {
+                "access_granted": unlocked,
+                "plan_code": access.plan_code,
+            }
+            if not unlocked:
+                event_properties.update(
+                    {
+                        "paywall_origin": "signal_detail",
+                        "plans_presented": list(eligible_upgrade_plans(item, access=access)),
+                    }
+                )
             analytics.record(
                 connection,
                 account_id=session.account_id,
@@ -719,8 +730,22 @@ def get_signal(
                 signal_key=signal_key,
                 event_type="signal_detail_viewed",
                 occurred_at=now,
-                properties={"access_granted": unlocked, "plan_code": access.plan_code},
+                properties=event_properties,
             )
+            if not unlocked:
+                analytics.record(
+                    connection,
+                    account_id=session.account_id,
+                    user_id=session.user_id,
+                    target_icp_id=item.signal.target_icp_id,
+                    signal_key=signal_key,
+                    event_type="paywall_viewed",
+                    occurred_at=now,
+                    properties={
+                        "origin": "signal_detail",
+                        "plans_presented": list(eligible_upgrade_plans(item, access=access)),
+                    },
+                )
             interaction = feedback.get_feedback(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
@@ -861,8 +886,6 @@ def get_signal(
         # et « pas encore accessible », et empêcherait de dire ce que le
         # paiement débloquerait.
         upgrade_to = eligible_upgrade_plans(item, access=access)
-        if landing_example_holder is not None and access.plan_code == "discovery":
-            upgrade_to = ("essential",) if "essential" in upgrade_to else ()
         locked = paywall.locked_detail(
             item,
             lang=lang,

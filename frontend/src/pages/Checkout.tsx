@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CircleCheckBig, CircleX } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { billing } from '../api/endpoints'
 import { onSignOutStarted } from '../api/client'
 import type { BillingStatus } from '../api/types'
@@ -28,6 +29,7 @@ export function CheckoutSuccess() {
 function AccountCheckoutSuccess({ accountId }: { accountId: string }) {
   const { t, locale } = useI18n()
   const { refresh: refreshSession } = useSession()
+  const navigate = useNavigate()
   const [status, setStatus] = useState<BillingStatus | null>(null)
   const [intent] = useState(() => readCheckoutReturn(accountId))
   const [timedOut, setTimedOut] = useState(false)
@@ -90,9 +92,17 @@ function AccountCheckoutSuccess({ accountId }: { accountId: string }) {
         return
       }
       if (result.kind === 'status') {
-        if (result.next.plan_code !== 'discovery') clearCheckoutIntent()
         setStatus(result.next)
         if (result.next.plan_code !== 'discovery') {
+          await billing.checkoutReturn('success').catch(() => undefined)
+          if (!current()) return
+          if (intent) {
+            const destination = checkoutReturnPath(intent)
+            clearCheckoutIntent()
+            navigate(destination, { replace: true })
+          } else {
+            clearCheckoutIntent()
+          }
           refreshBusyRef.current = false
           return
         }
@@ -133,7 +143,7 @@ function AccountCheckoutSuccess({ accountId }: { accountId: string }) {
         requestTimerRef.current = null
       }
     }
-  }, [verificationRun, refreshSession])
+  }, [verificationRun, refreshSession, intent, navigate])
 
   useEffect(() => {
     if (confirmed) clearCheckoutIntent()
@@ -194,7 +204,14 @@ function AccountCheckoutSuccess({ accountId }: { accountId: string }) {
  * échec, ni débit, ni changement de plan. */
 export function CheckoutCancel() {
   const { t } = useI18n()
-  useEffect(() => clearCheckoutIntent(), [])
+  const me = useCurrentUser()
+  const [intent] = useState(() => readCheckoutReturn(me.account_id))
+  const primary = intent
+    ? { label: t.checkout.returnToSignal, href: checkoutReturnPath(intent) }
+    : { label: t.checkout.backToSignals, href: '/app/signals' }
+  useEffect(() => {
+    void billing.checkoutReturn('cancel').catch(() => undefined)
+  }, [])
 
   return (
     <SystemState
@@ -202,8 +219,8 @@ export function CheckoutCancel() {
       eyebrow="Retour Stripe"
       title={t.checkout.cancelTitle}
       description={t.checkout.cancelBody}
-      primary={{ label: t.checkout.seeBilling, href: '/app/billing' }}
-      secondary={{ label: t.checkout.backToSignals, href: '/app/signals' }}
+      primary={primary}
+      secondary={{ label: t.checkout.seeBilling, href: '/app/billing' }}
     />
   )
 }
