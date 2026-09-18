@@ -1,5 +1,7 @@
 # Stendhal Electrical Assisted Queue Implementation Plan
 
+> **Statut : annulé.** Ce plan de couple unique est remplacé par la [préparation catalogue ASSISTED](../specs/2026-09-18-assisted-catalog-preparation-design.md). Ne pas l'exécuter.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to execute this plan task by task.
 
 **Goal:** Replace the exhausted timber targeting with the validated Stendhal/SPIE electrical opportunity, enrich SPIE, and materialize at most eight new site-sourced prospects in `pending_review` without sending anything.

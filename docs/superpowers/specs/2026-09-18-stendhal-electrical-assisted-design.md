@@ -1,5 +1,7 @@
 # Stendhal electrical assisted queue — design
 
+> **Statut : remplacé.** La préparation d'un couple unique a été remplacée par la [préparation catalogue ASSISTED](./2026-09-18-assisted-catalog-preparation-design.md). Ne pas implémenter ce document.
+
 ## Objective
 
 Replace the exhausted Monod timber targeting pair with the procurement opportunity
