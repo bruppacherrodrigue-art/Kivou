@@ -231,7 +231,11 @@ def main(
             ) or "none"
             opportunities = ",".join(family.opportunity_keys) or "none"
             print(
-                f"family={family.family_key} eligible={family.eligible} "
+                f"family={family.family_key} "
+                f"notices_examined={family.notices_examined} "
+                f"notices_admissible={family.notices_admissible} "
+                f"notices_used={family.notices_used} "
+                f"eligible={family.eligible} "
                 f"queued={family.queued} refused={refused} "
                 f"deferred={family.deferred_global_cap} "
                 f"opportunities={opportunities} "

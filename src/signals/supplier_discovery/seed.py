@@ -128,6 +128,51 @@ def resolve_public_acquisition_context_in_transaction(
     )
 
 
+def resolve_public_acquisition_context_for_award_in_transaction(
+    connection: Connection,
+    opportunity_key: str,
+    representative_award_key: str,
+) -> PublicAcquisitionContext:
+    """Resolve the exact source representation selected by a caller.
+
+    Catalogue preparation first applies geography, date and amount eligibility
+    to one award representation.  Re-resolving only by opportunity would be
+    unsafe because the canonical completeness ranking may select another
+    representation with different public facts.
+    """
+
+    row = connection.execute(
+        sa.select(opportunity_representation.c.award_key, source_event, contract_award)
+        .select_from(
+            opportunity_representation.join(
+                contract_award,
+                opportunity_representation.c.award_key == contract_award.c.award_key,
+            ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
+        )
+        .where(
+            opportunity_representation.c.opportunity_key == opportunity_key,
+            opportunity_representation.c.award_key == representative_award_key,
+        )
+    ).one_or_none()
+    if row is None:
+        raise AcquisitionSeedNotFound(
+            f"{opportunity_key}:{representative_award_key}"
+        )
+    event = canonical_event(row)
+    award = canonical_award(row, event)
+    return PublicAcquisitionContext(
+        signal_ref=f"procurement-opportunity:{opportunity_key}",
+        opportunity_key=opportunity_key,
+        representative_award_key=representative_award_key,
+        event=event,
+        award=award,
+        public_evidence_refs=(
+            f"source-event:{event.ref().key()}",
+            f"contract-award:{representative_award_key}",
+        ),
+    )
+
+
 def resolve_public_acquisition_context(
     engine: Engine, opportunity_key: str
 ) -> PublicAcquisitionContext:
@@ -135,8 +180,21 @@ def resolve_public_acquisition_context(
         return resolve_public_acquisition_context_in_transaction(connection, opportunity_key)
 
 
-def resolve_acquisition_seed(engine: Engine, opportunity_key: str) -> AcquisitionSeed:
-    public = resolve_public_acquisition_context(engine, opportunity_key)
+def resolve_acquisition_seed(
+    engine: Engine,
+    opportunity_key: str,
+    *,
+    representative_award_key: str | None = None,
+) -> AcquisitionSeed:
+    if representative_award_key is None:
+        public = resolve_public_acquisition_context(engine, opportunity_key)
+    else:
+        with engine.connect() as connection:
+            public = resolve_public_acquisition_context_for_award_in_transaction(
+                connection,
+                opportunity_key,
+                representative_award_key,
+            )
     event = public.event
     award = public.award
     understanding = ContractUnderstandingEngine().understand(award, event)

@@ -29,14 +29,26 @@ class PreparationPort(Protocol):
 
 
 def resolve_assisted_signal(
-    engine, opportunity_key: str, *, required_family_key: str | None = None
+    engine,
+    opportunity_key: str,
+    *,
+    required_family_key: str | None = None,
+    representative_award_key: str | None = None,
 ) -> AssistedSignal:
-    seed = resolve_acquisition_seed(engine, opportunity_key)
+    seed = resolve_acquisition_seed(
+        engine,
+        opportunity_key,
+        representative_award_key=representative_award_key,
+    )
     award = seed.award
     amount = award.value
     place = award.place_of_performance
     title = str(award.title or award.description or "").strip()
-    official_holder = resolved_holder_for_opportunity(engine, opportunity_key)
+    official_holder = resolved_holder_for_opportunity(
+        engine,
+        opportunity_key,
+        source_award_key=representative_award_key,
+    )
     holder = None if official_holder is None else official_holder.name
     holder_siren = None
     if official_holder is not None:

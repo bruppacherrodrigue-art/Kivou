@@ -47,11 +47,15 @@ def _seed_notice(
     key: str,
     title: str,
     vertical: str,
+    opportunity_key: str | None = None,
     subdivision: str = "FR-38",
     decision_date: dt.date = TODAY,
     official_holder: bool = True,
     official_holder_identifier: bool = True,
+    materialize: bool = True,
+    award_date: dt.date | None = None,
 ) -> None:
+    opportunity_key = opportunity_key or key
     fingerprint = (key.replace("-", "") + "0" * 64)[:64]
     with engine.begin() as connection:
         if connection.scalar(
@@ -87,6 +91,7 @@ def _seed_notice(
                 award_key=f"award-{key}",
                 event_key=f"event-{key}",
                 title=title,
+                award_date=award_date,
                 contract_notification_date=decision_date,
                 amount=100_000,
                 currency="EUR",
@@ -125,13 +130,17 @@ def _seed_notice(
         )
         connection.execute(
             sa.insert(opportunity_representation).values(
-                award_key=f"award-{key}", opportunity_key=key, created_at=NOW
+                award_key=f"award-{key}",
+                opportunity_key=opportunity_key,
+                created_at=NOW,
             )
         )
+        if not materialize:
+            return
         connection.execute(
             sa.insert(materialized_signal).values(
                 signal_key=f"signal-{key}",
-                opportunity_key=key,
+                opportunity_key=opportunity_key,
                 materialization_award_key=f"award-{key}",
                 target_icp_id="icp-catalog",
                 target_icp_revision=1,
@@ -267,3 +276,88 @@ def test_catalog_selection_does_not_consult_runtime_cycles(tmp_path) -> None:
     )
 
     assert first == second
+
+
+def test_catalog_selection_binds_eligibility_rendering_and_holder_to_exact_award(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path)
+    _seed_notice(
+        engine,
+        key="eligible-aura",
+        opportunity_key="opp-shared",
+        title="Électricité du collège actuel",
+        vertical="technical_installation",
+        subdivision="FR-38",
+        decision_date=TODAY,
+    )
+    # This second representation is deliberately more complete, but ineligible:
+    # it is in Paris and its decision lies in the future.  Catalog selection must
+    # never admit the AURA award and then render this other representation.
+    _seed_notice(
+        engine,
+        key="future-paris",
+        opportunity_key="opp-shared",
+        title="Électricité du siège parisien futur",
+        vertical="technical_installation",
+        subdivision="FR-75",
+        decision_date=TODAY + dt.timedelta(days=10),
+        award_date=TODAY + dt.timedelta(days=10),
+        official_holder=False,
+        materialize=False,
+    )
+
+    inventory = select_assisted_catalog_signals(
+        engine,
+        country="FR",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    )
+
+    notices = inventory["electrical"].notices
+    assert len(notices) == 1
+    assert notices[0].award_key == "award-eligible-aura"
+    assert notices[0].signal.opportunity_key == "opp-shared"
+    assert notices[0].signal.subject == "Électricité du collège actuel"
+    assert notices[0].signal.source_url == "https://www.boamp.fr/avis/eligible-aura"
+    assert notices[0].signal.decision_date == TODAY
+
+
+def test_catalog_selection_rejects_a_holder_from_another_award_representation(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path)
+    _seed_notice(
+        engine,
+        key="eligible-source",
+        opportunity_key="opp-holder-source",
+        title="Électricité de l'école",
+        vertical="technical_installation",
+    )
+    _seed_notice(
+        engine,
+        key="other-source",
+        opportunity_key="opp-holder-source",
+        title="Électricité autre représentation",
+        vertical="technical_installation",
+        materialize=False,
+        official_holder=False,
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(saas_company)
+            .where(saas_company.c.company_key == "company-eligible-source")
+            .values(source_award_key="award-other-source")
+        )
+
+    inventory = select_assisted_catalog_signals(
+        engine,
+        country="FR",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    )
+
+    assert inventory["electrical"].notices == ()
+    assert inventory["electrical"].mono_notice_count == 1
+    assert inventory["electrical"].missing_official_holder_count == 1
+    assert inventory["electrical"].zero_reason == "no_official_holder"

@@ -357,6 +357,31 @@ def test_status_surfaces_a_newer_catalog_summary_cycle(
     assert status.last_cycle_reason_code == "ASSISTED_CATALOG_PENDING_REVIEW"
 
 
+def test_status_surfaces_catalog_summary_without_a_legacy_observation(
+    engine: sa.Engine,
+) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(acquisition_runtime_cycle),
+            _cycle_values(
+                "catalog-only-cycle",
+                reason_code="ASSISTED_CATALOG_EMPTY",
+                updated_at=NOW - dt.timedelta(minutes=5),
+            ),
+        )
+
+    status = FounderAcquisitionStatusReadService(
+        engine,
+        timer_reader=lambda _: FounderAcquisitionActivity(activity="STOPPED"),
+    ).read(now=NOW)
+
+    assert status.mode == "ASSISTED"
+    assert status.last_cycle_ref == "catalog-only-cycle"
+    assert status.last_cycle_at == NOW - dt.timedelta(minutes=5)
+    assert status.last_cycle_status == "SUPPRESSED"
+    assert status.last_cycle_reason_code == "ASSISTED_CATALOG_EMPTY"
+
+
 def test_systemd_reader_parses_the_numeric_timestamp_without_weekday_locale() -> None:
     activity = SystemdAcquisitionActivityReader(
         run=_systemctl_result(

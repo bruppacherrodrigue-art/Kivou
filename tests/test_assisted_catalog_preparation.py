@@ -99,7 +99,10 @@ def inventory(
 ) -> CatalogFamilyInventory:
     return CatalogFamilyInventory(
         family_key=family_key,
-        notices=tuple(CatalogNotice(signal=value) for value in signals),
+        notices=tuple(
+            CatalogNotice(award_key=f"source-{value.procedure_key}", signal=value)
+            for value in signals
+        ),
         mono_notice_count=len(signals),
         missing_official_holder_count=0,
         qualification_error_count=0,
@@ -235,6 +238,20 @@ def test_catalog_preparation_round_robins_families_before_opening_second_notices
         "opp-insulation-best",
         "opp-electrical-second",
     ]
+    assert [row["procedure_award_key"] for row in rows] == [
+        "source-award-opp-electrical-best",
+        "source-award-opp-insulation-best",
+        "source-award-opp-electrical-best",
+        "source-award-opp-insulation-best",
+        "source-award-opp-electrical-second",
+    ]
+    by_family = {family.family_key: family for family in result.families}
+    assert by_family["electrical"].notices_examined == 2
+    assert by_family["electrical"].notices_admissible == 2
+    assert by_family["electrical"].notices_used == 2
+    assert by_family["insulation"].notices_examined == 1
+    assert by_family["insulation"].notices_admissible == 1
+    assert by_family["insulation"].notices_used == 1
     assert len(links.calls) == 5
 
 
@@ -804,6 +821,128 @@ def test_catalog_historical_target_is_the_siren_notice_pair_not_the_old_email(
 
     assert second.prepared == 0
     assert second.families[0].refused_by_reason == {"historical_target": 1}
+
+
+def test_catalog_deduplicates_a_shared_mailbox_before_inserting_the_batch(
+    migrated_sqlite_engine,
+) -> None:
+    for siren in ("310000011", "310000012"):
+        seed_supplier(
+            migrated_sqlite_engine,
+            siren=siren,
+            family_key="electrical",
+            department="38",
+        )
+    shared_email = "contact@shared-electricians.fr"
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren.in_(("310000011", "310000012")))
+            .values(
+                professional_email=shared_email,
+                domain="shared-electricians.fr",
+                website_url="https://shared-electricians.fr",
+                email_evidence_url="https://shared-electricians.fr/contact",
+            )
+        )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+
+    result = service.prepare(
+        {
+            "electrical": inventory(
+                "electrical",
+                signal(
+                    "opp-shared-mailbox",
+                    "electrical",
+                    department="38",
+                    subject="Électricité collège",
+                    holder_siren="440055861",
+                ),
+            )
+        }
+    )
+
+    rows = queued_rows(migrated_sqlite_engine, result.target_ids)
+    assert result.prepared == 1
+    assert rows[0]["siren"] == "310000011"
+    assert rows[0]["email_address"] == shared_email
+    assert result.families[0].refused_by_reason == {"duplicate_email": 1}
+
+
+def test_catalog_skips_an_existing_notice_mailbox_owned_by_another_siren(
+    migrated_sqlite_engine,
+) -> None:
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren="310000013",
+        family_key="electrical",
+        department="38",
+    )
+    shared_email = "direction@shared-electricians.fr"
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "310000013")
+            .values(
+                professional_email=shared_email,
+                domain="shared-electricians.fr",
+                website_url="https://shared-electricians.fr",
+                email_evidence_url="https://shared-electricians.fr/direction",
+            )
+        )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+    values = {
+        "electrical": inventory(
+            "electrical",
+            signal(
+                "opp-durable-mailbox",
+                "electrical",
+                department="38",
+                subject="Électricité gymnase",
+                holder_siren="440055861",
+            ),
+        )
+    }
+    first = service.prepare(values)
+    assert first.prepared == 1
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id.in_(first.target_ids))
+            .values(status="sent", instantly_accepted_at=NOW - dt.timedelta(days=31))
+        )
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren="310000014",
+        family_key="electrical",
+        department="38",
+    )
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "310000014")
+            .values(
+                professional_email=shared_email,
+                domain="shared-electricians.fr",
+                website_url="https://shared-electricians.fr",
+                email_evidence_url="https://shared-electricians.fr/direction",
+            )
+        )
+
+    second = service.prepare(values)
+
+    assert second.prepared == 0
+    assert second.families[0].refused_by_reason == {"historical_target": 2}
 
 
 def test_catalog_summary_stays_pending_while_the_active_queue_exists(

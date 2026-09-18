@@ -53,6 +53,9 @@ def test_prepare_queue_runs_one_catalog_without_the_legacy_cycle(capsys) -> None
         families=(
             CatalogFamilyResult(
                 family_key="electrical",
+                notices_examined=2,
+                notices_admissible=2,
+                notices_used=1,
                 eligible=3,
                 queued=2,
                 refused_by_reason={"holder": 1},
@@ -62,6 +65,9 @@ def test_prepare_queue_runs_one_catalog_without_the_legacy_cycle(capsys) -> None
             ),
             CatalogFamilyResult(
                 family_key="insulation",
+                notices_examined=1,
+                notices_admissible=1,
+                notices_used=0,
                 eligible=0,
                 queued=0,
                 refused_by_reason={},
@@ -81,9 +87,11 @@ def test_prepare_queue_runs_one_catalog_without_the_legacy_cycle(capsys) -> None
     assert code == 0
     assert capsys.readouterr().out == (
         f"status=CATALOG_PREPARED prepared=2 active=5 cycle_ref={'c' * 64}\n"
-        "family=electrical eligible=3 queued=2 refused=holder:1 deferred=0 "
+        "family=electrical notices_examined=2 notices_admissible=2 notices_used=1 "
+        "eligible=3 queued=2 refused=holder:1 deferred=0 "
         "opportunities=opp-electrical zero_reason=none\n"
-        "family=insulation eligible=0 queued=0 refused=none deferred=0 "
+        "family=insulation notices_examined=1 notices_admissible=1 notices_used=0 "
+        "eligible=0 queued=0 refused=none deferred=0 "
         "opportunities=none zero_reason=no_site_in_geo\n"
     )
 

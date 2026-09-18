@@ -4,8 +4,8 @@
   "qa_scope": {
     "country": "FR",
     "language": "fr",
-    "wedge": "construction",
-    "vertical": "general_building",
+    "wedge": "general_building",
+    "vertical": null,
     "region": "Auvergne-Rhône-Alpes"
   },
   "limits": {
@@ -15,5 +15,17 @@
     "maximum_provider_operations": 4,
     "maximum_wall_seconds": 900,
     "lease_seconds": 1200
-  }
+  },
+  "selection": {
+    "mode": "catalog",
+    "allowed_opportunity_keys": [],
+    "region": "Auvergne-Rhône-Alpes",
+    "email_source": "site",
+    "window_days": 30,
+    "minimum_amount": 50000.0,
+    "require_named_holder": true,
+    "require_nonempty_object": true,
+    "require_model_fit": true
+  },
+  "providers": {"mode": "live"}
 }

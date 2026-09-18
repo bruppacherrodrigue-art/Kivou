@@ -40,6 +40,9 @@ _ATTRIBUTION_URL = re.compile(r"https://[^\s\"'<>]+/a/[^\s\"'<>]+")
 @dataclass(frozen=True)
 class CatalogFamilyResult:
     family_key: str
+    notices_examined: int
+    notices_admissible: int
+    notices_used: int
     eligible: int
     queued: int
     refused_by_reason: Mapping[str, int]
@@ -61,6 +64,7 @@ class CatalogPreparationResult:
 @dataclass(frozen=True)
 class _Candidate:
     family_key: str
+    award_key: str
     signal: AssistedSignal
     directory: dict[str, object]
     target_id: str
@@ -142,6 +146,15 @@ class AssistedCatalogPreparationService:
                     )
                 )
             }
+            historical_recipients = {
+                (str(row.opportunity_key), str(row.email_address).casefold())
+                for row in connection.execute(
+                    sa.select(
+                        prospect_target.c.opportunity_key,
+                        prospect_target.c.email_address,
+                    )
+                )
+            }
             directory_rows = tuple(
                 dict(row)
                 for row in connection.execute(
@@ -163,6 +176,7 @@ class AssistedCatalogPreparationService:
                         recently_contacted=recently_contacted,
                         rejected_sirens=rejected_sirens,
                         historical_targets=historical_targets,
+                        historical_recipients=historical_recipients,
                     )
                 except (KeyError, TypeError, ValueError):
                     qualified = _FamilyWork(
@@ -231,6 +245,7 @@ class AssistedCatalogPreparationService:
         recently_contacted: set[str],
         rejected_sirens: set[str],
         historical_targets: set[tuple[str, str]],
+        historical_recipients: set[tuple[str, str]],
     ) -> _FamilyWork:
         work = _FamilyWork(family_key=family_key, inventory=inventory)
         for notice in inventory.notices:
@@ -278,20 +293,29 @@ class AssistedCatalogPreparationService:
                     work.refused["active_duplicate"] += 1
                     continue
                 email, evidence_url = site_email
+                normalized_email = email.casefold()
                 target_id = str(
-                    uuid5(NAMESPACE_URL, f"kivou:prospect:{signal.opportunity_key}:{email.casefold()}")
+                    uuid5(
+                        NAMESPACE_URL,
+                        f"kivou:prospect:{signal.opportunity_key}:{normalized_email}",
+                    )
                 )
-                if (siren, signal.opportunity_key) in historical_targets:
+                if (
+                    (siren, signal.opportunity_key) in historical_targets
+                    or (signal.opportunity_key, normalized_email)
+                    in historical_recipients
+                ):
                     work.refused["historical_target"] += 1
                     continue
                 row.update(
-                    professional_email=email.casefold(),
+                    professional_email=normalized_email,
                     email_source="site",
                     email_evidence_url=evidence_url,
                 )
                 candidates.append(
                     _Candidate(
                         family_key=family_key,
+                        award_key=notice.award_key,
                         signal=signal,
                         directory=row,
                         target_id=target_id,
@@ -323,8 +347,10 @@ class AssistedCatalogPreparationService:
     ) -> list[_Candidate]:
         selected: list[_Candidate] = []
         selected_sirens = set(active_sirens)
+        selected_recipients: set[tuple[str, str]] = set()
         selected_candidate_keys: set[tuple[str, str]] = set()
         duplicate_candidate_keys: set[tuple[str, str]] = set()
+        duplicate_email_candidate_keys: set[tuple[str, str]] = set()
         maximum_notice_rank = max((len(item.pools) for item in work), default=0)
         for notice_rank in range(maximum_notice_rank):
             queues: list[tuple[_FamilyWork, deque[_Candidate]]] = [
@@ -339,14 +365,24 @@ class AssistedCatalogPreparationService:
                         candidate = queue.popleft()
                         siren = str(candidate.directory["siren"])
                         candidate_key = (item.family_key, candidate.target_id)
+                        recipient_key = (
+                            candidate.signal.opportunity_key,
+                            str(candidate.directory["professional_email"]).casefold(),
+                        )
                         if siren in selected_sirens:
                             if candidate_key not in duplicate_candidate_keys:
                                 item.refused["active_duplicate"] += 1
                                 duplicate_candidate_keys.add(candidate_key)
                             continue
+                        if recipient_key in selected_recipients:
+                            if candidate_key not in duplicate_email_candidate_keys:
+                                item.refused["duplicate_email"] += 1
+                                duplicate_email_candidate_keys.add(candidate_key)
+                            continue
                         selected.append(candidate)
                         item.queued.append(candidate)
                         selected_sirens.add(siren)
+                        selected_recipients.add(recipient_key)
                         selected_candidate_keys.add(candidate_key)
                         progressed = True
                         break
@@ -365,10 +401,19 @@ class AssistedCatalogPreparationService:
                         if candidate_key in selected_candidate_keys:
                             continue
                         siren = str(candidate.directory["siren"])
+                        recipient_key = (
+                            candidate.signal.opportunity_key,
+                            str(candidate.directory["professional_email"]).casefold(),
+                        )
                         if siren in selected_sirens:
                             if candidate_key not in duplicate_candidate_keys:
                                 item.refused["active_duplicate"] += 1
                                 duplicate_candidate_keys.add(candidate_key)
+                            continue
+                        if recipient_key in selected_recipients:
+                            if candidate_key not in duplicate_email_candidate_keys:
+                                item.refused["duplicate_email"] += 1
+                                duplicate_email_candidate_keys.add(candidate_key)
                             continue
                         deferred_sirens.add(siren)
                 item.deferred = len(deferred_sirens)
@@ -387,7 +432,7 @@ class AssistedCatalogPreparationService:
             "version": 1,
             "cycle_ref": cycle_ref,
             "opportunity_key": signal.opportunity_key,
-            "procedure_award_key": signal.procedure_key,
+            "procedure_award_key": candidate.award_key,
             "acquisition_opportunity_id": signal.acquisition_opportunity_id,
             "siren": directory["siren"],
             "company_name": directory["legal_name"],
@@ -499,15 +544,22 @@ class AssistedCatalogPreparationService:
                 if work.deferred == 0
                 else None
             )
+        opportunity_keys = tuple(
+            dict.fromkeys(candidate.signal.opportunity_key for candidate in work.queued)
+        )
+        notices_used = len(
+            tuple(dict.fromkeys(candidate.award_key for candidate in work.queued))
+        )
         return CatalogFamilyResult(
             family_key=work.family_key,
+            notices_examined=work.inventory.mono_notice_count,
+            notices_admissible=len(work.inventory.notices),
+            notices_used=notices_used,
             eligible=work.eligible,
             queued=len(work.queued),
             refused_by_reason=dict(sorted(work.refused.items())),
             deferred_global_cap=work.deferred,
-            opportunity_keys=tuple(
-                dict.fromkeys(candidate.signal.opportunity_key for candidate in work.queued)
-            ),
+            opportunity_keys=opportunity_keys,
             zero_reason=zero_reason,
         )
 

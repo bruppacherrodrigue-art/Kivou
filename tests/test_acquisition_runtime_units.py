@@ -247,23 +247,22 @@ def test_the_production_connectivity_example_is_schema_valid_and_redacted() -> N
     assert len({item.mailbox_ref for item in document.mailboxes}) == 3
 
 
-def test_the_production_runbook_covers_the_full_bring_up_sequence() -> None:
+def test_the_production_runbook_covers_the_catalog_prepare_sequence() -> None:
     from pathlib import Path
 
     runbook = Path("docs/runbooks/12-acquisition-production-shadow.md").read_text(
         encoding="utf-8"
     )
-    assert "0029_production_observation" in runbook
-    assert "command.upgrade" in runbook
-    assert "command.downgrade" in runbook
-    assert "signals.operations" in runbook
-    assert "bootstrap-policy-control" in runbook
-    assert "--reason-code ACQUISITION_PRODUCTION_SHADOW" in runbook
-    assert "--daily-cost-cap 30.00" in runbook
-    assert "--country FR --language fr --wedge" in runbook
     assert "--database-url" not in runbook
-    assert "python -m signals.acquisition_runtime check-dependencies" in runbook
-    assert "python -m signals.acquisition_runtime run-once" in runbook
+    assert "python -m signals.acquisition_runtime prepare-queue" in runbook
+    assert "/usr/bin/flock --verbose --nonblock --conflict-exit-code 75" in runbook
+    assert "status=CATALOG_PREPARED" in runbook
+    assert "notices_examined" in runbook
+    assert "notices_admissible" in runbook
+    assert "notices_used" in runbook
+    assert "pending_review + approved <= 25" in runbook
+    assert "le nombre `sent` est identique" in runbook
+    assert "/api/founder/actions/prospection/send" in runbook
     assert "kivou-acquisition-production.service" in runbook
     assert "kivou-acquisition-production.timer" in runbook
     assert "EnvironmentFile=/etc/kivou/production.env" in runbook
@@ -301,17 +300,14 @@ def test_the_runbooks_multi_command_blocks_fail_fast() -> None:
         block.split("\n```", 1)[0]
         for block in runbook.split("```bash\n")[1:]
     ]
-    # Each anchor identifies one specific multi-command block that must be
-    # fail-fast: a `test` (or `install`/`systemd-analyze`) in the middle of
-    # the block failing silently must not let later commands run anyway.
+    # Each anchor identifies one current multi-command block that must be
+    # fail-fast: an intermediate failure must not let later commands run.
     multi_command_anchors = (
-        "kivou-backup-pre-0029",  # backup, then apply migration 0029
-        "kivou_credential_isolation_check",  # Apollo/Instantly isolation gate
-        "git clone --no-checkout",  # Hermes pin: clone, checkout, verify commit/tag
-        "hermes-shadow-config.yaml",  # provision env/JSON/Hermes HOME files
+        "sudo stat -c",  # install catalog config, then inspect permissions
         "sudo systemd-analyze verify",  # install units, verify, then reload
+        "catalog service is still active",  # stop timer, then gate service state
+        "--conflict-exit-code 75",  # one exact globally locked prepare
         "systemctl list-timers",  # enable timer, then inspect it
-        "sudo systemctl stop kivou-acquisition-production.service",  # rollback teardown
     )
     for anchor in multi_command_anchors:
         matches = [block for block in fenced_blocks if anchor in block]

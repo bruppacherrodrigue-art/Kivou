@@ -250,30 +250,24 @@ def _status_from_rows(
     cycle_reason_code: str | None,
     prepared_today_count: int,
 ) -> FounderAcquisitionStatus:
-    if observation is None:
+    if observation is None and catalog_cycle is None:
         return FounderAcquisitionStatus(
             activity=activity.activity,
             activity_since=activity.activity_since,
             prepared_today_count=prepared_today_count,
             next_run_at=activity.next_run_at,
         )
-    last_cycle_ref = (
-        catalog_cycle["cycle_ref"]
-        if catalog_cycle is not None
-        else observation["last_cycle_ref"]
-    )
-    last_cycle_status = (
-        catalog_cycle["status"]
-        if catalog_cycle is not None
-        else observation["last_cycle_status"]
-    )
-    last_cycle_at = (
-        catalog_cycle["updated_at"]
-        if catalog_cycle is not None
-        else observation["last_cycle_at"]
-    )
+    if catalog_cycle is not None:
+        last_cycle_ref = catalog_cycle["cycle_ref"]
+        last_cycle_status = catalog_cycle["status"]
+        last_cycle_at = catalog_cycle["updated_at"]
+    else:
+        assert observation is not None
+        last_cycle_ref = observation["last_cycle_ref"]
+        last_cycle_status = observation["last_cycle_status"]
+        last_cycle_at = observation["last_cycle_at"]
     return FounderAcquisitionStatus(
-        mode=str(observation["mode"]),
+        mode="ASSISTED" if observation is None else str(observation["mode"]),
         activity=activity.activity,
         activity_since=activity.activity_since,
         last_cycle_ref=(
@@ -298,11 +292,13 @@ def _newer_catalog_cycle(
     observation: Mapping[str, object] | None,
     catalog_cycle: Mapping[str, object] | None,
 ) -> Mapping[str, object] | None:
-    if observation is None or catalog_cycle is None:
+    if catalog_cycle is None:
         return None
     updated_at = catalog_cycle.get("updated_at")
     if not isinstance(updated_at, dt.datetime):
         return None
+    if observation is None:
+        return catalog_cycle
     observed_cycle_at = observation.get("last_cycle_at")
     if not isinstance(observed_cycle_at, dt.datetime):
         return catalog_cycle

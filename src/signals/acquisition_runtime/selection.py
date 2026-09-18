@@ -8,7 +8,11 @@ import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
-from signals.companies.official_cache import OfficialHolder, official_holders_for_opportunities
+from signals.companies.official_cache import (
+    OfficialHolder,
+    official_holders_for_awards,
+    official_holders_for_opportunities,
+)
 from signals.companies.schema import saas_company, winner_enrichment_job
 from signals.persistence.schema import (
     acquisition_runtime_cycle,
@@ -125,6 +129,39 @@ def opportunity_family_keys(
     )
 
 
+def award_family_keys(
+    engine: Engine, *, award_key: str, vertical: str
+) -> frozenset[str]:
+    """Classify one exact award representation, never its opportunity peers."""
+
+    with engine.connect() as connection:
+        row = connection.execute(
+            sa.select(
+                contract_award.c.cpv_main,
+                contract_award.c.cpv_additional,
+                contract_award.c.lot_title,
+                contract_award.c.title,
+                contract_award.c.description,
+            ).where(contract_award.c.award_key == award_key)
+        ).one_or_none()
+    if row is None:
+        raise LookupError(award_key)
+    return frozenset(
+        family.key
+        for family in families_for_signal(
+            vertical,
+            cpv_codes=tuple(
+                value
+                for value in (row.cpv_main, *(row.cpv_additional or ()))
+                if value
+            ),
+            object_text=" ".join(
+                filter(None, (row.lot_title, row.title, row.description))
+            ),
+        )
+    )
+
+
 def unresolved_dynamic_holder_signal_keys(
     engine: Engine,
     *,
@@ -225,11 +262,21 @@ def unresolved_dynamic_holder_signal_keys(
 
 
 def resolved_holder_for_opportunity(
-    engine: Engine, opportunity_key: str
+    engine: Engine,
+    opportunity_key: str,
+    *,
+    source_award_key: str | None = None,
 ) -> OfficialHolder | None:
     """Read the official holder cache without altering the public source fact."""
     with engine.connect() as connection:
-        return official_holders_for_opportunities(connection, (opportunity_key,)).get(opportunity_key)
+        if source_award_key is not None:
+            return official_holders_for_awards(
+                connection,
+                ((opportunity_key, source_award_key),),
+            ).get((opportunity_key, source_award_key))
+        return official_holders_for_opportunities(
+            connection, (opportunity_key,)
+        ).get(opportunity_key)
 
 
 def resolved_holder_name_for_opportunity(engine: Engine, opportunity_key: str) -> str | None:

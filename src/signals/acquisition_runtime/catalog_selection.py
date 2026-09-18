@@ -9,11 +9,8 @@ import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
 from signals.acquisition_runtime.assisted import AssistedSignal, resolve_assisted_signal
-from signals.acquisition_runtime.selection import (
-    opportunity_family_keys,
-    region_subdivision_codes,
-)
-from signals.companies.official_cache import official_holders_for_opportunities
+from signals.acquisition_runtime.selection import award_family_keys, region_subdivision_codes
+from signals.companies.official_cache import official_holders_for_awards
 from signals.persistence.schema import (
     contract_award,
     for_you_sentence,
@@ -26,6 +23,7 @@ from signals.supplier_discovery.families import load_supplier_family_catalog
 
 @dataclass(frozen=True)
 class CatalogNotice:
+    award_key: str
     signal: AssistedSignal
 
 
@@ -51,21 +49,28 @@ def _candidate_rows(
         contract_award.c.award_date,
         contract_award.c.contract_notification_date,
     )
-    latest = sa.func.max(decision_date).label("latest")
-    vertical = sa.func.max(materialized_signal.c.inferred_trade_domain).label("vertical")
     statement = (
-        sa.select(opportunity_representation.c.opportunity_key, latest, vertical)
+        sa.select(
+            opportunity_representation.c.opportunity_key,
+            opportunity_representation.c.award_key,
+            decision_date.label("decision_date"),
+            materialized_signal.c.inferred_trade_domain.label("vertical"),
+        )
         .select_from(
             opportunity_representation.join(
-                materialized_signal,
-                materialized_signal.c.opportunity_key
-                == opportunity_representation.c.opportunity_key,
-            )
-            .join(
                 contract_award,
                 opportunity_representation.c.award_key == contract_award.c.award_key,
             )
             .join(source_event, contract_award.c.event_key == source_event.c.event_key)
+            .join(
+                materialized_signal,
+                sa.and_(
+                    materialized_signal.c.opportunity_key
+                    == opportunity_representation.c.opportunity_key,
+                    materialized_signal.c.materialization_award_key
+                    == opportunity_representation.c.award_key,
+                ),
+            )
             .outerjoin(
                 for_you_sentence,
                 sa.and_(
@@ -92,8 +97,13 @@ def _candidate_rows(
                 for_you_sentence.c.model_fit != "none",
             ),
         )
-        .group_by(opportunity_representation.c.opportunity_key)
-        .order_by(latest.desc(), opportunity_representation.c.opportunity_key)
+        .distinct()
+        .order_by(
+            decision_date.desc(),
+            opportunity_representation.c.opportunity_key,
+            opportunity_representation.c.award_key,
+            materialized_signal.c.inferred_trade_domain,
+        )
     )
     with engine.connect() as connection:
         return tuple(connection.execute(statement))
@@ -118,21 +128,37 @@ def select_assisted_catalog_signals(
         region=region,
         observed_at=observed_at,
     )
-    opportunity_keys = tuple(str(row.opportunity_key) for row in rows)
+    candidates: dict[tuple[str, str], tuple[dt.date, set[str]]] = {}
+    for row in rows:
+        pair = (str(row.opportunity_key), str(row.award_key))
+        if pair not in candidates:
+            candidates[pair] = (row.decision_date, set())
+        candidates[pair][1].add(str(row.vertical))
     with engine.connect() as connection:
-        official_holders = official_holders_for_opportunities(connection, opportunity_keys)
+        official_holders = official_holders_for_awards(connection, candidates)
 
     notices: dict[str, list[CatalogNotice]] = {key: [] for key in family_keys}
     mono_counts = {key: 0 for key in family_keys}
     missing_holders = {key: 0 for key in family_keys}
     errors = {key: 0 for key in family_keys}
-    for row in rows:
-        opportunity_key = str(row.opportunity_key)
+    ordered_candidates = sorted(
+        candidates.items(),
+        key=lambda item: (
+            -item[1][0].toordinal(),
+            item[0][0],
+            item[0][1],
+        ),
+    )
+    for (opportunity_key, award_key), candidate in ordered_candidates:
         try:
-            matched = opportunity_family_keys(
-                engine,
-                opportunity_key=opportunity_key,
-                vertical=str(row.vertical),
+            matched = frozenset(
+                family_key
+                for vertical in candidate[1]
+                for family_key in award_family_keys(
+                    engine,
+                    award_key=award_key,
+                    vertical=str(vertical),
+                )
             )
         except (LookupError, TypeError, ValueError):
             continue
@@ -142,7 +168,7 @@ def select_assisted_catalog_signals(
         if family_key not in notices:
             continue
         mono_counts[family_key] += 1
-        if opportunity_key not in official_holders:
+        if (opportunity_key, award_key) not in official_holders:
             missing_holders[family_key] += 1
             continue
         try:
@@ -150,6 +176,7 @@ def select_assisted_catalog_signals(
                 engine,
                 opportunity_key,
                 required_family_key=family_key,
+                representative_award_key=award_key,
             )
         except (LookupError, TypeError, ValueError):
             errors[family_key] += 1
@@ -157,7 +184,7 @@ def select_assisted_catalog_signals(
         if signal.holder_siren is None:
             missing_holders[family_key] += 1
             continue
-        notices[family_key].append(CatalogNotice(signal=signal))
+        notices[family_key].append(CatalogNotice(award_key=award_key, signal=signal))
 
     result: dict[str, CatalogFamilyInventory] = {}
     for family_key in family_keys:
@@ -167,6 +194,7 @@ def select_assisted_catalog_signals(
                 key=lambda notice: (
                     -notice.signal.decision_date.toordinal(),
                     notice.signal.opportunity_key,
+                    notice.award_key,
                 ),
             )
         )
