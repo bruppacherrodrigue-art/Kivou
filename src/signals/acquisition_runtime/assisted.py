@@ -43,7 +43,8 @@ def resolve_assisted_signal(
     award = seed.award
     amount = award.value
     place = award.place_of_performance
-    title = str(award.title or award.description or "").strip()
+    lot_title = str(award.lot.title or "").strip() if award.lot is not None else ""
+    title = str(lot_title or award.title or award.description or "").strip()
     official_holder = resolved_holder_for_opportunity(
         engine,
         opportunity_key,
@@ -97,7 +98,9 @@ def resolve_assisted_signal(
     families = families_for_signal(
         vertical,
         cpv_codes=cpv_codes,
-        object_text=" ".join(filter(None, (award.title, award.description))),
+        object_text=" ".join(
+            filter(None, (lot_title, award.title, award.description))
+        ),
     )
     if required_family_key is not None:
         families = tuple(family for family in families if family.key == required_family_key)

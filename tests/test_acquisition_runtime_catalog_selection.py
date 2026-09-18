@@ -48,6 +48,7 @@ def _seed_notice(
     title: str,
     vertical: str,
     opportunity_key: str | None = None,
+    lot_title: str | None = None,
     subdivision: str = "FR-38",
     decision_date: dt.date = TODAY,
     official_holder: bool = True,
@@ -91,6 +92,8 @@ def _seed_notice(
                 award_key=f"award-{key}",
                 event_key=f"event-{key}",
                 title=title,
+                lot_identifier="LOT-1" if lot_title else None,
+                lot_title=lot_title,
                 award_date=award_date,
                 contract_notification_date=decision_date,
                 amount=100_000,
@@ -361,3 +364,31 @@ def test_catalog_selection_rejects_a_holder_from_another_award_representation(
     assert inventory["electrical"].mono_notice_count == 1
     assert inventory["electrical"].missing_official_holder_count == 1
     assert inventory["electrical"].zero_reason == "no_official_holder"
+
+
+def test_catalog_selection_uses_the_exact_lot_title_for_family_and_bait(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path)
+    _seed_notice(
+        engine,
+        key="lot-title-electrical",
+        title="Rénovation du collège Stendhal",
+        lot_title="Lot 3 — Électricité courants forts et faibles",
+        vertical="technical_installation",
+    )
+
+    inventory = select_assisted_catalog_signals(
+        engine,
+        country="FR",
+        region="Auvergne-Rhône-Alpes",
+        observed_at=NOW,
+    )
+
+    notices = inventory["electrical"].notices
+    assert len(notices) == 1
+    assert notices[0].award_key == "award-lot-title-electrical"
+    assert notices[0].signal.subject == (
+        "Lot 3 — Électricité courants forts et faibles"
+    )
+    assert notices[0].signal.families == (("electrical", "Électricité"),)
