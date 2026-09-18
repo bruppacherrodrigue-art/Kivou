@@ -19,8 +19,11 @@ from signals.acquisition_runtime.store import (
     AcquisitionRuntimeStore,
 )
 from signals.founder_api.contracts import FounderContract
-from signals.persistence.schema import acquisition_runtime_observation, prospect_target
-from signals.prospection_actions.day import prospection_day_bounds
+from signals.persistence.schema import (
+    acquisition_runtime_cycle,
+    acquisition_runtime_observation,
+    prospect_target,
+)
 from signals.prospection_actions.preparation import DAILY_PENDING_CAP
 
 ACQUISITION_SERVICE_UNIT = "kivou-acquisition-production.service"
@@ -186,19 +189,45 @@ class FounderAcquisitionStatusReadService:
                 .mappings()
                 .one_or_none()
             )
-            day_start, day_end = prospection_day_bounds(now)
-            prepared_today = int(
+            active_queue_count = int(
                 connection.scalar(
                     sa.select(sa.func.count())
                     .select_from(prospect_target)
                     .where(
-                        prospect_target.c.created_at >= day_start,
-                        prospect_target.c.created_at < day_end,
+                        prospect_target.c.status.in_(("pending_review", "approved")),
                     )
                 )
                 or 0
             )
-        cycle_ref = None if observation is None else observation["last_cycle_ref"]
+            catalog_cycle = (
+                connection.execute(
+                    sa.select(acquisition_runtime_cycle)
+                    .where(
+                        acquisition_runtime_cycle.c.last_reason_code.in_(
+                            (
+                                "ASSISTED_CATALOG_PENDING_REVIEW",
+                                "ASSISTED_CATALOG_EMPTY",
+                            )
+                        )
+                    )
+                    .order_by(
+                        acquisition_runtime_cycle.c.updated_at.desc(),
+                        acquisition_runtime_cycle.c.cycle_ref,
+                    )
+                    .limit(1)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        visible_catalog_cycle = _newer_catalog_cycle(
+            observation=observation,
+            catalog_cycle=catalog_cycle,
+        )
+        cycle_ref = (
+            visible_catalog_cycle["cycle_ref"]
+            if visible_catalog_cycle is not None
+            else None if observation is None else observation["last_cycle_ref"]
+        )
         cycle_reason_code = (
             self._runtime_store.read_cycle_reason_code(str(cycle_ref))
             if cycle_ref is not None
@@ -207,8 +236,9 @@ class FounderAcquisitionStatusReadService:
         return _status_from_rows(
             activity=activity,
             observation=observation,
+            catalog_cycle=visible_catalog_cycle,
             cycle_reason_code=cycle_reason_code,
-            prepared_today_count=min(prepared_today, DAILY_PENDING_CAP),
+            prepared_today_count=min(active_queue_count, DAILY_PENDING_CAP),
         )
 
 
@@ -216,6 +246,7 @@ def _status_from_rows(
     *,
     activity: FounderAcquisitionActivity,
     observation: Mapping[str, object] | None,
+    catalog_cycle: Mapping[str, object] | None,
     cycle_reason_code: str | None,
     prepared_today_count: int,
 ) -> FounderAcquisitionStatus:
@@ -226,26 +257,56 @@ def _status_from_rows(
             prepared_today_count=prepared_today_count,
             next_run_at=activity.next_run_at,
         )
-    last_cycle_at = observation["last_cycle_at"]
+    last_cycle_ref = (
+        catalog_cycle["cycle_ref"]
+        if catalog_cycle is not None
+        else observation["last_cycle_ref"]
+    )
+    last_cycle_status = (
+        catalog_cycle["status"]
+        if catalog_cycle is not None
+        else observation["last_cycle_status"]
+    )
+    last_cycle_at = (
+        catalog_cycle["updated_at"]
+        if catalog_cycle is not None
+        else observation["last_cycle_at"]
+    )
     return FounderAcquisitionStatus(
         mode=str(observation["mode"]),
         activity=activity.activity,
         activity_since=activity.activity_since,
         last_cycle_ref=(
-            str(observation["last_cycle_ref"])
-            if observation["last_cycle_ref"] is not None
+            str(last_cycle_ref)
+            if last_cycle_ref is not None
             else None
         ),
         last_cycle_at=(last_cycle_at if isinstance(last_cycle_at, dt.datetime) else None),
         last_cycle_status=(
-            str(observation["last_cycle_status"])
-            if observation["last_cycle_status"] is not None
+            str(last_cycle_status)
+            if last_cycle_status is not None
             else None
         ),
         last_cycle_reason_code=cycle_reason_code,
         prepared_today_count=prepared_today_count,
         next_run_at=activity.next_run_at,
     )
+
+
+def _newer_catalog_cycle(
+    *,
+    observation: Mapping[str, object] | None,
+    catalog_cycle: Mapping[str, object] | None,
+) -> Mapping[str, object] | None:
+    if observation is None or catalog_cycle is None:
+        return None
+    updated_at = catalog_cycle.get("updated_at")
+    if not isinstance(updated_at, dt.datetime):
+        return None
+    observed_cycle_at = observation.get("last_cycle_at")
+    if not isinstance(observed_cycle_at, dt.datetime):
+        return catalog_cycle
+    return catalog_cycle if _aware(updated_at) > _aware(observed_cycle_at) else None
 
 
 def _systemd_properties(output: str, *, allowed: frozenset[str]) -> dict[str, str]:

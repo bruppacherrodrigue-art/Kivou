@@ -115,7 +115,7 @@ def seed_supplier(
     department: str,
     employees: int = 20,
 ) -> None:
-    domain = f"supplier-{siren}.example"
+    domain = f"supplier-{siren}.fr"
     email = f"contact@{domain}"
     with engine.begin() as connection:
         connection.execute(
@@ -318,6 +318,101 @@ def test_catalog_preparation_distinguishes_no_site_in_geo_from_history_exclusion
     assert family.queued == 0
     assert family.refused_by_reason == {"non_site_email": 1}
     assert family.zero_reason == "no_site_in_geo"
+
+
+def test_catalog_preparation_rejects_model_discovered_email_even_with_page_evidence(
+    migrated_sqlite_engine,
+) -> None:
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren="100000021",
+        family_key="electrical",
+        department="38",
+    )
+    evidence_url = "https://supplier-100000021.fr/contact"
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000021")
+            .values(
+                email_source="model",
+                enrichment_evidence={
+                    "candidate_pages": [
+                        {
+                            "url": evidence_url,
+                            "status_code": 200,
+                            "published_emails": ["contact@supplier-100000021.fr"],
+                        }
+                    ]
+                },
+            )
+        )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+
+    result = service.prepare(
+        {
+            "electrical": inventory(
+                "electrical",
+                signal(
+                    "opp-model-email",
+                    "electrical",
+                    department="38",
+                    subject="Électricité école",
+                    holder_siren="440055861",
+                ),
+            )
+        }
+    )
+
+    assert result.prepared == 0
+    assert result.families[0].refused_by_reason == {"non_site_email": 1}
+    assert result.families[0].zero_reason == "no_site_in_geo"
+
+
+def test_catalog_preparation_rejects_placeholder_site_email(
+    migrated_sqlite_engine,
+) -> None:
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren="100000022",
+        family_key="electrical",
+        department="38",
+    )
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == "100000022")
+            .values(professional_email="contact@example.fr")
+        )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+
+    result = service.prepare(
+        {
+            "electrical": inventory(
+                "electrical",
+                signal(
+                    "opp-placeholder-email",
+                    "electrical",
+                    department="38",
+                    subject="Électricité école",
+                    holder_siren="440055861",
+                ),
+            )
+        }
+    )
+
+    assert result.prepared == 0
+    assert result.families[0].refused_by_reason == {"non_site_email": 1}
 
 
 def test_catalog_preparation_isolates_one_family_qualification_error(
@@ -664,6 +759,95 @@ def test_catalog_excludes_the_same_historical_target_after_contact_cooldown(
     assert second.families[0].refused_by_reason == {"historical_target": 1}
 
 
+def test_catalog_historical_target_is_the_siren_notice_pair_not_the_old_email(
+    migrated_sqlite_engine,
+) -> None:
+    siren = "310000002"
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren=siren,
+        family_key="electrical",
+        department="38",
+    )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+    values = {
+        "electrical": inventory(
+            "electrical",
+            signal(
+                "opp-historical-new-email",
+                "electrical",
+                department="38",
+                subject="Électricité historique",
+                holder_siren="440055861",
+            ),
+        )
+    }
+    first = service.prepare(values)
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target)
+            .where(prospect_target.c.target_id == first.target_ids[0])
+            .values(status="sent", instantly_accepted_at=NOW - dt.timedelta(days=31))
+        )
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == siren)
+            .values(professional_email="direction@supplier-310000002.fr")
+        )
+
+    second = service.prepare(values)
+
+    assert second.prepared == 0
+    assert second.families[0].refused_by_reason == {"historical_target": 1}
+
+
+def test_catalog_summary_stays_pending_while_the_active_queue_exists(
+    migrated_sqlite_engine,
+) -> None:
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren="310000003",
+        family_key="electrical",
+        department="38",
+    )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+    values = {
+        "electrical": inventory(
+            "electrical",
+            signal(
+                "opp-summary-pending",
+                "electrical",
+                department="38",
+                subject="Électricité collège",
+                holder_siren="440055861",
+            ),
+        )
+    }
+
+    first = service.prepare(values)
+    second = service.prepare(values)
+    with migrated_sqlite_engine.connect() as connection:
+        reason = connection.scalar(
+            sa.select(acquisition_runtime_cycle.c.last_reason_code).where(
+                acquisition_runtime_cycle.c.cycle_ref == first.cycle_ref
+            )
+        )
+
+    assert first.prepared == 1
+    assert second.prepared == 0
+    assert reason == "ASSISTED_CATALOG_PENDING_REVIEW"
+
+
 def test_catalog_reports_candidates_deferred_by_the_global_cap(
     migrated_sqlite_engine,
 ) -> None:
@@ -699,6 +883,85 @@ def test_catalog_reports_candidates_deferred_by_the_global_cap(
     assert result.prepared == 25
     assert result.families[0].eligible == 26
     assert result.families[0].deferred_global_cap == 1
+
+
+def test_catalog_counts_a_cross_family_duplicate_at_cap_as_refused(
+    migrated_sqlite_engine,
+) -> None:
+    for index in range(24):
+        seed_supplier(
+            migrated_sqlite_engine,
+            siren=f"{340_000_000 + index:09d}",
+            family_key="electrical",
+            department="38",
+        )
+    service = AssistedCatalogPreparationService(
+        migrated_sqlite_engine,
+        link_issuer=Links(),
+        mail_renderer=render,
+        clock=lambda: NOW,
+    )
+    first = service.prepare(
+        {
+            "electrical": inventory(
+                "electrical",
+                signal(
+                    "opp-duplicate-cap-seed",
+                    "electrical",
+                    department="38",
+                    subject="Électricité lycée",
+                    holder_siren="440055861",
+                ),
+            )
+        }
+    )
+    assert first.prepared == 24
+    shared_siren = "340000024"
+    seed_supplier(
+        migrated_sqlite_engine,
+        siren=shared_siren,
+        family_key="electrical",
+        department="38",
+    )
+    with migrated_sqlite_engine.begin() as connection:
+        connection.execute(
+            sa.update(supplier_directory)
+            .where(supplier_directory.c.siren == shared_siren)
+            .values(family_keys=["electrical", "insulation"])
+        )
+
+    result = service.prepare(
+        {
+            "electrical": inventory(
+                "electrical",
+                signal(
+                    "opp-duplicate-cap-electrical",
+                    "electrical",
+                    department="38",
+                    subject="Électricité collège",
+                    holder_siren="440055861",
+                ),
+            ),
+            "insulation": inventory(
+                "insulation",
+                signal(
+                    "opp-duplicate-cap-insulation",
+                    "insulation",
+                    department="26",
+                    subject="Isolation collège",
+                    holder_siren="552100554",
+                ),
+            ),
+        }
+    )
+    by_family = {family.family_key: family for family in result.families}
+
+    assert result.prepared == 1
+    assert by_family["electrical"].queued == 1
+    assert by_family["insulation"].queued == 0
+    assert by_family["insulation"].refused_by_reason == {"active_duplicate": 1}
+    assert by_family["insulation"].deferred_global_cap == 0
+    assert by_family["insulation"].zero_reason == "all_candidates_excluded"
 
 
 def test_catalog_rejects_a_rendered_mail_with_a_different_kat1_url(

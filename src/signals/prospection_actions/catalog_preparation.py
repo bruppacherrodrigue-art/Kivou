@@ -30,6 +30,7 @@ from signals.prospection_actions.preparation_contracts import (
     AssistedSignal,
     director,
 )
+from signals.supplier_directory.email_quality import is_placeholder_email
 from signals.supplier_discovery.families import department_and_neighbours
 
 _ACTIVE_STATUSES = ("pending_review", "approved")
@@ -132,9 +133,14 @@ class AssistedCatalogPreparationService:
                     )
                 ).scalars()
             }
-            historical_target_ids = {
-                str(value)
-                for value in connection.execute(sa.select(prospect_target.c.target_id)).scalars()
+            historical_targets = {
+                (str(row.siren), str(row.opportunity_key))
+                for row in connection.execute(
+                    sa.select(
+                        prospect_target.c.siren,
+                        prospect_target.c.opportunity_key,
+                    )
+                )
             }
             directory_rows = tuple(
                 dict(row)
@@ -156,7 +162,7 @@ class AssistedCatalogPreparationService:
                         active_sirens=active_sirens,
                         recently_contacted=recently_contacted,
                         rejected_sirens=rejected_sirens,
-                        historical_target_ids=historical_target_ids,
+                        historical_targets=historical_targets,
                     )
                 except (KeyError, TypeError, ValueError):
                     qualified = _FamilyWork(
@@ -185,6 +191,7 @@ class AssistedCatalogPreparationService:
                 opportunity_key=representative,
                 now=now,
                 prepared=len(rows),
+                active_after=active_before + len(rows),
             )
             for values in rows:
                 connection.execute(sa.insert(prospect_target).values(**values))
@@ -223,7 +230,7 @@ class AssistedCatalogPreparationService:
         active_sirens: set[str],
         recently_contacted: set[str],
         rejected_sirens: set[str],
-        historical_target_ids: set[str],
+        historical_targets: set[tuple[str, str]],
     ) -> _FamilyWork:
         work = _FamilyWork(family_key=family_key, inventory=inventory)
         for notice in inventory.notices:
@@ -246,9 +253,14 @@ class AssistedCatalogPreparationService:
                 if signal.holder_siren is not None and siren == signal.holder_siren:
                     work.refused["holder"] += 1
                     continue
-                site_email = published_email_evidence(row)
+                site_email = (
+                    published_email_evidence(row)
+                    if row.get("email_source") == "site"
+                    else None
+                )
                 if (
                     site_email is None
+                    or is_placeholder_email(site_email[0])
                     or row.get("email_verification_status") != "mx_verified"
                     or row.get("domain_validation_method") is None
                     or row.get("reverification_required_at") is not None
@@ -269,7 +281,7 @@ class AssistedCatalogPreparationService:
                 target_id = str(
                     uuid5(NAMESPACE_URL, f"kivou:prospect:{signal.opportunity_key}:{email.casefold()}")
                 )
-                if target_id in historical_target_ids:
+                if (siren, signal.opportunity_key) in historical_targets:
                     work.refused["historical_target"] += 1
                     continue
                 row.update(
@@ -311,6 +323,8 @@ class AssistedCatalogPreparationService:
     ) -> list[_Candidate]:
         selected: list[_Candidate] = []
         selected_sirens = set(active_sirens)
+        selected_candidate_keys: set[tuple[str, str]] = set()
+        duplicate_candidate_keys: set[tuple[str, str]] = set()
         maximum_notice_rank = max((len(item.pools) for item in work), default=0)
         for notice_rank in range(maximum_notice_rank):
             queues: list[tuple[_FamilyWork, deque[_Candidate]]] = [
@@ -324,12 +338,16 @@ class AssistedCatalogPreparationService:
                     while queue:
                         candidate = queue.popleft()
                         siren = str(candidate.directory["siren"])
+                        candidate_key = (item.family_key, candidate.target_id)
                         if siren in selected_sirens:
-                            item.refused["active_duplicate"] += 1
+                            if candidate_key not in duplicate_candidate_keys:
+                                item.refused["active_duplicate"] += 1
+                                duplicate_candidate_keys.add(candidate_key)
                             continue
                         selected.append(candidate)
                         item.queued.append(candidate)
                         selected_sirens.add(siren)
+                        selected_candidate_keys.add(candidate_key)
                         progressed = True
                         break
                     if len(selected) >= remaining:
@@ -340,12 +358,19 @@ class AssistedCatalogPreparationService:
                 break
         if len(selected) >= remaining:
             for item in work:
-                deferred_sirens = {
-                    str(candidate.directory["siren"])
-                    for _signal, candidates in item.pools
-                    for candidate in candidates
-                    if str(candidate.directory["siren"]) not in selected_sirens
-                }
+                deferred_sirens: set[str] = set()
+                for _signal, candidates in item.pools:
+                    for candidate in candidates:
+                        candidate_key = (item.family_key, candidate.target_id)
+                        if candidate_key in selected_candidate_keys:
+                            continue
+                        siren = str(candidate.directory["siren"])
+                        if siren in selected_sirens:
+                            if candidate_key not in duplicate_candidate_keys:
+                                item.refused["active_duplicate"] += 1
+                                duplicate_candidate_keys.add(candidate_key)
+                            continue
+                        deferred_sirens.add(siren)
                 item.deferred = len(deferred_sirens)
         return selected
 
@@ -422,13 +447,18 @@ class AssistedCatalogPreparationService:
         opportunity_key: str,
         now: dt.datetime,
         prepared: int,
+        active_after: int,
     ) -> None:
         existing = connection.scalar(
             sa.select(acquisition_runtime_cycle.c.cycle_ref).where(
                 acquisition_runtime_cycle.c.cycle_ref == cycle_ref
             )
         )
-        reason = "ASSISTED_CATALOG_PENDING_REVIEW" if prepared else "ASSISTED_CATALOG_EMPTY"
+        reason = (
+            "ASSISTED_CATALOG_PENDING_REVIEW"
+            if prepared or active_after
+            else "ASSISTED_CATALOG_EMPTY"
+        )
         if existing is None:
             connection.execute(
                 sa.insert(acquisition_runtime_cycle).values(
@@ -466,7 +496,7 @@ class AssistedCatalogPreparationService:
                 "no_site_in_geo"
                 if work.site_in_geo == 0
                 else "all_candidates_excluded"
-                if work.eligible == 0
+                if work.deferred == 0
                 else None
             )
         return CatalogFamilyResult(

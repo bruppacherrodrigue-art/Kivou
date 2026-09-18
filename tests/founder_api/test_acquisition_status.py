@@ -297,6 +297,10 @@ def test_status_counts_the_current_zurich_queue_and_exposes_the_cap(
     engine: sa.Engine,
 ) -> None:
     seed_prospect_target(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(prospect_target).values(created_at=NOW - dt.timedelta(days=2))
+        )
 
     status = FounderAcquisitionStatusReadService(
         engine,
@@ -309,6 +313,48 @@ def test_status_counts_the_current_zurich_queue_and_exposes_the_cap(
     assert status.prepared_today_count == 1
     assert status.daily_pending_cap == 25
     assert status.next_run_at == NOW + dt.timedelta(hours=22)
+
+
+def test_status_surfaces_a_newer_catalog_summary_cycle(
+    engine: sa.Engine,
+) -> None:
+    observed_at = NOW - dt.timedelta(hours=2)
+    catalog_at = NOW - dt.timedelta(minutes=5)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(acquisition_runtime_cycle),
+            [
+                _cycle_values(
+                    "legacy-cycle",
+                    reason_code="CURRENT_RUN_TECHNICAL_FAILURE",
+                    updated_at=observed_at,
+                ),
+                _cycle_values(
+                    "catalog-cycle",
+                    reason_code="ASSISTED_CATALOG_PENDING_REVIEW",
+                    updated_at=catalog_at,
+                ),
+            ],
+        )
+        connection.execute(
+            sa.insert(acquisition_runtime_observation),
+            _observation_values(
+                mode="ASSISTED",
+                last_cycle_ref="legacy-cycle",
+                last_cycle_status="FAILED",
+                last_cycle_at=observed_at,
+            ),
+        )
+
+    status = FounderAcquisitionStatusReadService(
+        engine,
+        timer_reader=lambda _: FounderAcquisitionActivity(activity="STOPPED"),
+    ).read(now=NOW)
+
+    assert status.last_cycle_ref == "catalog-cycle"
+    assert status.last_cycle_at == catalog_at
+    assert status.last_cycle_status == "SUPPRESSED"
+    assert status.last_cycle_reason_code == "ASSISTED_CATALOG_PENDING_REVIEW"
 
 
 def test_systemd_reader_parses_the_numeric_timestamp_without_weekday_locale() -> None:

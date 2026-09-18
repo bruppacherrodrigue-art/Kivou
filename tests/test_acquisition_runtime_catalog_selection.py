@@ -50,6 +50,7 @@ def _seed_notice(
     subdivision: str = "FR-38",
     decision_date: dt.date = TODAY,
     official_holder: bool = True,
+    official_holder_identifier: bool = True,
 ) -> None:
     fingerprint = (key.replace("-", "") + "0" * 64)[:64]
     with engine.begin() as connection:
@@ -166,9 +167,11 @@ def _seed_notice(
                     origin_signal_key=f"signal-{key}",
                     official_name=f"TITULAIRE {key.upper()}",
                     official_country="FR",
-                    official_identifiers=[
-                        {"scheme": "SIRET", "value": "44005586100010"}
-                    ],
+                    official_identifiers=(
+                        [{"scheme": "SIRET", "value": "44005586100010"}]
+                        if official_holder_identifier
+                        else []
+                    ),
                     official_source="official_register",
                     official_observed_at=NOW,
                     created_at=NOW,
@@ -199,6 +202,13 @@ def test_catalog_selection_keeps_only_exact_family_notices_with_official_holders
         title="Isolation thermique",
         vertical="technical_installation",
         official_holder=False,
+    )
+    _seed_notice(
+        engine,
+        key="opp-insulation-holder-without-siren",
+        title="Isolation de bâtiments publics",
+        vertical="technical_installation",
+        official_holder_identifier=False,
     )
     _seed_notice(
         engine,

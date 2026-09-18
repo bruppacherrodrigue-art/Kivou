@@ -154,6 +154,9 @@ def select_assisted_catalog_signals(
         except (LookupError, TypeError, ValueError):
             errors[family_key] += 1
             continue
+        if signal.holder_siren is None:
+            missing_holders[family_key] += 1
+            continue
         notices[family_key].append(CatalogNotice(signal=signal))
 
     result: dict[str, CatalogFamilyInventory] = {}

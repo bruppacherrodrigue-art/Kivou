@@ -28,6 +28,8 @@ const CYCLE_REASON_LABELS: Record<string, string> = {
   OPERATOR_ABANDONED: 'Cycle abandonné par l’opérateur',
   RUNTIME_CYCLE_REASON_INVALID: 'Motif du cycle indisponible',
   DAILY_PENDING_CAP_REACHED: 'Limite quotidienne de cibles en attente atteinte',
+  ASSISTED_CATALOG_PENDING_REVIEW: 'File catalogue prête à relire',
+  ASSISTED_CATALOG_EMPTY: 'Aucune nouvelle cible catalogue',
 }
 
 export function AcquisitionStatus({ status, compact = false }: Props) {

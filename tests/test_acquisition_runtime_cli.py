@@ -88,6 +88,17 @@ def test_prepare_queue_runs_one_catalog_without_the_legacy_cycle(capsys) -> None
     )
 
 
+def test_prepare_queue_sanitizes_an_unexpected_catalog_failure(capsys) -> None:
+    def fail() -> CatalogPreparationResult:
+        raise TypeError("private-catalog-marker")
+
+    assert main(["prepare-queue"], prepare_catalog=fail) == 1
+    streams = capsys.readouterr()
+    assert streams.out == ""
+    assert streams.err == "status=CATALOG_PREPARATION_FAILED\n"
+    assert "private-catalog-marker" not in streams.err
+
+
 def test_check_dependencies_reports_exact_ready_and_does_not_run_cycle(capsys) -> None:
     execute, run_calls = _execute(
         RuntimeRunResult(status=RuntimeRunStatus.ALREADY_RUNNING)

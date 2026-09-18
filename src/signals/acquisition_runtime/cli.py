@@ -217,6 +217,9 @@ def main(
         except (OSError, sa.exc.SQLAlchemyError, RuntimeError, ValueError):
             print("status=CATALOG_PREPARATION_FAILED", file=sys.stderr)
             return 1
+        except Exception:  # noqa: BLE001 - no private catalog detail crosses the CLI
+            print("status=CATALOG_PREPARATION_FAILED", file=sys.stderr)
+            return 1
         print(
             f"status=CATALOG_PREPARED prepared={result.prepared} "
             f"active={result.active_after} cycle_ref={result.cycle_ref or 'none'}"

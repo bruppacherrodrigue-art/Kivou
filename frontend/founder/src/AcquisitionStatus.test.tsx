@@ -104,6 +104,19 @@ describe('AcquisitionStatus', () => {
     ).toBeInTheDocument()
   })
 
+  it.each([
+    ['ASSISTED_CATALOG_PENDING_REVIEW', 'File catalogue prête à relire'],
+    ['ASSISTED_CATALOG_EMPTY', 'Aucune nouvelle cible catalogue'],
+  ])('explique le résultat catalogue %s', (reason, expected) => {
+    render(
+      <AcquisitionStatus
+        status={{ ...STOPPED_STATUS, last_cycle_reason_code: reason }}
+      />,
+    )
+
+    expect(screen.getByText(`Supprimé · ${expected}`)).toBeInTheDocument()
+  })
+
   it('abrège une référence technique longue sans la laisser déborder', () => {
     const longReference = 'b75ea8c2d1ce41db4866ea2ac71c58aa64a2cbdb4ba0e069096dac48a03f3907'
     render(
