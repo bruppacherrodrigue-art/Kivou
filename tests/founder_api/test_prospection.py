@@ -424,6 +424,115 @@ def test_queue_reads_only_pending_review_targets_as_ready_mail() -> None:
     assert result.results.no_sends_yet is True
 
 
+def test_catalog_queue_keeps_each_rows_family_opportunity_and_bait() -> None:
+    engine = _engine()
+    cycle_ref = "catalog-cycle"
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(acquisition_runtime_cycle),
+            {
+                "cycle_ref": cycle_ref,
+                "opportunity_key": "display-only-opportunity",
+                "config_fingerprint": "catalog-config",
+                "status": "SUPPRESSED",
+                "next_stage": None,
+                "spent_cost": Decimal(0),
+                "last_reason_code": "ASSISTED_CATALOG_PENDING_REVIEW",
+                "started_at": NOW,
+                "updated_at": NOW,
+                "completed_at": NOW,
+            },
+        )
+        base = {
+            "version": 1,
+            "cycle_ref": cycle_ref,
+            "company_city": "LYON",
+            "company_employees": 20,
+            "email_source": "site",
+            "email_verification_status": "mx_verified",
+            "signal_amount_minor_units": 12_500_000,
+            "signal_currency": "EUR",
+            "signal_location": "Rhône",
+            "signal_decision_date": NOW.date(),
+            "mail_subject": "Un marché public près de chez vous",
+            "mail_word_count": 10,
+            "mail_contract_status": "passed",
+            "mail_contract_failure": None,
+            "status": "pending_review",
+            "delivery_status": "not_sent",
+            "created_at": NOW,
+            "updated_at": NOW,
+        }
+        rows = (
+            {
+                **base,
+                "target_id": "51d144ca-d697-47e4-a4dc-ee86d0a9c8a1",
+                "opportunity_key": "opp-stendhal-electrical",
+                "procedure_award_key": "award-stendhal-electrical",
+                "acquisition_opportunity_id": "acquisition-stendhal-electrical",
+                "siren": "100000001",
+                "company_name": "ÉLECTRICITÉ ALPES",
+                "vertical": "electrical",
+                "family_key": "electrical",
+                "family_label": "Électricité",
+                "email_address": "contact@electricite-alpes.test",
+                "signal_holder": "SPIE",
+                "signal_subject": "Stendhal — lot électricité",
+                "signal_source_url": "https://example.test/stendhal",
+                "mail_text": "Stendhal — lot électricité https://kivou.eu/a/electrical",
+                "mail_html": (
+                    "<p>Stendhal — lot électricité "
+                    '<a href="https://kivou.eu/a/electrical">fiche</a></p>'
+                ),
+                "attribution_url": "https://kivou.eu/a/electrical",
+                "attribution_member_ref": "a" * 64,
+                "attribution_payload": {"opportunity_key": "opp-stendhal-electrical"},
+                "attribution_token_fingerprint": "b" * 64,
+                "unsubscribe_url": "https://kivou.eu/unsubscribe/electrical",
+            },
+            {
+                **base,
+                "target_id": "51d144ca-d697-47e4-a4dc-ee86d0a9c8a2",
+                "opportunity_key": "opp-school-insulation",
+                "procedure_award_key": "award-school-insulation",
+                "acquisition_opportunity_id": "acquisition-school-insulation",
+                "siren": "100000002",
+                "company_name": "ISOLATION RHÔNE",
+                "vertical": "insulation",
+                "family_key": "insulation",
+                "family_label": "Isolation",
+                "email_address": "contact@isolation-rhone.test",
+                "signal_holder": "ISOLBAT",
+                "signal_subject": "École Ampère — lot isolation",
+                "signal_source_url": "https://example.test/ampere",
+                "mail_text": "École Ampère — lot isolation https://kivou.eu/a/insulation",
+                "mail_html": (
+                    "<p>École Ampère — lot isolation "
+                    '<a href="https://kivou.eu/a/insulation">fiche</a></p>'
+                ),
+                "attribution_url": "https://kivou.eu/a/insulation",
+                "attribution_member_ref": "c" * 64,
+                "attribution_payload": {"opportunity_key": "opp-school-insulation"},
+                "attribution_token_fingerprint": "d" * 64,
+                "unsubscribe_url": "https://kivou.eu/unsubscribe/insulation",
+            },
+        )
+        connection.execute(sa.insert(prospect_target), rows)
+
+    result = FounderReadService(engine, timer_reader=_stopped_timer).prospection(now=NOW)
+
+    assert result.targeting is not None
+    assert result.targeting.cycle_ref == cycle_ref
+    assert result.targeting.family_keys == ("electrical", "insulation")
+    by_family = {item.family_key: item for item in result.queue.items}
+    assert by_family["electrical"].bait_holder == "SPIE"
+    assert by_family["electrical"].bait_subject == "Stendhal — lot électricité"
+    assert "https://kivou.eu/a/electrical" in by_family["electrical"].mail_body
+    assert by_family["insulation"].bait_holder == "ISOLBAT"
+    assert by_family["insulation"].bait_subject == "École Ampère — lot isolation"
+    assert "https://kivou.eu/a/insulation" in by_family["insulation"].mail_body
+
+
 def test_directory_filters_before_pagination_without_changing_global_facets() -> None:
     engine = _engine()
     with engine.begin() as connection:
