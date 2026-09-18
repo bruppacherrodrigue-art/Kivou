@@ -238,6 +238,13 @@ class ProspectPreparationService:
                     )
                 ).scalars()
             )
+            historically_rejected_sirens = set(
+                connection.execute(
+                    sa.select(prospect_target.c.siren).where(
+                        prospect_target.c.status == "rejected"
+                    )
+                ).scalars()
+            )
             historical_target_ids = set(
                 connection.execute(sa.select(prospect_target.c.target_id)).scalars()
             )
@@ -324,6 +331,8 @@ class ProspectPreparationService:
                 if row["siren"] in recently_contacted:
                     continue
                 if row["siren"] in queued_sirens:
+                    continue
+                if row["siren"] in historically_rejected_sirens:
                     continue
                 email = str(row["professional_email"]).casefold()
                 target_id = str(
