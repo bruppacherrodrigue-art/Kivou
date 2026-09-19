@@ -31,6 +31,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("GET", "/billing/plans"),
         ("GET", "/billing/status"),
         ("POST", "/billing/checkout"),
+        ("POST", "/billing/checkout-return"),
         ("POST", "/billing/plan"),
         ("POST", "/billing/portal"),
         ("GET", "/companies"),
