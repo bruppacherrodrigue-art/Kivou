@@ -21,12 +21,14 @@ from signals.api.dependencies import current_session, enforce_origin, request_no
 from signals.api.errors import api_error
 from signals.billing import attempts, catalogue, checkout, discovery, plan_change, service
 from signals.billing import gateway as gateway_errors
+from signals.engagement import analytics
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 PlanChoice = Literal["essential", "pro"]
 CurrencyChoice = Literal["eur"]
+CheckoutReturnOutcome = Literal["success", "cancel"]
 
 
 class PlanChangeRequest(BaseModel):
@@ -51,6 +53,18 @@ class CheckoutRequest(BaseModel):
 
     plan: PlanChoice
     currency: CurrencyChoice
+
+
+class CheckoutReturnRequest(BaseModel):
+    """Un retour de page, pas une preuve de paiement.
+
+    Le succès n'est enregistré qu'après lecture des droits autoritaires. Le
+    retour d'annulation signifie seulement que la page Kivou a été atteinte.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    outcome: CheckoutReturnOutcome
 
 
 def _billing_gateway(request: Request):
@@ -263,6 +277,14 @@ def start_checkout(payload: CheckoutRequest, request: Request) -> dict[str, Any]
             ) from error
         except service.BillingError as error:
             raise api_error(422, error.code, "impossible d'ouvrir le paiement") from error
+        analytics.record(
+            connection,
+            account_id=account_id,
+            user_id=session.user_id,
+            event_type="checkout_plan_selected",
+            occurred_at=now,
+            properties={"plan_code": payload.plan, "currency": payload.currency},
+        )
 
     try:
         created = checkout.open_checkout_session(
@@ -279,12 +301,37 @@ def start_checkout(payload: CheckoutRequest, request: Request) -> dict[str, Any]
                 attempt_id=prepared.attempt.attempt_id,
                 now=now,
             )
+            analytics.record(
+                connection,
+                account_id=account_id,
+                user_id=session.user_id,
+                event_type="checkout_creation_failed",
+                occurred_at=now,
+                properties={
+                    "plan_code": payload.plan,
+                    "currency": payload.currency,
+                    "reason_code": "checkout_rejected",
+                },
+            )
         raise api_error(
             502, "checkout_rejected", "le prestataire de paiement a refusé d'ouvrir la session"
         ) from error
     except gateway_errors.CheckoutSessionUncertain as error:
         # La réponse manque, pas forcément la session : la tentative RESTE
         # `creating`, et un rejeu du même plan rejouera la même clé (§3, §4).
+        with request.app.state.engine.begin() as connection:
+            analytics.record(
+                connection,
+                account_id=account_id,
+                user_id=session.user_id,
+                event_type="checkout_creation_failed",
+                occurred_at=now,
+                properties={
+                    "plan_code": payload.plan,
+                    "currency": payload.currency,
+                    "reason_code": "checkout_unavailable",
+                },
+            )
         raise api_error(
             503, "checkout_unavailable", "le paiement n'a pas pu être ouvert ; réessayez"
         ) from error
@@ -297,8 +344,41 @@ def start_checkout(payload: CheckoutRequest, request: Request) -> dict[str, Any]
             stripe_checkout_session_id=created.session_id,
             now=now,
         )
+        analytics.record(
+            connection,
+            account_id=account_id,
+            user_id=session.user_id,
+            event_type="checkout_started",
+            occurred_at=now,
+            properties={"plan_code": payload.plan, "currency": payload.currency},
+        )
 
     return {"checkout_url": created.url, "plan": payload.plan, "currency": payload.currency}
+
+
+@router.post("/billing/checkout-return")
+def record_checkout_return(payload: CheckoutReturnRequest, request: Request) -> dict[str, bool]:
+    """Mesure le retour dans Kivou sans laisser le navigateur accorder un droit."""
+    enforce_origin(request, request.app.state.config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        state = service.billing_state(connection, account_id=session.account_id)
+        if payload.outcome == "success" and not state.entitlements.is_paid:
+            raise api_error(
+                409,
+                "billing_subscription_conflict",
+                "les droits payants ne sont pas encore actifs",
+            )
+        analytics.record(
+            connection,
+            account_id=session.account_id,
+            user_id=session.user_id,
+            event_type=f"checkout_return_{payload.outcome}",
+            occurred_at=now,
+            properties={"plan_code": state.plan_code},
+        )
+    return {"recorded": True}
 
 
 def _founding_eligible(request: Request, account_id: str) -> bool:

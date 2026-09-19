@@ -294,6 +294,12 @@ export const billing = {
   checkout: (payload: { plan: PurchasablePlan; currency: 'eur' }) =>
     request<CheckoutSession>('/billing/checkout', { method: 'POST', body: payload }),
 
+  checkoutReturn: (outcome: 'success' | 'cancel') =>
+    request<{ recorded: boolean }>('/billing/checkout-return', {
+      method: 'POST',
+      body: { outcome },
+    }),
+
   portal: () => request<{ portal_url: string }>('/billing/portal', { method: 'POST' }),
 }
 

@@ -34,6 +34,7 @@ from signals.api import ApiConfig, create_app
 from signals.billing import attempts
 from signals.billing.gateway import CheckoutSessionRejected, CheckoutSessionUncertain
 from signals.billing.schema import billing_checkout_attempt
+from signals.engagement.schema import product_event
 from signals.persistence.database import create_database_engine, migrate_to_latest
 
 NOW = dt.datetime(2026, 8, 25, 9, 0, tzinfo=dt.UTC)
@@ -150,6 +151,25 @@ def test_un_refus_definitif_ne_produit_plus_un_500_brut(client, stripe):
 
     assert response.status_code == 502
     assert response.json()["detail"]["code"] == "checkout_rejected"
+
+
+def test_un_refus_definitif_journalise_une_erreur_sans_contenu_signal(client, engine, stripe):
+    always_reject(stripe)
+
+    start(client)
+
+    with engine.connect() as connection:
+        event = connection.execute(
+            sa.select(product_event).where(
+                product_event.c.event_type == "checkout_creation_failed"
+            )
+        ).mappings().one()
+    assert event["properties"] == {
+        "plan_code": "pro",
+        "currency": "eur",
+        "reason_code": "checkout_rejected",
+    }
+    assert event["signal_key"] is None
 
 
 def test_la_reponse_ne_dit_rien_de_stripe(client, stripe):

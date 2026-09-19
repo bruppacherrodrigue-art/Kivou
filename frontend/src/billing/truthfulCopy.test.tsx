@@ -62,15 +62,11 @@ async function openLockedBilling() {
 
 async function openDetailBilling() {
   const user = userEvent.setup()
-  await user.click(await screen.findByRole('button', { name: /Voir mes possibilités d’accès|View access options/ }))
+  await user.click(await screen.findByRole('button', { name: /Accéder à ce signal|Access this signal/ }))
+  await screen.findByRole('heading', { name: /Continuez votre prospection|Keep prospecting/ })
   const manage = screen.queryByRole('link', { name: /Gérer ma facturation|Manage billing/ })
   if (manage) await user.click(manage)
-  else {
-    // Await server action: the dialog either offers an explicit plan or management.
-    const action = await screen.findByText(/^(Gérer ma facturation|Manage billing|Choisir Pro|Choose Pro)$/)
-    await user.click(action)
-  }
-  return screen.findByRole('heading', { level: 1, name: /Abonnement|Subscription/ })
+  return manage ? screen.findByRole('heading', { level: 1, name: /Abonnement|Subscription/ }) : screen.findByRole('heading', { name: /Continuez votre prospection|Keep prospecting/ })
 }
 
 // ─── 1. le retour depuis le paiement ─────────────────────────────────────────
@@ -232,7 +228,8 @@ describe('signal verrouillé sur un compte payant', () => {
     await openLockedBilling()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
-    expect(await screen.findByLabelText('Offre')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Essential' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Pro' })).toBeInTheDocument()
   })
 
   it('reste vrai en anglais', async () => {

@@ -25,6 +25,7 @@ from feed_helpers import ORIGIN, PASSWORD
 from signals.api import ApiConfig, create_app
 from signals.billing import catalogue
 from signals.billing.schema import billing_customer, billing_subscription
+from signals.engagement.schema import product_event
 
 NOW = dt.datetime(2026, 8, 25, 9, 0, tzinfo=dt.UTC)
 
@@ -113,6 +114,60 @@ def test_the_catalogue_marks_pro_as_recommended(client: TestClient):
     plans = {plan["plan_code"]: plan for plan in client.get("/billing/plans").json()["plans"]}
     assert plans["pro"]["recommended"] is True
     assert plans["essential"]["recommended"] is False
+
+
+def test_a_created_checkout_records_the_selected_catalogue_plan(client: TestClient, engine):
+    response = client.post("/billing/checkout", json={"plan": "pro", "currency": "eur"})
+
+    assert response.status_code == 200
+    with engine.connect() as connection:
+        events = connection.execute(
+            sa.select(product_event).where(
+                product_event.c.event_type.in_(("checkout_plan_selected", "checkout_started"))
+            )
+        ).mappings().all()
+    assert [event["event_type"] for event in events] == [
+        "checkout_plan_selected",
+        "checkout_started",
+    ]
+    assert {event["properties"]["plan_code"] for event in events} == {"pro"}
+    assert all(event["signal_key"] is None for event in events)
+
+
+def test_checkout_returns_are_recorded_without_signal_content(client: TestClient, engine):
+    cancel = client.post("/billing/checkout-return", json={"outcome": "cancel"})
+    assert cancel.status_code == 200
+
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(connection, account_id=account_id, plan="pro", now=NOW)
+    success = client.post("/billing/checkout-return", json={"outcome": "success"})
+    assert success.status_code == 200
+
+    with engine.connect() as connection:
+        events = connection.execute(
+            sa.select(product_event).where(
+                product_event.c.event_type.in_(("checkout_return_cancel", "checkout_return_success"))
+            )
+        ).mappings().all()
+    assert [event["event_type"] for event in events] == [
+        "checkout_return_cancel",
+        "checkout_return_success",
+    ]
+    assert all(event["signal_key"] is None for event in events)
+
+
+def test_success_return_requires_authoritative_paid_entitlements(client: TestClient, engine):
+    response = client.post("/billing/checkout-return", json={"outcome": "success"})
+    assert response.status_code == 409
+
+    with engine.connect() as connection:
+        count = connection.execute(
+            sa.select(sa.func.count()).select_from(product_event).where(
+                product_event.c.event_type == "checkout_return_success"
+            )
+        ).scalar_one()
+    assert count == 0
 
 
 # ─── §32 — le prix n'est jamais choisi par le client ──────────────────────────

@@ -44,21 +44,21 @@ test('a deep link loads an independently requested detail even when the list is 
   expect(within(dialog).getByRole('textbox', { name: 'Vos notes sur ce signal' })).toBeInTheDocument()
 })
 
-test('a reserved landing signal opens an Essential-only upgrade', async () => {
+test('a reserved landing signal opens every upgrade that really unlocks it', async () => {
   const locked = { ...LOCKED_ITEM, landing_example_holder: 'Boussiquet' }
   mockApi({
     ...BASE,
     'GET /billing/status': { body: DISCOVERY_STATUS },
     'GET /billing/plans': { body: CATALOGUE },
     'GET /signals': { body: feedPage([locked]) },
-    [`GET /signals/${locked.signal_id}`]: { body: { ...locked, access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: ['essential'] } } },
+    [`GET /signals/${locked.signal_id}`]: { body: { ...locked, access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: ['essential', 'pro'] } } },
   })
   renderFeed(`/app/signals/${locked.signal_id}?target_icp_id=icp_1`)
   const dialog = await screen.findByRole('dialog', { name: 'Détail du signal' })
   expect(await within(dialog).findByText('Comme pour Boussiquet : dirigeant, téléphone, e-mail, historique des marchés.')).toBeInTheDocument()
-  await userEvent.click(within(dialog).getByRole('button', { name: 'Voir ce contact — 49 €/mois' }))
-  expect(await screen.findByRole('heading', { name: 'Essentiel' })).toBeInTheDocument()
-  expect(screen.queryByRole('heading', { name: 'Pro' })).not.toBeInTheDocument()
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Accéder à ce signal' }))
+  expect(await screen.findByRole('heading', { name: 'Essential' })).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Pro' })).toBeInTheDocument()
 })
 
 test('all opened landing contacts require claim while the account is temporary', async () => {

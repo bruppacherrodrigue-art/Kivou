@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
-import { act, screen } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -26,8 +26,8 @@ function mockApi(routes: Routes) {
 }
 
 async function openDetailBilling(user = userEvent.setup()) {
-  await user.click(await screen.findByRole('button', { name: /Voir mes possibilités d’accès|View access options/ }))
-  await user.click(await screen.findByRole('button', { name: /Choisir Pro|Choose Pro/ }))
+  await user.click(await screen.findByRole('button', { name: /Accéder à ce signal|Access this signal/ }))
+  await screen.findByRole('heading', { name: /Continuez votre prospection|Keep prospecting/ })
 }
 
 /* Revue de supervision pré-staging — les cinq corrections.
@@ -188,12 +188,11 @@ describe('promesse du paywall', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
 
     await openDetailBilling()
-    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
-    await screen.findByText('Historique 365 jours')
+    await screen.findByText('365 jours d’historique')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('ensemble de votre flux')
     expect(page).not.toContain('flux complet')
-    expect(page).toMatch(/Historique 365 jours/)
+    expect(page).toMatch(/365 jours d’historique/)
     expect(callsTo('/signals/sig_locked_1', 'GET').length).toBeGreaterThan(0)
   })
 
@@ -210,7 +209,6 @@ describe('promesse du paywall', () => {
     })
 
     await openDetailBilling()
-    await screen.findByRole('heading', { level: 1, name: 'Subscription' })
     await screen.findByText('365 days of history')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('whole stream')
@@ -295,23 +293,18 @@ describe('intention d’achat périmée', () => {
       await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
     )
     await openDetailBilling(user)
-    await user.click(await selectPro(user))
+    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
 
     expect(readCheckoutIntent()).toBe('sig_locked_1')
   })
 
-  it('B — la confirmation vide le stockage tout en gardant le retour affiché', async () => {
+  it('B — la confirmation vide le stockage et revient au signal', async () => {
     saveCheckoutIntent('sig_locked_1')
     mockApi({ 'GET /billing/status': { body: PRO_STATUS } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/success' })
 
-    expect(await screen.findByRole('link', { name: 'Revenir à ce signal' })).toHaveAttribute(
-      'href',
-      '/app/signals/sig_locked_1',
-    )
-    // Consommée dès la confirmation : le choix du client ne conditionne plus
-    // la propreté du stockage.
-    expect(readCheckoutIntent()).toBeNull()
+    await waitFor(() => expect(readCheckoutIntent()).toBeNull())
+    expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeVisible()
   })
 
   it('C — partir vers le feed ne laisse aucune intention derrière', async () => {

@@ -68,7 +68,12 @@ PRODUCT_EVENT_TYPES: tuple[str, ...] = (
     #: déposé dans le produit. Ni une inscription choisie ni une activation :
     #: c'est l'arrivée, et elle se compte à part.
     "attribution_landed",
+    "paywall_viewed",
+    "checkout_plan_selected",
     "checkout_started",
+    "checkout_creation_failed",
+    "checkout_return_cancel",
+    "checkout_return_success",
     "subscription_activated",
     "subscription_lost",
 )

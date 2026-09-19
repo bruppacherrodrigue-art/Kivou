@@ -1288,6 +1288,16 @@ def test_only_the_bait_opens_the_complete_contact_demo_and_journal(tmp_path) -> 
 
     locked = client.get(f"/signals/{locked_key}").json()
     assert locked["landing_example_holder"] == "Titulaire Démonstration"
+    assert locked["access"]["upgrade_to"] == ["essential", "pro"]
+    with engine.connect() as connection:
+        paywall = connection.execute(
+            sa.select(product_event).where(product_event.c.event_type == "paywall_viewed")
+        ).mappings().one()
+    assert paywall["signal_key"] == locked_key
+    assert paywall["properties"] == {
+        "origin": "signal_detail",
+        "plans_presented": ["essential", "pro"],
+    }
 
 
 def test_landing_cohort_does_not_fill_with_a_neighbouring_family(tmp_path) -> None:

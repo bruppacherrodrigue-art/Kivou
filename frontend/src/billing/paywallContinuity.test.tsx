@@ -1,244 +1,73 @@
-import { describe, expect, it, afterEach, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useLocation } from 'react-router-dom'
 import { AppRoutes } from '../App'
-import {
-  AUTHENTICATED,
-  CATALOGUE,
-  DISCOVERY_STATUS,
-  ICP,
-  LOCKED_DETAIL,
-  LOCKED_ITEM,
-  feedPage,
-  mockApi,
-  renderApp,
-} from '../test/harness'
-import { readCheckoutIntent } from './checkoutIntent'
+import { AUTHENTICATED, CATALOGUE, DISCOVERY_STATUS, ICP, LOCKED_DETAIL, LOCKED_ITEM, feedPage, mockApi, renderApp } from '../test/harness'
+import { readCheckoutReturn } from './checkoutIntent'
 
-/* P0-03 §6, §16 — l'intention commerciale traverse le paywall, et RIEN d'autre.
- *
- * Un client qui clique depuis un signal verrouillé veut revenir à CE signal
- * après avoir payé. Seule sa clé voyage. Tout le reste — entreprise gagnante,
- * montant, besoins, preuve, source, profil visé — est précisément ce que le
- * paywall protège : le faire transiter par l'état de navigation, une URL ou le
- * stockage le livrerait à un compte qui n'y a pas encore droit, sans que le
- * serveur ait rien décidé.
- */
+afterEach(() => { vi.unstubAllGlobals(); sessionStorage.clear() })
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-  sessionStorage.clear()
-})
-
-/** Rend l'état de navigation courant, pour lire ce qui a réellement voyagé. */
-function NavigationStateProbe() {
-  const location = useLocation()
-  return <p data-testid="nav-state">{JSON.stringify(location.state ?? null)}</p>
-}
-
-const BILLING_ROUTES = {
+const ROUTES = {
   'GET /billing/plans': { body: CATALOGUE },
   'GET /billing/status': { body: DISCOVERY_STATUS },
   'GET /target-icps': { body: [ICP] },
   'GET /target-icps/options': { body: { zones: [], sectors: [] } },
-  'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+  'GET /signals': { body: feedPage([LOCKED_ITEM]) },
+  'GET /signals/sig_locked_1': { body: { ...LOCKED_DETAIL, access: { ...LOCKED_DETAIL.access, upgrade_to: ['essential', 'pro'] } } },
 }
 
-/** Ce qu'un état de navigation ne doit JAMAIS contenir. */
-const PROTECTED = [
-  'Constructions Bertrand',
-  '12345678900011',
-  'Réfection de la voirie',
-  'boamp.fr',
-  '26-104412',
-  '1240000',
-  'icp_1',
-  'Travaux publics',
-  'Matériaux ou composants',
-]
+const PROTECTED = ['Constructions Bertrand', '12345678900011', 'Réfection de la voirie', 'boamp.fr', '1240000', 'Travaux publics']
 
-async function openLockedBilling(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(
-    await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
-  )
-  await openDetailBilling(user)
+async function openPaywall() {
+  const user = userEvent.setup()
+  await user.click(await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }))
+  await user.click(await screen.findByRole('button', { name: 'Accéder à ce signal' }))
+  await screen.findByRole('heading', { name: 'Continuez votre prospection' })
+  return user
 }
 
-async function openDetailBilling(user = userEvent.setup()) {
-  await user.click(await screen.findByRole('button', { name: 'Voir mes possibilités d’accès' }))
-  await user.click(await screen.findByRole('button', { name: 'Choisir Pro' }))
-  await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
-}
-
-async function selectPro(user = userEvent.setup()) {
-  await user.selectOptions(await screen.findByLabelText('Offre'), 'pro')
-  return screen.findByRole('button', { name: /Choisir Pro/ })
-}
-
-describe('depuis le feed verrouillé', () => {
-  it('transmet la clé du signal, et seulement elle', async () => {
-    const user = userEvent.setup()
-    mockApi({ ...BILLING_ROUTES, 'GET /signals': { body: feedPage([LOCKED_ITEM]) } })
-    renderApp(
-      <>
-        <AppRoutes />
-        <NavigationStateProbe />
-      </>,
-      { session: AUTHENTICATED, route: '/app/signals' },
-    )
-
-    await openLockedBilling(user)
-    await selectPro()
-
-    const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
-    expect(state).toEqual({ checkoutIntent: { kind: 'signal', signalKey: 'sig_locked_1' }, checkoutAccountId: 'acc_1' })
-  })
-
-  it('ne laisse fuir aucune donnée protégée dans l’état de navigation', async () => {
-    const user = userEvent.setup()
-    mockApi({ ...BILLING_ROUTES, 'GET /signals': { body: feedPage([LOCKED_ITEM]) } })
-    renderApp(
-      <>
-        <AppRoutes />
-        <NavigationStateProbe />
-      </>,
-      { session: AUTHENTICATED, route: '/app/signals' },
-    )
-
-    await openLockedBilling(user)
-    await selectPro()
-
-    const serialised = screen.getByTestId('nav-state').textContent ?? ''
-    for (const secret of PROTECTED) {
-      expect(serialised).not.toContain(secret)
-    }
-  })
-})
-
-describe('depuis le détail verrouillé', () => {
-  it('transmet la clé du signal, et seulement elle', async () => {
-    mockApi({
-      ...BILLING_ROUTES,
-      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
-    })
-    renderApp(
-      <>
-        <AppRoutes />
-        <NavigationStateProbe />
-      </>,
-      { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
-    )
-
-    await openDetailBilling()
-    await selectPro()
-    expect(document.body.textContent).not.toContain(LOCKED_DETAIL.access.reason)
-
-    const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
-    expect(state).toEqual({ checkoutIntent: { kind: 'signal', signalKey: 'sig_locked_1' }, checkoutAccountId: 'acc_1' })
-  })
-
-  it('ne laisse fuir aucune donnée protégée depuis le détail', async () => {
-    mockApi({
-      ...BILLING_ROUTES,
-      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
-    })
-    renderApp(
-      <>
-        <AppRoutes />
-        <NavigationStateProbe />
-      </>,
-      { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
-    )
-
-    await openDetailBilling()
-    await selectPro()
-
-    const serialised = screen.getByTestId('nav-state').textContent ?? ''
-    for (const secret of PROTECTED) {
-      expect(serialised).not.toContain(secret)
-    }
-  })
-})
-
-describe('avant tout paiement réel', () => {
-  it('n’écrit rien dans le stockage tant qu’aucun Checkout n’a abouti', async () => {
-    const user = userEvent.setup()
-    mockApi({ ...BILLING_ROUTES, 'GET /signals': { body: feedPage([LOCKED_ITEM]) } })
+describe('continuité du paywall vers Stripe', () => {
+  it('ne mémorise rien avant le choix explicite d’un plan', async () => {
+    mockApi(ROUTES)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await openLockedBilling(user)
-    await selectPro()
-
-    // Arriver sur la facturation n'est pas acheter : rien n'est mémorisé.
-    expect(readCheckoutIntent()).toBeNull()
+    await openPaywall()
+    expect(readCheckoutReturn('acc_1')).toBeNull()
   })
 
-  it('ne mémorise rien quand l’ouverture du paiement échoue', async () => {
-    const user = userEvent.setup()
-    mockApi({
-      ...BILLING_ROUTES,
-      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
-      'POST /billing/checkout': {
-        status: 409,
-        body: { detail: { code: 'checkout_in_progress' } },
-      },
-    })
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await openLockedBilling(user)
-    await user.click(await selectPro(user))
-    await screen.findByRole('alert')
-
-    // Une intention orpheline survivrait à un parcours qui n'a jamais eu lieu.
-    expect(readCheckoutIntent()).toBeNull()
-  })
-
-  it('mémorise la clé une fois le paiement réellement ouvert', async () => {
-    const user = userEvent.setup()
+  it('mémorise uniquement la clé du signal après création effective du checkout', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
-    mockApi({
-      ...BILLING_ROUTES,
-      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
-      'POST /billing/checkout': {
-        body: {
-          checkout_url: 'https://checkout.stripe.test/cs_1',
-          plan: 'pro',
-          currency: 'chf',
-        },
-      },
-    })
+    mockApi({ ...ROUTES, 'POST /billing/checkout': { body: { checkout_url: 'https://checkout.stripe.test/cs_1', plan: 'pro', currency: 'eur' } } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    const user = await openPaywall()
+    await user.click(screen.getByRole('button', { name: /Choisir Pro/ }))
 
-    await openLockedBilling(user)
-    await user.click(await selectPro(user))
-
+    expect(readCheckoutReturn('acc_1')).toEqual({ kind: 'signal', signalKey: 'sig_locked_1' })
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_1')
-    expect(JSON.stringify(sessionStorage)).toContain('sig_locked_1')
-    // Et toujours rien du signal lui-même.
     const stored = sessionStorage.getItem('kivou.checkout-intent') ?? ''
-    for (const secret of PROTECTED) expect(stored).not.toContain(secret)
+    for (const value of PROTECTED) expect(stored).not.toContain(value)
   })
 
-  it('n’écrit aucune intention quand on arrive à la facturation sans signal', async () => {
-    const user = userEvent.setup()
+  it('ne laisse aucune intention orpheline si Stripe ne peut pas être ouvert', async () => {
+    mockApi({ ...ROUTES, 'POST /billing/checkout': { status: 503, body: { detail: { code: 'billing_unavailable' } } } })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
+    const user = await openPaywall()
+    await user.click(screen.getByRole('button', { name: /Choisir Pro/ }))
+
+    expect(await screen.findByRole('alert')).toBeVisible()
+    expect(readCheckoutReturn('acc_1')).toBeNull()
+  })
+
+  it('refuse une destination non sécurisée sans perdre le contexte courant', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign })
-    mockApi({
-      ...BILLING_ROUTES,
-      'POST /billing/checkout': {
-        body: {
-          checkout_url: 'https://checkout.stripe.test/cs_1',
-          plan: 'pro',
-          currency: 'chf',
-        },
-      },
-    })
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
+    mockApi({ ...ROUTES, 'POST /billing/checkout': { body: { checkout_url: 'http://checkout.invalid/cs_1', plan: 'pro', currency: 'eur' } } })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
+    const user = await openPaywall()
+    await user.click(screen.getByRole('button', { name: /Choisir Pro/ }))
 
-    await user.click(await selectPro(user))
-    expect(assign).toHaveBeenCalled()
-    expect(readCheckoutIntent()).toBeNull()
+    expect(await screen.findByRole('alert')).toHaveTextContent('destination de paiement')
+    expect(assign).not.toHaveBeenCalled()
+    expect(readCheckoutReturn('acc_1')).toBeNull()
   })
 })
