@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Spécification d’implémentation Kivou : recherche nationale des entreprises titulaires de marchés publics, historique sourcé, listes, alertes et exports.">
+  <title>Kivou — Spécification Company First France v1</title>
+  <style>
+    :root{color-scheme:light;--ink:#172126;--muted:#54636b;--line:#d8e0e3;--paper:#fff;--ground:#f3f5f4;--accent:#005c48;--tint:#eaf4ef}
+    *{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:var(--ground);color:var(--ink);font:16px/1.62 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--accent);text-underline-offset:3px}a:focus-visible{outline:3px solid #d79220;outline-offset:4px}.skip{position:absolute;left:12px;top:-100px;background:#fff;padding:10px}.skip:focus{top:10px;z-index:9}.layout{display:grid;grid-template-columns:248px minmax(0,1000px);gap:34px;max-width:1330px;margin:auto;padding:34px 24px}aside{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow:auto;padding:14px 8px}aside strong{display:block;font-size:19px;margin-bottom:4px}aside p{font-size:13px;color:var(--muted)}nav ol{padding:0;list-style:none}nav a{display:block;padding:5px 0;font-size:13px;text-decoration:none}nav a:hover{text-decoration:underline}main{background:var(--paper);border:1px solid var(--line);padding:48px 50px;min-width:0}header{padding-bottom:24px;border-bottom:2px solid var(--ink);margin-bottom:34px}.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:750;color:var(--accent)}h1{font-size:clamp(30px,4vw,45px);line-height:1.12;letter-spacing:-.025em;margin:14px 0 20px}h2{font-size:26px;line-height:1.25;margin:48px 0 16px;letter-spacing:-.015em}h3{font-size:19px;line-height:1.35;margin:28px 0 10px}p{margin:12px 0}ul,ol{padding-left:23px}li{margin:6px 0}.lead{font-size:20px;line-height:1.5}.meta{font-size:13px;color:var(--muted)}.note{color:var(--muted);font-size:14px}.table-wrap{overflow-x:auto;margin:20px 0}table{border-collapse:collapse;width:100%;font-size:14px;line-height:1.5}th,td{border:1px solid var(--line);padding:12px;text-align:left;vertical-align:top}th{background:var(--tint);font-weight:700}tbody tr:nth-child(even){background:#f8faf9}code{font: .88em/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}pre{background:#f2f5f4;border:1px solid var(--line);padding:20px;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace}.req{font-weight:700;color:var(--accent)}dt{font-weight:700;margin-top:14px}dd{margin:4px 0 16px}.checklist{list-style:square}footer{border-top:1px solid var(--line);margin-top:42px;padding-top:18px;font-size:13px;color:var(--muted)}section{scroll-margin-top:24px}.small{font-size:14px}.nowrap{white-space:nowrap}
+    @media(max-width:900px){.layout{grid-template-columns:1fr;gap:16px;padding:16px}aside{position:static;max-height:none;padding:0 8px}nav ol{columns:2;column-gap:25px}main{padding:30px 24px}h2{font-size:24px}}
+    @media(max-width:480px){body{font-size:15px}.layout{padding:8px}main{padding:24px 16px}nav ol{columns:1}th,td{padding:9px}header .lead{font-size:18px}pre{padding:14px}}
+    @media print{body{background:white;font-size:10pt}.layout{display:block;padding:0;max-width:none}aside,.skip{display:none}main{border:0;padding:0}h1{font-size:27pt}h2{font-size:18pt;margin-top:24pt;break-after:avoid}h3{break-after:avoid}tr,pre{break-inside:avoid}thead{display:table-header-group}a{color:inherit}th{background:#eee}.table-wrap{overflow:visible}footer{font-size:9pt}@page{size:A4;margin:18mm}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<div class="layout">
+<aside aria-label="Sommaire de la spécification">
+  <strong>Kivou</strong><p>Company First France<br>Spécification v1.0 · 20 septembre 2026</p>
+  <nav><ol>
+    <li><a href="#decision">01 · Décision et portée</a></li><li><a href="#existant">02 · Point de départ vérifié</a></li><li><a href="#perimetre">03 · Périmètre du MVP</a></li><li><a href="#sources">04 · Ingestion et couverture</a></li><li><a href="#identite">05 · Identité et déduplication</a></li><li><a href="#montants">06 · Montants et dates</a></li><li><a href="#modele">07 · Modèle et architecture</a></li><li><a href="#recherche">08 · Recherche et filtres</a></li><li><a href="#fiche">09 · Fiche entreprise</a></li><li><a href="#actions">10 · Listes, alertes, exports</a></li><li><a href="#droits">11 · Droits et commercialisation</a></li><li><a href="#api">12 · Contrats API</a></li><li><a href="#securite">13 · Sécurité et exploitation</a></li><li><a href="#tests">14 · Tests d’acceptation</a></li><li><a href="#lots">15 · Lots d’implémentation</a></li><li><a href="#lancement">16 · Critères de lancement</a></li><li><a href="#suite">17 · Évolutions reportées</a></li><li><a href="#prompt">18 · Prompt pour Codex</a></li><li><a href="#references">19 · Références</a></li>
+  </ol></nav>
+</aside>
+<main id="contenu">
+<header>
+  <p class="eyebrow">Spécification produit et technique · KIVOU-COMPANY-FIRST-FR-001</p>
+  <h1>La recherche des entreprises titulaires de marchés publics français</h1>
+  <p class="lead">Faire de l’entreprise le point d’entrée de Kivou. Permettre au commercial de trouver des titulaires, de comprendre leur historique de marchés et de constituer une liste de prospection à partir de faits vérifiables.</p>
+  <p><strong>Livraison visée :</strong> ingestion tous secteurs, entreprises résolues, recherche nationale, historique sourcé, listes, alertes hebdomadaires et exports. Aucune prédiction de besoin n’est nécessaire pour utiliser ce produit.</p>
+  <p class="meta">Version 1.0 · 20 septembre 2026 · Dépôt bruppacherrodrigue-art/Kivou<br>Référence de lecture : main@f9a4f5b2f5d4f26ec2c53b66b7e7b3f1fba2fb48 · Documentation uniquement à cette étape</p>
+</header>
+
+<section id="decision"><h2>01 · Décision et portée</h2>
+<p>Le pivot approuvé consiste à élargir Kivou au-delà des besoins BTP inférés après attribution. Le MVP devient une base de recherche des entreprises identifiées comme titulaires de marchés publics français, tous CPV, accompagnées de leurs marchés, acheteurs, dates, montants interprétables et sources. Les marchés publics restent la spécialité de Kivou ; une base généraliste couvrant toutes les entreprises européennes n’est pas le périmètre de cette livraison.</p>
+<p><strong>Promesse autorisée :</strong> « Trouvez les entreprises titulaires de marchés publics dans les sources couvertes par Kivou, puis explorez les marchés qui correspondent à votre cible. » Ne pas promettre l’exhaustivité nationale, un besoin d’achat certain, du chiffre d’affaires réalisé ou un contact vérifié non disponible.</p>
+<p>Cette spécification prévaut sur les anciennes restrictions « BTP seulement » et sur l’obligation de produire une inférence commerciale avant d’afficher une attribution. Elle ne remplace ni la séparation des faits et des inférences, ni les preuves, ni les règles de sécurité, de facturation ou de déploiement. Les acquis des versions v2.0 à v2.6 sont réutilisés lorsqu’ils ne contredisent pas ce périmètre.</p>
+<ul>
+<li><span class="req">DEC-01.</span> Une entreprise et un marché factuels restent consultables dans le périmètre autorisé même si le Need Graph ne sait rien produire pour leur secteur.</li>
+<li><span class="req">DEC-02.</span> La base publique est indépendante des listes et des activités privées des clients. L’accès national ne s’obtient jamais en retirant un filtre <code>account_id</code> des signaux existants.</li>
+<li><span class="req">DEC-03.</span> Le produit doit fonctionner sans LLM, Apollo, Instantly ou Hermes sur son parcours factuel de recherche. Aucun appel payant à l’ouverture d’une page.</li>
+<li><span class="req">DEC-04.</span> Le tarif évoqué de 49 € par mois est une hypothèse commerciale à tester, pas une preuve de consentement à payer ni une instruction de modifier les abonnements existants.</li>
+<li><span class="req">DEC-05.</span> Livrer par branches et PR, avec tests. Aucun changement de production, achat de données, migration LIVE, envoi de campagne ou activation d’agent n’est autorisé par la présente mission documentaire.</li>
+</ul>
+</section>
+
+<section id="existant"><h2>02 · Point de départ vérifié</h2>
+<p>La lecture ciblée du dépôt est un point de départ, pas un audit exhaustif de son exécution. Elle ne démontre ni le contenu actuel de la base, ni la santé des connecteurs déployés. Codex doit relever le SHA réellement utilisé et refaire une analyse d’écart au début du lot L0.</p>
+<div class="table-wrap"><table><thead><tr><th>Existant constaté</th><th>Conséquence pour l’implémentation</th></tr></thead><tbody>
+<tr><td>Connecteurs <code>src/signals/connectors/{decp,boamp,ted}/</code>. Les requêtes d’attributions examinées ne restreignent pas déjà les CPV au BTP.</td><td>Mesurer les restrictions sur toute la chaîne : collecte, mapping, résolution, matérialisation, matching, droits et affichage. Ne pas annoncer une ouverture tous secteurs obtenue par un simple changement de configuration.</td></tr>
+<tr><td>Modèle canonique <code>src/signals/domain/</code> : marchés, titulaires, parties, identifiants, argent et provenance.</td><td>Étendre les contrats existants. Ne pas créer un second modèle concurrent de marché ou d’entreprise sans justification documentée.</td></tr>
+<tr><td>Annuaire <code>src/signals/api/routes_company_directory.py</code>, vues <code>frontend/src/companies/CompaniesPage.tsx</code> et <code>DirectoryCompanyPage.tsx</code>.</td><td>Étendre l’entrée Entreprises et conserver les routes et sélections existantes. Les pages Signaux continuent de fonctionner.</td></tr>
+<tr><td><code>src/signals/companies/</code> contient contrats, identité, indexation, annuaire et lecture de profils.</td><td>Identifier les projections nationales et les projections possédées par les comptes avant d’ajouter les relations de marché.</td></tr>
+<tr><td><code>src/signals/client_value/capabilities.py</code> filtre déjà les données d’entreprise selon les droits et les suppressions.</td><td>Réutiliser la frontière serveur ; une variante d’interface ne doit jamais donner de nouveaux droits.</td></tr>
+<tr><td><code>src/signals/client_value/history.py</code> produit déjà un historique limité à 100 marchés ; repli sur nom normalisé + département d’exécution, et date pouvant être la publication.</td><td>Remplacer ces ambiguïtés pour la nouvelle vue par jointure exacte titulaire–marché, pagination, type de date et preuves. Ne pas qualifier l’historique actuel d’exhaustif ou d’identité certifiée.</td></tr>
+<tr><td><code>src/signals/persistence/materialization.py</code> insère les faits si absents ; les chemins examinés retournent les faits existants sans les mettre à jour. <code>src/signals/france/link.py</code> rapproche BOAMP/DECP, pas TED.</td><td>Traiter explicitement corrections sous le même ID, versions immuables, convergence TED et conflits tardifs. Ne pas compter sur un upsert ou un rapprochement déjà complet.</td></tr>
+<tr><td><code>src/signals/alerts/</code> gère déjà digest, reprise et état d’envoi ; <code>CompanyDossier.tsx</code> réunit notes, contacts et suivi.</td><td>Brancher les recherches factuelles sur ces mécanismes ; éviter un second moteur d’email ou de gestion de la relation client.</td></tr>
+<tr><td>Historique factuel et enrichissement documentés le 1er septembre ; grants Discovery permanents documentés le 16 septembre.</td><td>Ne pas remettre les trois grants à zéro, élargir leur contenu par effet de bord, ni faire dépendre un GET d’une écriture.</td></tr>
+<tr><td><code>CONTRIBUTING.md</code> impose branche, PR et CI, sans écriture directe sur main. La CI distingue les modifications documentaires des changements applicatifs.</td><td>La spec est publiée dans une PR documentaire. Les PR d’implémentation auront leurs propres validations et rapports.</td></tr>
+</tbody></table></div>
+<p><strong>Sortie obligatoire de L0 :</strong> matrice « exigence → fichier existant → comportement prouvé → écart → test », inventaire des migrations et des feature flags, droits en vigueur, sources configurées, distribution CPV et périmètre d’historique disponible. Les références techniques proposées plus bas sont adaptables au code ; les invariants produit ne le sont pas silencieusement.</p>
+</section>
+
+<section id="perimetre"><h2>03 · Périmètre du MVP</h2>
+<div class="table-wrap"><table><thead><tr><th>Inclus au lancement</th><th>Reporté ou exclu</th></tr></thead><tbody>
+<tr><td>Marchés publics français publiés dans DECP, BOAMP et TED ; travaux, fournitures et services ; CPV absent conservé.</td><td>Concessions, appels d’offres sans attribution, intentions d’achat et marchés privés dans le résultat « marchés attribués ».</td></tr>
+<tr><td>Entreprises françaises résolues et leurs établissements ; participants étrangers conservés dans les marchés.</td><td>Couverture commerciale de tous les pays, reconstruction générale des groupes capitalistiques.</td></tr>
+<tr><td>Recherche, filtres, fiche entreprise, historique, preuves, liste personnelle et suivi.</td><td>CRM complet, scoring de propension à acheter, génération d’une analyse artificielle pour chaque entreprise.</td></tr>
+<tr><td>Exports bornés, recherches enregistrées, synthèse hebdomadaire demandée par le client.</td><td>Envoi automatique aux prospects, achat massif de contacts, intégrations CRM multiples.</td></tr>
+<tr><td>Réemploi des données d’activité et coordonnées déjà disponibles et autorisées.</td><td>Promesse d’emails ou de décideurs pour chaque entreprise ; fournisseur de contacts imposé comme dépendance de lancement.</td></tr>
+</tbody></table></div>
+<p><span class="req">SCOPE-01.</span> Distinguer <em>pays de l’acheteur</em>, <em>pays du titulaire</em> et <em>lieu d’exécution</em>. Le corpus de base retient les marchés attribués par un acheteur français identifié ; les cas transfrontaliers ou de pays inconnu restent conservés et catégorisés, sans inclusion par supposition. La recherche initiale porte par défaut sur les entreprises françaises identifiées par le registre ou une identité officielle probante.</p>
+<p><span class="req">SCOPE-02.</span> Cible de reprise MVP : 24 mois glissants d’attributions ou notifications, plus les publications récentes dont cette date manque, avec couverture déclarée. Le stockage conserve l’historique antérieur déjà présent. Le backfill peut être réalisé par fenêtres bornées ; aucune date de couverture nationale ne s’affiche tant que ses fenêtres sources n’ont pas été traitées ou explicitement qualifiées comme indisponibles.</p>
+<p><span class="req">SCOPE-03.</span> Les concessions et événements hors périmètre ne sont pas supprimés du brut. Leur exclusion du MVP est traçable. Un CPV inconnu ou hors BTP ne justifie pas une perte de marché factuel.</p>
+</section>
+
+<section id="sources"><h2>04 · Ingestion et couverture</h2>
+<h3>Sources et responsabilités</h3>
+<div class="table-wrap"><table><thead><tr><th>Source</th><th>Apport au MVP</th><th>Contrôle attendu</th></tr></thead><tbody>
+<tr><td>DECP consolidées</td><td>Marchés, acheteurs, titulaires, notifications, montants et modifications.</td><td>Schéma et version de ressource, nature du contrat, modifications versus marché initial, source amont ; pas de somme de versions successives.</td></tr>
+<tr><td>BOAMP</td><td>Avis d’attribution, objets, lots et liens de procédure disponibles.</td><td>Différencier attribution et simple avis de consultation ; suivre rectificatifs et références d’origine.</td></tr>
+<tr><td>TED</td><td>Avis de résultats et lots des acheteurs français, notamment eForms.</td><td>Mapping pays robuste ; rôles acheteur/titulaire ; corrections et annulations ; périmètre France au bon niveau.</td></tr>
+<tr><td>Sirene et sources officielles déjà intégrées</td><td>Identité légale, établissements, activité officielle, état administratif.</td><td>Versions de nomenclature NAF, statut de diffusion courant, date de vérification. Aucune assimilation CPV = NAF.</td></tr>
+</tbody></table></div>
+<h3>Pipeline requis</h3>
+<p>Collecte durable → validation et mise en quarantaine des anomalies → normalisation canonique → rapprochement de versions et doublons → résolution d’entreprise → projection publique recherchable. La génération de signaux commerciaux existante reste un consommateur séparé. Un échec d’inférence ou de matching ICP ne bloque pas la publication d’un fait valide.</p>
+<ul>
+<li><span class="req">ING-01.</span> Checkpoint par source et fenêtre ; pagination entièrement parcourue ; reprise après crash sans duplication. Un item n’est acquitté qu’après persistance du résultat ou d’un état de quarantaine durable.</li>
+<li><span class="req">ING-02.</span> Erreurs transitoires : retries bornés, délai progressif et respect des limites du fournisseur. Erreur de mapping : erreur contextualisée, quarantaine, poursuite du reste du lot ; replay disponible après correction. Aucun échec silencieux et aucune notice qui bloque indéfiniment tout le flux.</li>
+<li><span class="req">ING-03.</span> Brut ou référence durable avec hash, identifiant source, version, URL, date observée, version du parseur. L’absence d’un élément dans un snapshot ultérieur ne prouve pas son annulation.</li>
+<li><span class="req">ING-04.</span> Backfill séparé du flux incrémental : dry-run par défaut, bornes de dates, taille de batch, limite de volume, compteur de progression, pause et reprise. Autorisation explicite avant application sur une base partagée.</li>
+<li><span class="req">ING-05.</span> Objectif initial proposé : vérification quotidienne des mises à jour de chaque source ; exposition dans les 24 heures suivant une ingestion réussie, hors limite amont documentée. Mesurer séparément retard de publication par l’acheteur et retard de traitement Kivou.</li>
+</ul>
+<p><strong>Points de code à résoudre ou qualifier en L1 :</strong> le mapping TED examiné ne contient pas <code>IDN</code> ; le runner reste sur son curseur en cas d’acquisition invalide. Le client DECP partitionne ses fenêtres mais une journée dépassant le plafond amont de 10 000 résultats nécessite une autre partition ou une ressource bulk validée. Le chemin BOAMP exclut certaines familles <code>FNSimple</code>, <code>MAPA</code> et <code>DSP</code>. Documenter le volume et le motif ; ajouter les formats de marchés nécessaires, garder les concessions hors MVP. Ne pas affirmer que la production présente actuellement ces blocages sans vérification.</p>
+<p><span class="req">ING-06.</span> La quarantaine ne s’applique pas indistinctement : anomalie isolée de notice → état durable puis poursuite ; panne, authentification, limitation 429 ou rupture systémique du schéma → arrêt/retry de la source sans acquitter toute une fenêtre. Définir une alerte sur taux anormal de quarantaines et un coupe-circuit pour éviter qu’une panne de parseur ne marque tout le corpus « traité ».</p>
+<h3>Rapport de couverture</h3>
+<p>Pour chaque source × fenêtre × famille CPV : nombre d’enregistrements acquis, valides, exclus avec motif, en quarantaine, marchés canoniques, identités résolues, doublons certains et rapprochements incertains. Ajouter taux de présence de la date d’attribution, de la notification, du montant qualifiable, du SIREN et du lieu d’exécution.</p>
+<p>Comparer les compteurs aux enregistrements que la source expose dans la fenêtre lorsque cette mesure est disponible. Ne pas appeler ce ratio « part de tous les marchés français ». La page doit afficher « Sources couvertes », début d’historique, dernière synchronisation réussie et éventuelles interruptions. Un résultat vide et une source indisponible sont deux états différents.</p>
+</section>
+
+<section id="identite"><h2>05 · Identité et déduplication</h2>
+<h3>Entreprises et établissements</h3>
+<ul>
+<li><span class="req">ID-01.</span> Entreprise française = unité légale identifiée par un SIREN validé et corroboré selon la politique existante ; SIRET = établissement rattaché. Conserver le SIRET titulaire d’origine pour la géographie et la preuve.</li>
+<li><span class="req">ID-02.</span> Les noms et domaines web servent de pistes, jamais seuls de preuve de fusion. Identifiant invalide, contradiction pays/registre ou homonymie → identité non résolue et motif, pas de fiche certifiée.</li>
+<li><span class="req">ID-03.</span> Plusieurs SIRET d’un même SIREN ne produisent qu’une entreprise dans les résultats. Deux SIREN différents d’un même groupe restent distincts. Historique de nom et état fermé/cessé restent visibles avec leur temporalité.</li>
+<li><span class="req">ID-04.</span> Une fusion justifiée conserve alias, provenance et redirections. Les listes, notes et statuts privés restent attribués à leur compte ; aucune fusion n’élargit leur visibilité. Rejeu idempotent et correction réversible.</li>
+<li><span class="req">ID-05.</span> Les titulaires étrangers ou non résolus restent dans le détail du marché avec leur statut. Ils ne disparaissent pas pour rendre les taux de résolution artificiellement meilleurs.</li>
+</ul>
+<h3>Marchés, lots et versions</h3>
+<p>Une notice n’est pas un marché. La clé canonique vise le contrat attribué et son lot lorsqu’il est identifié, avec plusieurs références de source et plusieurs versions éventuelles. Ne pas poser « un lot = un contrat » : un même lot peut comporter plusieurs contrats attribués indépendamment. Le total de procédure ne s’ajoute pas aux montants des contrats et lots. Un SIREN présent via plusieurs SIRET sur le même contrat ne compte ce contrat qu’une fois ; conserver les participations et dédupliquer les allocations selon leur preuve.</p>
+<p><span class="req">DEDUP-01.</span> Relier automatiquement lorsque les identifiants officiels et leur espace de noms ou une référence explicite de correction établissent le lien. Un rapprochement nom + montant + date ne constitue pas une clé certaine. Versionner la décision, ses critères et sa confiance ; préserver les éléments source.</p>
+<p><span class="req">DEDUP-02.</span> Les doublons probables restent consultables mais portent un état d’incertitude. Pour un cluster non résolu, aucune somme consolidée exacte n’est présentée : exclure le cluster du total fiable et indiquer le nombre de marchés concernés. Les sources et occurrences restent accessibles sans inventer un montant unique.</p>
+<p><span class="req">DEDUP-03.</span> La correction d’un montant remplace la valeur courante selon la sémantique source et conserve la précédente. Un avenant n’est pas un nouveau marché gagné. Un marché explicitement annulé est retiré des agrégats actifs et reste dans l’historique avec le motif. L’acheteur et les membres d’un groupement ne sont jamais fusionnés avec le titulaire principal.</p>
+<p><span class="req">DEDUP-04.</span> Pour une ressource modifiée sous le même ID, détecter le hash de contenu différent, conserver une observation/version immuable et reconstruire la projection courante. Le hash de contenu ne remplace pas l’identité du contrat. Une filiation explicite et une priorité par champ/type de source versionnée règlent les corrections ; une observation plus récente n’est pas automatiquement plus vraie. En cas de conflit non résolu entre sources, conserver les versions et exclure le champ contesté des calculs fiables.</p>
+<p><span class="req">DEDUP-05.</span> Pour la convergence tardive de deux clés déjà persistées, prévoir alias et redirection audités ainsi qu’une propagation idempotente vers liens, listes, suivi et déduplication d’alertes. Ne pas fusionner automatiquement les contenus privés conflictuels. Une ressource publiée doit rester accessible par son ancienne URL, sous les mêmes droits.</p>
+</section>
+
+<section id="montants"><h2>06 · Montants et dates sans ambiguïté</h2>
+<h3>Argent</h3>
+<p><span class="req">MONEY-01.</span> Utiliser <code>Decimal</code> ou l’objet <code>Money</code> existant ; jamais de flottants. Conserver montant, devise, régime de TVA, nature de valeur, portée (procédure/lot/contrat/part titulaire), preuve et version. Un montant inconnu est <code>null</code>, pas zéro.</p>
+<div class="table-wrap"><table><thead><tr><th>Situation</th><th>Présentation et calcul</th></tr></thead><tbody>
+<tr><td>Contrat fixe, titulaire unique, montant HT EUR explicitement publié</td><td>Admissible à la somme fiable des montants de contrats attribuables. Ce n’est ni du CA réalisé ni un paiement encaissé.</td></tr>
+<tr><td>Groupement de trois entreprises, marché de 900 000 €, parts inconnues</td><td>Chaque fiche : « Membre du groupement — montant global 900 000 € — part non publiée ». Contribution au montant attribuable : inconnue ; ni 900 000 € par membre, ni division par trois.</td></tr>
+<tr><td>Part d’un cotitulaire explicitement documentée</td><td>Inclure uniquement cette part si nature, devise, TVA et périmètre sont compatibles ; conserver la preuve d’allocation.</td></tr>
+<tr><td>Accord-cadre avec plafond de 2 M€</td><td>« Plafond publié : 2 M€ ». Exclu du montant fixe attribuable. Ne prouve pas 2 M€ de commandes.</td></tr>
+<tr><td>Estimation, montant annuel non comparable, TTC, devise étrangère ou portée incertaine</td><td>Afficher le libellé source qualifié ; présenter séparément et exclure de la somme HT EUR. Pas de conversion, annualisation ou ventilation implicite.</td></tr>
+<tr><td>Total de procédure + montants des lots</td><td>Compter les lots pertinents ; ne pas additionner le total de procédure. Si le total n’est pas ventilé, ne pas le reproduire comme montant de chaque lot.</td></tr>
+<tr><td>Version 100 000 € corrigée à 120 000 €</td><td>Un marché courant de 120 000 €, non deux marchés et non 220 000 €. Ne pas interpréter automatiquement tout avenant comme un delta.</td></tr>
+</tbody></table></div>
+<p><span class="req">MONEY-02.</span> Deux métriques distinctes : <code>matched_award_count</code> (contrats distincts confirmés correspondant aux filtres) et <code>attributable_fixed_eur_ex_vat_sum</code> (seules parts comparables fiables). Retourner aussi <code>unresolved_cluster_count</code>, <code>unresolved_occurrence_count</code>, la complétude du compteur, le nombre de montants inclus, ceux exclus par motif et <code>complete|partial|unavailable</code>. Les clusters incertains sont séparés du compteur confirmé ; ils ne peuvent pas faire franchir un seuil de nombre de marchés. Une somme partielle de zéro n’est pas affichée comme « 0 € gagné ». Aucun total exact si toutes les valeurs sont inconnues.</p>
+<p><span class="req">MONEY-03.</span> Le filtre « Montant du marché » porte sur une valeur de marché qualifiée ; lorsqu’un seuil monétaire est activé, il exige le choix <code>fixed</code>, <code>ceiling</code> ou <code>estimate</code> (défaut <code>fixed</code>) et EUR HT pour le MVP. Sans filtre monétaire, les marchés à plafond, TTC, en autre devise ou sans montant restent admissibles ; seule leur contribution à la somme fiable change. Le filtre « Cumul attribuable connu » porte sur la somme définie ci-dessus. Ces deux filtres ne sont pas interchangeables. Une entreprise dont seules des parts inconnues pourraient satisfaire le seuil n’est pas présentée comme satisfaisant le filtre.</p>
+<h3>Horloges et fraîcheur</h3>
+<ul>
+<li><span class="req">DATE-01.</span> Conserver séparément attribution, notification, publication et découverte par Kivou ; leur source et leur précision restent explicites.</li>
+<li><span class="req">DATE-02.</span> Filtre par défaut : date d’attribution, sinon notification, avec libellé exact. Ni publication ni découverte ne servent de substitution cachée. Les dates inconnues sont exclues d’un filtre temporel contractuel et comptabilisées à part.</li>
+<li><span class="req">DATE-03.</span> Mode explicite « Publication de l’avis » pour explorer les marchés dont l’attribution est inconnue. L’interface indique alors « Publié le… », jamais « Gagné le… ».</li>
+<li><span class="req">DATE-04.</span> Bornes calendaires inclusives en Europe/Paris ; timestamps stockés en UTC lorsqu’ils existent. Les dates civiles source restent des dates. Fuseau et convention sont identiques entre recherche, fiche, alerte et export.</li>
+<li><span class="req">DATE-05.</span> Une découverte récente d’un ancien marché peut donner « Ajouté à Kivou », jamais « Nouveau marché remporté ». Les corrections n’effacent pas la date de première observation.</li>
+<li><span class="req">DATE-06.</span> Préserver également les dates source existantes de signature, début et fin d’exécution. Une correction publiée aujourd’hui d’un contrat attribué en 2024 ne déplace pas son attribution dans la période courante.</li>
+</ul>
+</section>
+
+<section id="modele"><h2>07 · Modèle et architecture</h2>
+<p>Conserver le monolithe Python et le frontend React/TypeScript existants. Une projection PostgreSQL indexée suffit au premier lot ; moteur de recherche externe, base graphe, microservices et réseau d’agents sont hors scope. Le « graphe » désigne ici des relations métiers, pas une nouvelle infrastructure.</p>
+<div class="table-wrap"><table><thead><tr><th>Objet logique</th><th>Champs et invariants minimaux</th></tr></thead><tbody>
+<tr><td>Entreprise et établissement</td><td>Clé canonique existante, SIREN/SIRET, nom, pays, état, NAF + version, géographies sourcées, vérification et diffusion. Réutiliser les modèles/projections en place.</td></tr>
+<tr><td>Marché canonique public</td><td>Clé stable, procédure/lot/contrat, objet, CPV, acheteur, lieux, dates qualifiées, montant qualifié, état courant et version.</td></tr>
+<tr><td>Participation d’entreprise</td><td>Marché, entreprise/mention non résolue, établissement, rôle titulaire/cotitulaire/mandataire si publié, partie source, part attribuable éventuelle, preuves.</td></tr>
+<tr><td>Référence et preuve</td><td>Source, identifiant/URL, localisation JSON/XML/texte, valeur observée, hash et date, version de normalisation. Les faits publics ne contiennent pas d’activité client.</td></tr>
+<tr><td>Snapshot de recherche</td><td>Version de projection, date de calcul et de disponibilité, métriques par entreprise, clé de tri, couverture et qualité. Reconstructible à partir des faits.</td></tr>
+<tr><td>Liste, suivi et recherche sauvegardée</td><td>Propriétaire compte, auteur si pertinent, nom, entreprise canonique ou filtres sérialisés/versionnés, activation d’alerte, dates ; contraintes d’unicité account-scoped.</td></tr>
+<tr><td>Export et livraison d’alerte</td><td>Compte, requête/snapshot/droits, clé idempotente, budget réservé, état, expiration, résultat et erreurs. Aucun contenu de compte A visible à B.</td></tr>
+</tbody></table></div>
+<p><span class="req">ARCH-01.</span> Écrire les projections via jobs ou transactions d’ingestion ; tous les GET sont en lecture seule et sans appel fournisseur. Outbox durable pour les effets différés ; reprises idempotentes ; unicité garantie en base.</p>
+<p><span class="req">ARCH-02.</span> Les données nationales publiques sont partagées, mais notes, statuts de prospection, contacts personnels, recherches et listes restent strictement isolés. Les nouveaux agrégats ne se calculent jamais à partir de notes ou de campagnes client.</p>
+<p><span class="req">ARCH-03.</span> Les noms exacts des tables, index et routes doivent être arrêtés dans le plan L0 après inspection. Aucune migration existante ne doit être modifiée. Choisir des migrations additives depuis les heads réels du dépôt, sans inventer le prochain numéro de révision.</p>
+<p><span class="req">ARCH-04.</span> Prévoir index sur participations (entreprise/marché), dates et identifiants acheteurs ; CPV normalisés ; géographies distinctes. Faire exécuter filtres, agrégats et tri par la base avant pagination. Interdit de charger un échantillon limité, puis de filtrer en mémoire en prétendant chercher tout le corpus.</p>
+<p><span class="req">ARCH-05.</span> Dans la nouvelle vue « Titulaires », seuls les liens d’identité exacts ou corroborés selon une politique testée alimentent le résultat certifié. Le repli nom + lieu de <code>history.py</code> ne doit pas réintroduire silencieusement des correspondances incertaines. Préserver les clés <code>cmp_directory_{siren}</code> et les garde-fous <code>company_subject_alias</code>, <code>account_company_alias_override</code> et <code>private_subject_key</code> lorsqu’ils s’appliquent.</p>
+</section>
+
+<section id="recherche"><h2>08 · Recherche et filtres</h2>
+<h3>Parcours principal</h3>
+<ol><li>Depuis Entreprises, l’utilisateur choisit la vue « Titulaires de marchés publics » ; l’annuaire existant reste accessible.</li><li>Il sélectionne par exemple informatique, acheteur hospitalier identifié, territoire d’exécution et période.</li><li>Kivou liste une seule ligne par entreprise, les marchés correspondants et les limites des montants disponibles.</li><li>Il ouvre la fiche, consulte les preuves, sauvegarde l’entreprise ou exporte sa sélection.</li><li>Il enregistre les filtres et peut activer une alerte hebdomadaire.</li></ol>
+<p>La vue nationale n’exige ni besoin BTP pris en charge ni ICP confirmé pour ses faits publics autorisés. L’ICP peut préremplir des filtres, jamais imposer une réduction cachée du corpus. Adapter l’onboarding concerné sans élargir automatiquement l’Acquisition Engine ou ses campagnes.</p>
+<div class="table-wrap"><table><thead><tr><th>Filtre</th><th>Règle testable</th></tr></thead><tbody>
+<tr><td>Texte / SIREN / SIRET</td><td>Recherche sur nom légal et alias publiés ; recherche exacte des identifiants normalisés. Objet des marchés via champ séparé. Pas de langage naturel requis au MVP.</td></tr>
+<tr><td>A gagné des marchés publics</td><td>Au moins une participation canonique non annulée et résolue dans le périmètre autorisé. Libellé UI « Titulaire identifié » ; pas de preuve d’un besoin résiduel.</td></tr>
+<tr><td>CPV remporté</td><td>Code complet ou préfixe normalisé, principal ou additionnel ; recherche de libellé. Plusieurs choix = OU. Plusieurs codes correspondants ne comptent le contrat qu’une fois. Libellés versionnés ; inconnu affiché comme tel.</td></tr>
+<tr><td>NAF entreprise</td><td>Classification officielle et version ; différente du CPV. Inconnu n’est pas assimilé à un secteur. Aucun mapping CPV→NAF utilisé comme identité.</td></tr>
+<tr><td>Période / type de date</td><td>Attribution/notification par défaut, publication sur choix explicite ; presets 30 jours, 90 jours, 12 mois, 24 mois et plage personnalisée.</td></tr>
+<tr><td>Montant par marché</td><td>Minimum/maximum inclusifs, EUR HT et nature explicite. Montants inconnus exclus du test numérique, non convertis à zéro.</td></tr>
+<tr><td>Cumul attribuable connu</td><td>Somme des parts fixes fiables des marchés répondant à l’ensemble des filtres de marché ; compteur de valeurs exclues visible.</td></tr>
+<tr><td>Nombre de marchés</td><td>Nombre de contrats/lots canoniques distincts correspondant aux filtres, pas nombre de notices ni de lignes titulaires.</td></tr>
+<tr><td>Acheteur</td><td>Identité d’acheteur + libellé ; ne pas regrouper des homonymes. Type d’acheteur seulement si publié ou issu d’une règle déterministe versionnée ; sinon inconnu.</td></tr>
+<tr><td>Géographie</td><td>Filtres séparés : siège, établissement titulaire, exécution. Région de l’acheteur ne remplace pas le lieu d’exécution. Inconnu et plurirégional pris en charge.</td></tr>
+<tr><td>Rôle / état entreprise</td><td>Titulaire seul, groupement ou tous ; entreprise active, cessée ou tous. État inconnu explicite. Un établissement fermé ne prouve pas une entreprise cessée.</td></tr>
+</tbody></table></div>
+<p><span class="req">SEARCH-01.</span> Tous les filtres de marché doivent être satisfaits par les mêmes marchés. Interdit de valider « CPV informatique » avec le marché A et « acheteur hôpital » avec le marché B si aucun marché ne remplit les deux. Les filtres d’entreprise s’appliquent ensuite en ET ; OU entre valeurs d’un même filtre. Les agrégats portent sur cet ensemble commun.</p>
+<p>Ordre normatif : appliquer les prédicats élémentaires CPV/date/acheteur/lieu/rôle/montant par marché → obtenir l’ensemble M de contrats admissibles par entreprise → calculer compteur et somme sur M → appliquer les seuils entreprise de cumul et nombre → trier → paginer. Les seuils d’agrégat ne se réappliquent pas récursivement à M ; aucun agrégat n’est calculé sur la seule page courante.</p>
+<p><span class="req">SEARCH-02.</span> Résultat : nom, SIREN, activité connue, commune, nombre de marchés correspondants, cumul attribuable avec complétude, dernier événement et type de date, statut de suivi privé. Pas d’email de prospect dans la liste par défaut.</p>
+<p><span class="req">SEARCH-03.</span> Tri par date contractuelle récente, nom, nombre de marchés ou cumul attribuable ; clé entreprise stable en départage ; valeurs inconnues en dernier. Pagination par curseur opaque versionné lié aux filtres, au snapshot, aux droits et au compte. Curseur invalide ou contexte changé → erreur explicite, jamais résultat mélangé.</p>
+<p><span class="req">SEARCH-04.</span> URL partageable avec filtres et entreprise sélectionnée, sans jeton ni données personnelles. Retour navigateur, rechargement et fermeture de fiche conservent position, filtres et sélection. Chargement annulable ; une réponse tardive ne remplace pas une recherche plus récente.</p>
+<p><span class="req">SEARCH-05.</span> États à concevoir : chargement, résultats, zéro résultat, filtre invalide, aucune donnée source, source en retard, droit insuffisant, erreur récupérable. Desktop 1440/2560 et mobile 390 px ; navigation clavier et focus annoncés. Aucun chiffre fictif pour remplir une page vide.</p>
+<p><span class="req">SEARCH-06.</span> Snapshot de pagination valide 30 minutes, avec données/version et ordre conservés pendant cette période. Une simple étiquette de version sur des lignes mutables ne suffit pas. Choisir lecture versionnée ou matérialisation bornée documentée en L0, sans transaction base maintenue entre requêtes HTTP. Expiration → erreur et bouton « Actualiser la recherche ». Révocation de droits ou diffusion prioritaire → invalidation immédiate et redémarrage ; ne pas poursuivre un résultat périmé.</p>
+</section>
+
+<section id="fiche"><h2>09 · Fiche entreprise</h2>
+<p>Réutiliser les vues et composants du produit. Présenter d’abord les faits utiles au commercial ; détails techniques et identifiants source restent accessibles sans dominer la lecture.</p>
+<ol>
+<li><strong>Identité :</strong> nom, SIREN, activité officielle, état, siège et établissements pertinents, source et date de vérification. Site et coordonnées uniquement s’ils existent, sont autorisés et passent la projection actuelle.</li>
+<li><strong>Marchés correspondants :</strong> période et filtres actifs, nombre de contrats, cumul fiable, parts inconnues et couverture. Les statistiques « Tous les marchés accessibles » sont distinctes et nécessitent une action explicite.</li>
+<li><strong>Historique :</strong> objet, acheteur, lot, rôle, montant et sa nature, lieu d’exécution, date et son type, état, source. Pagination serveur, chronologie et rectificatifs.</li>
+<li><strong>Répartition :</strong> principaux acheteurs, CPV et territoires selon les mêmes définitions, avec base de calcul et inconnus. Graphiques ou comparaisons annuelles seulement après validation de périodes comparables ; pas nécessaires au premier écran.</li>
+<li><strong>Actions :</strong> ajouter à une liste, suivre, prendre une note privée, marquer contacté via la fonction existante, exporter avec les droits requis.</li>
+</ol>
+<p><span class="req">PROFILE-01.</span> Chaque fait important mène à une preuve source. Une URL seule sans relation démontrée avec le fait ne suffit pas ; conserver l’ancre de champ ou le passage disponible. Provenance lisible : source, avis, date observée et date du fait.</p>
+<p><span class="req">PROFILE-02.</span> Un historique incomplet affiche « X marchés identifiés sur la couverture disponible ». Ne pas déduire dépendance à la commande publique, part du CA ou croissance réelle à partir de montants de marchés et de durées incomparables.</p>
+<p><span class="req">PROFILE-03.</span> Les hypothèses de besoins existantes peuvent rester dans une section distincte « Analyse commerciale », avec droits et limites ; elles ne contrôlent pas l’accès factuel. Une classification absente ne devient pas « aucun besoin ».</p>
+</section>
+
+<section id="actions"><h2>10 · Listes, alertes et exports</h2>
+<h3>Listes et recherches</h3>
+<p><span class="req">ACT-01.</span> Liste statique d’entreprises distincte d’une recherche dynamique. Création, renommage, ajout/retrait idempotents ; aucun doublon de membre. Suppression d’une liste ne supprime aucune entreprise nationale. Réutiliser suivi, notes et statuts déjà présents ; une recherche sauvegardée contient les filtres et leur version, pas une copie incontrôlée des résultats.</p>
+<p><span class="req">ACT-02.</span> Enregistrer explicitement période fixe (bornes absolues) ou glissante (durée et unité, par exemple 12 mois). Recalculer les bornes glissantes à l’exécution dans le fuseau défini ; ne pas figer accidentellement « 12 derniers mois » au jour de création. Sauvegarder la sémantique de fin de mois et la tester.</p>
+<h3>Alertes hebdomadaires</h3>
+<ul>
+<li><span class="req">ALERT-01.</span> Activées explicitement pour une recherche ou un suivi ; email au client Kivou seulement. Aucun message envoyé aux entreprises trouvées.</li>
+<li><span class="req">ALERT-02.</span> À l’activation, établir un watermark et proposer l’aperçu des résultats présents. Ne pas envoyer le corpus historique comme une série de nouveaux marchés. Reprise historique marquée <code>backfill</code> et exclue du digest ordinaire.</li>
+<li><span class="req">ALERT-03.</span> Distinguer nouveau marché publié, ancienne attribution nouvellement identifiée et correction d’un marché suivi. Le watermark porte sur une séquence d’événements devenus éligibles dans la projection, non sur la seule date de publication ; une notice reçue tardivement ne doit pas être perdue. Dédupliquer par compte, marché canonique et type/version d’événement, y compris si plusieurs recherches se recoupent ; mentionner les recherches concernées, au plus une occurrence du même marché dans le digest du compte.</li>
+<li><span class="req">ALERT-04.</span> Digest hebdomadaire par défaut le lundi à 08 h Europe/Paris, configurable ; pas d’email vide. Réutiliser la livraison durable et les leases existants. En cas de timeout ambigu, réconcilier si le fournisseur offre une API de statut ; sinon conserver un état d’envoi inconnu et appliquer la politique bornée existante, sans retry aveugle. Ne pas promettre exactement un envoi si SMTP ne permet pas de le garantir.</li>
+<li><span class="req">ALERT-05.</span> Réévaluer droits, accès et préférences à la préparation puis à l’envoi. Désactivation immédiate ; exclusion des entreprises supprimées/restreintes. Aucun contournement d’historique via l’email.</li>
+</ul>
+<h3>CSV</h3>
+<p><span class="req">EXPORT-01.</span> Deux formats explicites : entreprises (une ligne par entreprise) et marchés correspondants (une ligne par participation canonique). Inclure filtres, date d’extraction, périmètre, nature/type de date, devise/TVA, portée du montant, état de qualité et source dans les champs ou métadonnées. Les sommes de lignes groupement ne sont pas des revenus par entreprise.</p>
+<p><span class="req">EXPORT-02.</span> Champs minimum entreprises : clé, SIREN, nom, commune, NAF/version, nombre de marchés, somme attribuable, complétude, nombre d’exclusions, dernière date/type, lien fiche. Champs minimum marchés : clé entreprise, clé marché, objet, acheteur, CPV, rôle, montant publié, nature/portée, part attribuable, dates, source. Contacts personnels, notes et emails nominatifs exclus de ces exports nationaux.</p>
+<p><span class="req">EXPORT-03.</span> UTF-8, colonnes stables, protection contre les formules tableur (<code>=</code>, <code>+</code>, <code>-</code>, <code>@</code>, tabulations et retours malveillants dans les champs texte). Job asynchrone pour un gros résultat, snapshot cohérent, quota réservé atomiquement, débit une seule fois sur succès ; retry ne consomme pas deux fois. Téléchargement authentifié, droit revérifié et fichier expirant après 24 heures. Les suppressions de diffusion invalident aussi les exports encore téléchargeables.</p>
+<p><span class="req">EXPORT-04.</span> Au-delà de la limite, demander sélection ou réduction des filtres et refuser explicitement l’export intégral ; ne jamais tronquer silencieusement aux premières lignes. Préserver SIREN/SIRET comme identifiants texte et fournir une consigne d’import tableur. Libérer la réservation sur échec définitif/expiration avant succès. À l’acceptation, figer le périmètre autorisé dans un snapshot propre au job, indépendant de l’expiration du curseur de navigation ; recontrôler sécurité et droits au téléchargement.</p>
+</section>
+
+<section id="droits"><h2>11 · Droits et commercialisation</h2>
+<p>Ne pas réutiliser aveuglément les droits de signaux pour une base factuelle nationale. Ajouter des capacités séparées : <code>can_search_public_awards</code>, <code>can_view_public_award_history</code>, <code>can_export_public_companies</code>, <code>can_save_company_search</code>, avec paramètres serveur d’historique et quotas. Un nouveau droit de données publiques ne donne pas accès aux analyses commerciales verrouillées.</p>
+<p><strong>Catalogue de code observé :</strong> Essentiel est déjà à 49 €/mois avec 30 jours d’historique de feed, alerte hebdomadaire et sans droit d’export ; Pro à 99 €/mois avec 365 jours, alerte quotidienne et droit d’export manuel déclaré. Cela ne prouve ni la configuration LIVE ni l’existence d’un export opérationnel. L’extension d’historique et l’ajout d’exports à Essentiel constituent donc de nouveaux droits à approuver, pas une simple mise en forme.</p>
+<div class="table-wrap"><table><thead><tr><th>Paramètre proposé pour la V1</th><th>Décision et garde-fou</th></tr></thead><tbody>
+<tr><td>Compte gratuit existant</td><td>Préserver les capacités actuelles, dont l’historique individuel d’annuaire aujourd’hui exposé, et les trois grants nominatifs permanents. La nouvelle recherche et ses agrégats nationaux payants ne sont pas ouverts par ce seul accès individuel. Documenter cette différence dans la matrice de droits. Pas de nouvelles données protégées dans des teasers ou exports.</td></tr>
+<tr><td>Accès payant au nouveau module</td><td>Préparer une politique dédiée : recherche France, historique factuel jusqu’à 24 mois disponibles. Offres existantes avec droits plus larges conservées. Activation via configuration serveur, désactivée par défaut jusqu’à validation explicite du packaging.</td></tr>
+<tr><td>Valeurs techniques initiales du module</td><td>50 résultats/page ; 10 listes de 1 000 entreprises ; 5 recherches enregistrées avec alerte ; 1 000 lignes/export ; 5 000 lignes/mois calendaire Europe/Paris. Valeurs proposées, versionnées/configurables ; ne pas diminuer un droit supérieur déjà acquis.</td></tr>
+<tr><td>49 € par mois</td><td>Hypothèse de tarif pour ce module. Ne créer/modifier ni produit, prix, abonnement ni taxe LIVE. Vérifier les tarifs réels et faire approuver le positionnement avant activation et nouveau checkout.</td></tr>
+</tbody></table></div>
+<p><span class="req">RIGHT-01.</span> L’implémentation et la recette de ces capacités peuvent avancer avec des comptes de test et flags. Le choix commercial bloque leur activation LIVE, pas les lots techniques L0 à L5. Conserver la facturation et le paywall existants tant que la nouvelle politique n’est pas approuvée.</p>
+<p><span class="req">RIGHT-02.</span> Revalidation au serveur sur liste, détail, filtres, agrégats, export et alertes. Les clés de cache incluent compte, version des droits, projection et filtres. Pas de fuite de montants ou d’identités protégées via un total, facet, suggestion ou téléchargement ancien.</p>
+<p><span class="req">RIGHT-03.</span> Ne pas déclarer « vaut 49 € » comme un fait acquis. Le test commercial suivra recherches utiles, listes constituées, entreprises réellement contactées, paiements et réutilisation ; le simple nombre de notices stockées ne prouve pas la valeur.</p>
+</section>
+
+<section id="api"><h2>12 · Contrats API proposés</h2>
+<p>Les chemins ci-dessous définissent les capacités attendues, pas des endpoints prétendument existants. L0 choisit l’extension compatible des routes actuelles ou une version nouvelle et documente ce choix. Contrats typés et validation des entrées obligatoires.</p>
+<p>Le code expose déjà <code>GET /companies/directory</code>, <code>/companies/directory/options</code> et <code>/companies/directory/{siren}</code> ; vérifier le préfixe réel de montage. La navigation Entreprises possède « Ma prospection » et « Annuaire » : intégrer les filtres titulaires à cet univers au lieu d’ouvrir un espace de données incompatible.</p>
+<div class="table-wrap"><table><thead><tr><th>Opération logique</th><th>Contrat</th></tr></thead><tbody>
+<tr><td><code>GET /api/company-directory/award-holders</code></td><td>Filtres métier, tri, limite 1–50, curseur. Retourne entreprises autorisées, filtres normalisés, agrégats de recherche, limites et couverture.</td></tr>
+<tr><td><code>GET /api/company-directory/{key}/public-awards</code></td><td>Historique de cette entreprise, avec filtres de recherche optionnels, rôles, montants qualifiés et preuves ; pagination stable.</td></tr>
+<tr><td><code>GET/POST/PATCH/DELETE /api/company-lists</code></td><td>Lecture, pagination des membres et mutations account-scoped, validation de propriété, idempotence des ajouts ; même protection de session/CSRF que l’application.</td></tr>
+<tr><td><code>GET/POST/PATCH/DELETE /api/company-searches</code></td><td>Lecture des recherches, filtres versionnés, nom et préférence d’alerte explicite ; filtres devenus invalides signalés par erreur claire, pas modification cachée.</td></tr>
+<tr><td><code>POST /api/company-exports</code></td><td>Snapshot de la requête, type de CSV, clé idempotente, réservation de quota ; retourne identifiant et statut, pas téléchargement public.</td></tr>
+<tr><td><code>GET /api/company-exports/{id}</code></td><td>Compte et droits revérifiés, progression, erreur structurée, téléchargement autorisé ou expiration.</td></tr>
+</tbody></table></div>
+<h3>Exemple de réponse fictive et normative sur les types</h3>
+<pre aria-label="Exemple de contrat JSON">{
+  "schema_version": "company_awards.v1",
+  "snapshot_id": "opaque-snapshot",
+  "items": [{
+    "company_key": "opaque-company-key",
+    "legal_name": "Entreprise de test",
+    "matched_award_count": 3,
+    "attributable_fixed_eur_ex_vat_sum": "120000.00",
+    "amount_coverage": {
+      "state": "partial",
+      "included_award_count": 1,
+      "excluded_by_reason": {"group_share_unknown": 1, "framework_ceiling": 1}
+    },
+    "latest_contract_event": {"date": "2026-09-01", "kind": "notification"}
+  }],
+  "next_cursor": null,
+  "coverage": {"state": "partial", "sources": ["decp", "boamp", "ted"]},
+  "capabilities": {"can_export_public_companies": true}
+}</pre>
+<p><span class="req">API-01.</span> Erreurs stables : filtre/curseur invalide, droit insuffisant, ressource non accessible, quota dépassé, snapshot expiré, source dégradée. Ne pas divulguer une ressource d’un autre compte : comportement uniforme avec une ressource absente. Champs inconnus nuls/absents selon contrat, jamais chaînes trompeuses « non » ou montants zéro.</p>
+<p><span class="req">API-02.</span> Échappement des données source, liens http(s) vérifiés, aucune injection SQL, aucune URL fournie par le client exécutée côté serveur. Cache et pagination respectent la suppression d’un fait ou d’une entreprise ; une révocation de sécurité prévaut sur la stabilité du snapshot.</p>
+</section>
+
+<section id="securite"><h2>13 · Sécurité et exploitation</h2>
+<h3>Confidentialité et droits de réutilisation</h3>
+<p>Tenir un registre par source : ressource, licence, champs autorisés, attribution, date de vérification et restrictions. La publication d’une donnée ne dispense pas d’examiner les obligations de réutilisation et de protection des personnes. Sirene précise notamment la prise en compte du statut de diffusion courant ; les champs restreints ne doivent pas réapparaître par jointure avec une ancienne source.</p>
+<ul>
+<li><span class="req">SEC-01.</span> Conserver et propager les suppressions vers index, cache, résultats, suggestions, alertes et exports accessibles. Journaliser les décisions sans répliquer les données personnelles dans les logs.</li>
+<li><span class="req">SEC-02.</span> La base de contacts de l’acquisition interne n’est pas une donnée revendable automatiquement aux clients. Toute nouvelle présentation de contacts achetés exige droits fournisseur et validation appropriée avant activation.</li>
+<li><span class="req">SEC-03.</span> Aucune campagne n’est créée depuis une recherche, une liste ou une alerte sans action distincte autorisée. Les restrictions Hermes/Policy Gateway restent inchangées.</li>
+</ul>
+<h3>Migrations, ressources et retour arrière</h3>
+<p><span class="req">OPS-01.</span> Inventorier heads Alembic, version applicative et schéma avant toute répétition. Migrations additives, séparation DDL/backfill, batchs bornés, dry-run et rapport. Ne pas convertir toutes les données dans une migration longue, ni lancer un backfill massif au démarrage de l’API.</p>
+<p><span class="req">OPS-02.</span> Dimensionner espace base, index, WAL, temporaires et sauvegarde avant application. Mesurer sur un petit batch ; arrêter proprement si la réserve approuvée est menacée. Aucun nettoyage destructif, changement de volume ou suppression de sauvegarde implicite.</p>
+<p><span class="req">OPS-03.</span> Feature flags distincts pour la construction de projection, lecture nationale, exports et alertes. Désactivés par défaut. Rollback : couper les nouveaux lecteurs/jobs, restaurer la version applicative validée, conserver les faits et tables additives ; pas de downgrade destructif automatique sur base partagée.</p>
+<h3>Observabilité et performances</h3>
+<p>Mesurer par source volumes, quarantaine, âge du dernier succès, retard d’indexation, identités non résolues, doublons incertains, complétude monétaire. Mesurer aussi latence de recherche, taille/résultat des exports, retries d’alertes et quota par compte. Les erreurs opérationnelles doivent indiquer quoi reprendre, sans secrets.</p>
+<p><span class="req">PERF-01.</span> Cibles proposées sur environnement de recette décrit : p95 API recherche et fiche ≤ 1,5 s avec 10 requêtes concurrentes ; export de 1 000 lignes prêt en ≤ 60 s ; corpus cible 1 million de marchés et 100 000 entreprises synthétiques, plus échantillon réel. Ce sont des seuils de recette à mesurer, pas des performances déjà atteintes. Documenter matériel, cache froid/chaud, index, plans SQL et consommation mémoire ; ne pas extrapoler sans mesure.</p>
+<p><span class="req">PERF-02.</span> Pas de N+1 : lecture batch des entreprises, participations, preuves et droits. Pas de téléchargement intégral d’un fichier source dans chaque requête utilisateur. Limites d’API, d’exports et d’enrichissement conservées.</p>
+</section>
+
+<section id="tests"><h2>14 · Tests d’acceptation obligatoires</h2>
+<p>Tests métier hors réseau, fixtures publiques versionnées et cas synthétiques signalés ; vérités attendues indépendantes du code. Intégration PostgreSQL en environnement jetable, tests frontend et Playwright. Aucun appel LLM ou fournisseur payant requis pour ces tests.</p>
+<p>Réutiliser notamment <code>tests/test_company_directory_api.py</code>, <code>test_companies_list.py</code>, <code>test_client_value_history.py</code>, <code>test_company_entity_aliases.py</code>, <code>test_company_identity_concurrency.py</code>, <code>test_company_membership.py</code>, <code>test_billing_entitlements.py</code> et <code>test_alerts_cycle.py</code>, après vérification au SHA de travail.</p>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Scénario</th><th>Résultat attendu</th></tr></thead><tbody>
+<tr><td>T01</td><td>BTP, informatique, nettoyage, transport, alimentation et santé ; CPV absent.</td><td>Tous les faits valides sont recherchables ; aucun filtre implicite Need Graph/BTP.</td></tr>
+<tr><td>T02</td><td>1 marché dans DECP et BOAMP, identité de contrat prouvée ; ingestion rejouée.</td><td>1 marché, références des deux sources, 1 seul comptage ; aucune nouvelle alerte identique.</td></tr>
+<tr><td>T02b</td><td>Le même marché est ensuite relié à TED et à une ancienne clé déjà suivie.</td><td>1 marché, 3 preuves, redirection d’ancienne clé, données privées conservées et aucune nouvelle notification artificielle.</td></tr>
+<tr><td>T03</td><td>2 marchés de même nom/date/montant, identifiants différents ; rapprochement ambigu.</td><td>Aucune fusion abusive ; incertitude indiquée et agrégat exact non fabriqué.</td></tr>
+<tr><td>T04</td><td>2 SIRET d’un SIREN ; 2 entreprises homonymes de SIREN différents.</td><td>Une ligne pour le premier SIREN, deux pour les homonymes ; établissements et sources conservés.</td></tr>
+<tr><td>T05</td><td>Marché de 900 000 € à 3 cotitulaires sans parts.</td><td>Montant global visible, parts inconnues, aucune part inventée ni triplement dans la somme attribuable.</td></tr>
+<tr><td>T05b</td><td>Un lot, deux contrats indépendants ; un SIREN avec deux SIRET sur un même contrat.</td><td>Deux contrats pour le lot ; un seul comptage du contrat par SIREN, aucune allocation répétée.</td></tr>
+<tr><td>T06</td><td>Plafond 2 M€, estimation, TTC et USD avec un contrat fixe EUR HT.</td><td>Seul montant fixe comparable inclus ; exclusions explicites ; filtres de nature cohérents.</td></tr>
+<tr><td>T07</td><td>Rectificatif 100→120 k€, avenant et annulation ; replay.</td><td>Version courante correcte, pas de double comptage ; annulation retirée du total actif, historique conservé.</td></tr>
+<tr><td>T07b</td><td>DECP change son contenu sous le même ID ; BOAMP contredit le montant sans correction explicite.</td><td>Nouvelle observation conservée ; règle versionnée et provenance ; conflit non résolu visible et exclu de la somme fiable.</td></tr>
+<tr><td>T08</td><td>Publication récente d’une attribution ancienne ; date contractuelle inconnue.</td><td>Jamais « vient de gagner » par date de publication ; mode publication distinct, filtre contractuel strict.</td></tr>
+<tr><td>T09</td><td>Siège Lyon, établissement Lille, acheteur Paris, exécution Bordeaux.</td><td>Chaque filtre géographique utilise uniquement la géographie demandée.</td></tr>
+<tr><td>T10</td><td>Marché A informatique avec mairie ; marché B nettoyage avec hôpital.</td><td>Recherche informatique + hôpital ne sélectionne pas l’entreprise sur ces deux marchés disjoints.</td></tr>
+<tr><td>T11</td><td>Montant connu 120 k€ + 2 parts inconnues ; seuil 200 k€.</td><td>Cumul partiel 120 k€ ; entreprise non qualifiée comme atteignant 200 k€.</td></tr>
+<tr><td>T12</td><td>Pages complètes avec mêmes dates/nom ; ingestion pendant pagination ; curseur falsifié.</td><td>Parcours stable sans doublon/manque sur snapshot ; curseur/contextes invalides refusés.</td></tr>
+<tr><td>T13</td><td>Compte A et B, note, liste et contact personnel ; changement de clé par alias.</td><td>Isolation de bout en bout ; alias ne donne aucun droit sur A à B.</td></tr>
+<tr><td>T13b</td><td>Fusion publique de deux anciennes fiches possédant des notes/statuts contradictoires dans le même compte.</td><td>Conservation des sujets privés et des contenus ; aucun écrasement implicite ni fuite entre comptes.</td></tr>
+<tr><td>T14</td><td>Discovery trois grants, downgrade payé→gratuit, export déjà prêt.</td><td>Grants inchangés ; aucune fuite via détail, agrégat, cache, alerte ou téléchargement.</td></tr>
+<tr><td>T15</td><td>Nom/objet source contenant HTML, script ou formule CSV.</td><td>Texte inerte à l’écran et dans CSV ; liens sûrs ; aucun code exécuté.</td></tr>
+<tr><td>T16</td><td>Statut de diffusion restreint après indexation.</td><td>Retrait des champs concernés de toutes les surfaces, y compris exports encore accessibles.</td></tr>
+<tr><td>T17</td><td>Recherche de faits avec LLM/Apollo/Instantly/Hermes désactivés et aucun ICP BTP.</td><td>Recherche, fiche, liste et export factuels fonctionnent ; aucun fournisseur appelé par GET.</td></tr>
+<tr><td>T18</td><td>Crash après écriture avant checkpoint ; notice malformée au milieu d’un lot.</td><td>Reprise idempotente ; notice en quarantaine ; les autres progressent ; replay traçable.</td></tr>
+<tr><td>T18b</td><td>TED IDN ; DECP journée &gt; 10 000 résultats ; erreur 429 ou tous les items soudain invalides.</td><td>Mapping maîtrisé, partition/reprise complète ; arrêt systémique sans perdre de fenêtre ni acquitter massivement des anomalies.</td></tr>
+<tr><td>T19</td><td>Backfill 24 mois, activation d’alerte, timeout d’envoi, retry.</td><td>Pas de déluge historique ; watermark correct ; idempotence/réconciliation ; désactivation respectée.</td></tr>
+<tr><td>T19b</td><td>Recherche glissante à cheval sur fin de mois ; notice tardive ; deux recherches qui se recoupent.</td><td>Bornes recalculées selon contrat, notice éligible non perdue et un seul marché dans le digest du compte.</td></tr>
+<tr><td>T20</td><td>Exports concurrents à la limite du quota, échec puis reprise.</td><td>Réservation atomique ; un débit par succès ; pas de dépassement ni d’accès croisé.</td></tr>
+<tr><td>T21</td><td>Source en retard, zéro donnée, aucun match, droits insuffisants.</td><td>Quatre messages distincts ; compteurs honnêtes ; aucun faux résultat.</td></tr>
+<tr><td>T22</td><td>Navigation mobile/desktop, URL, précédent, clavier, réponse lente obsolète.</td><td>Filtres et sélection conservés ; focus correct ; aucune réponse obsolète à l’écran.</td></tr>
+<tr><td>T23</td><td>Migration sur base peuplée, anciens lecteurs, nouveaux flags désactivés.</td><td>Données préservées, ancienne application compatible, rollback applicatif démontré.</td></tr>
+<tr><td>T24</td><td>Mêmes filtres dans recherche, fiche, export et alerte.</td><td>Mêmes marchés admissibles, dates et règles monétaires, sous les droits courants.</td></tr>
+</tbody></table></div>
+<p><strong>Échantillon métier :</strong> au moins 100 unités de marchés réparties entre sources et au moins 5 familles sectorielles, avec suréchantillonnage des groupements, corrections et champs inconnus. Consigner références, vérité attendue, inclusions et exclusions. Zéro erreur critique admise dans cet échantillon pour identité certifiée, fuite de compte, duplication d’un total, confusion plafond/part ou date trompeuse. Les cas non résolus restent explicitement non résolus ; ce contrôle ne prouve pas une précision universelle en production.</p>
+</section>
+
+<section id="lots"><h2>15 · Lots d’implémentation pour Codex</h2>
+<div class="table-wrap"><table><thead><tr><th>Lot</th><th>Livrables</th><th>Condition de passage</th></tr></thead><tbody>
+<tr><td>L0 · Analyse d’écart</td><td>SHA de départ, instructions dépôt, routes et tables existantes, droits, restrictions réelles, distribution/volumes si accès autorisé, plan PR et migration.</td><td>Matrice exigence→existant→écart ; pas d’affirmation d’état LIVE sans preuve. Paramètres V1 distingués des choix à approuver.</td></tr>
+<tr><td>L1 · Couverture factuelle</td><td>Ingestion multi-sectorielle vérifiée, quarantaines, checkpoints, backfill dry-run, métriques de couverture.</td><td>T01, T08, T18, T21 ; progression démontrée sans dépendance au Need Graph.</td></tr>
+<tr><td>L2 · Identités et marchés</td><td>Liens d’entreprises, marché canonique/version, déduplication, rôles, nature et portée des montants, projection reconstruisible.</td><td>T02–T07, T09, T11, T23 ; contrôle du corpus métier.</td></tr>
+<tr><td>L3 · Recherche nationale</td><td>API, capacités de test, filtres, agrégats, curseurs, nouvelle vue Entreprises intégrée à l’existant.</td><td>T10–T14, T17, T21, T22 ; recherche multi-secteur sans fuite privée.</td></tr>
+<tr><td>L4 · Fiche et preuves</td><td>Historique, détails de montants/dates, navigation, sources, états incomplets, suivi/notes existants préservés.</td><td>T05–T09, T13–T17, T22, T24 ; vérification visuelle desktop/mobile.</td></tr>
+<tr><td>L5 · Actions récurrentes</td><td>Listes et recherches sauvegardées, exports avec quotas, digest hebdomadaire activable, contrôles de droits.</td><td>T13–T16, T19, T20, T24 ; tests d’idempotence et concurrence.</td></tr>
+<tr><td>L6 · Recette et décision</td><td>Perf, rapport de couverture/qualité, revue droits/licences, rapport commercial et procédure activation/rollback.</td><td>Checklist de lancement remplie ; décision humaine d’activation, tarif et déploiement.</td></tr>
+</tbody></table></div>
+<p>Créer des PR cohérentes et reviewables ; leur nombre peut s’adapter aux fichiers existants, mais pas au prix d’un mélange data/marketing/déploiement incontrôlé. Après chaque lot : SHA, diff, tests exacts, exemples, migrations, limitations, rapport et prochain lot. Ne pas annoncer « fini » lorsque seules les fixtures ou l’interface fonctionnent.</p>
+<h3>Commandes de vérification de référence</h3>
+<pre>uv run pytest -q
+uv run ruff check .
+
+# Depuis frontend/ selon les dépendances verrouillées du dépôt
+npm ci
+npm test -- --run
+npm run build
+npm run build:founder
+npx tsc -b
+npm run lint
+npm run test:visual</pre>
+<p>Adapter l’exécution à la CI réelle, notamment aux tests PostgreSQL et au sharding documenté. Ne pas réécrire les images de référence pour faire disparaître une régression non approuvée. En cas de test impossible, consigner le blocage et son impact ; aucun résultat inventé.</p>
+</section>
+
+<section id="lancement"><h2>16 · Critères de lancement</h2>
+<ul class="checklist">
+<li>Une recherche réelle multi-sectorielle retourne des entreprises identifiées et des marchés pertinents, avec preuves accessibles.</li>
+<li>Fenêtres sources de l’historique cible traitées ; manques et exclusions publiés. Le produit ne prétend pas couvrir ce qui n’a pas été acquis.</li>
+<li>Identité, déduplication, montants, dates et agrégats passent les tests critiques et le corpus de recette.</li>
+<li>Recherche, fiche, listes, exports et alertes restent utilisables sans inférence de besoins.</li>
+<li>Droits Discovery et abonnements existants préservés ; tests inter-comptes, cache et exports validés.</li>
+<li>Recette visuelle mobile/desktop, performances, migration additive et rollback démontrés.</li>
+<li>Packaging, prix et activation du module approuvés explicitement ; pas de changement tarifaire accidentel.</li>
+<li>Licences, confidentialité, restrictions de diffusion et textes de couverture vérifiés pour la mise à disposition prévue.</li>
+<li>Déploiement sur un SHA identifié, compatible avec le schéma cible et autorisé séparément. Aucun élargissement de prospection automatique.</li>
+</ul>
+<p><strong>Mesure commerciale :</strong> suivre recherche → ouverture de preuve → sauvegarde/export → action commerciale déclarée → paiement → réutilisation. Définition proposée de l’activation : enregistrer une liste ou recherche contenant au moins cinq entreprises pertinentes selon l’utilisateur. Organiser un test avec quelques commerciaux ciblés et mesurer leur paiement réel ; pas de conclusion de rentabilité à partir du seul trafic.</p>
+<p>Le produit peut être commercialisé une fois ce socle validé ; la classification de besoins de tous les secteurs et la pré-attribution ne sont pas des conditions de lancement.</p>
+</section>
+
+<section id="suite"><h2>17 · Évolutions reportées</h2>
+<ol>
+<li><strong>Enrichissement ciblé :</strong> compléter activité réelle, site et décideurs selon qualité, coût et droits. Réutiliser les données autorisées déjà disponibles avant d’acheter des volumes.</li>
+<li><strong>Besoins par secteur :</strong> prioriser par recherches, usages et paiements, puis volume. Séparer fait d’attribution et hypothèse ; aucun label « prêt à acheter » déduit du seul marché.</li>
+<li><strong>Signaux pré-attribution :</strong> étude séparée. Un fournisseur peut vouloir approcher les entreprises susceptibles de répondre avant qu’elles verrouillent leurs partenaires, mais leur participation doit être prouvée ou présentée comme hypothèse. L’historique d’un gagnant ne prouve pas qu’il soumissionne aujourd’hui. Ne pas transformer automatiquement Kivou en logiciel de réponse aux appels d’offres.</li>
+<li><strong>Autres usages :</strong> langage naturel, export CRM, entreprises similaires, comparaison temporelle et renouvellements seulement avec données suffisantes et règles qualifiées.</li>
+<li><strong>Europe :</strong> expansion après mesure de qualité et de valeur du socle France. Aucun changement des connecteurs SIMAP ou des données étrangères existantes nécessaire pour lancer ce MVP français.</li>
+</ol>
+</section>
+
+<section id="prompt"><h2>18 · Prompt de transmission à Codex</h2>
+<p>Ce prompt démarre l’implémentation lorsque l’utilisateur le transmet à son agent Codex. La publication de ce document ne lance pas elle-même l’exécution.</p>
+<pre id="codex-prompt">Travaille dans bruppacherrodrigue-art/Kivou.
+
+Lis intégralement docs/superpowers/specs/2026-09-20-company-first-france-v1.html,
+CONTRIBUTING.md et les instructions AGENTS.md applicables si elles existent.
+Si la spécification n’est pas encore fusionnée, récupère sa branche documentaire
+docs/company-first-france-spec-2026-09-20 sans écraser les changements locaux.
+Identifie son commit et le SHA de main utilisé pour l’implémentation.
+
+Objectif : transformer Entreprises en moteur de recherche factuel des entreprises
+titulaires de marchés publics français tous CPV, avec historique, preuves,
+listes, alertes et exports, en réutilisant les briques déjà présentes.
+
+Commence par L0 : cartographie du code et matrice exigence / existant / écart /
+test. Vérifie les restrictions réelles de la collecte jusqu’à l’interface ;
+n’assume pas que les connecteurs sont aujourd’hui limités au BTP. Distingue
+les faits de code, les données mesurées et les hypothèses sur la production.
+Propose les extensions compatibles des tables/routes/contrats existants.
+
+Puis implémente L1 à L5 en lots cohérents sur branches dédiées avec tests et PR.
+Réutilise l’identité, les alias, l’annuaire, les droits, les notes et le suivi
+existants. Ne supprime jamais account_id pour rendre une requête nationale.
+Le corpus public et l’activité privée des clients doivent rester séparés.
+
+La recherche factuelle ne dépend ni du Need Graph, ni d’un ICP BTP,
+ni d’un LLM, ni d’Apollo, d’Instantly ou d’Hermes. Pas d’appel payant en GET.
+Montants : pas de CA fictif, de plafond traité comme revenu, de part de
+groupement inventée ou de doublon de total. Dates : attribution, notification,
+publication et découverte restent distinctes. Inconnu n’est jamais zéro.
+
+Respecte les scénarios T01 à T24 et produis la recette L6. Préserve les trois
+grants permanents Discovery et les droits acquis. Les nouvelles capacités
+sont derrière flags désactivés par défaut ; 49 EUR est une hypothèse à valider,
+pas une autorisation de changer un prix ou un abonnement existant.
+
+Ne modifie pas main directement. Ne fusionne pas les PR, ne déploie pas,
+n’exécute pas de migration/backfill sur une base partagée, n’envoie pas de
+campagne, n’active pas Hermes et n’engage pas de dépense fournisseur sans
+autorisation explicite. Les tests et répétitions utilisent des bases jetables.
+Les contrats de lecture sont sans effet de bord ; les traitements sont
+idempotents, bornés, auditables et reprenables.
+
+Après chaque lot, fournis : branche et SHA, exigences couvertes, fichiers,
+tests réellement exécutés et résultats, preuves visuelles, migrations et
+backfill proposés, écarts ou limites, lien PR, et prochain lot. Arrête-toi
+en cas de conflit métier ou d’autorisation manquante. Ne reconstruis pas
+une infrastructure, un CRM ou une base générale européenne hors de ce scope.</pre>
+</section>
+
+<section id="references"><h2>19 · Références et traçabilité</h2>
+<h3>Décisions et pièces du projet</h3>
+<p>Décision utilisateur du 20 septembre 2026 : ingestion des attributions françaises tous CPV, recherche d’entreprises titulaires, historique sourcé ; lancement du socle factuel avant enrichissement des besoins et signaux supplémentaires. Cette version formalise cette décision et la séquence amendée acceptée dans la conversation.</p>
+<p>Pièces de contexte consultées dans la conversation : Plan directeur Award &amp; Sales Signals v2 ; correction MVP SaaS avant outbound v2.1 ; Acquisition Stack v2.3 ; Pricing Packaging v0.1 ; backlog Residual Post-Award Need du 18 août ; supervision Hermes v2.6. Ces documents ne constituent pas une preuve du code actuellement déployé. La grille de prix ancienne n’est pas reprise comme état tarifaire LIVE.</p>
+<h3>Dépôt de référence</h3>
+<ul>
+<li><a href="https://github.com/bruppacherrodrigue-art/Kivou/tree/f9a4f5b2f5d4f26ec2c53b66b7e7b3f1fba2fb48">Snapshot de code consulté</a> et <a href="https://github.com/bruppacherrodrigue-art/Kivou/blob/f9a4f5b2f5d4f26ec2c53b66b7e7b3f1fba2fb48/CONTRIBUTING.md">règles de contribution</a>.</li>
+<li><a href="https://github.com/bruppacherrodrigue-art/Kivou/blob/f9a4f5b2f5d4f26ec2c53b66b7e7b3f1fba2fb48/docs/superpowers/specs/2026-09-01-signals-phase1-factual-history-design.md">Historique factuel et enrichissement</a>.</li>
+<li><a href="https://github.com/bruppacherrodrigue-art/Kivou/blob/f9a4f5b2f5d4f26ec2c53b66b7e7b3f1fba2fb48/docs/superpowers/specs/2026-09-16-discovery-initial-backfill-design.md">Grants Discovery permanents</a>.</li>
+<li><a href="https://github.com/bruppacherrodrigue-art/Kivou/blob/f9a4f5b2f5d4f26ec2c53b66b7e7b3f1fba2fb48/src/signals/client_value/capabilities.py">Projection des droits d’entreprise</a>.</li>
+</ul>
+<h3>Sources officielles de données</h3>
+<p>Références consultées le 20 septembre 2026 ; vérifier de nouveau versions, formats et licences lors de L0. Les règles de qualité et de calcul de cette spécification sont des choix de conception Kivou, pas des obligations légales attribuées à ces sources.</p>
+<ul>
+<li><a href="https://www.data.gouv.fr/datasets/donnees-essentielles-de-la-commande-publique-fichiers-consolides">DECP consolidées — Ministères économiques et financiers</a> : description du regroupement de sources et licence de la ressource.</li>
+<li><a href="https://www.data.gouv.fr/datasets/base-sirene-des-entreprises-et-de-leurs-etablissements-siren-siret">Sirene — INSEE</a> : unités légales, établissements, versions de nomenclature et restrictions de diffusion à respecter.</li>
+<li><a href="https://docs.ted.europa.eu/api/latest/index.html">Documentation officielle TED API</a> : référence d’accès à consulter pour les fenêtres et limites réelles.</li>
+</ul>
+</section>
+<footer>Fin de la spécification v1.0 · Document autonome, sans script, dépendance externe ou télémétrie. Les exemples sont fictifs. Aucune implémentation ou activation de production n’est attestée par ce document.</footer>
+</main></div>
+</body>
+</html>
