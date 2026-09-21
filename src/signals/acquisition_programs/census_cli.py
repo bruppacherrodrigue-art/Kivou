@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import subprocess
@@ -11,7 +12,7 @@ import sys
 from decimal import Decimal
 from importlib.metadata import version
 from pathlib import Path
-from typing import NoReturn
+from typing import Literal, NoReturn
 
 import httpx
 from alembic import command
@@ -47,7 +48,35 @@ from signals.contact_discovery.apollo import ApolloContactDiscoveryClient
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.supplier_discovery.apollo import ApolloOrganizationSearchClient
 
-_HEAD = "0072_milomail_census_readiness"
+_HEAD = "0073_milomail_a0_prepaid"
+
+
+def resolve_apollo_key(source: dict[str, str] | os._Environ[str], *, phase: str,
+                       expected_ref: str | None = None) -> str:
+    """Resolve a secret name only; never copy its value to a receipt or diagnostic."""
+    ref = source.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF", "")
+    if ref:
+        if (phase != "COVERAGE_A0" or ref != "KIVOU_APOLLO_API_KEY" or
+                expected_ref != ref or
+                source.get("KIVOU_ACQUISITION_ENVIRONMENT", "").upper() != "STAGING"):
+            raise ValueError("shared Apollo secret is restricted to staging A0")
+    else:
+        ref = "MILOMAIL_CENSUS_APOLLO_API_KEY"
+        if expected_ref not in (None, ref):
+            raise ValueError("Apollo secret reference differs from permit")
+    value = source.get(ref, "")
+    if not value:
+        raise ValueError("Apollo credential is missing")
+    return value
+
+
+def _optional_apollo_key(phase: str | None) -> str:
+    try:
+        return resolve_apollo_key(dict(os.environ), phase=phase or "",
+                                  expected_ref=os.environ.get(
+                                      "MILOMAIL_CENSUS_APOLLO_SECRET_REF") or None)
+    except ValueError:
+        return ""
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):
@@ -106,7 +135,7 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--program-config", type=Path, required=True)
         command.add_argument("--operations", type=Path)
         command.add_argument("--authorize-paid-apollo", action="store_true")
-        command.add_argument("--phase", choices=("COVERAGE", "ENRICHMENT"))
+        command.add_argument("--phase", choices=("COVERAGE", "COVERAGE_A0", "ENRICHMENT"))
         command.add_argument("--a0", action="store_true",
                              help="at most the first page of each permitted partition")
         command.add_argument("--permit-id")
@@ -116,7 +145,7 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--probe-apollo-free", action="store_true")
     pre = commands.add_parser("preflight", help="read-only checks before an authorized run")
     pre.add_argument("--census-id", required=True)
-    pre.add_argument("--phase", choices=("COVERAGE", "ENRICHMENT"))
+    pre.add_argument("--phase", choices=("COVERAGE", "COVERAGE_A0", "ENRICHMENT"))
     pre.add_argument("--database-authorization", type=Path)
     pre.add_argument("--pricing", type=Path)
     pre.add_argument("--permit-id")
@@ -152,9 +181,12 @@ def _parser() -> _SafeArgumentParser:
         "reconcile-usage", help="record externally verified Apollo credits and CHF cost"
     )
     usage.add_argument("--census-id", required=True)
-    usage.add_argument("--actual-credits", type=int, required=True)
-    usage.add_argument("--actual-cost-chf", type=Decimal, required=True)
-    usage.add_argument("--usage-evidence-ref", required=True)
+    usage.add_argument("--actual-credits", type=int)
+    usage.add_argument("--actual-cost-chf", type=Decimal)
+    usage.add_argument("--usage-evidence-ref")
+    usage.add_argument("--shared-pool", action="store_true")
+    usage.add_argument("--pool-before", type=int)
+    usage.add_argument("--pool-after", type=int)
     usage.add_argument("--database-authorization", type=Path, required=True)
     usage.add_argument("--acknowledge-exclusive-attribution", action="store_true")
     return parser
@@ -194,7 +226,18 @@ def _code_sha() -> str | None:
                                 text=True, timeout=3, check=False)
     except (OSError, subprocess.TimeoutExpired):
         return None
-    return result.stdout.strip() if result.returncode == 0 else None
+    if result.returncode == 0 and len(result.stdout.strip()) == 40:
+        return result.stdout.strip()
+    # An isolated staging checkout may deliberately omit .git. Bind the
+    # diagnostic to the exact Python source bytes instead of claiming a SHA.
+    package = root / "src/signals"
+    if not package.is_dir():
+        return None
+    digest = hashlib.sha256()
+    for path in sorted(package.rglob("*.py")):
+        digest.update(str(path.relative_to(root)).encode())
+        digest.update(path.read_bytes())
+    return "sha256:" + digest.hexdigest()
 
 
 def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
@@ -205,20 +248,30 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
     source = OfficialSourceConfig.from_environment(os.environ)
     database = _read_model(args.database_authorization, DatabaseAuthorization)
     pricing = _read_model(args.pricing, ApolloCreditPricing)
-    key_present = bool(os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY"))
+    phase: Literal["COVERAGE", "COVERAGE_A0"] = (
+        "COVERAGE_A0" if pricing and pricing.billing_basis == "PREPAID_SHARED_POOL"
+        else "COVERAGE"
+    )
+    try:
+        api_key = resolve_apollo_key(dict(os.environ), phase=phase,
+                                     expected_ref=os.environ.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF") or None)
+    except ValueError:
+        api_key = ""
+    key_present = bool(api_key)
     pricing_ready = False
     if pricing:
         try:
-            pricing.check(limits, at=at)
+            pricing.check(limits, at=at, phase=phase)
             pricing_ready = True
         except ValueError:
             pass
     try:
-        limits.require_run_authorization(phase="COVERAGE")
+        limits.require_run_authorization(phase=phase)
         limits_ready = True
     except ValueError:
         limits_ready = False
-    credit_caps_ready = limits.max_apollo_credits > 0 and limits.max_cost_chf > 0
+    credit_caps_ready = limits.max_apollo_credits > 0 and (
+        limits.max_cost_chf > 0 or phase == "COVERAGE_A0")
     checks = {
         "program": "READY" if not config.enabled and config.campaign_mode == "SHADOW" and
         config.max_daily_contacts == config.max_monthly_contacts == 0 and
@@ -258,16 +311,14 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
                     {part["partition_id"] for part in persisted_partitions}
                     else "FILTER_SIGNATURE_MISMATCH"
                 )
-                account = _probe_apollo_account(
-                    os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY", "")
-                ) if args.probe_apollo_free else None
+                account = _probe_apollo_account(api_key) if args.probe_apollo_free else None
                 db_report = preflight(
                     engine, census_id=args.census_id, limits=limits, database=database,
                     pricing=pricing, apollo_key_present=key_present,
                     source_enabled=source.enabled, source_requests=source.max_requests,
                     source_available=args.probe_official_source and _probe_official_source(),
                     suppression_keyring=_optional_keyring(dict(os.environ)),
-                    apollo_account=account, at=at, phase="COVERAGE",
+                    apollo_account=account, at=at, phase=phase,
                     source_rate_limit_per_minute=source.rate_limit_per_minute,
                     source_cache_ttl_days=source.cache_ttl_days, source_config=source,
                     code_sha=_code_sha(), app_version=version("signals"),
@@ -280,12 +331,13 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
                        for key, value in db_report["checks"].items()})
     required = [name for name in (
         "KIVOU_DATABASE_URL", "KIVOU_ACQUISITION_ENVIRONMENT",
+        os.environ.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF") or
         "MILOMAIL_CENSUS_APOLLO_API_KEY", "KIVOU_SUPPRESSION_HMAC_KEY",
         "KIVOU_SUPPRESSION_HMAC_KEY_VERSION",
     ) if not os.environ.get(name)]
     return {
         "status": "BLOCKED" if any(value != "READY" for value in checks.values()) else "READY",
-        "phase": "COVERAGE", "checks": checks,
+        "phase": phase, "checks": checks,
         "blockers": [name for name, value in checks.items() if value != "READY"],
         "required_environment_variables": required,
         "partitions_planned": len(partitions),
@@ -293,6 +345,9 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
                  "candidates": limits.max_candidates, "enrichments": limits.max_enrichments,
                  "credits": limits.max_apollo_credits, "cost_chf": str(limits.max_cost_chf)},
         "apollo_plan": pricing.plan_name if pricing else None,
+        "apollo_secret_ref": os.environ.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF") or
+        "MILOMAIL_CENSUS_APOLLO_API_KEY",
+        "billing_basis": pricing.billing_basis if pricing else None,
         "apollo_operation_credit_category": "ORG_SEARCH",
         "apollo_org_search_pricing_source": APOLLO_ORG_SEARCH_PRICING_URL,
         "pricing_verified_at": pricing.verified_at.isoformat() if pricing else None,
@@ -342,14 +397,14 @@ def main(argv: list[str] | None = None) -> int:
                 engine, census_id=args.census_id,
                 limits=CensusLimits.from_environment(os.environ), database=database,
                 pricing=pricing,
-                apollo_key_present=bool(os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY")),
+                apollo_key_present=bool(_optional_apollo_key(args.phase)),
                 source_enabled=source.enabled, source_requests=source.max_requests,
                 source_available=args.probe_official_source and _probe_official_source(),
                 source_rate_limit_per_minute=source.rate_limit_per_minute,
                 source_cache_ttl_days=source.cache_ttl_days,
                 source_config=source,
                 apollo_account=_probe_apollo_account(
-                    os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY", "")
+                    _optional_apollo_key(args.phase)
                 ) if args.probe_apollo_free else None,
                 suppression_keyring=_optional_keyring(dict(os.environ)),
                 at=now, permit_id=args.permit_id, code_sha=_code_sha(),
@@ -364,7 +419,7 @@ def main(argv: list[str] | None = None) -> int:
             limits.require_run_authorization(phase=permit.phase if permit else None)
             if database is None or permit is None or pricing is None:
                 raise ValueError("permit, pricing and database authorization are required")
-            pricing.check(limits, at=now)
+            pricing.check(limits, at=now, phase=permit.phase)
             source = OfficialSourceConfig.from_environment(os.environ)
             PermitStore(engine).issue(permit, database=database, pricing=pricing,
                                       limits=limits, at=now, source_config=source)
@@ -398,14 +453,40 @@ def main(argv: list[str] | None = None) -> int:
             result = {"census_id": args.census_id, "apollo_cache_rows_cleared": cleared,
                       "status": store.status(args.census_id)["status"]}
         elif args.command == "reconcile-usage":
-            if not args.acknowledge_exclusive_attribution:
-                raise ValueError("exclusive Apollo attribution requires explicit acknowledgement")
-            store.record_actual_usage(
-                args.census_id, credits=args.actual_credits,
-                cost_chf=args.actual_cost_chf,
-                evidence_ref=args.usage_evidence_ref, at=now,
-            )
-            result = store.report(args.census_id)
+            if args.shared_pool:
+                if (args.acknowledge_exclusive_attribution or
+                        args.pool_before is None or args.pool_after is None or
+                        args.pool_before < 0 or args.pool_after < 0):
+                    raise ValueError("shared-pool balances are required without exclusive attribution")
+                ledger = store.report(args.census_id)
+                if ledger["billing_basis"] != "PREPAID_SHARED_POOL":
+                    raise ValueError("shared-pool reconciliation requires a prepaid A0 permit")
+                attempted = sum(value for key, value in ledger["api_calls"].items()
+                                if key.startswith("ORG_SEARCH:"))
+                delta = args.pool_before - args.pool_after
+                if delta < 0:
+                    raise ValueError("shared Apollo pool increased; top-up or concurrent change requires review")
+                result = {
+                    "census_id": args.census_id, "attribution": "SHARED_POOL_AMBIGUOUS",
+                    "pool_before": args.pool_before, "pool_after": args.pool_after,
+                    "pool_delta": delta, "billable_attempts_reserved": attempted,
+                    "credits_reserved_upper_bound": ledger["apollo_credits_reserved_upper_bound"],
+                    "delta_equals_reserved_upper_bound":
+                    delta == ledger["apollo_credits_reserved_upper_bound"],
+                    "incremental_charge_chf": "0.00", "allocation_cost_chf": None,
+                    "receipt_recorded_as_exclusive": False,
+                }
+            else:
+                if (not args.acknowledge_exclusive_attribution or
+                        args.actual_credits is None or args.actual_cost_chf is None or
+                        not args.usage_evidence_ref):
+                    raise ValueError("exclusive Apollo attribution requires complete evidence")
+                store.record_actual_usage(
+                    args.census_id, credits=args.actual_credits,
+                    cost_chf=args.actual_cost_chf,
+                    evidence_ref=args.usage_evidence_ref, at=now,
+                )
+                result = store.report(args.census_id)
         elif args.command == "plan":
             config = load_program_config(args.program_config)
             if config.enabled or config.campaign_mode != "SHADOW":
@@ -429,28 +510,26 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("a bounded phase and execution permit are required")
             limits = CensusLimits.from_environment(os.environ)
             limits.require_run_authorization(phase=args.phase)
-            if args.phase == "COVERAGE" and limits.max_enrichments != 0:
+            if args.phase in {"COVERAGE", "COVERAGE_A0"} and limits.max_enrichments != 0:
                 raise ValueError("coverage cannot authorize contact enrichment")
             database = _read_model(args.database_authorization, DatabaseAuthorization)
             pricing = _read_model(args.pricing, ApolloCreditPricing)
             if database is None or pricing is None:
                 raise ValueError("database authorization and verified Apollo pricing are required")
             database.check(engine, at=now)
-            pricing.check(limits, at=now)
+            pricing.check(limits, at=now, phase=args.phase)
             config = load_program_config(args.program_config)
             if config.enabled or config.campaign_mode != "SHADOW":
                 raise ValueError("census requires a disabled SHADOW program")
-            api_key = os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY", "")
-            if not api_key:
-                raise ValueError("dedicated census Apollo credential is missing")
+            if args.phase == "COVERAGE_A0" and not args.a0:
+                raise ValueError("A0 requires first-page-only execution")
+            if args.a0 and args.phase != "COVERAGE_A0":
+                raise ValueError("first-page-only requires an A0 permit")
             if not args.probe_apollo_free:
                 raise ValueError("free Apollo account verification is required")
-            account = _probe_apollo_account(api_key)
-            if not account_capacity_ready(account, pricing, limits):
-                raise ValueError("Apollo account capacity or rate limits unavailable")
             keys = _keyring(dict(os.environ))
             source = OfficialSourceConfig.from_environment(os.environ)
-            if args.phase == "COVERAGE" and source.rate_limit_per_minute > 60:
+            if args.phase in {"COVERAGE", "COVERAGE_A0"} and source.rate_limit_per_minute > 60:
                 raise ValueError("coverage official source rate exceeds 60 per minute")
             if not source.enabled or source.max_requests == 0 or not args.probe_official_source or not _probe_official_source():
                 raise ValueError("official company source is not verified and enabled")
@@ -468,6 +547,11 @@ def main(argv: list[str] | None = None) -> int:
                 )).mappings().one_or_none()
             if permit_row is None or permit_row["configuration_hash"] != config_hash:
                 raise ValueError("missing or mismatched execution permit")
+            api_key = resolve_apollo_key(dict(os.environ), phase=args.phase,
+                                         expected_ref=permit_row["apollo_secret_ref"])
+            account = _probe_apollo_account(api_key)
+            if not account_capacity_ready(account, pricing, limits):
+                raise ValueError("Apollo account capacity or rate limits unavailable")
             PermitStore.validate_terms(
                 ExecutionPermit.model_validate({
                     **dict(permit_row),

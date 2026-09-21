@@ -3599,7 +3599,9 @@ acquisition_census_permit = sa.Table(
     sa.Column("max_enrichments", sa.Integer, nullable=False),
     sa.Column("max_credits", sa.Integer, nullable=False),
     sa.Column("max_cost_chf", sa.Numeric(12, 4), nullable=False),
-    sa.Column("price_chf_per_credit", sa.Numeric(12, 6), nullable=False),
+    sa.Column("price_chf_per_credit", sa.Numeric(12, 6)),
+    sa.Column("billing_basis", sa.String(32), nullable=False, server_default="PRICED"),
+    sa.Column("apollo_secret_ref", sa.String(80)),
     sa.Column("pricing_reference", sa.String(256), nullable=False),
     sa.Column("configuration_hash", sa.String(64), nullable=False),
     sa.Column("issued_by_reference", sa.String(128), nullable=False),
@@ -3607,9 +3609,9 @@ acquisition_census_permit = sa.Table(
     sa.Column("valid_from", sa.DateTime(timezone=True), nullable=False),
     sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("status", sa.String(16), nullable=False),
-    sa.CheckConstraint("phase IN ('COVERAGE','ENRICHMENT')", name="ck_census_permit_phase"),
+    sa.CheckConstraint("phase IN ('COVERAGE','COVERAGE_A0','ENRICHMENT')", name="ck_census_permit_phase"),
     sa.CheckConstraint("status IN ('ACTIVE','REVOKED')", name="ck_census_permit_status"),
-    sa.CheckConstraint("max_pages >= 0 AND max_candidates >= 0 AND max_enrichments >= 0 AND max_credits > 0 AND max_cost_chf > 0 AND price_chf_per_credit > 0", name="ck_census_permit_caps"),
+    sa.CheckConstraint("max_pages >= 0 AND max_candidates >= 0 AND max_enrichments >= 0 AND max_credits > 0 AND ((billing_basis = 'PRICED' AND max_cost_chf > 0 AND price_chf_per_credit > 0) OR (billing_basis = 'PREPAID_SHARED_POOL' AND phase = 'COVERAGE_A0' AND max_cost_chf = 0 AND price_chf_per_credit IS NULL AND max_pages = 9 AND max_credits = 9 AND max_enrichments = 0))", name="ck_census_permit_caps"),
     sa.Index("ix_census_permit_run_phase", "census_id", "phase"),
 )
 

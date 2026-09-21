@@ -209,16 +209,18 @@ class CensusRunner:
             smoke_first_page_only: bool = False) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
         self.limits.require_run_authorization(phase=phase)
-        if phase not in {"COVERAGE", "ENRICHMENT"}:
-            raise ValueError("census phase must be COVERAGE or ENRICHMENT")
-        if smoke_first_page_only and phase != "COVERAGE":
+        if phase not in {"COVERAGE", "COVERAGE_A0", "ENRICHMENT"}:
+            raise ValueError("unsupported census phase")
+        if smoke_first_page_only and phase not in {"COVERAGE", "COVERAGE_A0"}:
             raise ValueError("A0 is only available for COVERAGE")
+        if phase == "COVERAGE_A0" and not smoke_first_page_only:
+            raise ValueError("A0 must be first-page-only")
         from signals.acquisition_programs.census_readiness import PermitStore
 
         with self._engine.connect() as connection:
             PermitStore.check_call(
                 connection, permit_id=permit_id, census_id=self.census_id, phase=phase,
-                kind="ORG_SEARCH" if phase == "COVERAGE" else "ORG_ENRICH",
+                kind="ORG_SEARCH" if phase in {"COVERAGE", "COVERAGE_A0"} else "ORG_ENRICH",
                 partition_id=None, credits=0, candidate_slots=0,
                 at=dt.datetime.now(dt.UTC), configuration_hash_value=configuration_hash,
                 database_id=database_id, check_capacity=False,
@@ -303,7 +305,12 @@ class CensusRunner:
         """Persist public MX evidence and count people without email reveal."""
         for row in self.store.candidates(self.census_id, status="PENDING"):
             candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
-            if candidate.country_code != "FR" or not candidate.primary_domain:
+            # A0 may observe a public MX when Apollo omits country on a
+            # France-filtered page. Keep country UNKNOWN; never search people
+            # or infer SEND from that filter alone.
+            if (not candidate.primary_domain or
+                    (candidate.country_code != "FR" and
+                     (include_people or candidate.country_code is not None))):
                 continue
             self.current_partition_id = self.store.permitted_partition_for_candidate(
                 row["candidate_id"], self.allowed_partitions,

@@ -103,6 +103,14 @@ class CensusLimits(BaseModel):
         )
 
     def require_run_authorization(self, *, phase: str | None = None) -> None:
+        if phase == "COVERAGE_A0":
+            if not (self.enabled and self.authorization_ref and
+                    self.max_partitions == self.max_pages == self.max_apollo_credits == 9 and
+                    self.max_candidates == 225 and self.max_enrichments == 0 and
+                    self.max_cost_chf == self.chf_per_credit_ceiling == 0 and
+                    self.credits_org_search_page == 1):
+                raise ValueError("A0 requires exactly nine prepaid pages and zero incremental cost")
+            return
         common = all((self.max_partitions, self.max_apollo_credits,
                       self.max_cost_chf, self.chf_per_credit_ceiling))
         if phase == "COVERAGE":
@@ -492,6 +500,8 @@ class CensusStore:
                     candidate_slots=candidate_slots, at=dt.datetime.now(dt.UTC),
                     configuration_hash_value=config_hash, database_id=database_id,
                 )
+                if phase == "COVERAGE_A0" and attempt > 1 and kind != "ORG_SEARCH":
+                    raise ValueError("A0 retries are organization-search only")
             if run["status"] != "ACTIVE" or run["limits_snapshot"] is None:
                 raise CensusBudgetExceeded("census is not active")
             limits = CensusLimits.model_validate(run["limits_snapshot"])
@@ -1061,6 +1071,12 @@ class CensusStore:
                     acquisition_census_call.c.census_id == census_id
                 )
             ).mappings().all()
+            from signals.persistence.schema import acquisition_census_permit
+
+            permits = connection.execute(sa.select(
+                acquisition_census_permit.c.billing_basis,
+                acquisition_census_permit.c.phase,
+            ).where(acquisition_census_permit.c.census_id == census_id)).mappings().all()
             email_identities = connection.scalar(
                 sa.select(sa.func.count()).select_from(acquisition_census_identity).where(
                     acquisition_census_identity.c.census_id == census_id,
@@ -1198,6 +1214,18 @@ class CensusStore:
             "apollo_credits_actual": run["actual_apollo_credits"],
             "cost_chf_reserved_upper_bound": str(reserved),
             "cost_chf_actual": run["actual_cost_chf"],
+            "billing_basis": (
+                "PREPAID_SHARED_POOL" if any(
+                    row["billing_basis"] == "PREPAID_SHARED_POOL" for row in permits
+                ) else "PRICED" if permits else None
+            ),
+            "incremental_charge_chf_upper_bound": (
+                "0.00" if any(row["billing_basis"] == "PREPAID_SHARED_POOL"
+                              for row in permits) else None
+            ),
+            "allocation_cost_chf": None if any(
+                row["billing_basis"] == "PREPAID_SHARED_POOL" for row in permits
+            ) else run["actual_cost_chf"],
             "cost_chf_per_SEND_actual": (
                 str(Decimal(run["actual_cost_chf"]) / send_count)
                 if send_count and run["actual_cost_chf"] is not None else None

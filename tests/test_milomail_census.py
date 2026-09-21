@@ -665,7 +665,7 @@ def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> N
             "organizations": [{
                 "id": "org-shared", "name": "Agence Exemple",
                 "primary_domain": "agence.fr", "website_url": "https://agence.fr",
-                "country": "France", "industry": "Marketing",
+                "industry": "Marketing",
             }],
             "pagination": {"page": 1, "per_page": 25,
                            "total_entries": 75, "total_pages": 3},
@@ -714,6 +714,7 @@ def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> N
     assert report["organizations_unique_observed"] == 1
     assert report["cross_partition_overlaps"] == 8
     assert report["google_workspace_confirmed"] == 1
+    assert report["by_location"]["UNKNOWN"]["companies"] == 1
     assert report["verified_addresses_unique"] == 0
     assert report["apollo_credits_reserved_upper_bound"] == 9  # simulated paid path
     assert report["cost_chf_actual"] is None
