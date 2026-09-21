@@ -187,7 +187,9 @@ class ComplianceInput(ComplianceContract):
     business_context_state: BusinessContextState
     email_provenance: EmailProvenance
     sender_config: SenderComplianceConfig
-    acquisition_purpose: Literal["KIVOU_ACQUISITION_SIGNAL_RELEVANCE"]
+    acquisition_purpose: Literal[
+        "KIVOU_ACQUISITION_SIGNAL_RELEVANCE", "MILOMAIL_GMAIL_AUDIT_B2B"
+    ]
     ch_legal_basis: CHLegalBasis
     suppression_match_state: SuppressionMatchState
     suppression_key_versions_considered: tuple[ShortCode, ...] = Field(min_length=1, max_length=8)

@@ -7,6 +7,7 @@ import email.utils
 import hashlib
 import json
 import re
+from typing import Protocol
 from urllib.parse import urlsplit
 
 import httpx
@@ -17,8 +18,30 @@ from signals.supplier_discovery.contracts import (
     ApolloProviderError,
     CandidateRejection,
     SupplierSearchPage,
-    SupplierSearchProfile,
 )
+
+
+class OrganizationSearchProfile(Protocol):
+    """Fields consumed by the Apollo adapter, independent of procurement seed."""
+
+    @property
+    def employee_ranges(self) -> tuple[str, ...]: ...
+
+    @property
+    def organization_locations(self) -> tuple[str, ...]: ...
+
+    @property
+    def organization_not_locations(self) -> tuple[str, ...]: ...
+
+    @property
+    def keyword_tags(self) -> tuple[str, ...]: ...
+
+    @property
+    def max_pages(self) -> int: ...
+
+    @property
+    def per_page(self) -> int: ...
+
 
 APOLLO_BASE_URL = "https://api.apollo.io"
 ORGANIZATION_SEARCH_PATH = "/api/v1/mixed_companies/search"
@@ -174,7 +197,7 @@ class ApolloOrganizationSearchClient:
 
     def search_page(
         self,
-        profile: SupplierSearchProfile,
+        profile: OrganizationSearchProfile,
         *,
         page: int,
         observed_at: dt.datetime,
@@ -184,11 +207,14 @@ class ApolloOrganizationSearchClient:
         if not 1 <= page <= profile.max_pages:
             raise ValueError("page exceeds approved profile bounds")
         params: list[tuple[str, str]] = []
-        params.extend(("organization_num_employees_ranges[]", value) for value in profile.employee_ranges)
-        params.extend(("organization_locations[]", value) for value in profile.organization_locations)
         params.extend(
-            ("organization_not_locations[]", value)
-            for value in profile.organization_not_locations
+            ("organization_num_employees_ranges[]", value) for value in profile.employee_ranges
+        )
+        params.extend(
+            ("organization_locations[]", value) for value in profile.organization_locations
+        )
+        params.extend(
+            ("organization_not_locations[]", value) for value in profile.organization_not_locations
         )
         params.extend(("q_organization_keyword_tags[]", value) for value in profile.keyword_tags)
         params.extend((("page", str(page)), ("per_page", str(profile.per_page))))
@@ -206,9 +232,7 @@ class ApolloOrganizationSearchClient:
                 if response.status_code == 429:
                     raise ApolloProviderError(
                         "rate_limited",
-                        retry_after=_retry_after(
-                            response.headers.get("Retry-After"), observed_at
-                        ),
+                        retry_after=_retry_after(response.headers.get("Retry-After"), observed_at),
                     )
                 if response.status_code >= 500:
                     raise ApolloProviderError("server_error")
@@ -242,8 +266,7 @@ class ApolloOrganizationSearchClient:
             raise ApolloProviderError("malformed_response", detail="invalid page shape")
         try:
             values = {
-                key: pagination[key]
-                for key in ("page", "per_page", "total_entries", "total_pages")
+                key: pagination[key] for key in ("page", "per_page", "total_entries", "total_pages")
             }
         except KeyError as exc:
             raise ApolloProviderError("malformed_response", detail="incomplete pagination") from exc
@@ -256,9 +279,7 @@ class ApolloOrganizationSearchClient:
             or len(organizations) > values["total_entries"]
             or (organizations and values["total_pages"] < page)
         ):
-            raise ApolloProviderError(
-                "malformed_response", detail="inconsistent pagination"
-            )
+            raise ApolloProviderError("malformed_response", detail="inconsistent pagination")
         partial = payload.get("partial_results_only")
         if partial is not None and type(partial) is not bool:
             raise ApolloProviderError("malformed_response", detail="invalid partial-results marker")
@@ -278,4 +299,6 @@ class ApolloOrganizationSearchClient:
                 rejections=tuple(rejected),
             )
         except ValueError as exc:
-            raise ApolloProviderError("malformed_response", detail="pagination out of bounds") from exc
+            raise ApolloProviderError(
+                "malformed_response", detail="pagination out of bounds"
+            ) from exc

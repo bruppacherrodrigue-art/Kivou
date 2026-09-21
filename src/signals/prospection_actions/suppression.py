@@ -6,13 +6,22 @@ import datetime as dt
 
 import sqlalchemy as sa
 
-from signals.compliance.suppression import SUPPRESSION_SCOPE, SuppressionIdentityKeyring
+from signals.compliance.suppression import (
+    MILOMAIL_SUPPRESSION_SCOPE,
+    SUPPRESSION_SCOPE,
+    SuppressionIdentityKeyring,
+)
 from signals.persistence.schema import acquisition_contact_suppression
 
 
 class EmailSuppressionChecker:
-    def __init__(self, keyring: SuppressionIdentityKeyring) -> None:
+    def __init__(
+        self, keyring: SuppressionIdentityKeyring, *, scope: str = SUPPRESSION_SCOPE
+    ) -> None:
+        if scope not in {SUPPRESSION_SCOPE, MILOMAIL_SUPPRESSION_SCOPE}:
+            raise ValueError("unknown suppression scope")
         self._keyring = keyring
+        self._scope = scope
 
     def is_suppressed(
         self,
@@ -23,11 +32,11 @@ class EmailSuppressionChecker:
     ) -> bool:
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("suppression assessment time must be timezone-aware")
-        identities = self._keyring.identities_for_email(email)
+        identities = self._keyring.identities_for_email(email, scope=self._scope)
         retained = tuple(
             connection.execute(
                 sa.select(acquisition_contact_suppression.c.identity_key_version)
-                .where(acquisition_contact_suppression.c.scope == SUPPRESSION_SCOPE)
+                .where(acquisition_contact_suppression.c.scope == self._scope)
                 .distinct()
             ).scalars()
         )
@@ -43,7 +52,7 @@ class EmailSuppressionChecker:
             connection.scalar(
                 sa.select(sa.literal(1))
                 .where(
-                    acquisition_contact_suppression.c.scope == SUPPRESSION_SCOPE,
+                    acquisition_contact_suppression.c.scope == self._scope,
                     acquisition_contact_suppression.c.effective_at <= at,
                     sa.or_(*predicates),
                 )

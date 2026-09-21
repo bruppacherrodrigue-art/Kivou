@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlalchemy as sa
 from alembic import command
+from migration_head_helpers import current_migration_head
 from test_prospection_actions_send import _seed_second_target
 from test_prospection_actions_service import NOW, TARGET_ID, seed
 
@@ -44,5 +45,5 @@ def test_cleanup_clears_only_stale_errors_on_accepted_targets(tmp_path) -> None:
         revision = connection.scalar(sa.text("SELECT version_num FROM alembic_version"))
     assert errors[TARGET_ID] is None
     assert errors[invalid_target_id] == "instantly email invalid"
-    assert revision == "0067_acceptance_error_cleanup"
+    assert revision == current_migration_head()
     engine.dispose()

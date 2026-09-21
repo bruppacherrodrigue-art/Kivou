@@ -145,6 +145,20 @@ class ShadowSendForbidden(RuntimeError):
     """A provider mutation that could deliver mail is forbidden in SHADOW."""
 
 
+_SHADOW_READ_METHODS = frozenset(
+    {
+        "list_campaigns",
+        "get_campaign",
+        "get_campaign_status",
+        "get_mailbox_readiness",
+        "list_leads",
+        "get_lead",
+        "list_webhooks",
+        "get_webhook_events",
+    }
+)
+
+
 class ShadowInstantlyProvider:
     """Read-only facade used by the production shadow runtime."""
 
@@ -152,7 +166,11 @@ class ShadowInstantlyProvider:
         self._provider = provider
 
     def __getattr__(self, name: str):
-        return getattr(self._provider, name)
+        if name in _SHADOW_READ_METHODS:
+            return getattr(self._provider, name)
+        if name.startswith("_"):
+            raise AttributeError(name)
+        raise ShadowSendForbidden("SHADOW forbids unreviewed Instantly operations")
 
     def create_campaign(self, **_kwargs):
         raise ShadowSendForbidden("SHADOW forbids Instantly campaign creation")
@@ -168,6 +186,12 @@ class ShadowInstantlyProvider:
 
     def create_lead_or_batch(self, **_kwargs):
         raise ShadowSendForbidden("SHADOW forbids Instantly lead delivery")
+
+    def pause_campaign(self, *_args, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids Instantly campaign mutation")
+
+    def pause_lead(self, *_args, **_kwargs):
+        raise ShadowSendForbidden("SHADOW forbids Instantly lead mutation")
 
 
 _CAMPAIGN_CONFIG_KEYS = frozenset(

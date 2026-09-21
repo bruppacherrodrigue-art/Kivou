@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 
 SUPPRESSION_SCOPE = "KIVOU_ACQUISITION_EMAIL"
+MILOMAIL_SUPPRESSION_SCOPE = "MILOMAIL_ACQUISITION_EMAIL"
 _DOMAIN = b"kivou:acquisition-suppression:v1\0"
+_MILOMAIL_DOMAIN = b"milomail:acquisition-suppression:v1\0"
 _EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 _EVIDENCE_DOMAIN = b"kivou:acquisition-suppression-evidence:v1\0"
 
@@ -61,10 +63,15 @@ class SuppressionIdentityKeyring:
             raise ValueError("invalid suppression keyring")
         object.__setattr__(self, "keys", MappingProxyType(copied))
 
-    def identities_for_email(self, email: str) -> dict[str, str]:
+    def identities_for_email(
+        self, email: str, *, scope: str = SUPPRESSION_SCOPE
+    ) -> dict[str, str]:
+        if scope not in {SUPPRESSION_SCOPE, MILOMAIL_SUPPRESSION_SCOPE}:
+            raise ValueError("unknown suppression scope")
+        domain = _DOMAIN if scope == SUPPRESSION_SCOPE else _MILOMAIL_DOMAIN
         normalized = normalize_business_email(email).encode()
         return {
-            version: hmac.new(secret, _DOMAIN + normalized, hashlib.sha256).hexdigest()
+            version: hmac.new(secret, domain + normalized, hashlib.sha256).hexdigest()
             for version, secret in sorted(self.keys.items())
         }
 
@@ -86,6 +93,7 @@ def minimum_retention_until(received_at: dt.datetime) -> dt.datetime:
 
 
 __all__ = [
+    "MILOMAIL_SUPPRESSION_SCOPE",
     "SUPPRESSION_SCOPE",
     "SuppressionIdentityKeyring",
     "SuppressionIdentityUnavailable",

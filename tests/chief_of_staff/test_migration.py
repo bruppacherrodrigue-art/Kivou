@@ -15,7 +15,16 @@ from signals.persistence.database import alembic_config, create_database_engine
 
 def test_chief_of_staff_migration_is_the_single_head(migrated_sqlite_engine) -> None:
     scripts = ScriptDirectory.from_config(alembic_config(migrated_sqlite_engine))
-    assert scripts.get_heads() == ["0067_acceptance_error_cleanup"]
+    assert scripts.get_heads() == ["0070_program_conversion_receipt"]
+    assert scripts.get_revision("0070_program_conversion_receipt").down_revision == (
+        "0069_milomail_suppression_scope"
+    )
+    assert scripts.get_revision("0069_milomail_suppression_scope").down_revision == (
+        "0068_acquisition_program"
+    )
+    assert scripts.get_revision("0068_acquisition_program").down_revision == (
+        "0067_acceptance_error_cleanup"
+    )
     assert scripts.get_revision("0067_acceptance_error_cleanup").down_revision == (
         "0066_async_chief_merge"
     )
@@ -141,6 +150,6 @@ def test_merge_head_upgrades_from_either_parallel_branch(tmp_path, deployed_head
     assert {"prospect_send_request", "chief_of_staff_report"}.issubset(tables)
     with engine.connect() as connection:
         assert connection.execute(sa.text("SELECT version_num FROM alembic_version")).scalar_one() == (
-            "0067_acceptance_error_cleanup"
+            "0070_program_conversion_receipt"
         )
     engine.dispose()
