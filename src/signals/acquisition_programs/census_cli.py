@@ -459,9 +459,13 @@ def main(argv: list[str] | None = None) -> int:
                         args.pool_before < 0 or args.pool_after < 0):
                     raise ValueError("shared-pool balances are required without exclusive attribution")
                 ledger = store.report(args.census_id)
+                if ledger["billing_basis"] != "PREPAID_SHARED_POOL":
+                    raise ValueError("shared-pool reconciliation requires a prepaid A0 permit")
                 attempted = sum(value for key, value in ledger["api_calls"].items()
                                 if key.startswith("ORG_SEARCH:"))
                 delta = args.pool_before - args.pool_after
+                if delta < 0:
+                    raise ValueError("shared Apollo pool increased; top-up or concurrent change requires review")
                 result = {
                     "census_id": args.census_id, "attribution": "SHARED_POOL_AMBIGUOUS",
                     "pool_before": args.pool_before, "pool_after": args.pool_after,

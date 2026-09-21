@@ -112,11 +112,8 @@ def test_shared_pool_reconciliation_is_diagnostic_not_exclusive(
     census_id = json.loads(capsys.readouterr().out)["census_id"]
     assert main(["reconcile-usage", "--census-id", census_id,
                  "--database-authorization", str(auth_path),
-                 "--shared-pool", "--pool-before", "2135", "--pool-after", "2134"]) == 0
-    result = json.loads(capsys.readouterr().out)
-    assert result["attribution"] == "SHARED_POOL_AMBIGUOUS"
-    assert result["pool_delta"] == 1
-    assert not result["receipt_recorded_as_exclusive"]
+                 "--shared-pool", "--pool-before", "2135", "--pool-after", "2134"]) == 1
+    assert capsys.readouterr().err == "status=ERROR code=ValueError\n"
     assert main(["report", "--census-id", census_id]) == 0
     assert json.loads(capsys.readouterr().out)["apollo_credits_actual"] is None
 
