@@ -293,7 +293,7 @@ class CensusRunner:
         return self.store.status(self.census_id)
 
     def _coverage_contacts(self) -> bool:
-        """Count filtered Apollo people without person enrichment or email reveal."""
+        """Persist public MX evidence and count people without email reveal."""
         for row in self.store.candidates(self.census_id, status="PENDING"):
             candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
             if candidate.country_code != "FR" or not candidate.primary_domain:
@@ -303,6 +303,7 @@ class CensusRunner:
             )
             if self.current_partition_id is None:
                 continue
+            self._provider_for_candidate(row, candidate, at=self.observed_at)
             profile = build_program_contact_profile(
                 self.config,
                 acquisition_opportunity_id=f"census:{row['candidate_id']}",
@@ -362,21 +363,11 @@ class CensusRunner:
                 return False
         return True
 
-    def _assess(self, row: dict[str, Any], candidate: ApolloOrganizationCandidate) -> None:
-        at = self.observed_at
-        candidate_id = row["candidate_id"]
-        if candidate.country_code != "FR":
-            self.store.record_decision(
-                self.census_id, candidate_id, provider=None, decision="NO_SEND",
-                reasons=("COUNTRY_OUT_OF_SCOPE",), at=at,
-            )
-            return
-        if not candidate.primary_domain:
-            self.store.record_decision(
-                self.census_id, candidate_id, provider=None, decision="HOLD",
-                reasons=("DOMAIN_MISSING_OR_INVALID",), at=at,
-            )
-            return
+    def _provider_for_candidate(
+        self, row: dict[str, Any], candidate: ApolloOrganizationCandidate, *, at: dt.datetime,
+    ) -> MailProviderEvidence:
+        if candidate.primary_domain is None:
+            raise ValueError("provider detection requires a validated domain")
         previous = row["provider_evidence"]
         if (
             isinstance(previous, dict)
@@ -395,7 +386,25 @@ class CensusRunner:
             )
         else:
             provider = self.mail_provider.detect_domain(candidate.primary_domain, observed_at=at)
-            self.store.record_provider(self.census_id, candidate_id, provider, at=at)
+            self.store.record_provider(self.census_id, row["candidate_id"], provider, at=at)
+        return provider
+
+    def _assess(self, row: dict[str, Any], candidate: ApolloOrganizationCandidate) -> None:
+        at = self.observed_at
+        candidate_id = row["candidate_id"]
+        if candidate.country_code != "FR":
+            self.store.record_decision(
+                self.census_id, candidate_id, provider=None, decision="NO_SEND",
+                reasons=("COUNTRY_OUT_OF_SCOPE",), at=at,
+            )
+            return
+        if not candidate.primary_domain:
+            self.store.record_decision(
+                self.census_id, candidate_id, provider=None, decision="HOLD",
+                reasons=("DOMAIN_MISSING_OR_INVALID",), at=at,
+            )
+            return
+        provider = self._provider_for_candidate(row, candidate, at=at)
         if provider.provider is not MailProvider.GOOGLE_WORKSPACE:
             minimal = MilomailPolicyInput(
                 acquisition_purpose=MILOMAIL_PURPOSE,

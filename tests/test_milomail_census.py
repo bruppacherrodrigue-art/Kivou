@@ -260,6 +260,28 @@ def test_page_checkpoint_deduplicates_between_partitions_and_resumes() -> None:
     assert store.status(run_id)["credits_reserved"] == 2
     assert store.status(run_id)["candidate_slots_reserved"] == 2
     assert parts[0]["cursor_page"] == parts[1]["cursor_page"] == 2
+    report = store.report(run_id)
+    assert report["apollo_declared_total_sum"] == 2
+    assert report["apollo_results_traversed"] == 2
+    assert report["organizations_unique_observed"] == 1
+    assert report["cross_partition_overlaps"] == 1
+    assert report["verified_addresses_unique"] == 0
+    assert report["estimated_professional_addresses"] is None
+    assert report["apollo_search_calls_completed"] == 2
+    public = store.report(run_id, public_aggregate=True)
+    assert "Paris, France" not in public["by_location"]
+    assert public["by_location"]["SMALL_GROUPS_REDACTED"]["companies"] == 1
+    forecast = store.report(
+        run_id, forecast_rates=(Decimal("0.25"), Decimal("0.50"), Decimal("0.75")),
+        forecast_source="synthetic-operator-scenario",
+    )["estimated_professional_addresses"]
+    assert forecast == {"low": 0, "central": 1, "high": 1,
+                        "base": "organizations_unique_observed",
+                        "source": "synthetic-operator-scenario",
+                        "status": "SCENARIO_NOT_MEASURED"}
+    with pytest.raises(ValueError, match="forecast"):
+        store.report(run_id, forecast_rates=(Decimal("0.5"), Decimal("0.4"), Decimal("0.9")),
+                     forecast_source="synthetic-operator-scenario")
 
 
 def test_apollo_ip_domain_is_retained_as_unknown_without_stopping_page() -> None:
@@ -434,6 +456,32 @@ def test_person_response_cache_expires_without_erasing_credit_or_funnel_counts()
         )
 
 
+def test_purge_removes_completed_organization_payload_but_preserves_receipts() -> None:
+    store, run_id = _planned_store()
+    store.start(run_id, _limits(retention_days=1), at=NOW)
+    partition = store.partitions(run_id)[0]
+    call = store.reserve_call(
+        run_id, kind="ORG_SEARCH", subject="synthetic-org-page", attempt=1,
+        partition_id=partition["partition_id"], credits=1, candidate_slots=25, at=NOW,
+    )
+    page = _page(1, candidates=[_candidate()])
+    store.complete_call(call["call_id"], page.model_dump(mode="json"), at=NOW)
+    store.record_page(run_id, partition["partition_id"], page, call_id=call["call_id"], at=NOW)
+    assert store.purge_contact_cache(run_id, at=NOW + dt.timedelta(days=2)) == 1
+    assert store.purge_contact_cache(run_id, at=NOW + dt.timedelta(days=2)) == 0
+    report = store.report(run_id)
+    assert report["apollo_declared_total_sum"] == 1
+    assert report["apollo_results_traversed"] == 1
+    assert report["apollo_credits_reserved_upper_bound"] == 1
+    with store._engine.connect() as connection:
+        from signals.persistence.schema import acquisition_census_call
+        receipt = connection.execute(sa.select(acquisition_census_call).where(
+            acquisition_census_call.c.call_id == call["call_id"],
+        )).mappings().one()
+    assert receipt["result_snapshot"] is None
+    assert receipt["reserved_credits"] == 1
+
+
 def test_apollo_display_limit_is_reported_as_coverage_hole() -> None:
     store, run_id = _planned_store()
     store.start(run_id, _limits(), at=NOW)
@@ -562,6 +610,10 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(
     )
     runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
                configuration_hash=config_hash, database_id=database_id)
+    coverage = store.report(run_id)
+    assert coverage["google_workspace_confirmed"] == 1
+    assert coverage["verified_addresses_unique"] == 0
+    assert seen == ["/api/v1/mixed_companies/search", "/api/v1/mixed_people/api_search"]
     runner.run(at=NOW, phase="ENRICHMENT", permit_id=permits["ENRICHMENT"],
                configuration_hash=config_hash, database_id=database_id)
     first = store.candidates(run_id)
@@ -592,6 +644,61 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(
     assert report["apollo_credits_reserved_upper_bound"] == 11
     assert report["cost_chf_actual"] is None
     assert report["population_estimate_15000_50000"] == "UNMEASURED_HYPOTHESIS"
+
+
+def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    migrate_to_latest(engine)
+    config = ready_config()
+    program_id = AcquisitionProgramStore(engine).register(config, at=NOW)
+    store = CensusStore(engine, require_permit=False)
+    run_id = store.plan(program_id=program_id, partitions=build_partitions(config), at=NOW)
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/mixed_companies/search"
+        seen.append(str(request.url))
+        return httpx.Response(200, json={
+            "organizations": [],
+            "pagination": {"page": 1, "per_page": 25,
+                           "total_entries": 0, "total_pages": 1},
+        })
+
+    class NoCalls:
+        def __getattr__(self, name):
+            raise AssertionError(f"forbidden in A0: {name}")
+
+    client = httpx.Client(transport=httpx.MockTransport(handle))
+    limits = _limits(max_partitions=9, max_pages=9, max_candidates=225,
+                     max_enrichments=1, max_apollo_credits=9, max_cost_chf="0.90")
+    permits, digest, database_id = _test_permits(engine, store, run_id, limits)
+    acquisition = AcquisitionStore(engine, clock=lambda: NOW)
+    runner = CensusRunner(
+        engine, census_id=run_id, program_id=program_id, config=config, limits=limits,
+        organizations=ApolloOrganizationSearchClient(api_key="synthetic", client=client),
+        companies=NoCalls(), contacts=NoCalls(), mail_provider=NoCalls(),
+        company_activity=lambda _: ActiveCompanyEvidence(status="UNKNOWN"),
+        acquisition=acquisition,
+        shadow=MilomailShadowRuntime(
+            engine, acquisition, SuppressionIdentityKeyring(
+                current_key_version="v1", keys={"v1": b"synthetic-secret-key"},
+            ), NoCalls(),
+        ),
+        operations=ProgramOperationalContext(),
+    )
+    runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
+               configuration_hash=digest, database_id=database_id)
+    runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
+               configuration_hash=digest, database_id=database_id)
+    report = store.report(run_id)
+    assert len(seen) == 9
+    assert report["partitions_complete"] == 9
+    assert report["apollo_search_calls_completed"] == 9
+    assert report["apollo_declared_total_sum"] == 0
+    assert report["organizations_unique_observed"] == 0
+    assert report["verified_addresses_unique"] == 0
+    assert report["apollo_credits_reserved_upper_bound"] == 9  # simulated paid path
+    assert report["cost_chf_actual"] is None
 
 
 def test_other_providers_unknown_and_foreign_country_need_no_enrichment() -> None:
