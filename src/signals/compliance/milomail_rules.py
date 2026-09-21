@@ -154,7 +154,17 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
     }:
         excluded.append("MAIL_PROVIDER_OUT_OF_SCOPE")
     if value.fit.total < value.program.hold_threshold:
-        excluded.append("FIT_BELOW_MINIMUM")
+        unresolved_score_facts = (
+            value.provider.provider is MailProvider.UNKNOWN
+            or value.sector is None
+            or value.employee_count is None
+            or value.capacity.capacity
+            in {RecipientCapacity.UNKNOWN, RecipientCapacity.LIKELY_PROFESSIONAL}
+        )
+        if unresolved_score_facts:
+            hold.append("FIT_BELOW_MINIMUM_PENDING_FACTS")
+        else:
+            excluded.append("FIT_BELOW_MINIMUM")
 
     if value.country is None:
         hold.append("COUNTRY_UNRESOLVED")

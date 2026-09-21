@@ -256,6 +256,36 @@ def test_future_mx_observation_is_not_eligible() -> None:
     assert "PROVIDER_EVIDENCE_FROM_FUTURE" in decision.reason_codes
 
 
+def test_low_score_from_unknown_dns_is_hold_until_the_fact_is_resolved() -> None:
+    provider = dataclasses.replace(
+        ready_input().provider,
+        provider=MailProvider.UNKNOWN,
+        confidence=ProviderConfidence.UNKNOWN,
+        mx_records=(),
+    )
+    fit = ready_input().fit.model_copy(
+        update={
+            "total": 60,
+            "breakdown": {
+                "google_workspace": 0,
+                "email_dependent_sector": 25,
+                "decision_maker": 20,
+                "company_size": 15,
+                "recent_public_activity": 0,
+            },
+            "missing_reasons": (
+                "GOOGLE_WORKSPACE_MISSING",
+                "RECENT_PUBLIC_ACTIVITY_MISSING",
+            ),
+            "tier": "NO_SEND",
+        }
+    )
+    decision = evaluate_milomail(ready_input(provider=provider, fit=fit))
+    assert decision.decision == "HOLD"
+    assert "MAIL_PROVIDER_UNKNOWN" in decision.reason_codes
+    assert "FIT_BELOW_MINIMUM_PENDING_FACTS" in decision.reason_codes
+
+
 def test_kivou_ruleset_rejects_milomail_purpose() -> None:
     assert (
         "MILOMAIL_GMAIL_AUDIT_B2B"

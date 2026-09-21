@@ -24,8 +24,8 @@ Migrations `0068_acquisition_program`, `0069_milomail_suppression_scope`, and `0
 | Decision | Conditions |
 | --- | --- |
 | SEND, theoretical | FR company, active proof, 1–10 people, listed service sector, relevant offer, verified founder/owner/CEO/director address on company domain, fresh professional source, confirmed Google Workspace MX, score ≥ configured review threshold, source/collection time, suppression clear, legal sender identity and notices, French landing and healthy authorized sender, available configured budget. SHADOW still blocks export. |
-| HOLD | Temporarily missing or stale DNS, active-company proof, role, verified email, professional source, policy disclosure, landing/sender readiness, budget, or score between the configured HOLD and review thresholds. |
-| NO_SEND | Known personal/minor, suppressed recipient, non-FR company, inactive or excluded company, Microsoft/other/consumer Gmail pilot provider, or score below the configured minimum. |
+| HOLD | Temporarily missing or stale DNS, active-company proof, role, verified email, professional source, policy disclosure, landing/sender readiness, budget, score between the configured HOLD and review thresholds, or a lower score caused by unresolved core facts. |
+| NO_SEND | Known personal/minor, suppressed recipient, non-FR company, inactive or excluded company, Microsoft/other/consumer Gmail pilot provider, or score below the configured minimum once core facts are resolved. |
 
 Every stored assessment contains provider MX/source/time/version, capacity reasons/source/time, score breakdown/version, decision/reason codes/policy country/version/evidence IDs/time. `UNKNOWN` and `LIKELY_PROFESSIONAL` cannot yield SEND. `@gmail.com` can be confirmed professional only with explicit professional publication and company/role proof, but remains NO_SEND in this Google Workspace-only pilot.
 
