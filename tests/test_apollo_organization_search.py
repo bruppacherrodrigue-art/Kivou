@@ -116,6 +116,21 @@ def test_bad_item_is_rejected_without_losing_valid_organizations() -> None:
     ]
 
 
+def test_optional_french_postal_code_is_kept_only_when_valid() -> None:
+    payload = response_payload([
+        {"id": "one", "name": "Agence A", "city": "Paris", "country": "France",
+         "primary_domain": "agence-a.fr", "postal_code": "75001"},
+        {"id": "two", "name": "Agence B", "city": "Paris", "country": "France",
+         "primary_domain": "agence-b.fr", "postal_code": "wrong"},
+    ])
+    client = ApolloOrganizationSearchClient(api_key="fake", client=httpx.Client(
+        transport=httpx.MockTransport(lambda _request: httpx.Response(200, json=payload)),
+    ))
+    page = client.search_page(profile(), page=1, observed_at=NOW)
+    assert page.candidates[0].postal_code == "75001"
+    assert page.candidates[1].postal_code is None
+
+
 def test_invalid_domain_type_is_an_item_rejection_not_a_page_failure() -> None:
     payload = response_payload(
         [

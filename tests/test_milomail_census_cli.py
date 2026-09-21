@@ -29,6 +29,14 @@ def test_plan_status_report_and_run_without_explicit_gate(tmp_path, monkeypatch,
     assert status["status"] == "PLANNED"
     assert status["credits_reserved"] == 0
 
+    assert main(["preflight", "--census-id", census_id]) == 0
+    pre = json.loads(capsys.readouterr().out)
+    assert not pre["technically_ready"]
+    assert not pre["execution_authorized"]
+    assert pre["checks"]["apollo_key"] == "CREDENTIAL_MISSING"
+    assert pre["caps"]["credits"] == 0
+    assert pre["instantly_mutation_allowed"] is False
+
     assert main(["run", "--census-id", census_id, "--program-config", str(EXAMPLE)]) == 1
     error = capsys.readouterr().err
     assert error == "status=ERROR code=ValueError\n"

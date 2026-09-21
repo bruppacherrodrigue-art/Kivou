@@ -1,0 +1,57 @@
+"""Apollo account probes restricted to officially documented zero-credit endpoints."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import httpx
+
+from signals.supplier_discovery.apollo import APOLLO_BASE_URL
+
+_MAX_BYTES = 1_048_576
+
+
+@dataclass(frozen=True)
+class ApolloAccountState:
+    credential_valid: bool
+    credit_balance: int | None
+    usage_stats_available: bool
+    rate_stats_available: bool
+
+
+class ApolloAccountProbe:
+    """No account data or key appears in errors or returned state."""
+
+    def __init__(self, *, api_key: str, client: httpx.Client) -> None:
+        if not api_key:
+            raise ValueError("dedicated Apollo key missing")
+        self._api_key = api_key
+        self._client = client
+
+    def _get_json(self, method: str, path: str) -> dict | None:
+        try:
+            response = self._client.request(
+                method, APOLLO_BASE_URL + path,
+                headers={"x-api-key": self._api_key, "accept": "application/json"},
+                timeout=5.0, follow_redirects=False,
+            )
+            if response.status_code != 200 or len(response.content) > _MAX_BYTES:
+                return None
+            body = response.json()
+            return body if isinstance(body, dict) else None
+        except (httpx.HTTPError, ValueError):
+            return None
+
+    def inspect_free(self) -> ApolloAccountState:
+        health = self._get_json("GET", "/api/v1/auth/health")
+        if (health is None or health.get("healthy") is not True or
+                health.get("is_logged_in") is not True):
+            return ApolloAccountState(False, None, False, False)
+        credits = self._get_json("POST", "/api/v1/usage_stats/credit_usage_stats")
+        rates = self._get_json("POST", "/api/v1/usage_stats/api_usage_stats")
+        lead = (credits or {}).get("credit_usage_stats")
+        lead = lead.get("lead_credit") if isinstance(lead, dict) else None
+        balance = lead.get("left_over") if isinstance(lead, dict) else None
+        if isinstance(balance, bool) or not isinstance(balance, int) or balance < 0:
+            balance = None
+        return ApolloAccountState(True, balance, credits is not None, rates is not None)

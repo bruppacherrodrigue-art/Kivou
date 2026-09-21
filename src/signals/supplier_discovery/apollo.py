@@ -148,6 +148,10 @@ def _candidate(
             reason_code="invalid_organization_location",
         )
     location = ", ".join(value for value in (city, country) if value) or None
+    raw_postal = item.get("postal_code")
+    postal_code = raw_postal if isinstance(raw_postal, str) and re.fullmatch(
+        r"[0-9]{5}", raw_postal
+    ) else None
     country_code = _COUNTRY_TO_CODE.get(country.casefold()) if country else None
     normalized_name = " ".join(name.casefold().split())
     if len(normalized_name) > 512:
@@ -168,14 +172,16 @@ def _candidate(
         "location": location,
         "industry": industry,
     }
+    if postal_code:
+        canonical["postal_code"] = postal_code
     source_fingerprint = hashlib.sha256(
         json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    return ApolloOrganizationCandidate(
+    return ApolloOrganizationCandidate.model_validate({
         **canonical,
-        provider_observed_at=observed_at,
-        source_fingerprint=source_fingerprint,
-    )
+        "provider_observed_at": observed_at,
+        "source_fingerprint": source_fingerprint,
+    })
 
 
 class ApolloOrganizationSearchClient:
@@ -222,7 +228,7 @@ class ApolloOrganizationSearchClient:
             with self._client.stream(
                 "POST",
                 APOLLO_BASE_URL + ORGANIZATION_SEARCH_PATH,
-                params=params,
+                params=tuple(params),
                 headers={"x-api-key": self._api_key, "accept": "application/json"},
             ) as response:
                 if response.status_code == 401:
