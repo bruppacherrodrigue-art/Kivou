@@ -162,7 +162,8 @@ def test_a0_cli_is_coverage_only_and_remains_gate_protected(
 def test_public_report_rejects_unattributed_forecast_and_redacts_small_locations(
     tmp_path, monkeypatch, capsys,
 ) -> None:
-    url = f"sqlite+pysqlite:///{tmp_path / 'public-report.sqlite'}"
+    # The authorization identifier includes the SQLite path and has a 128-char cap.
+    url = f"sqlite+pysqlite:///{tmp_path.parent / 'r.sqlite'}"
     engine = create_database_engine(url)
     migrate_to_latest(engine)
     authorization = tmp_path / "database-authorization.json"
