@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import re
 import unicodedata
 from collections.abc import Callable
 from decimal import Decimal
@@ -130,6 +131,18 @@ def _match_one(texts: tuple[str, ...], terms: dict[str, tuple[str, ...]]) -> str
     return matches[0] if len(matches) == 1 else None
 
 
+def _match_role(title: str, terms: dict[str, tuple[str, ...]]) -> str | None:
+    """Only an unambiguous whole current title can establish a target role."""
+    normalized = " ".join(re.sub(r"[^a-z0-9]+", " ", _fold(title)).split())
+    matches = [
+        role
+        for role, phrases in terms.items()
+        if any(normalized == " ".join(re.sub(r"[^a-z0-9]+", " ", _fold(phrase)).split())
+               for phrase in phrases)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 class ProgramDiscoveryPipeline:
     def __init__(
         self,
@@ -206,17 +219,24 @@ class ProgramDiscoveryPipeline:
         supplier = self._suppliers.upsert_supplier(candidate).supplier
         signal_ref = f"acquisition-program:{self._config.program_key}"
         identity_key = acquisition_identity_for(signal_ref, supplier.supplier_ref)
-        created = self._acquisition.create_opportunity(
-            identity_key=identity_key,
-            signal_ref=signal_ref,
-            supplier_ref=supplier.supplier_ref,
-            idempotency_key=identity_key,
-            reason_codes=("PROGRAM_DISCOVERED",),
-            evidence_refs=(f"apollo-org:{candidate.source_fingerprint}",),
-            policy_version=self._config.policy_version,
-            occurred_at=candidate.provider_observed_at,
-        )
-        opportunity_id = created.projection.acquisition_opportunity_id
+        existing = self._acquisition.resolve_target_ref(identity_key)
+        if existing:
+            opportunity_id = existing[0]
+            projection = self._acquisition.get_opportunity(opportunity_id)
+            if projection.supplier_ref != supplier.supplier_ref or projection.signal_ref != signal_ref:
+                raise ValueError("program opportunity identity binding mismatch")
+        else:
+            created = self._acquisition.create_opportunity(
+                identity_key=identity_key,
+                signal_ref=signal_ref,
+                supplier_ref=supplier.supplier_ref,
+                idempotency_key=identity_key,
+                reason_codes=("PROGRAM_DISCOVERED",),
+                evidence_refs=(f"apollo-org:{candidate.source_fingerprint}",),
+                policy_version=self._config.policy_version,
+                occurred_at=candidate.provider_observed_at,
+            )
+            opportunity_id = created.projection.acquisition_opportunity_id
         company = self._companies.fetch_organization(
             build_company_research_profile(candidate.provider_organization_id)
         )
@@ -245,7 +265,7 @@ class ProgramDiscoveryPipeline:
             for ranked in rank_candidates(people.candidates)[
                 : contact_profile.max_enrichment_attempts
             ]:
-                selected_role = _match_one((ranked.candidate.title,), self._config.role_terms)
+                selected_role = _match_role(ranked.candidate.title, self._config.role_terms)
                 if selected_role not in self._config.target_roles or not ranked.candidate.has_email:
                     continue
                 enriched = self._contacts.enrich_person(

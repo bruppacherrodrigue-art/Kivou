@@ -1,5 +1,7 @@
 """Synthetic Apollo → research → contact → DNS → score → policy proof."""
 
+import datetime as dt
+
 import httpx
 import pytest
 import sqlalchemy as sa
@@ -12,6 +14,7 @@ from signals.acquisition_programs.pipeline import (
     ActiveCompanyEvidence,
     ProgramDiscoveryPipeline,
     ProgramOperationalContext,
+    _match_role,
 )
 from signals.acquisition_programs.runtime import MilomailShadowRuntime
 from signals.acquisition_programs.store import AcquisitionProgramStore
@@ -166,6 +169,15 @@ def test_synthetic_pipeline_records_theoretical_send_without_instantly() -> None
     assert row["wedge_key"] == "digital_or_creative_agency"
     assert row["decision"] == "SEND"
     assert shadow.export_preview(result[0].decision) == "BLOCKED_SHADOW"
+    refreshed = pipeline.run(program_id=program_id, observed_at=NOW + dt.timedelta(hours=1))
+    assert refreshed[0].opportunity_id == result[0].opportunity_id
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_program_eligibility)) == 2
+
+
+@pytest.mark.parametrize("title", ["Assistant to CEO", "Former Founder", "cofounder", "CEO advisor"])
+def test_target_role_requires_an_unambiguous_current_title(title: str) -> None:
+    assert _match_role(title, ready_input().program.role_terms) is None
 
 
 def test_disabled_pipeline_never_calls_apollo() -> None:
