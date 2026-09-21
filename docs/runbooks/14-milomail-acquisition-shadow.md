@@ -2,6 +2,10 @@
 
 Status: implementation for review only. Milo Mail is the product; Milo is the in-product agent. Kivou owns all prospecting decisions and data. No real campaign has been created or sent.
 
+The separate Apollo preparation workflow and its zero-budget defaults are
+documented in [Milo Mail SHADOW census](15-milomail-shadow-census.md). It makes
+no Instantly mutation and does not change this program's send gate.
+
 ## Architecture and reuse
 
 | Need | Kivou source of truth | Program addition |
