@@ -14,7 +14,7 @@ EXAMPLE = Path(__file__).resolve().parents[1] / "ops/examples/milomail-acquisiti
 
 
 def test_plan_status_report_and_run_without_explicit_gate(tmp_path, monkeypatch, capsys) -> None:
-    url = f"sqlite+pysqlite:///{tmp_path / 'census.sqlite'}"
+    url = f"sqlite+pysqlite:///{tmp_path.parent / 'census.sqlite'}"
     engine = create_database_engine(url)
     migrate_to_latest(engine)
     authorization = tmp_path / "database-authorization.json"
@@ -114,7 +114,7 @@ def test_bootstrap_reports_zero_cost_blockers_without_secrets(monkeypatch, capsy
 
 
 def test_preflight_coverage_phase_rejects_paid_search(tmp_path, monkeypatch, capsys) -> None:
-    url = f"sqlite+pysqlite:///{tmp_path / 'coverage.sqlite'}"
+    url = f"sqlite+pysqlite:///{tmp_path.parent / 'coverage.sqlite'}"
     engine = create_database_engine(url)
     migrate_to_latest(engine)
     authorization = tmp_path / "database-authorization.json"
@@ -140,7 +140,7 @@ def test_preflight_coverage_phase_rejects_paid_search(tmp_path, monkeypatch, cap
 def test_a0_cli_is_coverage_only_and_remains_gate_protected(
     tmp_path, monkeypatch, capsys,
 ) -> None:
-    url = f"sqlite+pysqlite:///{tmp_path / 'a0.sqlite'}"
+    url = f"sqlite+pysqlite:///{tmp_path.parent / 'a0.sqlite'}"
     engine = create_database_engine(url)
     migrate_to_latest(engine)
     authorization = tmp_path / "database-authorization.json"
@@ -209,7 +209,7 @@ def test_bootstrap_does_not_call_stale_price_verified(tmp_path, monkeypatch, cap
 def test_bootstrap_keeps_supplied_program_check_separate_from_persisted_run(
     tmp_path, monkeypatch, capsys,
 ) -> None:
-    url = f"sqlite+pysqlite:///{tmp_path / 'bootstrap.sqlite'}"
+    url = f"sqlite+pysqlite:///{tmp_path.parent / 'bootstrap.sqlite'}"
     engine = create_database_engine(url)
     migrate_to_latest(engine)
     authorization = tmp_path / "database-authorization.json"
