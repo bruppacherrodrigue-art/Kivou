@@ -42,6 +42,18 @@ def test_plan_status_report_and_run_without_explicit_gate(tmp_path, monkeypatch,
     assert report["organizations_found"] == report["apollo_credits_reserved_upper_bound"] == 0
     assert report["cost_chf_actual"] is None
 
+    usage_args = [
+        "reconcile-usage", "--census-id", census_id,
+        "--actual-credits", "0", "--actual-cost-chf", "0",
+        "--usage-evidence-ref", "synthetic-invoice-001",
+    ]
+    assert main(usage_args) == 1
+    assert capsys.readouterr().err == "status=ERROR code=ValueError\n"
+    assert main([*usage_args, "--acknowledge-exclusive-attribution"]) == 0
+    usage = json.loads(capsys.readouterr().out)
+    assert usage["apollo_credits_actual"] == 0
+    assert usage["cost_chf_actual"] == "0.0000"
+
 
 def test_cli_error_redacts_provider_and_secret_text(monkeypatch, capsys) -> None:
     def fail_engine():

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import re
 from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -332,9 +333,59 @@ class CensusStore:
                 key: ("REDACTED" if key == "authorization_ref" else value)
                 for key, value in limits.items()
             }
-        result["actual_apollo_credits"] = None
-        result["actual_cost_chf"] = None
+        result["actual_cost_chf"] = (
+            str(result["actual_cost_chf"])
+            if result["actual_cost_chf"] is not None else None
+        )
         return result
+
+    def record_actual_usage(
+        self, census_id: str, *, credits: int, cost_chf: Decimal,
+        evidence_ref: str, at: dt.datetime,
+    ) -> None:
+        """Record an externally verified, exclusively attributable usage snapshot once."""
+        if (
+            credits < 0 or not cost_chf.is_finite() or cost_chf < 0
+            or cost_chf != cost_chf.quantize(Decimal("0.0001"))
+        ):
+            raise ValueError("actual usage must be nonnegative and precise to CHF 0.0001")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:_-]{5,127}", evidence_ref):
+            raise ValueError("a non-sensitive opaque usage evidence reference is required")
+        if at.tzinfo is None or at.utcoffset() is None:
+            raise ValueError("usage reconciliation time must be timezone-aware")
+        with self._engine.begin() as connection:
+            run = connection.execute(
+                sa.select(acquisition_census_run)
+                .where(acquisition_census_run.c.census_id == census_id)
+                .with_for_update()
+            ).mappings().one()
+            previous = run["actual_apollo_credits"]
+            if previous is not None:
+                if (previous, Decimal(run["actual_cost_chf"]), run["usage_evidence_ref"]) == (
+                    credits, cost_chf, evidence_ref,
+                ):
+                    return
+                raise ValueError("actual usage receipt is immutable; review discrepancy")
+            limits = run["limits_snapshot"]
+            over_cap = (
+                credits > run["credits_reserved"]
+                or (limits is not None and (
+                    credits > limits["max_apollo_credits"]
+                    or cost_chf > Decimal(limits["max_cost_chf"])
+                ))
+            )
+            connection.execute(
+                sa.update(acquisition_census_run)
+                .where(acquisition_census_run.c.census_id == census_id)
+                .values(
+                    actual_apollo_credits=credits,
+                    actual_cost_chf=cost_chf,
+                    usage_evidence_ref=evidence_ref,
+                    usage_reconciled_at=at,
+                    status="REVIEW_REQUIRED" if over_cap else run["status"],
+                    updated_at=at,
+                )
+            )
 
     def partitions(self, census_id: str) -> tuple[dict[str, Any], ...]:
         with self._engine.connect() as connection:
@@ -1008,9 +1059,13 @@ class CensusStore:
                 for row in parts if row["status"] != "COMPLETE"
             ],
             "apollo_credits_reserved_upper_bound": run["credits_reserved"],
-            "apollo_credits_actual": None,
+            "apollo_credits_actual": run["actual_apollo_credits"],
             "cost_chf_reserved_upper_bound": str(reserved),
-            "cost_chf_actual": None,
+            "cost_chf_actual": run["actual_cost_chf"],
+            "cost_chf_per_SEND_actual": (
+                str(Decimal(run["actual_cost_chf"]) / send_count)
+                if send_count and run["actual_cost_chf"] is not None else None
+            ),
             "cost_chf_per_SEND_upper_bound": (
                 str(reserved / send_count) if send_count else None
             ),

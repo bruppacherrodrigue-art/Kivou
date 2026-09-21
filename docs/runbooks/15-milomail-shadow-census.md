@@ -105,6 +105,25 @@ qu'il n'est pas rapproché avec la consommation du workspace Apollo), ainsi que
 coût réservé et coût réel. Aucun clic ni contact trouvé n'est compté comme
 conversion payante Milo Clean.
 
+Après un recensement autorisé, le coût réel peut être saisi une seule fois :
+
+```bash
+uv run milomail-census reconcile-usage --census-id <id-du-plan> \
+  --actual-credits <credits-confirmés> --actual-cost-chf <montant-confirmé> \
+  --usage-evidence-ref <référence-opaque> --acknowledge-exclusive-attribution
+```
+
+La référence doit renvoyer à une facture ou à un relevé conservé hors du
+rapport, sans nom, adresse ni secret. L'[API Apollo de consommation](https://docs.apollo.io/reference/view-credit-usage-stats)
+donne un total de workspace, pas une ventilation Milo Mail ; elle ne suffit
+donc pas seule à attribuer des crédits au census si d'autres activités Apollo
+sont simultanées. L'opérateur doit vérifier une période exclusive ou une
+preuve équivalente avant l'acquittement. Le reçu est immuable et rejouable de
+façon idempotente ; toute divergence exige une revue manuelle. Un coût ou un
+nombre de crédits supérieurs au plafond réservé met le run en
+`REVIEW_REQUIRED`. Avant cette saisie, les valeurs réelles et le coût réel
+par `SEND` théorique restent `null`.
+
 ## Commandes, sans recensement réel pendant cette mission
 
 Appliquer d'abord la migration `0071_milomail_shadow_census` par le processus

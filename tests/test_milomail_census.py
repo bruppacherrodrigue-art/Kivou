@@ -81,6 +81,45 @@ def test_plan_is_idempotent_and_zero_budget_blocks_provider_call() -> None:
     assert store.status(run_id)["credits_reserved"] == 0
 
 
+def test_actual_apollo_usage_requires_evidence_and_is_immutable() -> None:
+    store, run_id = _planned_store()
+    assert store.report(run_id)["cost_chf_actual"] is None
+    with pytest.raises(ValueError, match="evidence"):
+        store.record_actual_usage(
+            run_id, credits=0, cost_chf=Decimal("0"),
+            evidence_ref="", at=NOW,
+        )
+    store.record_actual_usage(
+        run_id, credits=0, cost_chf=Decimal("0"),
+        evidence_ref="synthetic-invoice-001", at=NOW,
+    )
+    store.record_actual_usage(
+        run_id, credits=0, cost_chf=Decimal("0"),
+        evidence_ref="synthetic-invoice-001", at=NOW,
+    )
+    report = store.report(run_id)
+    assert report["apollo_credits_actual"] == 0
+    assert report["cost_chf_actual"] == "0.0000"
+    assert report["cost_chf_per_SEND_actual"] is None
+    with pytest.raises(ValueError, match="immutable"):
+        store.record_actual_usage(
+            run_id, credits=1, cost_chf=Decimal("0.1"),
+            evidence_ref="synthetic-invoice-002", at=NOW,
+        )
+
+
+def test_actual_usage_above_reserved_cap_requires_review() -> None:
+    store, run_id = _planned_store()
+    store.record_actual_usage(
+        run_id, credits=1, cost_chf=Decimal("0.1000"),
+        evidence_ref="synthetic-invoice-003", at=NOW,
+    )
+    report = store.report(run_id)
+    assert report["status"] == "REVIEW_REQUIRED"
+    assert report["apollo_credits_reserved_upper_bound"] == 0
+    assert report["apollo_credits_actual"] == 1
+
+
 def _limits(**changes) -> CensusLimits:
     values = {
         "enabled": True,

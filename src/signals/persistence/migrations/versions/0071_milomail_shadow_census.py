@@ -21,11 +21,17 @@ def upgrade() -> None:
         sa.Column("candidate_slots_reserved", sa.Integer, nullable=False),
         sa.Column("enrichments_reserved", sa.Integer, nullable=False),
         sa.Column("credits_reserved", sa.Integer, nullable=False),
+        sa.Column("actual_apollo_credits", sa.Integer),
+        sa.Column("actual_cost_chf", sa.Numeric(12, 4)),
+        sa.Column("usage_evidence_ref", sa.String(128)),
+        sa.Column("usage_reconciled_at", sa.DateTime(timezone=True)),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True)),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("status IN ('PLANNED','ACTIVE','PAUSED','COMPLETE','REVIEW_REQUIRED')", name="ck_census_run_status"),
         sa.CheckConstraint("pages_reserved >= 0 AND candidate_slots_reserved >= 0 AND enrichments_reserved >= 0 AND credits_reserved >= 0", name="ck_census_run_reservations"),
+        sa.CheckConstraint("actual_apollo_credits IS NULL OR actual_apollo_credits >= 0", name="ck_census_actual_credits"),
+        sa.CheckConstraint("actual_cost_chf IS NULL OR actual_cost_chf >= 0", name="ck_census_actual_cost"),
     )
     op.create_index("ix_census_run_program", "acquisition_census_run", ["program_id", "created_at"])
     op.create_table(

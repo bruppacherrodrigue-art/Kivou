@@ -7,6 +7,7 @@ import datetime as dt
 import json
 import os
 import sys
+from decimal import Decimal
 from pathlib import Path
 from typing import NoReturn
 
@@ -79,6 +80,14 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--census-id", required=True)
         if name == "purge-cache":
             command.add_argument("--acknowledge-cache-purge", action="store_true")
+    usage = commands.add_parser(
+        "reconcile-usage", help="record externally verified Apollo credits and CHF cost"
+    )
+    usage.add_argument("--census-id", required=True)
+    usage.add_argument("--actual-credits", type=int, required=True)
+    usage.add_argument("--actual-cost-chf", type=Decimal, required=True)
+    usage.add_argument("--usage-evidence-ref", required=True)
+    usage.add_argument("--acknowledge-exclusive-attribution", action="store_true")
     return parser
 
 
@@ -102,6 +111,15 @@ def main(argv: list[str] | None = None) -> int:
             cleared = store.purge_contact_cache(args.census_id, at=now)
             result = {"census_id": args.census_id, "contact_cache_rows_cleared": cleared,
                       "status": store.status(args.census_id)["status"]}
+        elif args.command == "reconcile-usage":
+            if not args.acknowledge_exclusive_attribution:
+                raise ValueError("exclusive Apollo attribution requires explicit acknowledgement")
+            store.record_actual_usage(
+                args.census_id, credits=args.actual_credits,
+                cost_chf=args.actual_cost_chf,
+                evidence_ref=args.usage_evidence_ref, at=now,
+            )
+            result = store.report(args.census_id)
         elif args.command == "plan":
             config = load_program_config(args.program_config)
             if config.enabled or config.campaign_mode != "SHADOW":
