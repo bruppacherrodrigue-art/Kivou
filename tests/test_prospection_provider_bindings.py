@@ -257,7 +257,13 @@ def test_corrected_pending_payload_uses_new_campaign_and_keeps_old_campaign_bloc
         "kivou_envelope": changed["mail_html"],
     }
     assert remote.imports[1]["skip_if_in_workspace"] is False
-    assert remote.imports[1]["custom_variables"] != remote.imports[0]["custom_variables"]
+    if change == "director":
+        assert remote.imports[1]["custom_variables"] != remote.imports[0]["custom_variables"]
+    elif change == "email":
+        assert remote.imports[1]["email"] == changed["email_address"]
+        assert remote.imports[1]["email"] != remote.imports[0]["email"]
+    else:
+        assert changed["version"] == before_target["version"] + 1
     assert request_row(engine, NEW_REQUEST)["status"] == "completed"
     assert "reconcile imported lead" in request_row(engine)["error"].lower()
 

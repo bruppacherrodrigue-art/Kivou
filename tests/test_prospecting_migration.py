@@ -5,6 +5,7 @@ its own generated schema; existing schemas are never modified.
 """
 
 import datetime as dt
+import hashlib
 import os
 import threading
 import uuid
@@ -450,7 +451,7 @@ def test_downgrade_async_prospect_send_marks_unfinished_requests_failed(engine):
             [
                 {
                     "request_id": f"request-{status}",
-                    "payload_fingerprint": status * 16,
+                    "payload_fingerprint": hashlib.sha256(status.encode()).hexdigest(),
                     "target_ids": [f"target-{status}"],
                     "request_day": NOW.date(),
                     "reserved_count": 1,
