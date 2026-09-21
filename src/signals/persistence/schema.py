@@ -3313,3 +3313,102 @@ acquisition_runtime_stage_attempt = sa.Table(
         "completed_at",
     ),
 )
+
+
+# Versioned acquisition programs share the Kivou opportunity/event stream.
+# Historical opportunities have no implicit program assignment.
+acquisition_program = sa.Table(
+    "acquisition_program",
+    METADATA,
+    sa.Column("program_id", sa.String(64), primary_key=True),
+    sa.Column("program_key", sa.String(64), nullable=False),
+    sa.Column("schema_version", sa.String(64), nullable=False),
+    sa.Column("config_fingerprint", sa.String(64), nullable=False),
+    sa.Column("config_snapshot", sa.JSON, nullable=False),
+    sa.Column("mode", sa.String(32), nullable=False),
+    sa.Column("enabled", sa.Boolean, nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint("program_key", "config_fingerprint", name="uq_acquisition_program_version"),
+    sa.Index("ix_acquisition_program_key", "program_key"),
+    sa.CheckConstraint(
+        "mode IN ('SHADOW', 'ASSISTED_REVIEW', 'AUTONOMOUS_CAPPED', 'LIVE')",
+        name="ck_acquisition_program_mode",
+    ),
+)
+
+
+acquisition_program_eligibility = sa.Table(
+    "acquisition_program_eligibility",
+    METADATA,
+    sa.Column("eligibility_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "program_id", sa.String(64),
+        sa.ForeignKey("acquisition_program.program_id", ondelete="RESTRICT"),
+        nullable=False, index=True,
+    ),
+    sa.Column(
+        "acquisition_opportunity_id", sa.String(64),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
+        nullable=False, index=True,
+    ),
+    sa.Column(
+        "supplier_ref", sa.String(64),
+        sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column(
+        "contact_ref", sa.String(64),
+        sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column("mail_provider", sa.String(32), nullable=False),
+    sa.Column("provider_confidence", sa.String(16), nullable=False),
+    sa.Column("provider_evidence", sa.JSON, nullable=False),
+    sa.Column("recipient_capacity", sa.String(32), nullable=False),
+    sa.Column("professional_evidence", sa.JSON, nullable=False),
+    sa.Column("fit_score", sa.Integer, nullable=False),
+    sa.Column("fit_breakdown", sa.JSON, nullable=False),
+    sa.Column("mail_pain_score", sa.Integer, nullable=False),
+    sa.Column("score_version", sa.String(64), nullable=False),
+    sa.Column("decision", sa.String(16), nullable=False),
+    sa.Column("reason_codes", sa.JSON, nullable=False),
+    sa.Column("policy_country", sa.String(2), nullable=False),
+    sa.Column("policy_version", sa.String(64), nullable=False),
+    sa.Column("evidence_ids", sa.JSON, nullable=False),
+    sa.Column("evaluated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("evidence_expires_at", sa.DateTime(timezone=True)),
+    sa.UniqueConstraint(
+        "program_id", "acquisition_opportunity_id", "evaluated_at",
+        name="uq_acquisition_program_eligibility_evaluation",
+    ),
+    sa.CheckConstraint("fit_score >= 0 AND fit_score <= 100", name="ck_program_fit_score"),
+    sa.CheckConstraint(
+        "mail_pain_score >= 0 AND mail_pain_score <= 100", name="ck_program_mail_pain_score"
+    ),
+    sa.CheckConstraint(
+        "decision IN ('SEND', 'HOLD', 'NO_SEND')", name="ck_program_eligibility_decision"
+    ),
+    sa.Index("ix_program_eligibility_decision_time", "program_id", "decision", "evaluated_at"),
+)
+
+
+acquisition_program_attribution = sa.Table(
+    "acquisition_program_attribution",
+    METADATA,
+    sa.Column("attribution_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "program_id", sa.String(64),
+        sa.ForeignKey("acquisition_program.program_id", ondelete="RESTRICT"),
+        nullable=False, index=True,
+    ),
+    sa.Column(
+        "acquisition_opportunity_id", sa.String(64),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("campaign_ref", sa.String(64)),
+    sa.Column("opaque_token_hash", sa.String(64), nullable=False, unique=True),
+    sa.Column("key_version", sa.String(64), nullable=False),
+    sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("expires_at > issued_at", name="ck_program_attribution_interval"),
+)
