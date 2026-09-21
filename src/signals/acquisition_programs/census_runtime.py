@@ -209,10 +209,12 @@ class CensusRunner:
             smoke_first_page_only: bool = False) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
         self.limits.require_run_authorization(phase=phase)
-        if phase not in {"COVERAGE", "ENRICHMENT"}:
-            raise ValueError("census phase must be COVERAGE or ENRICHMENT")
-        if smoke_first_page_only and phase != "COVERAGE":
+        if phase not in {"COVERAGE", "COVERAGE_A0", "ENRICHMENT"}:
+            raise ValueError("unsupported census phase")
+        if smoke_first_page_only and phase not in {"COVERAGE", "COVERAGE_A0"}:
             raise ValueError("A0 is only available for COVERAGE")
+        if phase == "COVERAGE_A0" and not smoke_first_page_only:
+            raise ValueError("A0 must be first-page-only")
         from signals.acquisition_programs.census_readiness import PermitStore
 
         with self._engine.connect() as connection:

@@ -36,7 +36,7 @@ from signals.persistence.schema import (
     acquisition_program,
 )
 
-HEAD = "0072_milomail_census_readiness"
+HEAD = "0073_milomail_a0_prepaid"
 APOLLO_ORG_SEARCH_PRICING_URL = "https://docs.apollo.io/reference/organization-search"
 
 
@@ -110,7 +110,11 @@ class DatabaseAuthorization(BaseModel):
 class ApolloCreditPricing(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
     currency: Literal["CHF"]
-    price_per_credit: Decimal = Field(gt=0)
+    price_per_credit: Decimal | None = Field(default=None, gt=0)
+    billing_basis: Literal["PRICED", "PREPAID_SHARED_POOL"] = "PRICED"
+    max_incremental_charge_chf: Decimal | None = Field(default=None, ge=0)
+    auto_top_up_allowed: bool | None = None
+    overage_allowed: bool | None = None
     verified_at: dt.datetime
     source_type: Literal["ACCOUNT", "APOLLO_DOCUMENTATION", "OPERATOR_ATTESTATION"]
     source_reference: str = Field(min_length=3, max_length=256)
@@ -134,13 +138,24 @@ class ApolloCreditPricing(BaseModel):
                 raise ValueError("pricing dates must be timezone-aware")
         return self
 
-    def check(self, limits: CensusLimits, *, at: dt.datetime) -> None:
+    def check(self, limits: CensusLimits, *, at: dt.datetime,
+              phase: str | None = None) -> None:
         if self.verified_at > at or at - self.verified_at > dt.timedelta(days=30):
             raise ValueError("Apollo pricing is stale")
-        if self.price_per_credit > limits.chf_per_credit_ceiling:
-            raise ValueError("Apollo price exceeds configured ceiling")
-        if self.price_per_credit * limits.max_apollo_credits > limits.max_cost_chf:
-            raise ValueError("Apollo CHF and credit caps are inconsistent")
+        if self.billing_basis == "PREPAID_SHARED_POOL":
+            if (phase != "COVERAGE_A0" or self.price_per_credit is not None or
+                    self.max_incremental_charge_chf != 0 or
+                    self.auto_top_up_allowed is not False or
+                    self.overage_allowed is not False):
+                raise ValueError("prepaid A0 requires no top-up, overage or incremental charge")
+            limits.require_run_authorization(phase="COVERAGE_A0")
+        elif self.price_per_credit is None:
+            raise ValueError("Apollo unit price is missing")
+        else:
+            if self.price_per_credit > limits.chf_per_credit_ceiling:
+                raise ValueError("Apollo price exceeds configured ceiling")
+            if self.price_per_credit * limits.max_apollo_credits > limits.max_cost_chf:
+                raise ValueError("Apollo CHF and credit caps are inconsistent")
         if (self.org_search_credits > limits.credits_org_search_page or
                 self.org_enrichment_credits > limits.credits_org_enrichment or
                 self.people_search_credits > limits.credits_people_search or
@@ -194,7 +209,7 @@ class ExecutionPermit(BaseModel):
     permit_id: str = Field(min_length=8, max_length=64)
     census_id: str = Field(min_length=8, max_length=64)
     program_key: Literal["milomail"] = "milomail"
-    phase: Literal["COVERAGE", "ENRICHMENT"]
+    phase: Literal["COVERAGE", "COVERAGE_A0", "ENRICHMENT"]
     environment: Literal["test", "staging", "authorized-census"]
     database_id: str = Field(min_length=8, max_length=128)
     country: Literal["FR"] = "FR"
@@ -203,8 +218,10 @@ class ExecutionPermit(BaseModel):
     max_candidates: int = Field(default=0, ge=0)
     max_enrichments: int = Field(default=0, ge=0)
     max_credits: int = Field(gt=0)
-    max_cost_chf: Decimal = Field(gt=0)
-    price_chf_per_credit: Decimal = Field(gt=0)
+    max_cost_chf: Decimal = Field(ge=0)
+    price_chf_per_credit: Decimal | None = Field(default=None, gt=0)
+    billing_basis: Literal["PRICED", "PREPAID_SHARED_POOL"] = "PRICED"
+    apollo_secret_ref: str | None = Field(default=None, max_length=80)
     pricing_reference: str = Field(min_length=3, max_length=256)
     configuration_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
     issued_by_reference: str = Field(min_length=3, max_length=128)
@@ -224,8 +241,21 @@ class ExecutionPermit(BaseModel):
             raise ValueError("coverage permit must allow pages but no enrichment")
         if self.phase == "ENRICHMENT" and (self.max_enrichments == 0 or self.max_pages != 0):
             raise ValueError("enrichment permit must allow enrichments but no pages")
-        if self.max_credits * self.price_chf_per_credit > self.max_cost_chf:
-            raise ValueError("permit CHF cap cannot cover permitted credits")
+        if self.phase == "COVERAGE_A0":
+            if (self.environment != "staging" or
+                    not self.database_id.endswith(":kivou_milomail_census_a0") or
+                    self.max_pages != self.max_credits or self.max_credits != 9 or
+                    self.max_candidates != 225 or self.max_enrichments != 0 or
+                    len(self.allowed_partitions) != 9 or
+                    self.max_cost_chf != 0 or self.price_chf_per_credit is not None or
+                    self.billing_basis != "PREPAID_SHARED_POOL" or
+                    self.apollo_secret_ref != "KIVOU_APOLLO_API_KEY" or
+                    self.expires_at - self.issued_at > dt.timedelta(hours=4)):
+                raise ValueError("A0 permit must be isolated, short-lived and capped")
+        elif (self.billing_basis != "PRICED" or self.price_chf_per_credit is None or
+              self.max_credits * self.price_chf_per_credit > self.max_cost_chf or
+              self.apollo_secret_ref not in (None, "MILOMAIL_CENSUS_APOLLO_API_KEY")):
+            raise ValueError("priced permit terms are inconsistent")
         return self
 
 
@@ -237,7 +267,7 @@ class PermitStore:
               pricing: ApolloCreditPricing, limits: CensusLimits, at: dt.datetime,
               source_config: OfficialSourceConfig | None = None) -> None:
         database.check(self.engine, at=at)
-        pricing.check(limits, at=at)
+        pricing.check(limits, at=at, phase=permit.phase)
         self.validate_terms(permit, pricing=pricing, limits=limits)
         if permit.database_id != database.database_id or permit.environment != database.environment:
             raise ValueError("permit database or environment mismatch")
@@ -283,6 +313,7 @@ class PermitStore:
     def validate_terms(permit: ExecutionPermit, *, pricing: ApolloCreditPricing,
                        limits: CensusLimits) -> None:
         if (permit.price_chf_per_credit != pricing.price_per_credit or
+                permit.billing_basis != pricing.billing_basis or
                 permit.pricing_reference != pricing.source_reference):
             raise ValueError("permit price or pricing evidence differs from verified pricing")
         if (permit.max_pages > limits.max_pages or
@@ -292,8 +323,14 @@ class PermitStore:
                 permit.max_cost_chf > limits.max_cost_chf or
                 len(permit.allowed_partitions) > limits.max_partitions):
             raise ValueError("permit exceeds configured census limits")
-        if permit.max_credits * pricing.price_per_credit > permit.max_cost_chf:
+        if (pricing.price_per_credit is not None and
+                permit.max_credits * pricing.price_per_credit > permit.max_cost_chf):
             raise ValueError("permit CHF cap understates verified maximum cost")
+        if permit.phase == "COVERAGE_A0":
+            limits.require_run_authorization(phase="COVERAGE_A0")
+            if (permit.allowed_partitions is None or len(permit.allowed_partitions) != 9 or
+                    permit.apollo_secret_ref != "KIVOU_APOLLO_API_KEY"):
+                raise ValueError("shared pool is only allowed for exact A0")
 
     def revoke(self, permit_id: str) -> None:
         with self.engine.begin() as connection:
@@ -322,7 +359,8 @@ class PermitStore:
             raise ValueError("execution permit invalid for this call")
         pages = 1 if kind == "ORG_SEARCH" else 0
         enrichments = 1 if kind in {"ORG_ENRICH", "PERSON_ENRICH"} else 0
-        if (phase == "COVERAGE" and kind not in {"ORG_SEARCH", "PEOPLE_SEARCH"}) or (
+        if (phase == "COVERAGE_A0" and kind != "ORG_SEARCH") or (
+            phase == "COVERAGE" and kind not in {"ORG_SEARCH", "PEOPLE_SEARCH"}) or (
             phase == "ENRICHMENT" and kind == "ORG_SEARCH"
         ):
             raise ValueError("Apollo operation is outside permit phase")
@@ -338,7 +376,9 @@ class PermitStore:
                 usage[1] + candidate_slots > permit["max_candidates"] or
                 usage[2] + pages > permit["max_pages"] or
                 usage[3] + enrichments > permit["max_enrichments"] or
-                Decimal(usage[0] + credits) * permit["price_chf_per_credit"] > permit["max_cost_chf"]):
+                (permit["price_chf_per_credit"] is not None and
+                 Decimal(usage[0] + credits) * permit["price_chf_per_credit"] >
+                 permit["max_cost_chf"])):
             from signals.acquisition_programs.census import CensusBudgetExceeded
 
             raise CensusBudgetExceeded("execution permit cap exhausted")
@@ -355,7 +395,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
               source_rate_limit_per_minute: int | None = None,
               source_cache_ttl_days: int | None = None,
               source_config: OfficialSourceConfig | None = None,
-              phase: Literal["COVERAGE", "ENRICHMENT"] | None = None) -> dict:
+              phase: Literal["COVERAGE", "COVERAGE_A0", "ENRICHMENT"] | None = None) -> dict:
     """Read-only assessment; no Apollo, official-source or Instantly request."""
     checks: dict[str, str] = {}
     identity, host_hash, name = database_identity(engine)
@@ -366,6 +406,11 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             checks["database"] = "READY"
         except ValueError:
             checks["database"] = "UNAUTHORIZED_EXPIRED_OR_DIVERGED"
+    if phase == "COVERAGE_A0" and (
+        database is None or database.environment != "staging" or
+        engine.url.database != "kivou_milomail_census_a0"
+    ):
+        checks["database"] = "A0_REQUIRES_ISOLATED_STAGING_DATABASE"
     revisions = database_revisions(engine)
     revision = revisions[0] if len(revisions) == 1 else None
     checks["migration"] = "READY" if migration_ready(engine) else "MISSING_OR_DIVERGED"
@@ -414,7 +459,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
     checks["pricing"] = "MISSING"
     if pricing:
         try:
-            pricing.check(limits, at=at)
+            pricing.check(limits, at=at, phase=phase)
             checks["pricing"] = "READY"
         except ValueError as error:
             checks["pricing"] = (
@@ -446,7 +491,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             suppression_ready = False
     checks["suppression"] = "READY" if suppression_ready else "CREDENTIAL_SCOPE_OR_ACCESS_MISSING"
     checks["pending_calls"] = "CLEAR" if pending_calls == 0 else "REVIEW_REQUIRED"
-    if phase == "COVERAGE":
+    if phase in {"COVERAGE", "COVERAGE_A0"}:
         checks["postgresql"] = (
             "READY" if engine.dialect.name == "postgresql" else "NON_POSTGRESQL_DATABASE"
         )
@@ -459,7 +504,10 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             "READY" if limits.max_enrichments == 0 else "ENRICHMENT_CAP_NONZERO"
         )
         checks["credit_caps"] = (
-            "READY" if limits.max_apollo_credits > 0 and limits.max_cost_chf > 0
+            "READY" if limits.max_apollo_credits > 0 and (
+                limits.max_cost_chf > 0 or
+                (phase == "COVERAGE_A0" and pricing is not None and
+                 pricing.billing_basis == "PREPAID_SHARED_POOL"))
             else "ZERO_CREDIT_OR_CHF_CAP"
         )
         # The current organization-search endpoint charges one credit per page.
@@ -480,6 +528,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             )).mappings().one_or_none()
     permit_ready = bool(permit and database and permit["status"] == "ACTIVE" and
                         permit["census_id"] == census_id and
+                        (phase is None or permit["phase"] == phase) and
                         permit["database_id"] == database.database_id and
                         permit["environment"] == database.environment and
                         permit["configuration_hash"] == config_digest and
@@ -508,7 +557,9 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             remaining_enrichments = permit["max_enrichments"] - sum(
                 row.kind in {"ORG_ENRICH", "PERSON_ENRICH"} for row in calls
             )
-            remaining_cost = permit["max_cost_chf"] - Decimal(used_credits) * pricing.price_per_credit
+            remaining_cost = (permit["max_cost_chf"] -
+                              Decimal(used_credits) * pricing.price_per_credit
+                              if pricing.price_per_credit is not None else Decimal(0))
             permit_remaining = {
                 "credits": remaining_credits,
                 "pages": remaining_pages,
@@ -516,8 +567,9 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
                 "enrichments": remaining_enrichments,
                 "cost_chf": str(remaining_cost),
             }
-            if (remaining_credits <= 0 or remaining_cost <= 0 or
-                    (permit["phase"] == "COVERAGE" and
+            if (remaining_credits <= 0 or
+                    (pricing.price_per_credit is not None and remaining_cost <= 0) or
+                    (permit["phase"] in {"COVERAGE", "COVERAGE_A0"} and
                      (remaining_pages <= 0 or remaining_candidates <= 0)) or
                     (permit["phase"] == "ENRICHMENT" and
                      remaining_enrichments <= 0)):
@@ -578,7 +630,12 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         ) == len(pool_balances) else None,
         "credit_balances_by_pool": pool_balances,
         "worst_cost_chf": str(Decimal(limits.max_apollo_credits) * pricing.price_per_credit)
-        if pricing else None,
+        if pricing and pricing.price_per_credit is not None else None,
+        "max_incremental_charge_chf": str(pricing.max_incremental_charge_chf)
+        if pricing and pricing.billing_basis == "PREPAID_SHARED_POOL" else None,
+        "allocation_cost_chf": None if pricing and pricing.billing_basis == "PREPAID_SHARED_POOL" else
+        (str(Decimal(limits.max_apollo_credits) * pricing.price_per_credit)
+         if pricing and pricing.price_per_credit is not None else None),
         "credits_reserved": reserved, "incomplete_calls": pending_calls,
         "configuration_hash": config_digest,
         "permit_remaining": permit_remaining,

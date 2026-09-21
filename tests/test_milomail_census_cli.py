@@ -93,6 +93,34 @@ def test_cli_error_redacts_provider_and_secret_text(monkeypatch, capsys) -> None
     assert capsys.readouterr().err == "status=ERROR code=RuntimeError\n"
 
 
+def test_shared_pool_reconciliation_is_diagnostic_not_exclusive(
+    tmp_path, monkeypatch, capsys,
+) -> None:
+    url = f"sqlite+pysqlite:///{tmp_path / 'shared.sqlite'}"
+    engine = create_database_engine(url)
+    migrate_to_latest(engine)
+    auth_path = tmp_path / "authorization.json"
+    auth_path.write_text(DatabaseAuthorization(
+        database_id=database_identity(engine)[0], environment="test",
+        issued_by_reference="synthetic-test",
+        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(days=1),
+    ).model_dump_json())
+    engine.dispose()
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+    assert main(["plan", "--program-config", str(EXAMPLE),
+                 "--database-authorization", str(auth_path)]) == 0
+    census_id = json.loads(capsys.readouterr().out)["census_id"]
+    assert main(["reconcile-usage", "--census-id", census_id,
+                 "--database-authorization", str(auth_path),
+                 "--shared-pool", "--pool-before", "2135", "--pool-after", "2134"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["attribution"] == "SHARED_POOL_AMBIGUOUS"
+    assert result["pool_delta"] == 1
+    assert not result["receipt_recorded_as_exclusive"]
+    assert main(["report", "--census-id", census_id]) == 0
+    assert json.loads(capsys.readouterr().out)["apollo_credits_actual"] is None
+
+
 def test_bootstrap_reports_zero_cost_blockers_without_secrets(monkeypatch, capsys) -> None:
     monkeypatch.delenv("KIVOU_DATABASE_URL", raising=False)
     monkeypatch.delenv("MILOMAIL_CENSUS_APOLLO_API_KEY", raising=False)

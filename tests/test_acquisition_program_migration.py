@@ -9,7 +9,7 @@ from signals.persistence.schema import METADATA
 
 
 def test_program_migration_upgrade_downgrade() -> None:
-    assert current_migration_head() == "0072_milomail_census_readiness"
+    assert current_migration_head() == "0073_milomail_a0_prepaid"
     engine = sa.create_engine("sqlite:///:memory:")
     migrate_to_latest(engine)
     inspector = sa.inspect(engine)
