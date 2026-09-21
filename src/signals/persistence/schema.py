@@ -2017,7 +2017,10 @@ acquisition_contact_suppression = sa.Table(
         sa.ForeignKey("acquisition_contact_suppression.suppression_id", ondelete="RESTRICT"),
     ),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint("scope = 'KIVOU_ACQUISITION_EMAIL'", name="ck_suppression_scope"),
+    sa.CheckConstraint(
+        "scope IN ('KIVOU_ACQUISITION_EMAIL', 'MILOMAIL_ACQUISITION_EMAIL')",
+        name="ck_suppression_scope",
+    ),
     sa.CheckConstraint(
         "source IN ('UNSUBSCRIBE', 'RECIPIENT_OBJECTION', 'MANUAL_VERIFIED', 'SYSTEM_IMPORT')",
         name="ck_suppression_source",

@@ -72,6 +72,10 @@ def evaluate_compliance(
     value: ComplianceInput, config: ComplianceRulesetConfig = RULESET_V1
 ) -> ComplianceProposal:
     """Apply the frozen rule ordering without database, clock, or network access."""
+    if not isinstance(value, ComplianceInput) or (
+        value.acquisition_purpose != "KIVOU_ACQUISITION_SIGNAL_RELEVANCE"
+    ):
+        raise ComplianceRulesetMismatch("Kivou ruleset cannot assess another acquisition purpose")
     if (
         value.ruleset_version != config.ruleset_version
         or value.ruleset_config_fingerprint != config.config_fingerprint

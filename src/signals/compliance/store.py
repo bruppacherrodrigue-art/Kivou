@@ -19,6 +19,7 @@ from signals.compliance.contracts import (
     SuppressionSource,
 )
 from signals.compliance.suppression import (
+    MILOMAIL_SUPPRESSION_SCOPE,
     SUPPRESSION_SCOPE,
     SuppressionIdentityKeyring,
     minimum_retention_until,
@@ -66,9 +67,15 @@ def compliance_assessment_id(policy_evaluation_id: str) -> str:
 
 
 class SuppressionStore:
-    def __init__(self, engine: Engine, keyring: SuppressionIdentityKeyring) -> None:
+    def __init__(
+        self, engine: Engine, keyring: SuppressionIdentityKeyring,
+        *, scope: str = SUPPRESSION_SCOPE,
+    ) -> None:
+        if scope not in {SUPPRESSION_SCOPE, MILOMAIL_SUPPRESSION_SCOPE}:
+            raise ValueError("unknown suppression scope")
         self._engine = engine
         self._keyring = keyring
+        self._scope = scope
 
     def record_for_contact(
         self,
@@ -128,12 +135,12 @@ class SuppressionStore:
         contact = ContactDiscoveryStore.get_contact_in_transaction(
             connection, contact_ref, for_update=True
         )
-        identities = self._keyring.identities_for_email(contact.business_email)
+        identities = self._keyring.identities_for_email(contact.business_email, scope=self._scope)
         self._lock_identities_in_transaction(connection, identities)
         values: dict[str, object] = {
             "identity_hmac": identities[version],
             "identity_key_version": version,
-            "scope": SUPPRESSION_SCOPE,
+            "scope": self._scope,
             "source": source.value,
             "reason_code": reason_code.value,
             "evidence_ref": evidence_ref,
@@ -171,13 +178,13 @@ class SuppressionStore:
             and len(evidence_ref) == len(_EVIDENCE_PREFIX) + 64
         ):
             raise ValueError("suppression evidence_ref must be opaque")
-        identities = self._keyring.identities_for_email(email)
+        identities = self._keyring.identities_for_email(email, scope=self._scope)
         version = self._keyring.current_key_version
         self._lock_identities_in_transaction(connection, identities)
         values: dict[str, object] = {
             "identity_hmac": identities[version],
             "identity_key_version": version,
-            "scope": SUPPRESSION_SCOPE,
+            "scope": self._scope,
             "source": source.value,
             "reason_code": reason_code.value,
             "evidence_ref": evidence_ref,
@@ -200,12 +207,12 @@ class SuppressionStore:
         self, connection: Connection, contact_ref: str, *, at: dt.datetime | None = None
     ) -> SuppressionMatch:
         contact = ContactDiscoveryStore.get_contact_in_transaction(connection, contact_ref)
-        identities = self._keyring.identities_for_email(contact.business_email)
+        identities = self._keyring.identities_for_email(contact.business_email, scope=self._scope)
         self._lock_identities_in_transaction(connection, identities)
         retained = tuple(
             connection.execute(
                 sa.select(acquisition_contact_suppression.c.identity_key_version)
-                .where(acquisition_contact_suppression.c.scope == SUPPRESSION_SCOPE)
+                .where(acquisition_contact_suppression.c.scope == self._scope)
                 .distinct()
             ).scalars()
         )
@@ -224,7 +231,7 @@ class SuppressionStore:
             for version, identity in identities.items()
         ]
         query = sa.select(acquisition_contact_suppression.c.suppression_id).where(
-            acquisition_contact_suppression.c.scope == SUPPRESSION_SCOPE,
+            acquisition_contact_suppression.c.scope == self._scope,
             sa.or_(*predicates),
         )
         if at is not None:
