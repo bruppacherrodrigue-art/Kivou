@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import datetime as dt
 import importlib
+import logging
 import pathlib
 
 import pytest
@@ -694,6 +695,7 @@ def test_reset_links_are_rooted_at_the_configured_public_origin(origin: str) -> 
 def test_reset_delivery_failure_logs_only_a_safe_code(caplog, error_code: str) -> None:
     from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
     from signals.alerts.gateway import AlertDeliveryError, UncertainDelivery
+    from signals.runtime_events import LOGGER_NAME
 
     reset_value = "reset-" + "private-value"
     address = "synthetic-private-user" + "@kivou.eu"
@@ -710,7 +712,13 @@ def test_reset_delivery_failure_logs_only_a_safe_code(caplog, error_code: str) -
         site_url="https://staging.kivou.test",
         ttl=dt.timedelta(hours=1),
     )
-    delivery.deliver(email=address, locale="fr", reset_token=reset_value)
+    logger = logging.getLogger(LOGGER_NAME)
+    with caplog.at_level(logging.INFO, logger=LOGGER_NAME):
+        logger.addHandler(caplog.handler)
+        try:
+            delivery.deliver(email=address, locale="fr", reset_token=reset_value)
+        finally:
+            logger.removeHandler(caplog.handler)
 
     payload = caplog.records[-1].runtime_event
     assert payload == {
