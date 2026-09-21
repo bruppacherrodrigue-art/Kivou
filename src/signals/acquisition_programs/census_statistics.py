@@ -15,6 +15,7 @@ from signals.persistence.schema import (
     acquisition_census_call,
     acquisition_census_company_match,
     acquisition_census_sample_page,
+    acquisition_census_sample_plan,
 )
 from signals.supplier_discovery.contracts import SupplierSearchPage
 
@@ -27,13 +28,17 @@ def _estimate(population: int, rate: float, low: float, high: float) -> dict[str
 def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, Any]:
     """Keep Apollo totals, page observations and weighted estimates separate."""
     store = CensusStore(engine)
-    funnel = store.report(census_id)
+    funnel = store.report(census_id, public_aggregate=True)
     partitions = {row["partition_id"]: row for row in store.partitions(census_id)}
     candidates = store.candidates(census_id)
     by_id = {row["provider_organization_id"]: row for row in candidates}
     by_domain = {normalize_domain(row["primary_domain"]): row for row in candidates
                  if row["primary_domain"]}
     with engine.connect() as connection:
+        plan = connection.execute(sa.select(acquisition_census_sample_plan).where(
+            acquisition_census_sample_plan.c.plan_id == permit_id,
+            acquisition_census_sample_plan.c.census_id == census_id,
+        )).mappings().one()
         selected = connection.execute(sa.select(acquisition_census_sample_page).where(
             acquisition_census_sample_page.c.plan_id == permit_id,
         )).mappings().all()
@@ -136,11 +141,16 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
         legal[row["provider_organization_id"]]["match_confidence"] == "CONFIRMED_MATCH"
         for row in verified_google_unique
     )
+    google_unique_total = sum(
+        row["provider"] == "GOOGLE_WORKSPACE" and
+        row["provider_confidence"] == "CONFIRMED" for row in candidates
+    )
     low_unique, high_unique = wilson_interval(max(0, observed - duplicates), observed)
     unique_rate = unique / observed if observed else 0
     unique_population = _estimate(declared, unique_rate, low_unique, high_unique)
     official_statuses = Counter(item["legal_status"] for item in legal.values())
     official_matches = Counter(item["match_confidence"] for item in legal.values())
+    new_calls = [row for row in calls if row["permit_id"] == permit_id]
 
     def aggregate_rates(buckets: dict[str, Counter[str]]) -> dict[str, dict[str, Any]]:
         output: dict[str, dict[str, Any]] = {}
@@ -154,6 +164,10 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
     return {
         "census_id": census_id, "permit_id": permit_id,
         "phase": "COVERAGE_A1_SAMPLE", "apollo_declared_total_sum": declared,
+        "sample_status": (
+            "COMPLETE" if selected and all(row["status"] == "COMPLETED" for row in selected)
+            and len(verified_google_unique) == google_unique_total else "INCOMPLETE"
+        ),
         "apollo_accessible_declared_max": accessible_declared,
         "apollo_inaccessible_declared_min": max(0, declared - accessible_declared),
         "organizations_observed": observed, "organizations_unique_observed": unique,
@@ -191,15 +205,24 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
         "by_sector": aggregate_rates(sector),
         "by_size": aggregate_rates(size),
         "by_depth": aggregate_rates(depth),
+        "by_location_unique_anonymized": funnel["by_location"],
+        "by_mail_provider_unique": funnel["by_mail_provider"],
         "pages_completed": len(page_calls), "pages_a1_planned": len(selected),
         "pages_a1_completed": sum(row["status"] == "COMPLETED" for row in selected),
         "pages_a1_remaining": sum(row["status"] != "COMPLETED" for row in selected),
-        "apollo_search_calls_new": sum(row["permit_id"] == permit_id for row in page_calls),
-        "apollo_search_attempts_new": sum(row["permit_id"] == permit_id for row in calls),
+        "apollo_search_calls_new": sum(row["status"] == "COMPLETED" for row in new_calls),
+        "apollo_search_attempts_new": len(new_calls),
+        "apollo_credits_new_reserved_upper_bound": sum(row["reserved_credits"]
+                                                         for row in new_calls),
+        "apollo_pool_before": plan["apollo_pool_before"],
+        "apollo_organization_search_day_before": plan["apollo_org_search_day_before"],
         "apollo_search_failed_or_review_new": sum(
             row["permit_id"] == permit_id and row["status"] != "COMPLETED" for row in calls
         ),
         "official_requests_cumulative": store.status(census_id)["official_requests_reserved"],
+        "official_matches_without_new_request": max(
+            0, len(legal) - store.status(census_id)["official_requests_reserved"]
+        ),
         "contacts_found": funnel["contacts_found"],
         "leaders_identified": funnel["leaders_identified"],
         "email_addresses_verified": funnel["verified_addresses_unique"],
