@@ -1,6 +1,7 @@
 """Authenticated Instantly simulation never reaches Kivou campaign bindings."""
 
 import datetime as dt
+from decimal import Decimal
 
 import pytest
 import sqlalchemy as sa
@@ -11,6 +12,7 @@ from signals.acquisition_programs.attribution import (
     ProgramAttributionKeyring,
     ProgramAttributionService,
 )
+from signals.acquisition_programs.metrics import read_program_metrics
 from signals.acquisition_programs.provider_events import MilomailInstantlyEventSimulation
 from signals.compliance.suppression import (
     MILOMAIL_SUPPRESSION_SCOPE,
@@ -57,6 +59,11 @@ def test_simulated_reply_bounce_and_optout_are_program_scoped_and_idempotent() -
         webhook_secret="synthetic-milomail-secret",
         suppression_keyring=suppression_keys,
     )
+    assert service.ingest(
+        event("email_sent", "provider-sent-1"),
+        supplied_secret="synthetic-milomail-secret",
+        received_at=NOW,
+    )
     reply = service.ingest(
         event("reply_received", "provider-reply-1"),
         supplied_secret="synthetic-milomail-secret",
@@ -81,6 +88,17 @@ def test_simulated_reply_bounce_and_optout_are_program_scoped_and_idempotent() -
         received_at=NOW,
     )
     assert acquisition.get_opportunity(opportunity_id).policy_version == "milomail-fr-b2b-v1"
+    metrics = read_program_metrics(
+        engine, program_id=program_id, campaign_ref="milomail:synthetic-campaign"
+    )
+    assert metrics.provider_event_counts == {
+        "email_bounced": 1,
+        "email_sent": 1,
+        "lead_unsubscribed": 1,
+        "reply_received": 1,
+    }
+    assert metrics.bounce_rate == Decimal(1)
+    assert metrics.reply_rate == Decimal(1)
     with engine.connect() as connection:
         rows = connection.execute(sa.select(acquisition_contact_suppression)).mappings().all()
     assert len(rows) == 1

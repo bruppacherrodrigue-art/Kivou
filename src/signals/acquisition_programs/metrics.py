@@ -134,7 +134,7 @@ def read_program_metrics(
             provider_rows = connection.execute(
                 sa.select(acquisition_event.c.payload).where(
                     acquisition_event.c.acquisition_opportunity_id.in_(opportunity_ids),
-                    acquisition_event.c.policy_version == "milomail-provider-event-v1",
+                    acquisition_event.c.payload["kind"].as_string() == "program_provider_event",
                 )
             ).scalars()
             for payload in provider_rows:
