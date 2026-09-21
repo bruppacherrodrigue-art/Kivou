@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -17,6 +17,7 @@ class ApolloAccountState:
     credit_balance: int | None
     usage_stats_available: bool
     rate_stats_available: bool
+    credit_balances: dict[str, int] = field(default_factory=dict)
 
 
 class ApolloAccountProbe:
@@ -49,9 +50,13 @@ class ApolloAccountProbe:
             return ApolloAccountState(False, None, False, False)
         credits = self._get_json("POST", "/api/v1/usage_stats/credit_usage_stats")
         rates = self._get_json("POST", "/api/v1/usage_stats/api_usage_stats")
-        lead = (credits or {}).get("credit_usage_stats")
-        lead = lead.get("lead_credit") if isinstance(lead, dict) else None
-        balance = lead.get("left_over") if isinstance(lead, dict) else None
-        if isinstance(balance, bool) or not isinstance(balance, int) or balance < 0:
-            balance = None
-        return ApolloAccountState(True, balance, credits is not None, rates is not None)
+        stats = (credits or {}).get("credit_usage_stats")
+        balances: dict[str, int] = {}
+        if isinstance(stats, dict):
+            for name, item in stats.items():
+                value = item.get("left_over") if isinstance(item, dict) else None
+                if (isinstance(name, str) and isinstance(value, int) and
+                        not isinstance(value, bool) and value >= 0):
+                    balances[name] = value
+        return ApolloAccountState(True, balances.get("lead_credit"), credits is not None,
+                                  rates is not None, balances)

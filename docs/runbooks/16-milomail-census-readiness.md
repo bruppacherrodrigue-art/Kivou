@@ -101,7 +101,15 @@ doit fournir un fichier de prix daté et référencé : `currency=CHF`,
 `plan_name`, `verified_by_reference`, crédits maximum par recherche
 d'organisation, enrichissement d'organisation, recherche de personnes et
 enrichissement de personne, solde daté, limites de taux par opération et
-`rate_limit_reference`. La valeur doit correspondre au plan du compte. Les
+`rate_limit_reference`. Le champ obligatoire `credit_pools_by_operation`
+associe `ORG_SEARCH`, `ORG_ENRICH`, `PEOPLE_SEARCH` et `PERSON_ENRICH` à la
+catégorie de crédit réellement débitée par le plan (`lead_credit`,
+`export_credit`, etc.). Le solde du fichier est le minimum attesté sur ces
+catégories ; la sonde gratuite vérifie ensuite chaque catégorie séparément
+et le préflight refuse une catégorie absente ou insuffisante. Cette
+correspondance doit être attestée par l'opérateur : la documentation générale
+Apollo ne garantit pas une catégorie identique pour tous les plans. La valeur
+doit correspondre au plan du compte. Les
 coûts variables ou en cascade doivent être plafonnés à leur pire cas ou
 désactivés ; la cascade n'est pas utilisée par ce pipeline.
 

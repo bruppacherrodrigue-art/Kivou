@@ -24,6 +24,7 @@ from signals.acquisition_programs.census_readiness import (
     DatabaseAuthorization,
     ExecutionPermit,
     PermitStore,
+    account_capacity_ready,
     configuration_hash,
     database_revisions,
     migration_ready,
@@ -294,9 +295,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.probe_apollo_free:
                 raise ValueError("free Apollo account verification is required")
             account = _probe_apollo_account(api_key)
-            if (account is None or not account.credential_valid or
-                    not account.usage_stats_available or not account.rate_stats_available or
-                    account.credit_balance is None or account.credit_balance < limits.max_apollo_credits):
+            if not account_capacity_ready(account, pricing, limits):
                 raise ValueError("Apollo account capacity or rate limits unavailable")
             keys = _keyring(dict(os.environ))
             source = OfficialSourceConfig.from_environment(os.environ)

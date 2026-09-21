@@ -189,6 +189,9 @@ def _test_permits(engine, store, run_id, limits):
         rate_limits_per_minute={"ORG_SEARCH": 10, "ORG_ENRICH": 10,
                                 "PEOPLE_SEARCH": 10, "PERSON_ENRICH": 10},
         rate_limit_reference="synthetic-test-rate-limits",
+        credit_pools_by_operation={kind: "lead_credit" for kind in (
+            "ORG_SEARCH", "ORG_ENRICH", "PEOPLE_SEARCH", "PERSON_ENRICH",
+        )},
     )
     digest = configuration_hash(census_id=run_id, limits=limits,
                                 partitions=store.partitions(run_id), pricing=pricing)

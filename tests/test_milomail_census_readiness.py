@@ -55,6 +55,9 @@ def _setup():
         rate_limits_per_minute={"ORG_SEARCH": 10, "ORG_ENRICH": 10,
                                 "PEOPLE_SEARCH": 10, "PERSON_ENRICH": 10},
         rate_limit_reference="synthetic-rate-proof",
+        credit_pools_by_operation={kind: "lead_credit" for kind in (
+            "ORG_SEARCH", "ORG_ENRICH", "PEOPLE_SEARCH", "PERSON_ENRICH",
+        )},
     )
     return engine, store, census_id, auth, pricing
 
@@ -84,7 +87,9 @@ def _preflight(engine, census_id, limits, auth, pricing, *, account=None, source
         engine, census_id=census_id, limits=limits, database=auth, pricing=pricing,
         apollo_key_present=True, source_enabled=source, source_requests=10,
         source_available=source, suppression_keyring=keyring,
-        apollo_account=account or ApolloAccountState(True, 100, True, True), at=NOW,
+        apollo_account=account or ApolloAccountState(
+            True, 100, True, True, {"lead_credit": 100},
+        ), at=NOW,
     )
 
 
@@ -103,12 +108,30 @@ def test_preflight_distinguishes_technical_readiness_from_permit() -> None:
         engine, census_id=census_id, limits=limits, database=auth, pricing=pricing,
         apollo_key_present=True, source_enabled=True, source_requests=10,
         source_available=True, suppression_keyring=KEYRING,
-        apollo_account=ApolloAccountState(True, 100, True, True), at=NOW,
+        apollo_account=ApolloAccountState(True, 100, True, True,
+                                         {"lead_credit": 100}), at=NOW,
         permit_id=permit.permit_id,
     )
     assert report["execution_authorized"]
     assert not report["enrichment_authorized"]
     assert report["worst_cost_chf"] == "2.00"
+
+
+def test_preflight_requires_balance_in_each_attested_credit_pool() -> None:
+    engine, _store, census_id, auth, pricing = _setup()
+    pools = {**pricing.credit_pools_by_operation, "ORG_SEARCH": "export_credit"}
+    split_pricing = pricing.model_copy(update={"credit_pools_by_operation": pools})
+    missing_pool = _preflight(engine, census_id, _limits(), auth, split_pricing)
+    assert missing_pool["checks"]["apollo_account"] == "NOT_PROBED_OR_CAPACITY_UNKNOWN"
+    verified = _preflight(
+        engine, census_id, _limits(), auth, split_pricing,
+        account=ApolloAccountState(True, 100, True, True,
+                                   {"lead_credit": 100, "export_credit": 100}),
+    )
+    assert verified["checks"]["apollo_account"] == "READY"
+    assert verified["credit_balances_by_pool"] == {
+        "export_credit": 100, "lead_credit": 100,
+    }
 
 
 @pytest.mark.parametrize("change,expected", [
@@ -124,7 +147,8 @@ def test_preflight_missing_prerequisite_is_explicit(change, expected) -> None:
               "pricing": pricing, "apollo_key_present": True, "source_enabled": True,
               "source_requests": 10, "source_available": True,
               "suppression_keyring": KEYRING,
-              "apollo_account": ApolloAccountState(True, 100, True, True), "at": NOW}
+              "apollo_account": ApolloAccountState(True, 100, True, True,
+                                                    {"lead_credit": 100}), "at": NOW}
     inputs.update(change)
     result = preflight(**inputs)
     assert expected in result["blockers"]
@@ -278,7 +302,8 @@ def test_preflight_rejects_exhausted_permit_and_uncovered_suppression_key() -> N
         engine, census_id=census_id, limits=limits, database=auth, pricing=pricing,
         apollo_key_present=True, source_enabled=True, source_requests=10,
         source_available=True, suppression_keyring=KEYRING,
-        apollo_account=ApolloAccountState(True, 100, True, True), at=NOW,
+        apollo_account=ApolloAccountState(True, 100, True, True,
+                                         {"lead_credit": 100}), at=NOW,
         permit_id=permit.permit_id,
     )
     assert report["checks"]["execution_permit"] == "NOT_ISSUED_OR_INVALID"
@@ -294,12 +319,13 @@ def test_free_apollo_probe_only_calls_documented_zero_credit_endpoints() -> None
             return httpx.Response(200, json={"healthy": True, "is_logged_in": True})
         if request.url.path.endswith("credit_usage_stats"):
             return httpx.Response(200, json={"credit_usage_stats": {
-                "lead_credit": {"left_over": 25}}})
+                "lead_credit": {"left_over": 25}, "export_credit": {"left_over": 11}}})
         return httpx.Response(200, json={"api_usage_stats": {}})
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     result = ApolloAccountProbe(api_key="synthetic-secret", client=client).inspect_free()
     assert result.credit_balance == 25
+    assert result.credit_balances == {"lead_credit": 25, "export_credit": 11}
     assert paths == [
         ("GET", "/api/v1/auth/health"),
         ("POST", "/api/v1/usage_stats/credit_usage_stats"),

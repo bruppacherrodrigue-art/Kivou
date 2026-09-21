@@ -119,10 +119,12 @@ class ApolloCreditPricing(BaseModel):
     org_enrichment_credits: int = Field(ge=1)
     people_search_credits: int = Field(ge=0)
     person_enrichment_credits_max: int = Field(ge=1)
+    # Conservative attested minimum across every operation's credit pool.
     credit_balance: int | None = Field(default=None, ge=0)
     credit_balance_observed_at: dt.datetime | None = None
     rate_limits_per_minute: dict[str, int] = Field(default_factory=dict)
     rate_limit_reference: str | None = None
+    credit_pools_by_operation: dict[str, str]
 
     @model_validator(mode="after")
     def dates_are_aware(self) -> ApolloCreditPricing:
@@ -154,6 +156,21 @@ class ApolloCreditPricing(BaseModel):
                 any(self.rate_limits_per_minute[key] <= 0 for key in required) or
                 not self.rate_limit_reference):
             raise ValueError("Apollo rate limits are not verified for every operation")
+        if (set(self.credit_pools_by_operation) != required or
+                any(not re.fullmatch(r"[a-z][a-z0-9_]{2,63}", pool)
+                    for pool in self.credit_pools_by_operation.values())):
+            raise ValueError("Apollo credit pool mapping is not verified")
+
+
+def account_capacity_ready(account: ApolloAccountState | None,
+                           pricing: ApolloCreditPricing | None,
+                           limits: CensusLimits) -> bool:
+    return bool(
+        account and pricing and account.credential_valid and
+        account.usage_stats_available and account.rate_stats_available and
+        all(account.credit_balances.get(pool, -1) >= limits.max_apollo_credits
+            for pool in set(pricing.credit_pools_by_operation.values()))
+    )
 
 
 def configuration_hash(*, census_id: str, limits: CensusLimits,
@@ -389,10 +406,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
     checks["policy"] = "READY" if program and program["config_snapshot"]["policy_version"] == POLICY_VERSION else "VERSION_MISMATCH"
     checks["apollo_key"] = "READY" if apollo_key_present else "CREDENTIAL_MISSING"
     checks["apollo_account"] = (
-        "READY" if apollo_account and apollo_account.credential_valid and
-        apollo_account.usage_stats_available and apollo_account.rate_stats_available and
-        apollo_account.credit_balance is not None and
-        apollo_account.credit_balance >= limits.max_apollo_credits
+        "READY" if account_capacity_ready(apollo_account, pricing, limits)
         else "NOT_PROBED_OR_CAPACITY_UNKNOWN"
     )
     checks["pricing"] = "MISSING"
@@ -497,6 +511,14 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "official_source": "EXTERNAL_SOURCE", "suppression": "SUPPRESSION",
         "pending_calls": "RECONCILIATION", "execution_permit": "EXECUTION_AUTHORIZATION",
     }
+    pool_balances = {
+        pool: apollo_account.credit_balances.get(pool)
+        for pool in sorted(set(pricing.credit_pools_by_operation.values()))
+    } if apollo_account and pricing else None
+    known_balances = (
+        [value for value in pool_balances.values() if value is not None]
+        if pool_balances else []
+    )
     return {
         "technically_ready": not technical_blockers,
         "execution_authorized": not blockers,
@@ -522,7 +544,10 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "caps": {"partitions": limits.max_partitions, "pages": limits.max_pages,
                  "candidates": limits.max_candidates, "enrichments": limits.max_enrichments,
                  "credits": limits.max_apollo_credits, "cost_chf": str(limits.max_cost_chf)},
-        "credits_available": apollo_account.credit_balance if apollo_account else None,
+        "credits_available": min(known_balances) if pool_balances and len(
+            known_balances
+        ) == len(pool_balances) else None,
+        "credit_balances_by_pool": pool_balances,
         "worst_cost_chf": str(Decimal(limits.max_apollo_credits) * pricing.price_per_credit)
         if pricing else None,
         "credits_reserved": reserved, "incomplete_calls": pending_calls,
