@@ -1,5 +1,9 @@
 # Milo Mail : couverture Apollo bornée en SHADOW
 
+Le flux `COVERAGE` à prix CHF attesté ci-dessous est réservé à une autorisation
+future. Pour l'A0 staging prépayé actuellement autorisé, suivre uniquement le
+[runbook A0](18-milomail-a0-prepaid.md) et la phase `COVERAGE_A0`.
+
 Milo Mail est le produit ; Milo est l'agent intégré. Kivou garde les données
 Apollo et les décisions. Le produit Milo Mail ne reçoit ni prospects ni
 identifiants fournisseur. Aucun contenu Gmail, token OAuth ou résultat d'audit
@@ -20,13 +24,16 @@ est également gratuite, mais ne couvre que les comptes déjà enregistrés dans
 le workspace Apollo. Aucune de ces deux opérations ne remplace donc
 silencieusement la recherche d'organisations du census.
 
-L'opérateur a autorisé l'utilisation de crédits Apollo le 21 septembre 2026.
-Cette autorisation permet de préparer A0 à **neuf pages au plus**, une par
-partition, sous un permis `COVERAGE` daté et lié à la base et à la configuration.
-Elle ne fournit ni clé dédiée, ni base autorisée, ni prix CHF/crédit attesté.
-Le montant CHF maximal doit être calculé à partir du prix vérifié du plan
-avant toute émission du permis. Les plafonds restent à zéro par défaut et
-aucun appel facturable n'est permis avec un plafond nul ou un coût inconnu.
+L'autorisation opérateur du 21 septembre 2026 permet un seul A0 en staging,
+avec au plus neuf pages, neuf crédits déjà prépayés et aucun nouvel achat.
+Le permis `COVERAGE_A0` accepte le pool partagé uniquement avec
+`PREPAID_SHARED_POOL`, `max_incremental_charge_chf=0.00`, sans top-up ni
+dépassement. Le coût d'allocation CHF/crédit reste **inconnu**. Cette exception
+nécessite la base isolée `kivou_milomail_census_a0`, un permis de quatre heures
+au plus et `MILOMAIL_CENSUS_APOLLO_SECRET_REF=KIVOU_APOLLO_API_KEY`. Elle est
+interdite pour A1 et l'enrichissement. La migration additive `0073` succède à
+`0072` pour enregistrer cette exception sans modifier `0072` déjà fusionnée.
+Le [runbook A0](18-milomail-a0-prepaid.md) donne les commandes exactes.
 La phase A1 exige une nouvelle évaluation des résultats A0 et un permis
 distinct, limité aux pages utiles ; aucun enrichissement n'est autorisé ici.
 
@@ -69,7 +76,7 @@ crédits, solde ou taux vérifié reste un diagnostic, jamais un coût nul infé
 
 Configuration requise pour l'approfondissement : `KIVOU_DATABASE_URL`,
 `KIVOU_ACQUISITION_ENVIRONMENT=STAGING`, une autorisation de base datée,
-`MILOMAIL_CENSUS_APOLLO_API_KEY` dédiée, les clés
+`MILOMAIL_CENSUS_APOLLO_API_KEY` dédiée hors A0, les clés
 `KIVOU_SUPPRESSION_HMAC_KEY_VERSION`, `KIVOU_SUPPRESSION_HMAC_KEY` et, le cas
 échéant, `KIVOU_SUPPRESSION_RETAINED_KEYS_JSON`. La source officielle exige
 `MILOMAIL_COMPANY_STATUS_ENABLED=true`, un plafond explicite
@@ -80,7 +87,8 @@ Configuration requise pour l'approfondissement : `KIVOU_DATABASE_URL`,
 `MILOMAIL_CENSUS_MAX_CANDIDATES=225`,
 `MILOMAIL_CENSUS_MAX_ENRICHMENTS=0`,
 `MILOMAIL_CENSUS_MAX_APOLLO_CREDITS=9` et
-`MILOMAIL_CENSUS_MAX_COST_CHF=9 × prix CHF/crédit vérifié`.
+`MILOMAIL_CENSUS_MAX_COST_CHF=9 × prix CHF/crédit vérifié` pour un futur
+permis `COVERAGE` à prix attesté ; le permis `COVERAGE_A0` prépayé utilise 0.
 `MILOMAIL_CENSUS_CHF_PER_CREDIT_CEILING` doit être au moins ce prix et ne doit
 pas être choisi avant la vérification du plan. Les défauts du code restent à
 **zéro**. Aucun secret ni URL avec mot de passe ne doit être
@@ -115,17 +123,18 @@ uv run milomail-census preflight --phase COVERAGE --census-id <id> \
 
 Exiger `execution_authorized=true`, `operation_cost=READY`,
 `no_enrichment=READY`, `credit_caps=READY`, `postgresql=READY` et
-`instantly_mutation_allowed=false`. La commande exacte d'A0 est :
+`instantly_mutation_allowed=false`. La commande d'une couverture à prix attesté
+future est :
 
 ```bash
-uv run milomail-census run --phase COVERAGE --a0 --census-id <id> \
+uv run milomail-census run --phase COVERAGE --census-id <id> \
   --program-config <programme-validé.json> --permit-id <permis-COVERAGE> \
   --database-authorization <autorisation-base.json> \
   --pricing <prix-apollo-plan-vérifié.json> \
   --operations <coûts-par-opération-vérifiés.json> \
   --probe-official-source --probe-apollo-free --authorize-paid-apollo
 uv run milomail-census status --census-id <id>
-uv run milomail-census resume --phase COVERAGE --a0 --census-id <id> \
+uv run milomail-census resume --phase COVERAGE --census-id <id> \
   --program-config <programme-validé.json> --permit-id <permis-COVERAGE> \
   --database-authorization <autorisation-base.json> \
   --pricing <prix-apollo-plan-vérifié.json> \
@@ -133,10 +142,9 @@ uv run milomail-census resume --phase COVERAGE --a0 --census-id <id> \
   --probe-official-source --probe-apollo-free --authorize-paid-apollo
 ```
 
-`--a0` impose une seule page de recherche d'organisations par partition et
-exclut la recherche de personnes. Il peut observer les MX publics des domaines
-trouvés. Dans cet environnement, la clé et la base autorisée sont absentes ;
-ces commandes ne sont **pas encore exécutées**. Pour A1, retirer `--a0`
+Le flux `COVERAGE_A0` prépayé, strictement limité à une page par partition et
+sans recherche de personnes, emploie les commandes du nouveau runbook. Pour
+A1, utiliser `COVERAGE`
 seulement après examen des checkpoints et du coût confirmé, avec un permis et
 des plafonds explicitement autorisés. Le plafond global du census est figé au
 premier `run` : un A0 configuré à neuf pages ne peut pas être étendu
