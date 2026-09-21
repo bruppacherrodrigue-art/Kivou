@@ -1,9 +1,10 @@
 # Milo Mail : préflight d'un recensement Apollo autorisé
 
-Pour la mission distincte à plafond **0 crédit / 0.00 CHF**, utiliser le
+Pour la phase A bornée, utiliser le
 [runbook COVERAGE](17-milomail-zero-cost-coverage.md). La recherche
-d'organisations de ce pipeline coûte actuellement un crédit par page et le
-préflight `--phase COVERAGE` refuse donc A0/A1 à coût nul.
+d'organisations coûte actuellement un crédit par page. Le préflight refuse
+un plafond nul ; un plafond positif requiert un prix vérifié, une base
+autorisée, un permis daté et zéro enrichissement.
 
 **État de cette PR :** préparation technique seulement. Aucun recensement
 Apollo réel, crédit consommé, e-mail, export Instantly ou déploiement. Milo

@@ -425,7 +425,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             )
     checks["limits"] = "READY"
     try:
-        limits.require_run_authorization()
+        limits.require_run_authorization(phase=phase)
     except ValueError:
         checks["limits"] = "ZERO_OR_DISABLED"
     checks["official_source"] = (
@@ -458,13 +458,16 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         checks["no_enrichment"] = (
             "READY" if limits.max_enrichments == 0 else "ENRICHMENT_CAP_NONZERO"
         )
-        checks["zero_cost_caps"] = (
-            "READY" if limits.max_apollo_credits == 0 and limits.max_cost_chf == 0
-            else "NONZERO_CREDIT_OR_CHF_CAP"
+        checks["credit_caps"] = (
+            "READY" if limits.max_apollo_credits > 0 and limits.max_cost_chf > 0
+            else "ZERO_CREDIT_OR_CHF_CAP"
         )
-        # Current Apollo organization search consumes at least one credit/page.
-        # A zero-cost mission cannot use this pipeline even with a valid permit.
-        checks["operation_cost"] = "ORG_SEARCH_REQUIRES_CREDIT"
+        # The current organization-search endpoint charges one credit per page.
+        checks["operation_cost"] = (
+            "READY" if checks["credit_caps"] == "READY" and checks["pricing"] == "READY"
+            else "ORG_SEARCH_REQUIRES_CREDIT" if checks["credit_caps"] != "READY"
+            else "PRICE_OR_CREDIT_CATEGORY_UNVERIFIED"
+        )
     config_digest = configuration_hash(
         census_id=census_id, limits=limits, partitions=partitions, pricing=pricing,
         source_config=source_config,
@@ -533,7 +536,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "pending_calls": "RECONCILIATION", "execution_permit": "EXECUTION_AUTHORIZATION",
         "postgresql": "DATABASE_AUTHORIZATION", "nine_partitions": "CONFIGURATION",
         "official_rate": "BUDGET_CONFIGURATION", "no_enrichment": "BUDGET_CONFIGURATION",
-        "zero_cost_caps": "BUDGET_CONFIGURATION", "operation_cost": "OPERATION_COST",
+        "credit_caps": "BUDGET_CONFIGURATION", "operation_cost": "OPERATION_COST",
     }
     pool_balances = {
         pool: apollo_account.credit_balances.get(pool)

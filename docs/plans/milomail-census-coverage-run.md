@@ -33,3 +33,13 @@ that endpoint, A0 and A1 must remain blocked under this mission's zero-credit
 limit. A future free-path change would need a separately verified operation
 with equivalent coverage semantics; saved-account search does not cover
 Apollo's prospect company database.
+
+## Addendum — autorisation de crédit du 21 septembre 2026
+
+L'opérateur autorise désormais l'utilisation de crédits Apollo. Préparer A0
+pour neuf pages au plus, avec neuf crédits réservables et un plafond CHF
+calculé à partir du prix réellement vérifié du plan. Conserver zéro
+enrichissement, zéro envoi, un permis COVERAGE daté, la base PostgreSQL non
+productive autorisée et les vérifications de solde. Les défauts du code restent
+à zéro. L'environnement de développement ne fournit ni clé dédiée, ni base
+autorisée, ni prix attesté ; aucun appel Apollo réel ne peut y être lancé.

@@ -198,7 +198,7 @@ def _code_sha() -> str | None:
 
 
 def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
-    """Diagnose the zero-cost mission even when no database URL is configured."""
+    """Diagnose bounded COVERAGE even when no database URL is configured."""
     config = load_program_config(args.program_config)
     partitions = build_partitions(config)
     limits = CensusLimits.from_environment(os.environ)
@@ -206,6 +206,19 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
     database = _read_model(args.database_authorization, DatabaseAuthorization)
     pricing = _read_model(args.pricing, ApolloCreditPricing)
     key_present = bool(os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY"))
+    pricing_ready = False
+    if pricing:
+        try:
+            pricing.check(limits, at=at)
+            pricing_ready = True
+        except ValueError:
+            pass
+    try:
+        limits.require_run_authorization(phase="COVERAGE")
+        limits_ready = True
+    except ValueError:
+        limits_ready = False
+    credit_caps_ready = limits.max_apollo_credits > 0 and limits.max_cost_chf > 0
     checks = {
         "program": "READY" if not config.enabled and config.campaign_mode == "SHADOW" and
         config.max_daily_contacts == config.max_monthly_contacts == 0 and
@@ -215,10 +228,15 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
         "suppression_keys": "READY" if _optional_keyring(dict(os.environ)) else "CREDENTIAL_MISSING",
         "official_source": "READY" if source.enabled and source.max_requests > 0 and
         source.rate_limit_per_minute <= 60 else "DISABLED_OR_RATE_ABOVE_60",
-        "zero_cost_caps": "READY" if limits.max_apollo_credits == 0 and
-        limits.max_cost_chf == 0 and limits.max_enrichments == 0 else "NONZERO_CAP",
-        "operation_cost": "ORG_SEARCH_REQUIRES_CREDIT",
-        "pricing": "UNVERIFIED" if pricing else "MISSING",
+        "limits": "READY" if limits_ready else "ZERO_OR_DISABLED",
+        "no_enrichment": "READY" if limits.max_enrichments == 0 else "ENRICHMENT_CAP_NONZERO",
+        "credit_caps": "READY" if credit_caps_ready else "ZERO_CREDIT_OR_CHF_CAP",
+        "operation_cost": (
+            "READY" if credit_caps_ready and pricing_ready else
+            "ORG_SEARCH_REQUIRES_CREDIT" if not credit_caps_ready else
+            "PRICE_OR_CREDIT_CATEGORY_UNVERIFIED"
+        ),
+        "pricing": "READY" if pricing_ready else "UNVERIFIED" if pricing else "MISSING",
     }
     db_report: dict | None = None
     if not os.environ.get("KIVOU_DATABASE_URL"):
@@ -343,7 +361,7 @@ def main(argv: list[str] | None = None) -> int:
             permit = _read_model(args.permit, ExecutionPermit)
             pricing = _read_model(args.pricing, ApolloCreditPricing)
             limits = CensusLimits.from_environment(os.environ)
-            limits.require_run_authorization()
+            limits.require_run_authorization(phase=permit.phase if permit else None)
             if database is None or permit is None or pricing is None:
                 raise ValueError("permit, pricing and database authorization are required")
             pricing.check(limits, at=now)
@@ -410,7 +428,9 @@ def main(argv: list[str] | None = None) -> int:
             if not args.phase or not args.permit_id:
                 raise ValueError("a bounded phase and execution permit are required")
             limits = CensusLimits.from_environment(os.environ)
-            limits.require_run_authorization()
+            limits.require_run_authorization(phase=args.phase)
+            if args.phase == "COVERAGE" and limits.max_enrichments != 0:
+                raise ValueError("coverage cannot authorize contact enrichment")
             database = _read_model(args.database_authorization, DatabaseAuthorization)
             pricing = _read_model(args.pricing, ApolloCreditPricing)
             if database is None or pricing is None:
@@ -430,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("Apollo account capacity or rate limits unavailable")
             keys = _keyring(dict(os.environ))
             source = OfficialSourceConfig.from_environment(os.environ)
+            if args.phase == "COVERAGE" and source.rate_limit_per_minute > 60:
+                raise ValueError("coverage official source rate exceeds 60 per minute")
             if not source.enabled or source.max_requests == 0 or not args.probe_official_source or not _probe_official_source():
                 raise ValueError("official company source is not verified and enabled")
             partitions = store.partitions(args.census_id)

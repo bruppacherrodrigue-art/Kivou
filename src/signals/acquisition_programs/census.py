@@ -102,18 +102,19 @@ class CensusLimits(BaseModel):
             authorization_ref=source.get("MILOMAIL_CENSUS_AUTHORIZATION_REF"),
         )
 
-    def require_run_authorization(self) -> None:
-        if not self.enabled or not self.authorization_ref or not all(
-            (
-                self.max_partitions,
-                self.max_pages,
-                self.max_candidates,
-                self.max_enrichments,
-                self.max_apollo_credits,
-                self.max_cost_chf,
-                self.chf_per_credit_ceiling,
-            )
-        ):
+    def require_run_authorization(self, *, phase: str | None = None) -> None:
+        common = all((self.max_partitions, self.max_apollo_credits,
+                      self.max_cost_chf, self.chf_per_credit_ceiling))
+        if phase == "COVERAGE":
+            phase_caps = self.max_pages > 0 and self.max_candidates > 0
+        elif phase == "ENRICHMENT":
+            phase_caps = self.max_enrichments > 0
+        elif phase is None:
+            phase_caps = (self.max_pages > 0 and self.max_candidates > 0 and
+                          self.max_enrichments > 0)
+        else:
+            phase_caps = False
+        if not self.enabled or not self.authorization_ref or not common or not phase_caps:
             raise ValueError("explicit census authorization and nonzero limits are required")
 
 
@@ -301,8 +302,9 @@ class CensusStore:
                         raise ValueError("census partition identity conflict")
         return census_id
 
-    def start(self, census_id: str, limits: CensusLimits, *, at: dt.datetime) -> None:
-        limits.require_run_authorization()
+    def start(self, census_id: str, limits: CensusLimits, *, at: dt.datetime,
+              phase: str | None = None) -> None:
+        limits.require_run_authorization(phase=phase)
         snapshot = limits.model_dump(mode="json")
         with self._engine.begin() as connection:
             row = connection.execute(

@@ -197,6 +197,8 @@ def _test_permits(engine, store, run_id, limits):
                                 partitions=store.partitions(run_id), pricing=pricing)
     values = {}
     for phase in ("COVERAGE", "ENRICHMENT"):
+        if phase == "ENRICHMENT" and limits.max_enrichments == 0:
+            continue
         permit_id = f"synthetic-{phase.lower()}-{run_id[:12]}"
         permit = ExecutionPermit(
             permit_id=permit_id, census_id=run_id, phase=phase,
@@ -680,7 +682,7 @@ def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> N
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     limits = _limits(max_partitions=9, max_pages=9, max_candidates=225,
-                     max_enrichments=1, max_apollo_credits=9, max_cost_chf="0.90")
+                     max_enrichments=0, max_apollo_credits=9, max_cost_chf="0.90")
     permits, digest, database_id = _test_permits(engine, store, run_id, limits)
     acquisition = AcquisitionStore(engine, clock=lambda: NOW)
     runner = CensusRunner(

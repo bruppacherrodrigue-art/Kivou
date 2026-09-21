@@ -208,7 +208,7 @@ class CensusRunner:
             permit_id: str, configuration_hash: str, database_id: str,
             smoke_first_page_only: bool = False) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
-        self.limits.require_run_authorization()
+        self.limits.require_run_authorization(phase=phase)
         if phase not in {"COVERAGE", "ENRICHMENT"}:
             raise ValueError("census phase must be COVERAGE or ENRICHMENT")
         if smoke_first_page_only and phase != "COVERAGE":
@@ -234,7 +234,7 @@ class CensusRunner:
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("census time must be timezone-aware")
         self.observed_at = at
-        self.store.start(self.census_id, self.limits, at=at)
+        self.store.start(self.census_id, self.limits, at=at, phase=phase)
         if phase == "ENRICHMENT":
             if not self._process_pending():
                 return self.store.status(self.census_id)

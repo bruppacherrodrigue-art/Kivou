@@ -113,6 +113,36 @@ def test_bootstrap_reports_zero_cost_blockers_without_secrets(monkeypatch, capsy
     assert "synthetic-secret-must-not-leak" not in output
 
 
+def test_bootstrap_reports_bounded_paid_coverage_without_authorizing_execution(
+    tmp_path, monkeypatch, capsys,
+) -> None:
+    from test_milomail_census_readiness import _setup
+
+    _engine, _store, _census_id, _auth, pricing = _setup()
+    pricing = pricing.model_copy(update={
+        "verified_at": dt.datetime.now(dt.UTC),
+        "credit_balance_observed_at": dt.datetime.now(dt.UTC),
+    })
+    evidence = tmp_path / "pricing.json"
+    evidence.write_text(pricing.model_dump_json())
+    monkeypatch.delenv("KIVOU_DATABASE_URL", raising=False)
+    monkeypatch.setenv("MILOMAIL_CENSUS_ENABLED", "true")
+    monkeypatch.setenv("MILOMAIL_CENSUS_AUTHORIZATION_REF", "operator-a0-nine-pages")
+    for name, value in {
+        "MAX_PARTITIONS": "9", "MAX_PAGES": "9", "MAX_CANDIDATES": "225",
+        "MAX_ENRICHMENTS": "0", "MAX_APOLLO_CREDITS": "9",
+        "MAX_COST_CHF": "0.90", "CHF_PER_CREDIT_CEILING": "0.10",
+    }.items():
+        monkeypatch.setenv(f"MILOMAIL_CENSUS_{name}", value)
+    assert main(["bootstrap", "--program-config", str(EXAMPLE),
+                 "--pricing", str(evidence)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["checks"]["operation_cost"] == "READY"
+    assert report["checks"]["pricing"] == "READY"
+    assert report["contact_enrichment_allowed"] is False
+    assert report["execution_authorized"] is False
+
+
 def test_preflight_coverage_phase_rejects_paid_search(tmp_path, monkeypatch, capsys) -> None:
     url = f"sqlite+pysqlite:///{tmp_path.parent / 'coverage.sqlite'}"
     engine = create_database_engine(url)

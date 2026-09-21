@@ -1,4 +1,4 @@
-# Milo Mail : phase A à zéro crédit
+# Milo Mail : couverture Apollo bornée en SHADOW
 
 Milo Mail est le produit ; Milo est l'agent intégré. Kivou garde les données
 Apollo et les décisions. Le produit Milo Mail ne reçoit ni prospects ni
@@ -6,7 +6,7 @@ identifiants fournisseur. Aucun contenu Gmail, token OAuth ou résultat d'audit
 détaillé ne revient dans Kivou. Ce runbook ne permet ni e-mail, ni mutation
 Instantly, ni déploiement. Le programme doit rester désactivé et en `SHADOW`.
 
-## État vérifié et impossibilité actuelle du parcours à zéro crédit
+## Coût documenté et autorisation actuelle
 
 Documentation Apollo consultée le 21 septembre 2026 : la
 [recherche d'organisations](https://docs.apollo.io/reference/organization-search)
@@ -20,15 +20,15 @@ est également gratuite, mais ne couvre que les comptes déjà enregistrés dans
 le workspace Apollo. Aucune de ces deux opérations ne remplace donc
 silencieusement la recherche d'organisations du census.
 
-Le plafond de cette mission est **0 crédit / 0.00 CHF**. Le préflight
-`COVERAGE` signale `ORG_SEARCH_REQUIRES_CREDIT` et refuse l'autorisation,
-même si une clé et une base autorisée existent. Aucun permis à plafond nul
-n'est créé : le modèle de permis actuel exige à juste titre un budget positif
-pour ce parcours facturable. A0 et A1 restent non exécutables dans ces
-conditions. Il faut soit une preuve vérifiable que le plan précis facture
-réellement cette opération à zéro crédit et une adaptation ciblée des
-contrôles, soit une **nouvelle autorisation budgétaire** pour au moins neuf
-pages (une par partition). Cette dernière n'est pas accordée ici.
+L'opérateur a autorisé l'utilisation de crédits Apollo le 21 septembre 2026.
+Cette autorisation permet de préparer A0 à **neuf pages au plus**, une par
+partition, sous un permis `COVERAGE` daté et lié à la base et à la configuration.
+Elle ne fournit ni clé dédiée, ni base autorisée, ni prix CHF/crédit attesté.
+Le montant CHF maximal doit être calculé à partir du prix vérifié du plan
+avant toute émission du permis. Les plafonds restent à zéro par défaut et
+aucun appel facturable n'est permis avec un plafond nul ou un coût inconnu.
+La phase A1 exige une nouvelle évaluation des résultats A0 et un permis
+distinct, limité aux pages utiles ; aucun enrichissement n'est autorisé ici.
 
 ## Bootstrap et préflight sans dépense
 
@@ -42,7 +42,7 @@ uv run milomail-census bootstrap \
 
 `bootstrap` fonctionne même sans `KIVOU_DATABASE_URL`. Le JSON indique les
 variables manquantes, les neuf partitions, les plafonds, le SHA, le plan/prix
-si un fichier de prix est fourni, l'opération facturée et
+si un fichier de prix est fourni, la réservation de crédit et
 `instantly_mutation_allowed=false`. Les options suivantes approfondissent
 la vérification lorsqu'une base PostgreSQL non productive a été **déjà**
 autorisée et migrée à `0072` ; elles n'effectuent que les sondes officiellement
@@ -74,8 +74,16 @@ Configuration requise pour l'approfondissement : `KIVOU_DATABASE_URL`,
 échéant, `KIVOU_SUPPRESSION_RETAINED_KEYS_JSON`. La source officielle exige
 `MILOMAIL_COMPANY_STATUS_ENABLED=true`, un plafond explicite
 `MILOMAIL_COMPANY_STATUS_MAX_REQUESTS` et
-`MILOMAIL_COMPANY_STATUS_RATE_LIMIT<=60`. Les autres plafonds census gardent
-leur défaut **zéro**. Aucun secret ni URL avec mot de passe ne doit être
+`MILOMAIL_COMPANY_STATUS_RATE_LIMIT<=60`. Pour A0, configurer explicitement
+`MILOMAIL_CENSUS_ENABLED=true`, `MILOMAIL_CENSUS_AUTHORIZATION_REF`,
+`MILOMAIL_CENSUS_MAX_PARTITIONS=9`, `MILOMAIL_CENSUS_MAX_PAGES=9`,
+`MILOMAIL_CENSUS_MAX_CANDIDATES=225`,
+`MILOMAIL_CENSUS_MAX_ENRICHMENTS=0`,
+`MILOMAIL_CENSUS_MAX_APOLLO_CREDITS=9` et
+`MILOMAIL_CENSUS_MAX_COST_CHF=9 × prix CHF/crédit vérifié`.
+`MILOMAIL_CENSUS_CHF_PER_CREDIT_CEILING` doit être au moins ce prix et ne doit
+pas être choisi avant la vérification du plan. Les défauts du code restent à
+**zéro**. Aucun secret ni URL avec mot de passe ne doit être
 transcrit dans Git ou le rapport.
 
 ## Plan, permis et reprise
@@ -88,12 +96,26 @@ uv run milomail-census plan --program-config <programme-validé.json> \
 uv run milomail-census status --census-id <id>
 ```
 
-La création d'un permis `COVERAGE` à **0 crédit** et **0.00 CHF** n'a pas de
-commande exécutable pour le parcours actuel ; `issue-permit` refuse ce
-permis. Il ne faut pas modifier le fichier JSON ou augmenter le plafond pour
-contourner ce refus. Les commandes `run --phase COVERAGE` et
-`resume --phase COVERAGE` restent donc bloquées avant Apollo. La commande
-exacte d'A0, **uniquement après une future autorisation conforme**, est :
+Après vérification du préflight, émettre un permis `COVERAGE` limité aux neuf
+partitions, neuf pages, 225 emplacements candidats, zéro enrichissement, neuf
+crédits et au montant CHF calculé. Il doit expirer rapidement et reprendre
+l'empreinte exacte `configuration_hash` du préflight. Ne créer ce permis que
+sur la base non productive autorisée :
+
+```bash
+uv run milomail-census issue-permit --permit <permis-COVERAGE.json> \
+  --database-authorization <autorisation-base.json> \
+  --pricing <prix-apollo-plan-vérifié.json>
+uv run milomail-census preflight --phase COVERAGE --census-id <id> \
+  --permit-id <permis-COVERAGE> \
+  --database-authorization <autorisation-base.json> \
+  --pricing <prix-apollo-plan-vérifié.json> \
+  --probe-official-source --probe-apollo-free
+```
+
+Exiger `execution_authorized=true`, `operation_cost=READY`,
+`no_enrichment=READY`, `credit_caps=READY`, `postgresql=READY` et
+`instantly_mutation_allowed=false`. La commande exacte d'A0 est :
 
 ```bash
 uv run milomail-census run --phase COVERAGE --a0 --census-id <id> \
@@ -113,14 +135,19 @@ uv run milomail-census resume --phase COVERAGE --a0 --census-id <id> \
 
 `--a0` impose une seule page de recherche d'organisations par partition et
 exclut la recherche de personnes. Il peut observer les MX publics des domaines
-trouvés. Dans cette mission, le permis à zéro crédit est refusé et ces commandes
-ne sont **pas exécutées**. Pour A1, retirer `--a0` seulement après examen des
-checkpoints et du coût confirmé, avec un permis et des plafonds explicitement
-autorisés. A1 n'est envisagé qu'après A0 réussi et rapprochement du solde.
+trouvés. Dans cet environnement, la clé et la base autorisée sont absentes ;
+ces commandes ne sont **pas encore exécutées**. Pour A1, retirer `--a0`
+seulement après examen des checkpoints et du coût confirmé, avec un permis et
+des plafonds explicitement autorisés. Le plafond global du census est figé au
+premier `run` : un A0 configuré à neuf pages ne peut pas être étendu
+silencieusement dans le même recensement. Prévoir dès le départ un plafond
+global A1 distinct du permis A0, ou préparer un nouveau plan avec ses propres
+crédits et checkpoints après A0. A1 n'est envisagé qu'après A0 réussi et
+rapprochement du solde.
 Si le prix ou le résultat d'un appel est ambigu,
 le checkpoint reste en revue et aucune reprise ne rejoue cet appel.
 
-Pour un permis futur réellement autorisé, le modèle d'émission/révocation,
+Pour le permis A0, le modèle d'émission/révocation,
 les réservations et l'empreinte de configuration sont décrits dans le
 [runbook readiness](16-milomail-census-readiness.md). Aucun permis
 `ENRICHMENT` n'est autorisé par cette mission.

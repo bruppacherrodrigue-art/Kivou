@@ -141,9 +141,9 @@ une ville concordants restent au maximum `PROBABLE_MATCH` ; un SIREN déjà
 corroboré ou une concordance unique de nom, ville et code postal peut prouver
 l'activité et contribuer à `SEND` théorique.
 
-Le [runbook de phase A à zéro crédit](17-milomail-zero-cost-coverage.md)
-documente `bootstrap` et le coût actuellement incompatible de la recherche
-d'organisations Apollo.
+Le [runbook de phase A bornée](17-milomail-zero-cost-coverage.md)
+documente `bootstrap`, le crédit par page de recherche d'organisations et
+les vérifications requises avant un A0 autorisé.
 
 `plan`, `status`, `report`, `purge-cache` et `reconcile-usage` conservent leurs
 contrats. `run` et `resume` exigent maintenant `--phase COVERAGE` ou
