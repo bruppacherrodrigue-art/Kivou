@@ -145,7 +145,9 @@ Le rapport sépare les totaux déclarés par Apollo, les lignes réellement
 observées, les organisations uniques, les estimations et les deux comptes de
 contacts/adresses vérifiés qui restent à **zéro**. Les poids de strate
 proviennent des totaux Apollo par partition ; les intervalles de Wilson à
-95 % décrivent les proportions observées. La correction de doublons utilise
+95 % décrivent les proportions de strate. Les bornes pondérées utilisent
+une correction de Bonferroni sur les neuf intervalles de strate. La correction
+de doublons utilise
 le taux mesuré. Les secteurs peuvent se chevaucher, les pages restent
 classées par Apollo et une recherche ne donne accès qu'à 500 pages. Les
 fourchettes extrapolées au-delà de cette limite sont des scénarios, pas des

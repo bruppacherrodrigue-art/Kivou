@@ -88,9 +88,13 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
     strata: dict[str, dict[str, Any]] = {}
     weighted_google = weighted_low = weighted_high = 0.0
     weighted_active = weighted_active_low = weighted_active_high = 0.0
+    accessible_google = accessible_low = accessible_high = 0.0
+    accessible_active = accessible_active_low = accessible_active_high = 0.0
     sector: dict[str, Counter[str]] = defaultdict(Counter)
     size: dict[str, Counter[str]] = defaultdict(Counter)
     depth: dict[str, Counter[str]] = defaultdict(Counter)
+    depth_quartile: dict[str, Counter[str]] = defaultdict(Counter)
+    family_confidence = 1 - 0.05 / max(len(partitions), 1)
     for partition_id, part in partitions.items():
         values = observations[partition_id]
         n = len(values)
@@ -98,15 +102,30 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
         active = sum(item["google"] and item["active"] for item in values)
         gw_low, gw_high = wilson_interval(gw, n)
         act_low, act_high = wilson_interval(active, n)
+        joint_gw_low, joint_gw_high = wilson_interval(
+            gw, n, confidence=family_confidence,
+        )
+        joint_act_low, joint_act_high = wilson_interval(
+            active, n, confidence=family_confidence,
+        )
         rate = gw / n if n else 0
         active_rate = active / n if n else 0
         weight = (int(part["estimated_result_count"] or 0) / declared) if declared else 0
+        visible = min(int(part["estimated_result_count"] or 0),
+                      500 * int(part["filters"]["per_page"]))
+        accessible_weight = visible / accessible_declared if accessible_declared else 0
         weighted_google += weight * rate
-        weighted_low += weight * gw_low
-        weighted_high += weight * gw_high
+        weighted_low += weight * joint_gw_low
+        weighted_high += weight * joint_gw_high
         weighted_active += weight * active_rate
-        weighted_active_low += weight * act_low
-        weighted_active_high += weight * act_high
+        weighted_active_low += weight * joint_act_low
+        weighted_active_high += weight * joint_act_high
+        accessible_google += accessible_weight * rate
+        accessible_low += accessible_weight * joint_gw_low
+        accessible_high += accessible_weight * joint_gw_high
+        accessible_active += accessible_weight * active_rate
+        accessible_active_low += accessible_weight * joint_act_low
+        accessible_active_high += accessible_weight * joint_act_high
         label = f"{part['size_min']}-{part['size_max']}"
         for bucket in (sector[part["sector"]], size[label]):
             bucket["observed"] += n
@@ -115,6 +134,15 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
             bucket = depth["FIRST" if item["page"] == 1 else "DEEP"]
             bucket["observed"] += 1
             bucket["google"] += int(item["google"])
+            accessible_pages = max(1, min(
+                500, (int(part["estimated_result_count"] or 0) +
+                      int(part["filters"]["per_page"]) - 1) //
+                      int(part["filters"]["per_page"]),
+            ))
+            quartile = min(4, 1 + 4 * (item["page"] - 1) // accessible_pages)
+            quarter = depth_quartile[f"Q{quartile}"]
+            quarter["observed"] += 1
+            quarter["google"] += int(item["google"])
         strata[partition_id] = {
             "sector": part["sector"], "size": label,
             "apollo_declared_total": part["estimated_result_count"],
@@ -123,6 +151,7 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
             "confirmed_active_google": active,
             "active_google_wilson_95": [act_low, act_high],
             "population_weight": weight,
+            "accessible_population_weight": accessible_weight,
             "accessible_pages": min(500, (int(part["estimated_result_count"] or 0) + 24) // 25),
         }
     observed = sum(len(values) for values in observations.values())
@@ -189,9 +218,26 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
         ),
         "weighted_google_rate": weighted_google if declared else None,
         "weighted_google_interval_95_approx": [weighted_low, weighted_high],
+        "weighted_interval_method": "STRATUM_WILSON_WITH_BONFERRONI_95_FAMILY_APPROX",
         "weighted_active_google_rate": weighted_active if declared else None,
         "weighted_active_google_interval_95_approx":
             [weighted_active_low, weighted_active_high],
+        "accessible_google_rate_weighted": accessible_google if accessible_declared else None,
+        "accessible_google_interval_95_approx": [accessible_low, accessible_high],
+        "accessible_confirmed_active_google_rate_weighted": (
+            accessible_active if accessible_declared else None
+        ),
+        "estimated_accessible_unique_organizations": _estimate(
+            accessible_declared, unique_rate, low_unique, high_unique,
+        ),
+        "estimated_accessible_google_workspace_organizations": _estimate(
+            accessible_declared, accessible_google * unique_rate,
+            accessible_low * low_unique, accessible_high * high_unique,
+        ),
+        "estimated_accessible_confirmed_active_google_organizations": _estimate(
+            accessible_declared, accessible_active * unique_rate,
+            accessible_active_low * low_unique, accessible_active_high * high_unique,
+        ),
         "estimated_unique_organizations": unique_population,
         "estimated_google_workspace_organizations": _estimate(
             declared, weighted_google * unique_rate,
@@ -201,10 +247,16 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
             declared, weighted_active * unique_rate,
             weighted_active_low * low_unique, weighted_active_high * high_unique,
         ),
+        "all_declared_estimate_status": "SCENARIO_EXTRAPOLATES_BEYOND_APOLLO_DISPLAY_LIMIT",
+        "active_company_estimate_status": (
+            "OBSERVED_MATCHER_YIELD_ONLY_NOT_TRUE_ACTIVITY_PREVALENCE"
+            if not active_google_unique else "OBSERVED_CONFIRMED_MATCHES"
+        ),
         "by_partition": strata,
         "by_sector": aggregate_rates(sector),
         "by_size": aggregate_rates(size),
         "by_depth": aggregate_rates(depth),
+        "by_depth_quartile": aggregate_rates(depth_quartile),
         "by_location_unique_anonymized": funnel["by_location"],
         "by_mail_provider_unique": funnel["by_mail_provider"],
         "pages_completed": len(page_calls), "pages_a1_planned": len(selected),
