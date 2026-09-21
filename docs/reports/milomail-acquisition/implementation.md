@@ -28,6 +28,8 @@ The theoretical ruleset may return SEND for a complete synthetic French B2B case
 
 The existing suppression table now has separate Kivou and Milo Mail scopes and domain-separated HMACs. Same-brand Milo Mail objections block token issuance and all SHADOW previews; the simulated Instantly opt-out is authenticated, bound to workspace/campaign/recipient, and idempotent. There is no cross-brand suppression propagation.
 
+Read-only review exposed five defects that were corrected before delivery: the SHADOW Instantly facade now delegates only named reads; token issuance binds to the selected contact and the email HMAC captured in the actual SEND assessment, and checks suppression at issuance time even when `issued_at` is backdated; repeated mock discovery reuses the existing opportunity while appending a fresh eligibility assessment; target roles require an unambiguous whole current title; and a complete score below the review threshold is NO_SEND. Provider and conversion telemetry no longer replace the actual policy version on the opportunity projection. Regression tests reproduce each original failure.
+
 Migrations `0068`, `0069`, `0070` are additive on upgrade. The `0069` downgrade cannot safely remove a scope if production Milo Mail objections exist; production has not been migrated. Fresh database upgrade/downgrade is tested.
 
 ## Rollout limits
@@ -38,4 +40,8 @@ The long-term 0.10–0.20 CHF/contact target is configuration only; no measured 
 
 ## Validation and review record
 
-Validation results, PR URL, exact final SHA and CI result will be filled from executed commands and the opened PR before delivery. The [SHADOW runbook](../../runbooks/14-milomail-acquisition-shadow.md) records the decision model, event contract, data boundary, emergency stop and future activation gates.
+Draft PR: [#277](https://github.com/bruppacherrodrigue-art/Kivou/pull/277). Executable change set through `5a2b8105` is on the PR branch; a later documentation/test-only commit may advance the head. The [SHADOW runbook](../../runbooks/14-milomail-acquisition-shadow.md) records the decision model, event contract, data boundary, emergency stop and future activation gates.
+
+Focused post-review Milo Mail tests: 49 passed. The acquisition-program, acquisition-runtime, campaign-worker and SHADOW guard suite: 553 passed, 13 SQLAlchemy/SQLite deprecation warnings, after the review fixes. Four attribution/metrics/provider corpus files passed again (8 tests) after freezing their synthetic clock. `uv run ruff check .`, `git diff --check`, compileall and mypy on six changed program/compliance modules passed. SQLite migration upgrade/downgrade and schema checks passed before the review fixes; no migration was changed by those fixes. CI results are tracked at the PR checks and must be reported by exact final SHA, not inferred from local success.
+
+The broad repository suite previously exposed four failures reproduced on a disposable clean `origin/main` checkout at `b4373d08`: two assertions in `tests/test_ops_production_runtime.py` about release-one shell structure and two `tests/test_prospection_provider_bindings.py` corrected-payload cases. They are outside the Milo Mail component changes. That baseline comparison is evidence of pre-existing failures, not a waiver of CI: the final PR checks remain part of the review record. A previous local full run produced 6848 passed, 50 failed, 61 skipped and 1 xfailed, but it was invalid for change-set verification because the program JSON changed while xdist workers had imported the earlier model; 44 failures came from that inconsistent in-process state, two from test registries since corrected, and four were the clean-base failures above. No test failure is hidden or counted as a pass.
