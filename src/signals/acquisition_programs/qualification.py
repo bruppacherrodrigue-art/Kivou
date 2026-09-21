@@ -47,8 +47,11 @@ class ProfessionalEvidenceInput(_ClosedModel):
             return None
         parts = urlsplit(value)
         if (
-            parts.scheme not in {"https", "http"} or not parts.hostname
-            or parts.username or parts.password or parts.fragment
+            parts.scheme not in {"https", "http"}
+            or not parts.hostname
+            or parts.username
+            or parts.password
+            or parts.fragment
         ):
             raise ValueError("professional source URL is invalid")
         normalize_domain(parts.hostname)
@@ -75,7 +78,10 @@ class CapacityAssessment(_ClosedModel):
 
 
 def classify_recipient(
-    value: ProfessionalEvidenceInput, *, config: AcquisitionProgramConfig, at: dt.datetime,
+    value: ProfessionalEvidenceInput,
+    *,
+    config: AcquisitionProgramConfig,
+    at: dt.datetime,
 ) -> CapacityAssessment:
     if at.tzinfo is None or at.utcoffset() is None:
         raise ValueError("classification time must be timezone-aware")
@@ -83,18 +89,25 @@ def classify_recipient(
         domain = normalize_domain(validate_email(value.email, check_deliverability=False).domain)
     except EmailNotValidError as error:
         raise ValueError("recipient email is invalid") from error
-    source_complete = all((
-        value.professional_source_url, value.professional_source_type,
-        value.professional_evidence_observed_at,
-    ))
+    source_complete = all(
+        (
+            value.professional_source_url,
+            value.professional_source_type,
+            value.professional_evidence_observed_at,
+        )
+    )
     expires_at = (
         value.professional_evidence_observed_at
         + dt.timedelta(days=config.professional_evidence_ttl_days)
-        if value.professional_evidence_observed_at is not None else None
+        if value.professional_evidence_observed_at is not None
+        else None
     )
     source_fresh = (
-        source_complete and value.professional_evidence_observed_at <= at
-        and expires_at is not None and at < expires_at
+        source_complete
+        and value.professional_evidence_observed_at is not None
+        and value.professional_evidence_observed_at <= at
+        and expires_at is not None
+        and at < expires_at
     )
     role_allowed = value.role in config.target_roles
     company_confirmed = value.company_active and bool(value.company_id)
@@ -116,25 +129,35 @@ def classify_recipient(
             ("GMAIL_PROFESSIONALLY_PUBLISHED",),
         )
     elif value.company_domain and normalize_domain(value.company_domain) == domain and source_fresh:
-        capacity, reasons = RecipientCapacity.CONFIRMED_PROFESSIONAL, ("COMPANY_DOMAIN_AND_SOURCE_VERIFIED",)
-    elif value.company_domain and normalize_domain(value.company_domain) == domain and source_complete:
+        capacity, reasons = (
+            RecipientCapacity.CONFIRMED_PROFESSIONAL,
+            ("COMPANY_DOMAIN_AND_SOURCE_VERIFIED",),
+        )
+    elif (
+        value.company_domain
+        and normalize_domain(value.company_domain) == domain
+        and source_complete
+    ):
         capacity, reasons = RecipientCapacity.LIKELY_PROFESSIONAL, ("PROFESSIONAL_SOURCE_EXPIRED",)
     elif value.company_domain and normalize_domain(value.company_domain) == domain:
         capacity, reasons = RecipientCapacity.LIKELY_PROFESSIONAL, ("PROFESSIONAL_SOURCE_MISSING",)
     else:
         capacity, reasons = RecipientCapacity.UNKNOWN, ("EMAIL_COMPANY_DOMAIN_MISMATCH",)
     return CapacityAssessment(
-        capacity=capacity, reasons=reasons,
+        capacity=capacity,
+        reasons=reasons,
         professional_source_url=value.professional_source_url,
         professional_source_type=value.professional_source_type,
         professional_evidence_observed_at=value.professional_evidence_observed_at,
         evidence_expires_at=expires_at,
-        role=value.role, company_id=value.company_id,
+        role=value.role,
+        company_id=value.company_id,
     )
 
 
 class FitSignals(_ClosedModel):
     provider: MailProvider
+    provider_confirmed: bool = False
     sector: str | None = None
     role: str | None = None
     employee_count: int | None = Field(default=None, ge=0)
@@ -154,22 +177,26 @@ class FitAssessment(_ClosedModel):
 
 def score_fit(value: FitSignals, *, config: AcquisitionProgramConfig) -> FitAssessment:
     facts = {
-        "google_workspace": value.provider is MailProvider.GOOGLE_WORKSPACE,
+        "google_workspace": value.provider is MailProvider.GOOGLE_WORKSPACE
+        and value.provider_confirmed,
         "email_dependent_sector": value.sector in config.target_sectors,
         "decision_maker": value.role in config.target_roles,
-        "company_size": value.employee_count is not None and (
+        "company_size": value.employee_count is not None
+        and (
             config.target_company_size_min <= value.employee_count <= config.target_company_size_max
         ),
         "recent_public_activity": bool(value.recent_public_activity_source),
     }
     breakdown = {
-        key: config.score_weights[key] if satisfied else 0
-        for key, satisfied in facts.items()
+        key: config.score_weights[key] if satisfied else 0 for key, satisfied in facts.items()
     }
     total = sum(breakdown.values())
     tier = (
-        "candidate_for_policy_review" if total >= config.send_review_threshold
-        else "HOLD" if total >= config.hold_threshold else "NO_SEND"
+        "candidate_for_policy_review"
+        if total >= config.send_review_threshold
+        else "HOLD"
+        if total >= config.hold_threshold
+        else "NO_SEND"
     )
     reason_names = {
         "google_workspace": "GOOGLE_WORKSPACE_MISSING",
@@ -184,18 +211,25 @@ def score_fit(value: FitSignals, *, config: AcquisitionProgramConfig) -> FitAsse
         "public_contact_channels": bool(value.public_contact_channel_sources),
         "recent_public_activity": facts["recent_public_activity"],
     }
-    pain = sum(
-        config.mail_pain_weights[key]
-        for key, satisfied in pain_facts.items() if satisfied
-    )
+    pain = sum(config.mail_pain_weights[key] for key, satisfied in pain_facts.items() if satisfied)
     return FitAssessment(
-        total=total, breakdown=breakdown,
-        missing_reasons=tuple(reason_names[key] for key, satisfied in facts.items() if not satisfied),
-        tier=tier, mail_pain_score=pain, score_version=config.score_version,
+        total=total,
+        breakdown=breakdown,
+        missing_reasons=tuple(
+            reason_names[key] for key, satisfied in facts.items() if not satisfied
+        ),
+        tier=tier,
+        mail_pain_score=pain,
+        score_version=config.score_version,
     )
 
 
 __all__ = [
-    "CapacityAssessment", "FitAssessment", "FitSignals", "ProfessionalEvidenceInput",
-    "RecipientCapacity", "classify_recipient", "score_fit",
+    "CapacityAssessment",
+    "FitAssessment",
+    "FitSignals",
+    "ProfessionalEvidenceInput",
+    "RecipientCapacity",
+    "classify_recipient",
+    "score_fit",
 ]

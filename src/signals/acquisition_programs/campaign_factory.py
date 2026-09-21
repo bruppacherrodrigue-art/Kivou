@@ -29,6 +29,24 @@ class PublicPersonalizationFact(_ClosedModel):
     source_url: str = Field(min_length=1, max_length=2048)
     observed_at: dt.datetime
 
+    @field_validator("text")
+    @classmethod
+    def no_private_mailbox_claim(cls, value: str) -> str:
+        lowered = value.casefold()
+        if any(
+            token in lowered
+            for token in (
+                "boîte",
+                "gmail",
+                "e-mail",
+                "courriel",
+                "message",
+                "heures perdues",
+            )
+        ):
+            raise ValueError("public fact must not assert private mailbox information")
+        return value
+
     @field_validator("source_url")
     @classmethod
     def valid_public_url(cls, value: str) -> str:
@@ -84,6 +102,9 @@ def build_campaign_preview(
         (config.landing_url, config.privacy_url, config.opt_out_url, config.instantly_workspace_ref)
     ):
         raise ValueError("French campaign destination or workspace unavailable")
+    workspace_ref = config.instantly_workspace_ref
+    if workspace_ref is None:
+        raise ValueError("Instantly workspace unavailable")
     if not config.sender_legal_name or not config.sender_postal_address:
         raise ValueError("exact sender legal identity is unavailable")
     if public_fact is not None and (
@@ -146,7 +167,7 @@ def build_campaign_preview(
     return ProgramCampaignPreview(
         program_key=config.program_key,
         campaign_name=f"{config.program_key}:{config.template_version}:{fingerprint}",
-        workspace_ref=config.instantly_workspace_ref,
+        workspace_ref=workspace_ref,
         template_version=config.template_version,
         steps=steps,
         provider_config=provider_config,

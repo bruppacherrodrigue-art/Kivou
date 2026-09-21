@@ -58,7 +58,8 @@ def test_minor_and_private_individual_are_personal() -> None:
 
 def test_score_breakdown_and_configurable_thresholds() -> None:
     signals = FitSignals(
-        provider=MailProvider.GOOGLE_WORKSPACE, sector="digital_or_creative_agency",
+        provider=MailProvider.GOOGLE_WORKSPACE, provider_confirmed=True,
+        sector="digital_or_creative_agency",
         role="founder", employee_count=5,
         recent_public_activity_source="https://agency.fr/actualites",
         public_contact_channel_sources=("https://agency.fr/contact",),
@@ -76,12 +77,27 @@ def test_score_breakdown_and_configurable_thresholds() -> None:
 
 def test_missing_public_activity_never_creates_an_invented_fact() -> None:
     result = score_fit(
-        FitSignals(provider=MailProvider.GOOGLE_WORKSPACE, sector="consulting", role="ceo", employee_count=5),
+        FitSignals(provider=MailProvider.GOOGLE_WORKSPACE, provider_confirmed=True, sector="consulting", role="ceo", employee_count=5),
         config=CONFIG,
     )
     assert result.total == 90
     assert result.breakdown["recent_public_activity"] == 0
     assert "RECENT_PUBLIC_ACTIVITY_MISSING" in result.missing_reasons
+
+
+def test_unconfirmed_google_provider_receives_no_workspace_points() -> None:
+    result = score_fit(
+        FitSignals(
+            provider=MailProvider.GOOGLE_WORKSPACE,
+            provider_confirmed=False,
+            sector="consulting",
+            role="ceo",
+            employee_count=5,
+        ),
+        config=CONFIG,
+    )
+    assert result.breakdown["google_workspace"] == 0
+    assert "GOOGLE_WORKSPACE_MISSING" in result.missing_reasons
 
 
 def test_invalid_email_and_expired_professional_source_never_confirm() -> None:

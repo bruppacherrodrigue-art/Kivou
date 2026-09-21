@@ -55,6 +55,11 @@ def ready_input(**changes):
         country="FR",
         sector="consulting",
         employee_count=5,
+        company_active=True,
+        company_active_source_url="https://registre.example/entreprise",
+        company_active_source_type="PUBLIC_COMPANY_REGISTRY",
+        company_active_observed_at=NOW,
+        company_active_evidence_id="source:company",
         business_relevance_confirmed=True,
         provider=MailProviderEvidence(
             domain="cabinet.example",
@@ -131,6 +136,7 @@ def test_complete_fr_b2b_prospect_is_theoretical_send_in_shadow() -> None:
         ({"country": "DE"}, "COUNTRY_OUT_OF_SCOPE"),
         ({"sector": "retail"}, "SECTOR_OUT_OF_SCOPE"),
         ({"employee_count": 25}, "COMPANY_SIZE_OUT_OF_SCOPE"),
+        ({"company_active": False}, "COMPANY_INACTIVE"),
         ({"suppressed": True}, "SUPPRESSION_MATCH"),
         ({"is_minor": True}, "PERSONAL_OR_MINOR"),
         ({"is_private_individual": True}, "PERSONAL_OR_MINOR"),
@@ -171,6 +177,8 @@ def test_real_exclusions_are_no_send(changes, reason) -> None:
     "changes,reason",
     [
         ({"country": None}, "COUNTRY_UNRESOLVED"),
+        ({"company_active": None}, "COMPANY_ACTIVE_STATUS_UNRESOLVED"),
+        ({"company_active_source_url": None}, "COMPANY_ACTIVE_EVIDENCE_INSUFFICIENT"),
         ({"email_verified": False}, "EMAIL_NOT_VERIFIED"),
         (
             {
@@ -235,6 +243,17 @@ def test_expired_public_evidence_is_hold() -> None:
         "PROFESSIONAL_EVIDENCE_EXPIRED"
         in evaluate_milomail(ready_input(capacity=capacity)).reason_codes
     )
+
+
+def test_future_mx_observation_is_not_eligible() -> None:
+    provider = dataclasses.replace(
+        ready_input().provider,
+        observed_at=NOW + dt.timedelta(minutes=1),
+        expires_at=NOW + dt.timedelta(days=1, minutes=1),
+    )
+    decision = evaluate_milomail(ready_input(provider=provider))
+    assert decision.decision == "HOLD"
+    assert "PROVIDER_EVIDENCE_FROM_FUTURE" in decision.reason_codes
 
 
 def test_kivou_ruleset_rejects_milomail_purpose() -> None:

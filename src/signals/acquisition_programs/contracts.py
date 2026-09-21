@@ -33,6 +33,9 @@ class ProgramMessageConfig(_ClosedModel):
             for value in (
                 "nous avons analysé votre boîte",
                 "votre boîte est désorganisée",
+                "votre boîte",
+                "vos e-mails",
+                "vos messages",
                 "milo a analysé votre boîte",
                 "milo pro est disponible",
                 "milo agent est disponible",
@@ -57,7 +60,9 @@ class AcquisitionProgramConfig(_ClosedModel):
     target_company_size_min: int = Field(ge=1, le=100_000)
     target_company_size_max: int = Field(ge=1, le=100_000)
     target_roles: tuple[str, ...] = Field(min_length=1, max_length=32)
+    role_terms: dict[str, tuple[str, ...]]
     target_sectors: tuple[str, ...] = Field(min_length=1, max_length=32)
+    sector_terms: dict[str, tuple[str, ...]]
     apollo_organization_keywords: tuple[str, ...] = Field(min_length=1, max_length=32)
     apollo_person_titles: tuple[str, ...] = Field(min_length=1, max_length=32)
     apollo_person_seniorities: tuple[str, ...] = Field(min_length=1, max_length=16)
@@ -75,6 +80,9 @@ class AcquisitionProgramConfig(_ClosedModel):
     max_cost_chf: Decimal = Field(default=Decimal("0"), ge=0)
     target_cost_chf_per_contact_min: Decimal = Field(default=Decimal("0.10"), ge=0)
     target_cost_chf_per_contact_max: Decimal = Field(default=Decimal("0.20"), ge=0)
+    bounce_alert_threshold: Decimal = Field(default=Decimal("0.02"), ge=0, le=1)
+    complaint_alert_threshold: Decimal = Field(default=Decimal("0.001"), ge=0, le=1)
+    unknown_provider_alert_threshold: Decimal = Field(default=Decimal("0.25"), ge=0, le=1)
     score_weights: dict[str, int]
     mail_pain_weights: dict[str, int] = Field(
         default_factory=lambda: {
@@ -140,6 +148,14 @@ class AcquisitionProgramConfig(_ClosedModel):
     def coherent(self) -> AcquisitionProgramConfig:
         if self.target_company_size_max < self.target_company_size_min:
             raise ValueError("company size bounds are reversed")
+        if set(self.role_terms) != set(self.target_roles) or any(
+            not terms for terms in self.role_terms.values()
+        ):
+            raise ValueError("role terms must cover every target role")
+        if set(self.sector_terms) != set(self.target_sectors) or any(
+            not terms for terms in self.sector_terms.values()
+        ):
+            raise ValueError("sector terms must cover every target sector")
         if self.hold_threshold >= self.send_review_threshold:
             raise ValueError("score thresholds are reversed")
         if (
@@ -191,6 +207,14 @@ class ProgramRuntimeFlags(_ClosedModel):
     max_daily_contacts: int = Field(default=0, ge=0)
     max_monthly_contacts: int = Field(default=0, ge=0)
     max_cost_chf: Decimal = Field(default=Decimal("0"), ge=0)
+
+    @model_validator(mode="after")
+    def reviewed_allowlists(self) -> ProgramRuntimeFlags:
+        if set(self.allowed_countries) - {"FR"}:
+            raise ValueError("country has no reviewed Milo Mail policy")
+        if set(self.allowed_providers) - {"GOOGLE_WORKSPACE"}:
+            raise ValueError("provider has no reviewed Milo Mail policy")
+        return self
 
 
 __all__ = ["AcquisitionProgramConfig", "ProgramMessageConfig", "ProgramRuntimeFlags"]

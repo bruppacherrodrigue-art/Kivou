@@ -92,7 +92,10 @@ class MilomailInstantlyEventSimulation:
             raise ValueError("Milo Mail Instantly webhook authentication failed")
         if received_at.tzinfo is None or received_at.utcoffset() is None:
             raise ValueError("provider event reception must be timezone-aware")
-        payload = normalize_instantly_webhook_payload(raw)
+        try:
+            payload = normalize_instantly_webhook_payload(raw)
+        except (TypeError, ValueError):
+            raise ValueError("invalid Milo Mail Instantly event") from None
         if payload.provider_workspace_ref != self._workspace:
             raise ValueError("Milo Mail Instantly workspace mismatch")
         if payload.event_type not in _ACCEPTED:
@@ -112,7 +115,13 @@ class MilomailInstantlyEventSimulation:
             + b"\0"
             + payload.provider_campaign_id.encode()
             + b"\0"
-            + payload.provider_email_event_id.encode(),
+            + payload.event_type.value.encode()
+            + b"\0"
+            + recipient_identity.encode()
+            + b"\0"
+            + payload.provider_email_event_id.encode()
+            + b"\0"
+            + payload.timestamp.isoformat().encode(),
             hashlib.sha256,
         ).hexdigest()
         with self._engine.begin() as connection:
@@ -172,6 +181,7 @@ class MilomailInstantlyEventSimulation:
                     "kind": "program_provider_event",
                     "program_id": self._program_id,
                     "attribution_id": binding["attribution_id"],
+                    "campaign_ref": binding["campaign_ref"],
                     "event_type": payload.event_type.value,
                     "recipient_identity_hmac": recipient_identity,
                 },

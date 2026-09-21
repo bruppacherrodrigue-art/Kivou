@@ -12,7 +12,7 @@ from signals.acquisition.contracts import EventType
 from signals.acquisition.store import AcquisitionStore
 from signals.acquisition_programs.mail_provider import normalize_domain
 from signals.acquisition_programs.store import AcquisitionProgramStore
-from signals.campaigns.instantly import ShadowInstantlyProvider
+from signals.campaigns.instantly import InstantlyProvider, ShadowInstantlyProvider
 from signals.compliance.milomail_rules import (
     MilomailPolicyDecision,
     MilomailPolicyInput,
@@ -33,7 +33,7 @@ class MilomailShadowRuntime:
         engine: Engine,
         acquisition: AcquisitionStore,
         suppression_keyring: SuppressionIdentityKeyring,
-        instantly_provider: object,
+        instantly_provider: InstantlyProvider,
     ) -> None:
         self._engine = engine
         self._acquisition = acquisition
@@ -48,19 +48,20 @@ class MilomailShadowRuntime:
         *,
         program_id: str,
         opportunity_id: str,
-        email: str,
+        email: str | None,
         policy_input: MilomailPolicyInput,
     ) -> MilomailPolicyDecision:
         if policy_input.program.campaign_mode != "SHADOW":
             raise ValueError("Milo Mail runtime is locked to SHADOW")
-        try:
-            recipient_domain = normalize_domain(
-                validate_email(email, check_deliverability=False).domain
-            )
-        except EmailNotValidError as error:
-            raise ValueError("recipient email is invalid") from error
-        if recipient_domain != policy_input.provider.domain:
-            raise ValueError("recipient/provider domain evidence mismatch")
+        if email is not None:
+            try:
+                recipient_domain = normalize_domain(
+                    validate_email(email, check_deliverability=False).domain
+                )
+            except EmailNotValidError as error:
+                raise ValueError("recipient email is invalid") from error
+            if recipient_domain != policy_input.provider.domain:
+                raise ValueError("recipient/provider domain evidence mismatch")
         with self._engine.begin() as connection:
             program = (
                 connection.execute(
@@ -97,19 +98,23 @@ class MilomailShadowRuntime:
                     evidence_ids=tuple(existing["evidence_ids"]),
                     decided_at=policy_input.assessed_at,
                 )
-            try:
-                suppressed = self._suppression.is_suppressed(
-                    connection,
-                    email=email,
-                    at=policy_input.assessed_at,
-                )
-                safe = True
-            except SuppressionIdentityUnavailable:
+            if email is None:
                 suppressed, safe = False, False
+            else:
+                try:
+                    suppressed = self._suppression.is_suppressed(
+                        connection,
+                        email=email,
+                        at=policy_input.assessed_at,
+                    )
+                    safe = True
+                except SuppressionIdentityUnavailable:
+                    suppressed, safe = False, False
             assessed = policy_input.model_copy(
                 update={
                     "suppressed": policy_input.suppressed or suppressed,
                     "suppression_coverage_safe": safe and policy_input.suppression_coverage_safe,
+                    "email_verified": bool(email) and policy_input.email_verified,
                 }
             )
             decision = evaluate_milomail(assessed)
@@ -142,6 +147,8 @@ class MilomailShadowRuntime:
                 connection,
                 program_id=program_id,
                 opportunity_id=opportunity_id,
+                supplier_ref=current.supplier_ref,
+                contact_ref=current.contact_ref,
                 provider=assessed.provider,
                 capacity=assessed.capacity,
                 fit=assessed.fit,
@@ -149,6 +156,10 @@ class MilomailShadowRuntime:
                 wedge_key=assessed.sector,
                 collection_source_url=assessed.collection_source_url,
                 collected_at=assessed.collected_at,
+                company_active_source_url=assessed.company_active_source_url,
+                company_active_source_type=assessed.company_active_source_type,
+                company_active_observed_at=assessed.company_active_observed_at,
+                company_active_evidence_id=assessed.company_active_evidence_id,
             )
             return decision
 

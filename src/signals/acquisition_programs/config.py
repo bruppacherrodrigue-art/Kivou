@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 
 from signals.acquisition_programs.contracts import AcquisitionProgramConfig, ProgramRuntimeFlags
@@ -30,17 +31,20 @@ def runtime_flags(source: Mapping[str, str]) -> ProgramRuntimeFlags:
         raise ValueError("explicit SHADOW mode is required when enabling evaluation")
     return ProgramRuntimeFlags(
         enabled=enabled == "true",
-        mode=mode,
+        mode="SHADOW",
         allowed_countries=tuple(
-            item.strip() for item in source.get("MILOMAIL_ALLOWED_COUNTRIES", "FR").split(",")
+            item.strip()
+            for item in source.get("MILOMAIL_ALLOWED_COUNTRIES", "FR").split(",")
+            if item.strip()
         ),
         allowed_providers=tuple(
             item.strip()
             for item in source.get("MILOMAIL_ALLOWED_PROVIDERS", "GOOGLE_WORKSPACE").split(",")
+            if item.strip()
         ),
         max_daily_contacts=int(source.get("MILOMAIL_MAX_DAILY_CONTACTS", "0")),
         max_monthly_contacts=int(source.get("MILOMAIL_MAX_MONTHLY_CONTACTS", "0")),
-        max_cost_chf=source.get("MILOMAIL_MAX_COST_CHF", "0"),
+        max_cost_chf=Decimal(source.get("MILOMAIL_MAX_COST_CHF", "0")),
     )
 
 

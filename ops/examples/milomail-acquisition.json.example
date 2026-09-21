@@ -11,7 +11,18 @@
   "target_company_size_min": 1,
   "target_company_size_max": 10,
   "target_roles": ["founder", "owner", "ceo", "managing_director"],
+  "role_terms": {
+    "founder": ["founder", "fondateur", "fondatrice"],
+    "owner": ["owner", "propriétaire"],
+    "ceo": ["ceo", "chief executive officer", "président", "présidente"],
+    "managing_director": ["managing director", "directeur général", "directrice générale", "dirigeant", "dirigeante"]
+  },
   "target_sectors": ["digital_or_creative_agency", "consulting", "recruiting_agency"],
+  "sector_terms": {
+    "digital_or_creative_agency": ["agence digitale", "agence créative", "digital agency", "creative agency"],
+    "consulting": ["conseil", "consulting", "consultancy"],
+    "recruiting_agency": ["recrutement", "recruitment", "recruiting agency"]
+  },
   "apollo_organization_keywords": ["agence digitale", "agence créative", "cabinet de conseil", "cabinet de recrutement"],
   "apollo_person_titles": ["Founder", "Owner", "CEO", "Managing Director", "Fondateur", "Fondatrice", "Dirigeant", "Dirigeante", "Directeur général", "Directrice générale"],
   "apollo_person_seniorities": ["owner", "founder", "c_suite", "director"],
@@ -39,6 +50,9 @@
   "max_cost_chf": "0",
   "target_cost_chf_per_contact_min": "0.10",
   "target_cost_chf_per_contact_max": "0.20",
+  "bounce_alert_threshold": "0.02",
+  "complaint_alert_threshold": "0.001",
+  "unknown_provider_alert_threshold": "0.25",
   "score_weights": {
     "google_workspace": 30,
     "email_dependent_sector": 25,

@@ -22,15 +22,15 @@ class ProgramOrganizationSearchProfile:
     per_page: int
 
 
-def build_program_search_profile(config: AcquisitionProgramConfig) -> ProgramOrganizationSearchProfile:
+def build_program_search_profile(
+    config: AcquisitionProgramConfig,
+) -> ProgramOrganizationSearchProfile:
     locations = {"FR": "France"}
     if config.target_country not in locations:
         raise ValueError("program country has no Apollo location mapping")
     return ProgramOrganizationSearchProfile(
         profile_ref=f"acquisition-program:{config.program_key}:{config.schema_version}",
-        employee_ranges=(
-            f"{config.target_company_size_min},{config.target_company_size_max}",
-        ),
+        employee_ranges=(f"{config.target_company_size_min},{config.target_company_size_max}",),
         organization_locations=(locations[config.target_country],),
         organization_not_locations=(),
         keyword_tags=config.apollo_organization_keywords,
@@ -40,8 +40,12 @@ def build_program_search_profile(config: AcquisitionProgramConfig) -> ProgramOrg
 
 
 def build_program_contact_profile(
-    config: AcquisitionProgramConfig, *, acquisition_opportunity_id: str,
-    supplier_ref: str, provider_organization_id: str, organization_domain: str,
+    config: AcquisitionProgramConfig,
+    *,
+    acquisition_opportunity_id: str,
+    supplier_ref: str,
+    provider_organization_id: str,
+    organization_domain: str,
 ) -> DecisionMakerSearchProfile:
     base = build_decision_maker_profile(
         acquisition_opportunity_id=acquisition_opportunity_id,
@@ -59,12 +63,11 @@ def build_program_contact_profile(
     fingerprint = hashlib.sha256(
         json.dumps(values, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    return DecisionMakerSearchProfile.model_validate(
-        {**values, "profile_fingerprint": fingerprint}
-    )
+    return DecisionMakerSearchProfile.model_validate({**values, "profile_fingerprint": fingerprint})
 
 
 __all__ = [
-    "ProgramOrganizationSearchProfile", "build_program_contact_profile",
+    "ProgramOrganizationSearchProfile",
+    "build_program_contact_profile",
     "build_program_search_profile",
 ]

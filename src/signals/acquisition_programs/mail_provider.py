@@ -87,10 +87,18 @@ class DnsMXResolver:
 
 class MailProviderDetector:
     def __init__(
-        self, resolver: MXResolver, *, ttl_seconds: int = 86_400,
-        timeout_seconds: float = 2.0, attempts: int = 2,
+        self,
+        resolver: MXResolver,
+        *,
+        ttl_seconds: int = 86_400,
+        timeout_seconds: float = 2.0,
+        attempts: int = 2,
     ) -> None:
-        if not 60 <= ttl_seconds <= 604_800 or not 0 < timeout_seconds <= 10 or not 1 <= attempts <= 3:
+        if (
+            not 60 <= ttl_seconds <= 604_800
+            or not 0 < timeout_seconds <= 10
+            or not 1 <= attempts <= 3
+        ):
             raise ValueError("DNS limits outside bounded range")
         self._resolver = resolver
         self._ttl = dt.timedelta(seconds=ttl_seconds)
@@ -110,12 +118,17 @@ class MailProviderDetector:
             raise ValueError("observation must be timezone-aware")
         name = normalize_domain(domain)
         cached = self._cache.get(name)
-        if cached is not None and observed_at < cached.expires_at:
+        if cached is not None and cached.observed_at <= observed_at < cached.expires_at:
             return cached
         if name in {"gmail.com", "googlemail.com"}:
             evidence = MailProviderEvidence(
-                name, MailProvider.GMAIL_CONSUMER, ProviderConfidence.CONFIRMED, (),
-                "EMAIL_DOMAIN", observed_at, observed_at + self._ttl,
+                name,
+                MailProvider.GMAIL_CONSUMER,
+                ProviderConfidence.CONFIRMED,
+                (),
+                "EMAIL_DOMAIN",
+                observed_at,
+                observed_at + self._ttl,
             )
             self._cache[name] = evidence
             return evidence
@@ -130,10 +143,16 @@ class MailProviderDetector:
         provider = self._classify(records)
         confidence = (
             ProviderConfidence.CONFIRMED
-            if provider is not MailProvider.UNKNOWN else ProviderConfidence.UNKNOWN
+            if provider is not MailProvider.UNKNOWN
+            else ProviderConfidence.UNKNOWN
         )
         evidence = MailProviderEvidence(
-            name, provider, confidence, records, "DNS_MX", observed_at,
+            name,
+            provider,
+            confidence,
+            records,
+            "DNS_MX",
+            observed_at,
             observed_at + self._ttl,
         )
         self._cache[name] = evidence

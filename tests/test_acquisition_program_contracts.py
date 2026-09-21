@@ -1,5 +1,6 @@
 """Versioned acquisition programs remain disabled until explicitly activated."""
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,9 @@ def test_milomail_example_is_a_closed_shadow_program() -> None:
     assert config.max_daily_contacts == 0
     assert config.max_monthly_contacts == 0
     assert config.max_cost_chf == 0
+    assert config.bounce_alert_threshold == Decimal("0.02")
+    assert config.complaint_alert_threshold == Decimal("0.001")
+    assert config.unknown_provider_alert_threshold == Decimal("0.25")
     assert config.landing_url is None
     assert config.sender_domains == ()
 
@@ -41,6 +45,18 @@ def test_runtime_flags_default_closed_and_reject_partial_activation() -> None:
     assert flags.max_cost_chf == 0
     with pytest.raises(ValueError, match="SHADOW"):
         runtime_flags({"MILOMAIL_ACQUISITION_ENABLED": "true"})
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("MILOMAIL_ALLOWED_COUNTRIES", "FR,DE"),
+        ("MILOMAIL_ALLOWED_PROVIDERS", "GOOGLE_WORKSPACE,MICROSOFT_365"),
+    ],
+)
+def test_runtime_flags_reject_unreviewed_country_or_provider(name: str, value: str) -> None:
+    with pytest.raises(ValidationError):
+        runtime_flags({name: value})
 
 
 def test_program_rejects_non_https_landing_and_sender_on_main_domain() -> None:

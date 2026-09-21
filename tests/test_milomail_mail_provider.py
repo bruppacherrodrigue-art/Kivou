@@ -71,3 +71,13 @@ def test_timeout_never_positive_and_expired_cache_requeries() -> None:
     second = detector.detect_domain("agency.fr", observed_at=NOW + dt.timedelta(seconds=60))
     assert second.provider is MailProvider.GOOGLE_WORKSPACE
     assert resolver.calls == 2
+
+
+def test_cache_never_serves_an_observation_from_the_future() -> None:
+    resolver = FakeResolver([("smtp.google.com",), ("mx.otherhost.fr",)])
+    detector = MailProviderDetector(resolver)
+    detector.detect_domain("agency.fr", observed_at=NOW + dt.timedelta(hours=1))
+    earlier = detector.detect_domain("agency.fr", observed_at=NOW)
+    assert earlier.provider is MailProvider.OTHER
+    assert earlier.observed_at == NOW
+    assert resolver.calls == 2

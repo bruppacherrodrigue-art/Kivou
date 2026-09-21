@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
-from typing import Literal
+from typing import Final, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -28,8 +28,8 @@ from signals.acquisition_programs.qualification import (
     RecipientCapacity,
 )
 
-MILOMAIL_PURPOSE = "MILOMAIL_GMAIL_AUDIT_B2B"
-POLICY_VERSION = "milomail-fr-b2b-v1"
+MILOMAIL_PURPOSE: Final = "MILOMAIL_GMAIL_AUDIT_B2B"
+POLICY_VERSION: Final = "milomail-fr-b2b-v1"
 LEGAL_SOURCES = (
     "https://www.cnil.fr/fr/communication-electronique-quelles-regles",
     "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042155961/",
@@ -47,6 +47,11 @@ class MilomailPolicyInput(_ClosedModel):
     country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     sector: str | None = None
     employee_count: int | None = Field(default=None, ge=0)
+    company_active: bool | None = None
+    company_active_source_url: str | None = None
+    company_active_source_type: str | None = None
+    company_active_observed_at: dt.datetime | None = None
+    company_active_evidence_id: str | None = None
     business_relevance_confirmed: bool = False
     provider: MailProviderEvidence
     capacity: CapacityAssessment
@@ -76,14 +81,14 @@ class MilomailPolicyInput(_ClosedModel):
     evidence_ids: tuple[str, ...] = Field(default=(), max_length=16)
     assessed_at: dt.datetime
 
-    @field_validator("assessed_at", "collected_at")
+    @field_validator("assessed_at", "collected_at", "company_active_observed_at")
     @classmethod
     def aware(cls, value: dt.datetime | None) -> dt.datetime | None:
         if value is not None and (value.tzinfo is None or value.utcoffset() is None):
             raise ValueError("policy datetimes must be timezone-aware")
         return value
 
-    @field_validator("collection_source_url")
+    @field_validator("collection_source_url", "company_active_source_url")
     @classmethod
     def public_collection_source(cls, value: str | None) -> str | None:
         if value is None:
@@ -140,6 +145,8 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         <= value.program.target_company_size_max
     ):
         excluded.append("COMPANY_SIZE_OUT_OF_SCOPE")
+    if value.company_active is False:
+        excluded.append("COMPANY_INACTIVE")
     if value.provider.provider in {
         MailProvider.MICROSOFT_365,
         MailProvider.OTHER,
@@ -153,6 +160,29 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         hold.append("COUNTRY_UNRESOLVED")
     if value.sector is None or value.employee_count is None:
         hold.append("COMPANY_FACTS_INCOMPLETE")
+    if value.company_active is None:
+        hold.append("COMPANY_ACTIVE_STATUS_UNRESOLVED")
+    if value.company_active is True and (
+        not all(
+            (
+                value.company_active_source_url,
+                value.company_active_source_type,
+                value.company_active_observed_at,
+                value.company_active_evidence_id,
+            )
+        )
+        or value.company_active_evidence_id not in value.evidence_ids
+        or (
+            value.company_active_observed_at is not None
+            and (
+                value.company_active_observed_at > value.assessed_at
+                or value.company_active_observed_at
+                + dt.timedelta(days=value.program.professional_evidence_ttl_days)
+                <= value.assessed_at
+            )
+        )
+    ):
+        hold.append("COMPANY_ACTIVE_EVIDENCE_INSUFFICIENT")
     if not value.business_relevance_confirmed:
         hold.append("BUSINESS_RELEVANCE_UNCONFIRMED")
     if value.provider.provider is MailProvider.UNKNOWN:
@@ -165,6 +195,8 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         is not MailProvider.GOOGLE_WORKSPACE
     ):
         hold.append("GOOGLE_WORKSPACE_EVIDENCE_INSUFFICIENT")
+    if value.provider.observed_at > value.assessed_at:
+        hold.append("PROVIDER_EVIDENCE_FROM_FUTURE")
     if value.provider.expires_at <= value.assessed_at:
         hold.append("PROVIDER_EVIDENCE_EXPIRED")
     if value.capacity.capacity in {
@@ -235,6 +267,8 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
     if value.daily_remaining <= 0 or value.monthly_remaining <= 0 or value.cost_remaining_chf <= 0:
         hold.append("BUDGET_EXHAUSTED")
 
+    decision: Literal["SEND", "HOLD", "NO_SEND"]
+    reasons: tuple[str, ...]
     if excluded:
         decision, reasons = "NO_SEND", tuple(dict.fromkeys(excluded))
     elif hold:

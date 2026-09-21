@@ -64,6 +64,8 @@ class AcquisitionProgramStore:
         *,
         program_id: str,
         opportunity_id: str,
+        supplier_ref: str | None,
+        contact_ref: str | None,
         provider: MailProviderEvidence,
         capacity: CapacityAssessment,
         fit: FitAssessment,
@@ -71,6 +73,10 @@ class AcquisitionProgramStore:
         wedge_key: str | None,
         collection_source_url: str | None,
         collected_at: dt.datetime | None,
+        company_active_source_url: str | None,
+        company_active_source_type: str | None,
+        company_active_observed_at: dt.datetime | None,
+        company_active_evidence_id: str | None,
     ) -> str:
         """Append a program assessment; same timestamp with changed facts conflicts."""
         seed = f"program-eligibility-v1\0{program_id}\0{opportunity_id}\0{decision.decided_at.isoformat()}"
@@ -86,8 +92,8 @@ class AcquisitionProgramStore:
             "eligibility_id": eligibility_id,
             "program_id": program_id,
             "acquisition_opportunity_id": opportunity_id,
-            "supplier_ref": None,
-            "contact_ref": None,
+            "supplier_ref": supplier_ref,
+            "contact_ref": contact_ref,
             "mail_provider": provider.provider.value,
             "wedge_key": wedge_key,
             "provider_confidence": provider.confidence.value,
@@ -97,6 +103,12 @@ class AcquisitionProgramStore:
                 **capacity.model_dump(mode="json"),
                 "collection_source_url": collection_source_url,
                 "collected_at": collected_at.isoformat() if collected_at else None,
+                "company_active_source_url": company_active_source_url,
+                "company_active_source_type": company_active_source_type,
+                "company_active_observed_at": (
+                    company_active_observed_at.isoformat() if company_active_observed_at else None
+                ),
+                "company_active_evidence_id": company_active_evidence_id,
             },
             "fit_score": fit.total,
             "fit_breakdown": fit.breakdown,
