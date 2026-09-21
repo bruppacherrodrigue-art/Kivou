@@ -10,6 +10,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    with op.batch_alter_table("acquisition_census_run") as batch:
+        batch.add_column(sa.Column("active_sample_plan_id", sa.String(64)))
     with op.batch_alter_table("acquisition_census_permit") as batch:
         batch.drop_constraint("ck_census_permit_phase", type_="check")
         batch.drop_constraint("ck_census_permit_caps", type_="check")
@@ -35,6 +37,9 @@ def upgrade() -> None:
         sa.Column("plan_hash", sa.String(64), nullable=False),
         sa.Column("a0_baseline_hash", sa.String(64), nullable=False),
         sa.Column("requested_new_pages", sa.Integer, nullable=False),
+        sa.Column("apollo_pool_before", sa.Integer),
+        sa.Column("apollo_org_search_day_before", sa.Integer),
+        sa.Column("usage_baseline_at", sa.DateTime(timezone=True)),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint("requested_new_pages BETWEEN 1 AND 81",
                            name="ck_census_sample_plan_page_cap"),
@@ -68,6 +73,8 @@ def downgrade() -> None:
     op.drop_table("acquisition_census_sample_page")
     op.drop_index("ix_census_sample_plan_run", table_name="acquisition_census_sample_plan")
     op.drop_table("acquisition_census_sample_plan")
+    with op.batch_alter_table("acquisition_census_run") as batch:
+        batch.drop_column("active_sample_plan_id")
     with op.batch_alter_table("acquisition_census_permit") as batch:
         batch.drop_constraint("ck_census_permit_caps", type_="check")
         batch.drop_constraint("ck_census_permit_phase", type_="check")

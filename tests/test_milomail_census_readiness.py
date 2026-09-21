@@ -359,12 +359,18 @@ def test_free_apollo_probe_only_calls_documented_zero_credit_endpoints() -> None
         if request.url.path.endswith("credit_usage_stats"):
             return httpx.Response(200, json={"credit_usage_stats": {
                 "lead_credit": {"left_over": 25}, "export_credit": {"left_over": 11}}})
-        return httpx.Response(200, json={"api_usage_stats": {}})
+        return httpx.Response(200, json={
+            '["api/v1/mixed_companies", "search"]': {
+                "day": {"consumed": 9, "left_over": 49991, "limit": 50000},
+            },
+        })
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     result = ApolloAccountProbe(api_key="synthetic-secret", client=client).inspect_free()
     assert result.credit_balance == 25
     assert result.credit_balances == {"lead_credit": 25, "export_credit": 11}
+    assert result.organization_search_day_consumed == 9
+    assert result.organization_search_day_limit == 50_000
     assert paths == [
         ("GET", "/api/v1/auth/health"),
         ("POST", "/api/v1/usage_stats/credit_usage_stats"),

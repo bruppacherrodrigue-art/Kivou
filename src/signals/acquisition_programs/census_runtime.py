@@ -20,6 +20,7 @@ from signals.acquisition_programs.census import (
     CensusReviewRequired,
     CensusStore,
 )
+from signals.acquisition_programs.census_sampling import SamplePlanStore
 from signals.acquisition_programs.config import runtime_flags
 from signals.acquisition_programs.contracts import AcquisitionProgramConfig
 from signals.acquisition_programs.discovery import build_program_contact_profile
@@ -30,7 +31,10 @@ from signals.acquisition_programs.mail_provider import (
     MailProviderEvidence,
     ProviderConfidence,
 )
-from signals.acquisition_programs.official_company import OfficialSourceRetryLater
+from signals.acquisition_programs.official_company import (
+    OfficialCompanyMatcher,
+    OfficialSourceRetryLater,
+)
 from signals.acquisition_programs.pipeline import (
     ActiveCompanyEvidence,
     ProgramDiscoveryPipeline,
@@ -171,6 +175,8 @@ class CensusRunner:
         acquisition: AcquisitionStore,
         shadow: MilomailShadowRuntime,
         operations: ProgramOperationalContext,
+        official_matcher: OfficialCompanyMatcher | None = None,
+        usage_after_checkpoint: Callable[[], None] | None = None,
     ) -> None:
         if config.program_key != "milomail" or config.campaign_mode != "SHADOW":
             raise ValueError("census requires the SHADOW Milo Mail program")
@@ -185,6 +191,8 @@ class CensusRunner:
         self.organizations = organizations
         self.companies = companies
         self.contacts = contacts
+        self.official_matcher = official_matcher
+        self.usage_after_checkpoint = usage_after_checkpoint
         self.mail_provider = mail_provider
         self.current_partition_id: str | None = None
         self.allowed_partitions: frozenset[str] = frozenset()
@@ -209,7 +217,7 @@ class CensusRunner:
             smoke_first_page_only: bool = False) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
         self.limits.require_run_authorization(phase=phase)
-        if phase not in {"COVERAGE", "COVERAGE_A0", "ENRICHMENT"}:
+        if phase not in {"COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE", "ENRICHMENT"}:
             raise ValueError("unsupported census phase")
         if smoke_first_page_only and phase not in {"COVERAGE", "COVERAGE_A0"}:
             raise ValueError("A0 is only available for COVERAGE")
@@ -220,7 +228,8 @@ class CensusRunner:
         with self._engine.connect() as connection:
             PermitStore.check_call(
                 connection, permit_id=permit_id, census_id=self.census_id, phase=phase,
-                kind="ORG_SEARCH" if phase in {"COVERAGE", "COVERAGE_A0"} else "ORG_ENRICH",
+                kind="ORG_SEARCH" if phase in {"COVERAGE", "COVERAGE_A0",
+                                             "COVERAGE_A1_SAMPLE"} else "ORG_ENRICH",
                 partition_id=None, credits=0, candidate_slots=0,
                 at=dt.datetime.now(dt.UTC), configuration_hash_value=configuration_hash,
                 database_id=database_id, check_capacity=False,
@@ -236,7 +245,14 @@ class CensusRunner:
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("census time must be timezone-aware")
         self.observed_at = at
-        self.store.start(self.census_id, self.limits, at=at, phase=phase)
+        self.store.start(
+            self.census_id, self.limits, at=at, phase=phase,
+            sample_plan_id=permit_id if phase == "COVERAGE_A1_SAMPLE" else None,
+        )
+        if phase == "COVERAGE_A1_SAMPLE":
+            if self.official_matcher is None:
+                raise ValueError("A1 requires official company matcher")
+            return self._run_a1_sample(permit_id=permit_id, at=at)
         if phase == "ENRICHMENT":
             if not self._process_pending():
                 return self.store.status(self.census_id)
@@ -299,6 +315,78 @@ class CensusRunner:
                 if latest["status"] in {"COMPLETE", "INCOMPLETE", "REVIEW_REQUIRED"}:
                     break
                 page_number = latest["cursor_page"]
+        return self.store.status(self.census_id)
+
+    def _run_a1_sample(self, *, permit_id: str, at: dt.datetime) -> dict[str, Any]:
+        """Checkpoint each selected organization page before another paid call."""
+        if not self._coverage_contacts(include_people=False):
+            return self.store.status(self.census_id)
+        partitions = {row["partition_id"]: CensusPartition.from_row(row)  # type: ignore[arg-type]
+                      for row in self.store.partitions(self.census_id)}
+        for selected in SamplePlanStore(self._engine).details(permit_id)["pages"]:
+            if selected["status"] == "COMPLETED":
+                continue
+            partition_id = selected["partition_id"]
+            if selected["status"] != "PLANNED" or partition_id not in self.allowed_partitions:
+                self.store.pause(self.census_id, partition_id, "A1_SAMPLE_REVIEW_REQUIRED",
+                                 at=at, review=True)
+                return self.store.status(self.census_id)
+            part = partitions[partition_id]
+            page_number = selected["page"]
+            self.current_partition_id = partition_id
+            def search_selected_page(profile: CensusPartition = part,
+                                     number: int = page_number) -> SupplierSearchPage:
+                return self.organizations.search_page(
+                    profile, page=number, observed_at=at,
+                )
+
+            try:
+                page, call_id = self.store.execute_call(
+                    self.census_id, kind="ORG_SEARCH",
+                    subject=f"{partition_id}:{page_number}",
+                    partition_id=partition_id,
+                    credits=self.limits.credits_org_search_page,
+                    candidate_slots=part.per_page,
+                    at=at,
+                    invoke=search_selected_page,
+                    encode=lambda value: value.model_dump(mode="json"),
+                    decode=SupplierSearchPage.model_validate,
+                )
+                self.store.record_sample_page(
+                    self.census_id, permit_id, partition_id, page, call_id=call_id, at=at,
+                )
+                if self.usage_after_checkpoint is not None:
+                    self.usage_after_checkpoint()
+                if not self._coverage_contacts(include_people=False):
+                    return self.store.status(self.census_id)
+            except CensusBudgetExceeded:
+                self.store.pause(self.census_id, partition_id, "CENSUS_BUDGET_CAP", at=at)
+                return self.store.status(self.census_id)
+            except CensusRetryLater:
+                self.store.pause(self.census_id, partition_id, "APOLLO_RATE_LIMIT", at=at)
+                return self.store.status(self.census_id)
+            except CensusReviewRequired:
+                self.store.pause(self.census_id, partition_id, "APOLLO_REVIEW_REQUIRED",
+                                 at=at, review=True)
+                return self.store.status(self.census_id)
+        assert self.official_matcher is not None
+        for row in self.store.candidates(self.census_id):
+            if row["provider"] != "GOOGLE_WORKSPACE":
+                continue
+            candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
+            partition_id = self.store.permitted_partition_for_candidate(
+                row["candidate_id"], self.allowed_partitions,
+            )
+            if partition_id is None:
+                continue
+            try:
+                self.official_matcher.assess_search_candidate(
+                    candidate, at=dt.datetime.now(dt.UTC),
+                )
+            except OfficialSourceRetryLater:
+                self.store.pause(self.census_id, partition_id,
+                                 "OFFICIAL_SOURCE_RETRY_LATER", at=at)
+                return self.store.status(self.census_id)
         return self.store.status(self.census_id)
 
     def _coverage_contacts(self, *, include_people: bool = True) -> bool:

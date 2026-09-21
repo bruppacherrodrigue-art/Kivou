@@ -3461,6 +3461,8 @@ acquisition_census_run = sa.Table(
     sa.Column("filter_version", sa.String(64), nullable=False),
     sa.Column("status", sa.String(24), nullable=False),
     sa.Column("limits_snapshot", sa.JSON),
+    # Set once when the A0 run transitions to its immutable A1 sample.
+    sa.Column("active_sample_plan_id", sa.String(64)),
     sa.Column("pages_reserved", sa.Integer, nullable=False),
     sa.Column("candidate_slots_reserved", sa.Integer, nullable=False),
     sa.Column("enrichments_reserved", sa.Integer, nullable=False),
@@ -3624,6 +3626,9 @@ acquisition_census_sample_plan = sa.Table(
     sa.Column("plan_hash", sa.String(64), nullable=False),
     sa.Column("a0_baseline_hash", sa.String(64), nullable=False),
     sa.Column("requested_new_pages", sa.Integer, nullable=False),
+    sa.Column("apollo_pool_before", sa.Integer),
+    sa.Column("apollo_org_search_day_before", sa.Integer),
+    sa.Column("usage_baseline_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("requested_new_pages BETWEEN 1 AND 81", name="ck_census_sample_plan_page_cap"),
     sa.Index("ix_census_sample_plan_run", "census_id"),

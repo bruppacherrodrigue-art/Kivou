@@ -81,6 +81,26 @@ def test_unique_exact_name_city_postal_and_consistent_apollo_domain_confirm() ->
     ).match_confidence == "PROBABLE_MATCH"
 
 
+def test_a1_matches_search_candidate_without_apollo_company_enrichment() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    migrate_to_latest(engine)
+    calls = []
+
+    def handle(request):
+        calls.append(request.url.path)
+        return httpx.Response(200, json={"results": [_official()], "total_results": 1})
+
+    matcher = OfficialCompanyMatcher(
+        engine, OfficialSourceConfig(enabled=True, max_requests=1, rate_limit_per_minute=60),
+        client=httpx.Client(transport=httpx.MockTransport(handle)),
+    )
+    candidate = _candidate().model_copy(update={"postal_code": "75001"})
+    result = matcher.assess_search_candidate(candidate, at=NOW)
+    assert result.match_confidence == "CONFIRMED_MATCH"
+    assert result.legal_status == "ACTIVE"
+    assert calls == ["/search"]
+
+
 def test_source_is_disabled_by_default_and_cache_expires() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     migrate_to_latest(engine)
