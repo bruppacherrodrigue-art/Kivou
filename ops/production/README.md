@@ -1712,6 +1712,7 @@ lancer une seule fois `systemctl start kivou-prospect-send.service`, puis lire
 le résumé JSON borné et les journaux avec :
 
 ```bash
+set -euo pipefail
 journalctl -u kivou-prospect-send.service -n 100 --no-pager
 journalctl -u kivou-prospect-send.timer -n 50 --no-pager
 ```

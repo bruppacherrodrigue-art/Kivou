@@ -1874,7 +1874,7 @@ def test_nginx_stop_gate_describes_all_four_http_https_ipv4_ipv6_listeners() -> 
 
 def test_root_shell_gate_precedes_every_preflight_and_lock_open() -> None:
     body = read(PRODUCTION_RUNBOOK)
-    first_block = runbook_shell_blocks(body)[0]
+    first_block = runbook_shell_blocks(body[body.index("## 1.") :])[0]
 
     assert "sudo -i" in body[: body.index("## 1.")]
     assert_fragments_in_order(
