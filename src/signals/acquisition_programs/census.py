@@ -369,9 +369,14 @@ class CensusStore:
             limits = run["limits_snapshot"]
             over_cap = (
                 credits > run["credits_reserved"]
+                or (limits is None and cost_chf > 0)
                 or (limits is not None and (
                     credits > limits["max_apollo_credits"]
                     or cost_chf > Decimal(limits["max_cost_chf"])
+                    or cost_chf > (
+                        Decimal(run["credits_reserved"])
+                        * Decimal(limits["chf_per_credit_ceiling"])
+                    )
                 ))
             )
             connection.execute(

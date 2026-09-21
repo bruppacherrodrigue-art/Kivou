@@ -120,6 +120,22 @@ def test_actual_usage_above_reserved_cap_requires_review() -> None:
     assert report["apollo_credits_actual"] == 1
 
 
+def test_actual_chf_above_reserved_ceiling_requires_review() -> None:
+    store, run_id = _planned_store()
+    store.start(run_id, _limits(), at=NOW)
+    partition = store.partitions(run_id)[0]
+    store.reserve_call(
+        run_id, kind="ORG_SEARCH", subject="priced-page", attempt=1,
+        partition_id=partition["partition_id"], credits=1, candidate_slots=25, at=NOW,
+    )
+    assert store.status(run_id)["cost_reserved_chf"] == "0.10"
+    store.record_actual_usage(
+        run_id, credits=1, cost_chf=Decimal("0.1500"),
+        evidence_ref="synthetic-invoice-005", at=NOW,
+    )
+    assert store.report(run_id)["status"] == "REVIEW_REQUIRED"
+
+
 def _limits(**changes) -> CensusLimits:
     values = {
         "enabled": True,
