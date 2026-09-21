@@ -153,14 +153,14 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         MailProvider.GMAIL_CONSUMER,
     }:
         excluded.append("MAIL_PROVIDER_OUT_OF_SCOPE")
+    unresolved_score_facts = (
+        value.provider.provider is MailProvider.UNKNOWN
+        or value.sector is None
+        or value.employee_count is None
+        or value.capacity.capacity
+        in {RecipientCapacity.UNKNOWN, RecipientCapacity.LIKELY_PROFESSIONAL}
+    )
     if value.fit.total < value.program.hold_threshold:
-        unresolved_score_facts = (
-            value.provider.provider is MailProvider.UNKNOWN
-            or value.sector is None
-            or value.employee_count is None
-            or value.capacity.capacity
-            in {RecipientCapacity.UNKNOWN, RecipientCapacity.LIKELY_PROFESSIONAL}
-        )
         if unresolved_score_facts:
             hold.append("FIT_BELOW_MINIMUM_PENDING_FACTS")
         else:
@@ -239,10 +239,11 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         hold.append("COLLECTION_PROVENANCE_MISSING")
     if not value.suppression_coverage_safe:
         hold.append("SUPPRESSION_COVERAGE_UNSAFE")
-    if value.fit.total < value.program.send_review_threshold and (
-        value.fit.total >= value.program.hold_threshold
-    ):
-        hold.append("FIT_BELOW_REVIEW_THRESHOLD")
+    if value.program.hold_threshold <= value.fit.total < value.program.send_review_threshold:
+        if unresolved_score_facts:
+            hold.append("FIT_BELOW_REVIEW_THRESHOLD_PENDING_FACTS")
+        else:
+            excluded.append("FIT_BELOW_REVIEW_THRESHOLD")
     if not value.evidence_ids:
         hold.append("EVIDENCE_MISSING")
     if not value.sender_identity_ready or not all(

@@ -210,7 +210,6 @@ def test_real_exclusions_are_no_send(changes, reason) -> None:
         ({"landing_french": False}, "FRENCH_LANDING_UNAVAILABLE"),
         ({"sender_healthy": False}, "SENDER_NOT_READY"),
         ({"daily_remaining": 0}, "BUDGET_EXHAUSTED"),
-        ({"fit": ready_input().fit.model_copy(update={"total": 70})}, "FIT_BELOW_REVIEW_THRESHOLD"),
         ({"evidence_ids": ()}, "EVIDENCE_MISSING"),
         (
             {
@@ -284,6 +283,29 @@ def test_low_score_from_unknown_dns_is_hold_until_the_fact_is_resolved() -> None
     assert decision.decision == "HOLD"
     assert "MAIL_PROVIDER_UNKNOWN" in decision.reason_codes
     assert "FIT_BELOW_MINIMUM_PENDING_FACTS" in decision.reason_codes
+
+
+def test_complete_subthreshold_fit_is_no_send() -> None:
+    value = ready_input()
+    weights = {
+        "google_workspace": 20,
+        "email_dependent_sector": 15,
+        "decision_maker": 15,
+        "company_size": 15,
+        "recent_public_activity": 35,
+    }
+    config = value.program.model_copy(update={"score_weights": weights})
+    fit = value.fit.model_copy(
+        update={
+            "total": 65,
+            "breakdown": {**weights, "recent_public_activity": 0},
+            "missing_reasons": (),
+            "tier": "HOLD",
+        }
+    )
+    decision = evaluate_milomail(value.model_copy(update={"program": config, "fit": fit}))
+    assert decision.decision == "NO_SEND"
+    assert "FIT_BELOW_REVIEW_THRESHOLD" in decision.reason_codes
 
 
 def test_kivou_ruleset_rejects_milomail_purpose() -> None:
