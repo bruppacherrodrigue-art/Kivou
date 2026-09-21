@@ -211,6 +211,23 @@ def test_page_checkpoint_deduplicates_between_partitions_and_resumes() -> None:
     assert parts[0]["cursor_page"] == parts[1]["cursor_page"] == 2
 
 
+def test_apollo_ip_domain_is_retained_as_unknown_without_stopping_page() -> None:
+    store, run_id = _planned_store()
+    store.start(run_id, _limits(), at=NOW)
+    partition = store.partitions(run_id)[0]
+    call = store.reserve_call(
+        run_id, kind="ORG_SEARCH", subject="invalid-domain-page", attempt=1,
+        partition_id=partition["partition_id"], credits=1, candidate_slots=25, at=NOW,
+    )
+    page = _page(1, candidates=[_candidate(domain="127.0.0.1")])
+    store.complete_call(call["call_id"], page.model_dump(mode="json"), at=NOW)
+    store.record_page(run_id, partition["partition_id"], page, call_id=call["call_id"], at=NOW)
+    candidate = store.candidates(run_id)[0]
+    assert candidate["primary_domain"] is None
+    assert candidate["snapshot"]["primary_domain"] is None
+    assert store.report(run_id)["valid_domains"] == 0
+
+
 def test_reservation_stops_at_page_credit_and_chf_caps() -> None:
     store, run_id = _planned_store()
     store.start(run_id, _limits(max_pages=1, max_apollo_credits=1, max_cost_chf="0.10"), at=NOW)

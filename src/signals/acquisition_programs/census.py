@@ -705,8 +705,16 @@ class CensusStore:
         page: int, candidate: ApolloOrganizationCandidate, sector: str, at: dt.datetime,
     ) -> bool:
         identities = [("APOLLO_ORG", _digest(candidate.provider_organization_id))]
+        normalized_domain = None
         if candidate.primary_domain:
-            identities.append(("DOMAIN", _digest(normalize_domain(candidate.primary_domain))))
+            try:
+                normalized_domain = normalize_domain(candidate.primary_domain)
+            except ValueError:
+                # Apollo accepts some syntactically dotted non-mail domains.
+                # Preserve the organization but leave MX and sending ineligible.
+                candidate = candidate.model_copy(update={"primary_domain": None})
+            if normalized_domain:
+                identities.append(("DOMAIN", _digest(normalized_domain)))
         matches = {
             row["candidate_id"]
             for row in connection.execute(
