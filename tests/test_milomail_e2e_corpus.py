@@ -234,7 +234,7 @@ def test_e2e_synthetic_corpus_and_conversion_replay() -> None:
         keys={"v1": b"synthetic-token-secret-0123456789"},
     )
     conversion_at = NOW + dt.timedelta(hours=1)
-    token = ProgramAttributionService(engine, token_keys, suppression_keys).issue(
+    token = ProgramAttributionService(engine, token_keys, suppression_keys, clock=lambda: NOW).issue(
         program_id=program_id,
         opportunity_id=send_opportunity,
         campaign_ref="milomail:corpus-preview",

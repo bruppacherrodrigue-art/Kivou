@@ -164,7 +164,7 @@ def test_opaque_token_signed_conversion_and_replay_are_idempotent() -> None:
     suppression_keys = SuppressionIdentityKeyring(
         current_key_version="v1", keys={"v1": b"suppression-test-secret"}
     )
-    service = ProgramAttributionService(engine, keyring, suppression_keys)
+    service = ProgramAttributionService(engine, keyring, suppression_keys, clock=lambda: NOW)
     issued = service.issue(
         program_id=program_id,
         opportunity_id=opportunity_id,
@@ -218,7 +218,7 @@ def test_conversion_rejects_private_payload_bad_signature_and_replay_window() ->
     suppression_keys = SuppressionIdentityKeyring(
         current_key_version="v1", keys={"v1": b"suppression-test-secret"}
     )
-    token = ProgramAttributionService(engine, keyring, suppression_keys).issue(
+    token = ProgramAttributionService(engine, keyring, suppression_keys, clock=lambda: NOW).issue(
         program_id=program_id,
         opportunity_id=opportunity_id,
         campaign_ref="milomail:synthetic-campaign",

@@ -41,7 +41,7 @@ def test_simulated_reply_bounce_and_optout_are_program_scoped_and_idempotent() -
     suppression_keys = SuppressionIdentityKeyring(
         current_key_version="v1", keys={"v1": b"suppression-test-secret"}
     )
-    ProgramAttributionService(engine, keys, suppression_keys).issue(
+    ProgramAttributionService(engine, keys, suppression_keys, clock=lambda: NOW).issue(
         program_id=program_id,
         opportunity_id=opportunity_id,
         campaign_ref="milomail:synthetic-campaign",
