@@ -87,3 +87,20 @@ def test_shadow_facade_rejects_provider_create_even_with_preview() -> None:
         provider.create_campaign(
             name=preview.campaign_name, provider_config=preview.provider_config
         )
+
+
+@pytest.mark.parametrize("method", ["pause_campaign", "pause_lead", "delete_campaign"])
+def test_shadow_facade_denies_known_and_future_provider_mutations(method: str) -> None:
+    calls: list[str] = []
+
+    class Provider:
+        def __getattr__(self, name: str):
+            def call(*_args, **_kwargs):
+                calls.append(name)
+
+            return call
+
+    shadow = ShadowInstantlyProvider(Provider())
+    with pytest.raises(ShadowSendForbidden):
+        getattr(shadow, method)("synthetic-id")
+    assert calls == []
