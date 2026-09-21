@@ -17,6 +17,14 @@ from signals.acquisition_programs.census import (
     CensusStore,
     build_partitions,
 )
+from signals.acquisition_programs.census_readiness import (
+    ApolloCreditPricing,
+    DatabaseAuthorization,
+    ExecutionPermit,
+    PermitStore,
+    configuration_hash,
+    database_identity,
+)
 from signals.acquisition_programs.census_runtime import CensusRunner
 from signals.acquisition_programs.mail_provider import MailProviderDetector
 from signals.acquisition_programs.pipeline import ActiveCompanyEvidence, ProgramOperationalContext
@@ -39,7 +47,7 @@ from signals.supplier_discovery.contracts import (
     SupplierSearchPage,
 )
 
-NOW = dt.datetime(2026, 9, 21, tzinfo=dt.UTC)
+NOW = dt.datetime.now(dt.UTC).replace(microsecond=0)
 
 
 def test_partitions_are_deterministic_and_employee_ranges_do_not_overlap() -> None:
@@ -71,7 +79,7 @@ def test_plan_is_idempotent_and_zero_budget_blocks_provider_call() -> None:
     migrate_to_latest(engine)
     config = ready_config()
     program_id = AcquisitionProgramStore(engine).register(config, at=NOW)
-    store = CensusStore(engine)
+    store = CensusStore(engine, require_permit=False)
     partitions = build_partitions(config)
     run_id = store.plan(program_id=program_id, partitions=partitions, at=NOW)
     assert store.plan(program_id=program_id, partitions=partitions, at=NOW) == run_id
@@ -162,9 +170,52 @@ def _planned_store():
     engine = sa.create_engine("sqlite:///:memory:")
     migrate_to_latest(engine)
     program_id = AcquisitionProgramStore(engine).register(ready_config(), at=NOW)
-    store = CensusStore(engine)
+    store = CensusStore(engine, require_permit=False)
     run_id = store.plan(program_id=program_id, partitions=build_partitions(ready_config()), at=NOW)
     return store, run_id
+
+
+def _test_permits(engine, store, run_id, limits):
+    database_id = database_identity(engine)[0]
+    auth = DatabaseAuthorization(database_id=database_id, environment="test",
+                                 issued_by_reference="synthetic-test", expires_at=NOW + dt.timedelta(days=1))
+    pricing = ApolloCreditPricing(
+        currency="CHF", price_per_credit="0.10", verified_at=NOW,
+        source_type="OPERATOR_ATTESTATION", source_reference="synthetic-test-pricing",
+        plan_name="synthetic", verified_by_reference="synthetic-test",
+        org_search_credits=1, org_enrichment_credits=1,
+        people_search_credits=0, person_enrichment_credits_max=9,
+        credit_balance=100, credit_balance_observed_at=NOW,
+        rate_limits_per_minute={"ORG_SEARCH": 10, "ORG_ENRICH": 10,
+                                "PEOPLE_SEARCH": 10, "PERSON_ENRICH": 10},
+        rate_limit_reference="synthetic-test-rate-limits",
+        credit_pools_by_operation={kind: "lead_credit" for kind in (
+            "ORG_SEARCH", "ORG_ENRICH", "PEOPLE_SEARCH", "PERSON_ENRICH",
+        )},
+    )
+    digest = configuration_hash(census_id=run_id, limits=limits,
+                                partitions=store.partitions(run_id), pricing=pricing)
+    values = {}
+    for phase in ("COVERAGE", "ENRICHMENT"):
+        permit_id = f"synthetic-{phase.lower()}-{run_id[:12]}"
+        permit = ExecutionPermit(
+            permit_id=permit_id, census_id=run_id, phase=phase,
+            environment="test", database_id=database_id,
+            allowed_partitions=tuple(row["partition_id"] for row in
+                                     store.partitions(run_id)[:limits.max_partitions]),
+            max_pages=limits.max_pages if phase == "COVERAGE" else 0,
+            max_candidates=limits.max_candidates if phase == "COVERAGE" else 0,
+            max_enrichments=limits.max_enrichments if phase == "ENRICHMENT" else 0,
+            max_credits=limits.max_apollo_credits,
+            max_cost_chf=limits.max_cost_chf,
+            price_chf_per_credit="0.10", pricing_reference="synthetic-test-pricing",
+            configuration_hash=digest, issued_by_reference="synthetic-test",
+            issued_at=NOW, valid_from=NOW, expires_at=NOW + dt.timedelta(days=1),
+        )
+        PermitStore(engine).issue(permit, database=auth, pricing=pricing, limits=limits,
+                                  at=NOW)
+        values[phase] = permit_id
+    return values, digest, database_id
 
 
 def _candidate(org_id: str = "org-1", domain: str = "agence.fr"):
@@ -416,7 +467,7 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(
     migrate_to_latest(engine)
     config = ready_config()
     program_id = AcquisitionProgramStore(engine).register(config, at=NOW)
-    store = CensusStore(engine)
+    store = CensusStore(engine, require_permit=False)
     run_id = store.plan(program_id=program_id, partitions=build_partitions(config), at=NOW)
     seen: list[str] = []
 
@@ -479,13 +530,15 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(
                 evidence_ref=suppression_evidence_ref("UNSUBSCRIBE", "synthetic-event"),
                 received_at=NOW - dt.timedelta(minutes=1),
             )
+    limits = _limits(max_partitions=1, max_pages=1, max_candidates=25,
+                     max_enrichments=2, max_apollo_credits=11, max_cost_chf="1.10")
+    permits, config_hash, database_id = _test_permits(engine, store, run_id, limits)
     runner = CensusRunner(
         engine,
         census_id=run_id,
         program_id=program_id,
         config=config,
-        limits=_limits(max_partitions=1, max_pages=1, max_candidates=25,
-                       max_enrichments=2, max_apollo_credits=11, max_cost_chf="1.10"),
+        limits=limits,
         organizations=ApolloOrganizationSearchClient(api_key="synthetic", client=client),
         companies=ApolloCompanyResearchClient(api_key="synthetic", client=client, clock=lambda: NOW),
         contacts=ApolloContactDiscoveryClient(api_key="synthetic", client=client),
@@ -507,17 +560,21 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(
             daily_remaining=10, monthly_remaining=100, cost_remaining_chf="10",
         ),
     )
-    runner.run(at=NOW)
+    runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
+               configuration_hash=config_hash, database_id=database_id)
+    runner.run(at=NOW, phase="ENRICHMENT", permit_id=permits["ENRICHMENT"],
+               configuration_hash=config_hash, database_id=database_id)
     first = store.candidates(run_id)
     assert len(first) == 1
     assert first[0]["decision"] == expected
     assert first[0]["email_verified"]
     assert dns.calls == 1  # the existing detector cache serves the policy path
     assert seen == [
-        "/api/v1/mixed_companies/search", "/api/v1/organizations/org-1",
-        "/api/v1/mixed_people/api_search", "/api/v1/people/match",
+        "/api/v1/mixed_companies/search", "/api/v1/mixed_people/api_search",
+        "/api/v1/organizations/org-1", "/api/v1/people/match",
     ]
-    runner.run(at=NOW)
+    runner.run(at=NOW, phase="ENRICHMENT", permit_id=permits["ENRICHMENT"],
+               configuration_hash=config_hash, database_id=database_id)
     assert len(store.candidates(run_id)) == 1
     assert len(seen) == 4
     assert store.status(run_id)["credits_reserved"] == 11
@@ -542,12 +599,14 @@ def test_other_providers_unknown_and_foreign_country_need_no_enrichment() -> Non
     migrate_to_latest(engine)
     config = ready_config()
     program_id = AcquisitionProgramStore(engine).register(config, at=NOW)
-    store = CensusStore(engine)
+    store = CensusStore(engine, require_permit=False)
     run_id = store.plan(program_id=program_id, partitions=build_partitions(config), at=NOW)
     seen: list[str] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         seen.append(request.url.path)
+        if request.url.path == "/api/v1/mixed_people/api_search":
+            return httpx.Response(200, json={"total_entries": 0, "people": []})
         assert request.url.path == "/api/v1/mixed_companies/search"
         organizations = [
             {"id": "org-gmail", "name": "Freelance", "primary_domain": "gmail.com",
@@ -576,16 +635,21 @@ def test_other_providers_unknown_and_foreign_country_need_no_enrichment() -> Non
             raise AssertionError(f"forbidden call: {name}")
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
+    limits = _limits(max_partitions=1, max_pages=1, max_candidates=25,
+                     max_apollo_credits=1, max_cost_chf="0.10")
+    permits, config_hash, database_id = _test_permits(engine, store, run_id, limits)
     runner = CensusRunner(
         engine, census_id=run_id, program_id=program_id, config=config,
-        limits=_limits(max_partitions=1, max_pages=1, max_candidates=25,
-                       max_apollo_credits=1, max_cost_chf="0.10"),
+        limits=limits,
         organizations=ApolloOrganizationSearchClient(api_key="synthetic", client=client),
-        companies=NoCalls(), contacts=NoCalls(),
+        companies=NoCalls(), contacts=ApolloContactDiscoveryClient(api_key="synthetic", client=client),
         mail_provider=MailProviderDetector(DNS()), company_activity=NoCalls(),
         acquisition=NoCalls(), shadow=NoCalls(), operations=ProgramOperationalContext(),
     )
-    runner.run(at=NOW)
+    runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
+               configuration_hash=config_hash, database_id=database_id)
+    runner.run(at=NOW, phase="ENRICHMENT", permit_id=permits["ENRICHMENT"],
+               configuration_hash=config_hash, database_id=database_id)
     decisions = {row["provider_organization_id"]: row["decision"] for row in store.candidates(run_id)}
     assert decisions == {
         "org-gmail": "NO_SEND", "org-ms": "NO_SEND",
@@ -597,4 +661,6 @@ def test_other_providers_unknown_and_foreign_country_need_no_enrichment() -> Non
     assert report["HOLD"] == 1
     assert report["NO_SEND"] == 3
     assert report["verified_addresses_unique"] == 0
-    assert seen == ["/api/v1/mixed_companies/search"]
+    assert seen == ["/api/v1/mixed_companies/search"] + [
+        "/api/v1/mixed_people/api_search"
+    ] * 3

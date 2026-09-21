@@ -5,6 +5,10 @@ Status: implementation for review only. Milo Mail is the product; Milo is the in
 The separate Apollo preparation workflow and its zero-budget defaults are
 documented in [Milo Mail SHADOW census](15-milomail-shadow-census.md). It makes
 no Instantly mutation and does not change this program's send gate.
+The [real-census readiness runbook](16-milomail-census-readiness.md) describes
+official French legal-status evidence, Apollo pricing verification, a read-only
+preflight and scoped execution permits. The program remains disabled in SHADOW;
+even a theoretical `SEND` cannot create or send an Instantly message.
 
 ## Architecture and reuse
 

@@ -22,6 +22,7 @@ from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_census_call,
     acquisition_census_candidate,
+    acquisition_census_company_match,
     acquisition_census_identity,
     acquisition_census_occurrence,
     acquisition_census_partition,
@@ -218,8 +219,16 @@ T = TypeVar("T")
 
 
 class CensusStore:
-    def __init__(self, engine: Engine) -> None:
+    def __init__(self, engine: Engine, *, require_permit: bool = True) -> None:
         self._engine = engine
+        self._require_permit = require_permit
+        self._permit_context: tuple[str, str, str, str] | None = None
+
+    def bind_permit(self, *, permit_id: str, phase: str, configuration_hash: str,
+                    database_id: str) -> None:
+        if not self._require_permit:
+            raise ValueError("test-only unpermitted store cannot bind a permit")
+        self._permit_context = (permit_id, phase, configuration_hash, database_id)
 
     def plan(
         self, *, program_id: str, partitions: tuple[CensusPartition, ...], at: dt.datetime
@@ -425,6 +434,20 @@ class CensusStore:
                 .limit(1)
             ).scalar_one()
 
+    def permitted_partition_for_candidate(
+        self, candidate_id: str, allowed_partitions: frozenset[str],
+    ) -> str | None:
+        with self._engine.connect() as connection:
+            matches = connection.execute(
+                sa.select(acquisition_census_occurrence.c.partition_id)
+                .where(acquisition_census_occurrence.c.candidate_id == candidate_id,
+                       acquisition_census_occurrence.c.partition_id.in_(allowed_partitions))
+                .order_by(acquisition_census_occurrence.c.observed_at,
+                          acquisition_census_occurrence.c.partition_id)
+                .limit(1)
+            ).scalar_one_or_none()
+        return matches
+
     def reserve_call(
         self, census_id: str, *, kind: str, subject: str, attempt: int,
         partition_id: str | None, credits: int, candidate_slots: int,
@@ -454,6 +477,18 @@ class CensusStore:
                 ):
                     raise ValueError("census call identity conflict")
                 return {**dict(existing), "claimed_now": False}
+            if self._require_permit:
+                from signals.acquisition_programs.census_readiness import PermitStore
+
+                if self._permit_context is None:
+                    raise ValueError("execution permit is mandatory before Apollo calls")
+                permit_id, phase, config_hash, database_id = self._permit_context
+                PermitStore.check_call(
+                    connection, permit_id=permit_id, census_id=census_id, phase=phase,
+                    kind=kind, partition_id=partition_id, credits=credits,
+                    candidate_slots=candidate_slots, at=dt.datetime.now(dt.UTC),
+                    configuration_hash_value=config_hash, database_id=database_id,
+                )
             if run["status"] != "ACTIVE" or run["limits_snapshot"] is None:
                 raise CensusBudgetExceeded("census is not active")
             limits = CensusLimits.model_validate(run["limits_snapshot"])
@@ -487,6 +522,7 @@ class CensusStore:
                 raise CensusBudgetExceeded("census page, candidate, enrichment or cost cap reached")
             values = {
                 "call_id": call_id,
+                "permit_id": self._permit_context[0] if self._permit_context else None,
                 "census_id": census_id,
                 "partition_id": partition_id,
                 "kind": kind,
@@ -1008,10 +1044,15 @@ class CensusStore:
                     acquisition_census_identity.c.identity_kind == "EMAIL",
                 )
             ) or 0
+            official_matches = connection.execute(sa.select(
+                acquisition_census_company_match.c.match_evidence,
+            ).where(acquisition_census_company_match.c.census_id == census_id)).scalars().all()
         decision_counts = Counter(
             row["decision"] for row in candidates if row["decision"] is not None
         )
         providers = Counter(row["provider"] for row in candidates)
+        legal_statuses = Counter(row["legal_status"] for row in official_matches)
+        match_confidences = Counter(row["match_confidence"] for row in official_matches)
         reasons = Counter(
             reason for row in candidates for reason in row["reason_codes"]
         )
@@ -1049,6 +1090,8 @@ class CensusStore:
             "contacts_found": contacts_found,
             "leaders_identified": sum(bool(row["leader_identified"]) for row in candidates),
             "valid_domains": sum(bool(row["primary_domain"]) for row in candidates),
+            "official_legal_status": dict(sorted(legal_statuses.items())),
+            "official_match_confidence": dict(sorted(match_confidences.items())),
             "google_workspace_confirmed": sum(
                 row["provider"] == "GOOGLE_WORKSPACE"
                 and row["provider_confidence"] == "CONFIRMED"

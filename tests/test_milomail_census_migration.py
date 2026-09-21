@@ -28,6 +28,10 @@ TABLES = {
     "acquisition_census_occurrence",
     "acquisition_census_call",
 }
+READINESS_TABLES = {
+    "acquisition_census_permit", "acquisition_census_official_cache",
+    "acquisition_census_company_match",
+}
 
 
 @pytest.fixture(params=["sqlite", "postgresql"])
@@ -60,6 +64,18 @@ def test_census_upgrade_downgrade(engine) -> None:
     migrate_to_latest(engine)
     assert TABLES <= set(sa.inspect(engine).get_table_names())
     assert TABLES <= set(METADATA.tables)
+    assert READINESS_TABLES <= set(sa.inspect(engine).get_table_names())
+    assert READINESS_TABLES <= set(METADATA.tables)
+    assert "permit_id" in {column["name"] for column in
+                           sa.inspect(engine).get_columns("acquisition_census_call")}
+    assert "official_requests_reserved" in {column["name"] for column in
+                                            sa.inspect(engine).get_columns("acquisition_census_run")}
+    command.downgrade(alembic_config(engine), "0071_milomail_shadow_census")
+    assert READINESS_TABLES.isdisjoint(sa.inspect(engine).get_table_names())
+    assert "permit_id" not in {column["name"] for column in
+                               sa.inspect(engine).get_columns("acquisition_census_call")}
+    assert "official_requests_reserved" not in {column["name"] for column in
+                                                sa.inspect(engine).get_columns("acquisition_census_run")}
     command.downgrade(alembic_config(engine), "0070_program_conversion_receipt")
     assert TABLES.isdisjoint(sa.inspect(engine).get_table_names())
 
@@ -69,7 +85,7 @@ def test_checkpoint_and_domain_dedup_on_both_dialects(engine) -> None:
     at = dt.datetime(2026, 9, 21, tzinfo=dt.UTC)
     config = ready_config()
     program_id = AcquisitionProgramStore(engine).register(config, at=at)
-    store = CensusStore(engine)
+    store = CensusStore(engine, require_permit=False)
     run_id = store.plan(program_id=program_id, partitions=build_partitions(config), at=at)
     store.start(run_id, CensusLimits(
         enabled=True, max_partitions=2, max_pages=2, max_candidates=50,

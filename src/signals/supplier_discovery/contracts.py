@@ -24,8 +24,8 @@ from signals.policy.contracts import (
 )
 
 PROFILE_VERSION = "supplier-search-v1"
-PROVIDER = "apollo"
-SIRENE_PROVIDER = "sirene"
+PROVIDER: Literal["apollo"] = "apollo"
+SIRENE_PROVIDER: Literal["sirene"] = "sirene"
 MAX_RESPONSE_BYTES = 1_048_576
 _DOMAIN = re.compile(
     r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
@@ -172,6 +172,7 @@ class ApolloOrganizationCandidate(DiscoveryContract):
     linkedin_company_url: Annotated[str, StringConstraints(max_length=2048)] | None = None
     country_code: Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")] | None = None
     location: Annotated[str, StringConstraints(max_length=512)] | None = None
+    postal_code: Annotated[str, StringConstraints(pattern=r"^[0-9]{5}$")] | None = None
     industry: Annotated[str, StringConstraints(max_length=256)] | None = None
     provider_observed_at: dt.datetime
     source_fingerprint: Fingerprint

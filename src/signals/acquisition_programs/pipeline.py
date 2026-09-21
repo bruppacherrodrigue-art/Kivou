@@ -49,6 +49,7 @@ from signals.contact_discovery.contracts import ContactObservation
 from signals.contact_discovery.ranking import rank_candidates
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.supplier_discovery.apollo import ApolloOrganizationSearchClient
+from signals.supplier_discovery.contracts import ApolloOrganizationCandidate
 from signals.supplier_discovery.identity import acquisition_identity_for
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
@@ -155,6 +156,9 @@ class ProgramDiscoveryPipeline:
         contacts: ApolloContactDiscoveryClient,
         mail_provider: MailProviderDetector,
         company_activity: Callable[[ApolloOrganizationObservation], ActiveCompanyEvidence],
+        company_activity_for_candidate: Callable[
+            [ApolloOrganizationObservation, ApolloOrganizationCandidate], ActiveCompanyEvidence
+        ] | None = None,
         acquisition: AcquisitionStore,
         shadow: MilomailShadowRuntime,
         operations: ProgramOperationalContext,
@@ -167,6 +171,7 @@ class ProgramDiscoveryPipeline:
         self._contacts = contacts
         self._mail_provider = mail_provider
         self._company_activity = company_activity
+        self._company_activity_for_candidate = company_activity_for_candidate
         self._acquisition = acquisition
         self._shadow = shadow
         self._operations = operations
@@ -240,9 +245,14 @@ class ProgramDiscoveryPipeline:
         company = self._companies.fetch_organization(
             build_company_research_profile(candidate.provider_organization_id)
         )
-        activity = self._company_activity(company)
-        if activity.observed_at and activity.observed_at > at:
-            raise ValueError("company activity evidence is in the future")
+        activity = (
+            self._company_activity_for_candidate(company, candidate)
+            if self._company_activity_for_candidate else self._company_activity(company)
+        )
+        if activity.observed_at:
+            if activity.observed_at > dt.datetime.now(dt.UTC) + dt.timedelta(minutes=1):
+                raise ValueError("company activity evidence is in the future")
+            at = max(at, activity.observed_at)
         company_domain = company.provider_primary_domain or candidate.primary_domain
         if company_domain != candidate.primary_domain:
             company_domain = None
@@ -253,7 +263,8 @@ class ProgramDiscoveryPipeline:
         role = None
         person = None
         contact_ref = None
-        if company_domain:
+        # Legal activity is a prerequisite for spending person-enrichment credits.
+        if company_domain and activity.status == "ACTIVE":
             contact_profile = build_program_contact_profile(
                 self._config,
                 acquisition_opportunity_id=opportunity_id,

@@ -110,7 +110,9 @@ Après un recensement autorisé, le coût réel peut être saisi une seule fois 
 ```bash
 uv run milomail-census reconcile-usage --census-id <id-du-plan> \
   --actual-credits <credits-confirmés> --actual-cost-chf <montant-confirmé> \
-  --usage-evidence-ref <référence-opaque> --acknowledge-exclusive-attribution
+  --usage-evidence-ref <référence-opaque> \
+  --database-authorization <autorisation-base.json> \
+  --acknowledge-exclusive-attribution
 ```
 
 Cette commande s'emploie après un run terminé ou arrêté pour revue, ou pour
@@ -127,39 +129,24 @@ nombre de crédits supérieurs au plafond réservé met le run en
 `REVIEW_REQUIRED`. Avant cette saisie, les valeurs réelles et le coût réel
 par `SEND` théorique restent `null`.
 
-## Commandes, sans recensement réel pendant cette mission
+## Préparation réelle et commandes
 
-Appliquer d'abord la migration `0071_milomail_shadow_census` par le processus
-habituel sur une base autorisée. La commande refuse une base à une autre
-révision ; elle ne migre jamais automatiquement. Définir explicitement
-`KIVOU_DATABASE_URL` dans le gestionnaire de secrets/exécution approprié.
+La migration `0072_milomail_census_readiness` ajoute une preuve officielle
+conservée, des permis d'exécution et un rattachement des réservations Apollo.
+Le [runbook de préparation](16-milomail-census-readiness.md) détaille le
+préflight, l'autorisation de base, l'attestation du prix, les deux phases et
+la révocation. L'ancien callback `UNKNOWN` a été remplacé, pour le census,
+par l'API française officielle et un rapprochement conservateur. Un nom et
+une ville concordants restent au maximum `PROBABLE_MATCH` ; un SIREN déjà
+corroboré ou une concordance unique de nom, ville et code postal peut prouver
+l'activité et contribuer à `SEND` théorique.
 
-```bash
-uv run milomail-census plan --program-config ops/examples/milomail-acquisition.json.example
-uv run milomail-census status --census-id <id-du-plan>
-uv run milomail-census report --census-id <id-du-plan>
-```
-
-`plan` écrit uniquement les partitions en base et renvoie un total estimé
-`null`, sans requête ni crédit Apollo. Pour un futur recensement réel, après
-autorisation budgétaire, revue des filtres et mise à disposition des secrets :
-
-```bash
-uv run milomail-census run --census-id <id-du-plan> \
-  --program-config <configuration-milomail-validée> --authorize-paid-apollo
-uv run milomail-census resume --census-id <id-du-plan> \
-  --program-config <configuration-milomail-validée> --authorize-paid-apollo
-```
-
-Un fichier `--operations <fichier-json>` peut fournir des faits opérationnels
-revus pour calculer un `SEND` théorique. Sans preuve de l'activité de
-l'entreprise, le callback de production retourne `UNKNOWN` : la politique
-retient `HOLD`. La configuration d'exemple n'a ni landing française ni domaine
-d'envoi autorisé ; elle ne produira donc pas un `SEND` réel ou théorique par
-défaut. Un futur recensement peut néanmoins mesurer les domaines, fournisseurs,
-contacts et adresses vérifiées. Une source publique vérifiable pour l'activité
-des entreprises doit être branchée avant de considérer le nombre `SEND` comme
-un potentiel commercial final.
+`plan`, `status`, `report`, `purge-cache` et `reconcile-usage` conservent leurs
+contrats. `run` et `resume` exigent maintenant `--phase COVERAGE` ou
+`--phase ENRICHMENT`, un permis distinct, une autorisation de base et un prix
+attesté. Ils ne peuvent appeler Apollo sans les vérifications de compte à
+zéro crédit et de la source officielle. Le programme reste désactivé, en
+`SHADOW`, sans accès mutable à Instantly.
 
 ## Reprise, arrêt et revue
 
@@ -187,7 +174,7 @@ run arrêté ou en revue, lancer avant la fin de la période de rétention :
 
 ```bash
 uv run milomail-census purge-cache --census-id <id-du-plan> \
-  --acknowledge-cache-purge
+  --database-authorization <autorisation-base.json> --acknowledge-cache-purge
 ```
 
 La commande refuse un run incomplet avant son délai de rétention ; après ce

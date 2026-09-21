@@ -3465,6 +3465,7 @@ acquisition_census_run = sa.Table(
     sa.Column("candidate_slots_reserved", sa.Integer, nullable=False),
     sa.Column("enrichments_reserved", sa.Integer, nullable=False),
     sa.Column("credits_reserved", sa.Integer, nullable=False),
+    sa.Column("official_requests_reserved", sa.Integer, nullable=False, server_default="0"),
     sa.Column("actual_apollo_credits", sa.Integer),
     sa.Column("actual_cost_chf", sa.Numeric(12, 4)),
     sa.Column("usage_evidence_ref", sa.String(128)),
@@ -3474,6 +3475,7 @@ acquisition_census_run = sa.Table(
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("status IN ('PLANNED','ACTIVE','PAUSED','COMPLETE','REVIEW_REQUIRED')", name="ck_census_run_status"),
     sa.CheckConstraint("pages_reserved >= 0 AND candidate_slots_reserved >= 0 AND enrichments_reserved >= 0 AND credits_reserved >= 0", name="ck_census_run_reservations"),
+    sa.CheckConstraint("official_requests_reserved >= 0", name="ck_census_official_request_count"),
     sa.CheckConstraint("actual_apollo_credits IS NULL OR actual_apollo_credits >= 0", name="ck_census_actual_credits"),
     sa.CheckConstraint("actual_cost_chf IS NULL OR actual_cost_chf >= 0", name="ck_census_actual_cost"),
     sa.Index("ix_census_run_program", "program_id", "created_at"),
@@ -3556,6 +3558,7 @@ acquisition_census_occurrence = sa.Table(
 acquisition_census_call = sa.Table(
     "acquisition_census_call", METADATA,
     sa.Column("call_id", sa.String(64), primary_key=True),
+    sa.Column("permit_id", sa.String(64), sa.ForeignKey("acquisition_census_permit.permit_id", ondelete="RESTRICT")),
     sa.Column("census_id", sa.String(64), sa.ForeignKey("acquisition_census_run.census_id", ondelete="RESTRICT"), nullable=False),
     sa.Column("partition_id", sa.String(64), sa.ForeignKey("acquisition_census_partition.partition_id", ondelete="RESTRICT")),
     sa.Column("kind", sa.String(32), nullable=False),
@@ -3575,4 +3578,55 @@ acquisition_census_call = sa.Table(
     sa.CheckConstraint("reserved_credits >= 0 AND candidate_slots >= 0 AND attempt > 0", name="ck_census_call_budget"),
     sa.CheckConstraint("result_count IS NULL OR result_count >= 0", name="ck_census_result_count"),
     sa.Index("ix_census_call_run_status", "census_id", "status"),
+    sa.Index("ix_census_call_permit", "permit_id"),
+)
+
+
+# Additive readiness records. A permit is scoped to one census, phase and
+# reviewed configuration; public registry responses contain no contact data.
+acquisition_census_permit = sa.Table(
+    "acquisition_census_permit", METADATA,
+    sa.Column("permit_id", sa.String(64), primary_key=True),
+    sa.Column("census_id", sa.String(64), sa.ForeignKey("acquisition_census_run.census_id", ondelete="RESTRICT"), nullable=False),
+    sa.Column("program_key", sa.String(32), nullable=False),
+    sa.Column("phase", sa.String(16), nullable=False),
+    sa.Column("environment", sa.String(32), nullable=False),
+    sa.Column("database_id", sa.String(128), nullable=False),
+    sa.Column("country", sa.String(2), nullable=False),
+    sa.Column("allowed_partitions", sa.JSON, nullable=False),
+    sa.Column("max_pages", sa.Integer, nullable=False),
+    sa.Column("max_candidates", sa.Integer, nullable=False),
+    sa.Column("max_enrichments", sa.Integer, nullable=False),
+    sa.Column("max_credits", sa.Integer, nullable=False),
+    sa.Column("max_cost_chf", sa.Numeric(12, 4), nullable=False),
+    sa.Column("price_chf_per_credit", sa.Numeric(12, 6), nullable=False),
+    sa.Column("pricing_reference", sa.String(256), nullable=False),
+    sa.Column("configuration_hash", sa.String(64), nullable=False),
+    sa.Column("issued_by_reference", sa.String(128), nullable=False),
+    sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("valid_from", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.CheckConstraint("phase IN ('COVERAGE','ENRICHMENT')", name="ck_census_permit_phase"),
+    sa.CheckConstraint("status IN ('ACTIVE','REVOKED')", name="ck_census_permit_status"),
+    sa.CheckConstraint("max_pages >= 0 AND max_candidates >= 0 AND max_enrichments >= 0 AND max_credits > 0 AND max_cost_chf > 0 AND price_chf_per_credit > 0", name="ck_census_permit_caps"),
+    sa.Index("ix_census_permit_run_phase", "census_id", "phase"),
+)
+
+acquisition_census_official_cache = sa.Table(
+    "acquisition_census_official_cache", METADATA,
+    sa.Column("query_hash", sa.String(64), primary_key=True),
+    sa.Column("source_name", sa.String(64), nullable=False),
+    sa.Column("evidence", sa.JSON, nullable=False),
+    sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+acquisition_census_company_match = sa.Table(
+    "acquisition_census_company_match", METADATA,
+    sa.Column("census_id", sa.String(64), sa.ForeignKey("acquisition_census_run.census_id", ondelete="RESTRICT"), primary_key=True),
+    sa.Column("provider_organization_id", sa.String(128), primary_key=True),
+    sa.Column("match_evidence", sa.JSON, nullable=False),
+    sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Index("ix_census_company_match_status", "census_id", "observed_at"),
 )

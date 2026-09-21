@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
+import json
 from collections.abc import Callable
 from typing import Any
 
+import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
 from signals.acquisition.store import AcquisitionStore
@@ -19,6 +22,7 @@ from signals.acquisition_programs.census import (
 )
 from signals.acquisition_programs.config import runtime_flags
 from signals.acquisition_programs.contracts import AcquisitionProgramConfig
+from signals.acquisition_programs.discovery import build_program_contact_profile
 from signals.acquisition_programs.mail_provider import (
     DETECTOR_VERSION,
     MailProvider,
@@ -26,6 +30,7 @@ from signals.acquisition_programs.mail_provider import (
     MailProviderEvidence,
     ProviderConfidence,
 )
+from signals.acquisition_programs.official_company import OfficialSourceRetryLater
 from signals.acquisition_programs.pipeline import (
     ActiveCompanyEvidence,
     ProgramDiscoveryPipeline,
@@ -108,10 +113,15 @@ class _BudgetedContacts:
     def search_people(
         self, profile: DecisionMakerSearchProfile, *, observed_at: dt.datetime
     ) -> PeopleSearchPage:
+        # Opportunity/supplier refs are local bookkeeping, not Apollo filters.
+        filters = profile.model_dump(mode="json", exclude={
+            "acquisition_opportunity_id", "supplier_ref", "profile_fingerprint",
+        })
+        subject = hashlib.sha256(json.dumps(filters, sort_keys=True).encode()).hexdigest()
         result, _ = self._runner.store.execute_call(
             self._runner.census_id,
             kind="PEOPLE_SEARCH",
-            subject=profile.profile_fingerprint,
+            subject=subject,
             partition_id=self._runner.current_partition_id,
             credits=self._runner.limits.credits_people_search,
             candidate_slots=0,
@@ -155,6 +165,9 @@ class CensusRunner:
         contacts: ApolloContactDiscoveryClient,
         mail_provider: MailProviderDetector,
         company_activity: Callable[[ApolloOrganizationObservation], ActiveCompanyEvidence],
+        company_activity_for_candidate: Callable[
+            [ApolloOrganizationObservation, ApolloOrganizationCandidate], ActiveCompanyEvidence
+        ] | None = None,
         acquisition: AcquisitionStore,
         shadow: MilomailShadowRuntime,
         operations: ProgramOperationalContext,
@@ -163,6 +176,7 @@ class CensusRunner:
             raise ValueError("census requires the SHADOW Milo Mail program")
         if config.enabled:
             raise ValueError("census program must stay disabled for outbound")
+        self._engine = engine
         self.store = CensusStore(engine)
         self.census_id = census_id
         self.program_id = program_id
@@ -173,6 +187,7 @@ class CensusRunner:
         self.contacts = contacts
         self.mail_provider = mail_provider
         self.current_partition_id: str | None = None
+        self.allowed_partitions: frozenset[str] = frozenset()
         self.observed_at = dt.datetime.now(dt.UTC)
         self._pipeline = ProgramDiscoveryPipeline(
             engine,
@@ -183,22 +198,51 @@ class CensusRunner:
             contacts=_BudgetedContacts(self),  # type: ignore[arg-type]
             mail_provider=mail_provider,
             company_activity=company_activity,
+            company_activity_for_candidate=company_activity_for_candidate,
             acquisition=acquisition,
             shadow=shadow,
             operations=operations,
         )
 
-    def run(self, *, at: dt.datetime) -> dict[str, Any]:
+    def run(self, *, at: dt.datetime, phase: str,
+            permit_id: str, configuration_hash: str, database_id: str) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
         self.limits.require_run_authorization()
+        if phase not in {"COVERAGE", "ENRICHMENT"}:
+            raise ValueError("census phase must be COVERAGE or ENRICHMENT")
+        from signals.acquisition_programs.census_readiness import PermitStore
+
+        with self._engine.connect() as connection:
+            PermitStore.check_call(
+                connection, permit_id=permit_id, census_id=self.census_id, phase=phase,
+                kind="ORG_SEARCH" if phase == "COVERAGE" else "ORG_ENRICH",
+                partition_id=None, credits=0, candidate_slots=0,
+                at=dt.datetime.now(dt.UTC), configuration_hash_value=configuration_hash,
+                database_id=database_id, check_capacity=False,
+            )
+            from signals.persistence.schema import acquisition_census_permit
+
+            permitted = connection.execute(sa.select(
+                acquisition_census_permit.c.allowed_partitions,
+            ).where(acquisition_census_permit.c.permit_id == permit_id)).scalar_one()
+        self.allowed_partitions = frozenset(permitted)
+        self.store.bind_permit(permit_id=permit_id, phase=phase,
+                               configuration_hash=configuration_hash, database_id=database_id)
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("census time must be timezone-aware")
         self.observed_at = at
         self.store.start(self.census_id, self.limits, at=at)
-        if not self._process_pending():
+        if phase == "ENRICHMENT":
+            if not self._process_pending():
+                return self.store.status(self.census_id)
+            self.store.finish(self.census_id, at=at)
+            if self.store.status(self.census_id)["status"] == "COMPLETE":
+                self.store.purge_contact_cache(self.census_id, at=at)
+            return self.store.status(self.census_id)
+        if not self._coverage_contacts():
             return self.store.status(self.census_id)
         for row in self.store.partitions(self.census_id):
-            if row["status"] == "COMPLETE":
+            if row["status"] == "COMPLETE" or row["partition_id"] not in self.allowed_partitions:
                 continue
             part = CensusPartition.from_row(row)  # type: ignore[arg-type]
             self.current_partition_id = part.partition_id
@@ -225,7 +269,7 @@ class CensusRunner:
                     self.store.record_page(
                         self.census_id, part.partition_id, page, call_id=call_id, at=at
                     )
-                    if not self._process_pending():
+                    if not self._coverage_contacts():
                         return self.store.status(self.census_id)
                 except CensusBudgetExceeded:
                     self.store.pause(self.census_id, part.partition_id, "CENSUS_BUDGET_CAP", at=at)
@@ -246,15 +290,50 @@ class CensusRunner:
                 if latest["status"] in {"COMPLETE", "INCOMPLETE", "REVIEW_REQUIRED"}:
                     break
                 page_number = latest["cursor_page"]
-        self.store.finish(self.census_id, at=at)
-        if self.store.status(self.census_id)["status"] == "COMPLETE":
-            self.store.purge_contact_cache(self.census_id, at=at)
         return self.store.status(self.census_id)
+
+    def _coverage_contacts(self) -> bool:
+        """Count filtered Apollo people without person enrichment or email reveal."""
+        for row in self.store.candidates(self.census_id, status="PENDING"):
+            candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
+            if candidate.country_code != "FR" or not candidate.primary_domain:
+                continue
+            self.current_partition_id = self.store.permitted_partition_for_candidate(
+                row["candidate_id"], self.allowed_partitions,
+            )
+            if self.current_partition_id is None:
+                continue
+            profile = build_program_contact_profile(
+                self.config,
+                acquisition_opportunity_id=f"census:{row['candidate_id']}",
+                supplier_ref=f"census:{row['candidate_id']}",
+                provider_organization_id=candidate.provider_organization_id,
+                organization_domain=candidate.primary_domain,
+            )
+            try:
+                _BudgetedContacts(self).search_people(profile, observed_at=self.observed_at)
+            except CensusBudgetExceeded:
+                self.store.pause(self.census_id, self.current_partition_id,
+                                 "CENSUS_BUDGET_CAP", at=self.observed_at)
+                return False
+            except CensusRetryLater:
+                self.store.pause(self.census_id, self.current_partition_id,
+                                 "APOLLO_RATE_LIMIT", at=self.observed_at)
+                return False
+            except CensusReviewRequired:
+                self.store.pause(self.census_id, self.current_partition_id,
+                                 "APOLLO_REVIEW_REQUIRED", at=self.observed_at, review=True)
+                return False
+        return True
 
     def _process_pending(self) -> bool:
         for row in self.store.candidates(self.census_id, status="PENDING"):
             candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
-            self.current_partition_id = self._first_partition_for_candidate(row["candidate_id"])
+            self.current_partition_id = self.store.permitted_partition_for_candidate(
+                row["candidate_id"], self.allowed_partitions,
+            )
+            if self.current_partition_id is None:
+                continue
             try:
                 self._assess(row, candidate)
             except CensusBudgetExceeded:
@@ -275,10 +354,13 @@ class CensusRunner:
                     at=self.observed_at,
                 )
                 return False
+            except OfficialSourceRetryLater:
+                self.store.pause(
+                    self.census_id, self.current_partition_id, "OFFICIAL_SOURCE_RETRY_LATER",
+                    at=self.observed_at,
+                )
+                return False
         return True
-
-    def _first_partition_for_candidate(self, candidate_id: str) -> str:
-        return self.store.first_partition_for_candidate(candidate_id)
 
     def _assess(self, row: dict[str, Any], candidate: ApolloOrganizationCandidate) -> None:
         at = self.observed_at
