@@ -92,9 +92,32 @@ La création d'un permis `COVERAGE` à **0 crédit** et **0.00 CHF** n'a pas de
 commande exécutable pour le parcours actuel ; `issue-permit` refuse ce
 permis. Il ne faut pas modifier le fichier JSON ou augmenter le plafond pour
 contourner ce refus. Les commandes `run --phase COVERAGE` et
-`resume --phase COVERAGE` restent donc bloquées avant Apollo. A0 aurait au
-maximum neuf pages, une par partition ; A1 n'est envisagé qu'après A0 réussi
-et rapprochement du solde. Si le prix ou le résultat d'un appel est ambigu,
+`resume --phase COVERAGE` restent donc bloquées avant Apollo. La commande
+exacte d'A0, **uniquement après une future autorisation conforme**, est :
+
+```bash
+uv run milomail-census run --phase COVERAGE --a0 --census-id <id> \
+  --program-config <programme-validé.json> --permit-id <permis-COVERAGE> \
+  --database-authorization <autorisation-base.json> \
+  --pricing <prix-apollo-plan-vérifié.json> \
+  --operations <coûts-par-opération-vérifiés.json> \
+  --probe-official-source --probe-apollo-free --authorize-paid-apollo
+uv run milomail-census status --census-id <id>
+uv run milomail-census resume --phase COVERAGE --a0 --census-id <id> \
+  --program-config <programme-validé.json> --permit-id <permis-COVERAGE> \
+  --database-authorization <autorisation-base.json> \
+  --pricing <prix-apollo-plan-vérifié.json> \
+  --operations <coûts-par-opération-vérifiés.json> \
+  --probe-official-source --probe-apollo-free --authorize-paid-apollo
+```
+
+`--a0` impose une seule page de recherche d'organisations par partition et
+exclut la recherche de personnes. Il peut observer les MX publics des domaines
+trouvés. Dans cette mission, le permis à zéro crédit est refusé et ces commandes
+ne sont **pas exécutées**. Pour A1, retirer `--a0` seulement après examen des
+checkpoints et du coût confirmé, avec un permis et des plafonds explicitement
+autorisés. A1 n'est envisagé qu'après A0 réussi et rapprochement du solde.
+Si le prix ou le résultat d'un appel est ambigu,
 le checkpoint reste en revue et aucune reprise ne rejoue cet appel.
 
 Pour un permis futur réellement autorisé, le modèle d'émission/révocation,
@@ -147,8 +170,9 @@ pas automatiquement les partitions non parcourues ; le rapport porte
 liste d'adresses envoyables. L'ancienne fourchette 15 000–50 000 reste une
 hypothèse non mesurée et ne doit pas être reprise sans nouvelles données.
 
-`purge-cache` efface les copies de réponses Apollo terminées après la fin du
-run ou à l'échéance de rétention configurée. Elle conserve les checkpoints,
+`purge-cache` efface les copies de réponses Apollo terminées et les snapshots
+bruts de candidats après la fin du run ou à l'échéance de rétention configurée.
+Elle conserve les checkpoints,
 comptages, réservations, reçus d'usage, permis et suppressions. Un run
 incomplet purgé passe en revue : il ne peut plus rejouer la réponse effacée.
 La conservation par défaut est de 30 jours, configurable par

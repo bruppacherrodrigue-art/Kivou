@@ -107,6 +107,8 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--operations", type=Path)
         command.add_argument("--authorize-paid-apollo", action="store_true")
         command.add_argument("--phase", choices=("COVERAGE", "ENRICHMENT"))
+        command.add_argument("--a0", action="store_true",
+                             help="at most the first page of each permitted partition")
         command.add_argument("--permit-id")
         command.add_argument("--database-authorization", type=Path)
         command.add_argument("--pricing", type=Path)
@@ -216,7 +218,7 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
         "zero_cost_caps": "READY" if limits.max_apollo_credits == 0 and
         limits.max_cost_chf == 0 and limits.max_enrichments == 0 else "NONZERO_CAP",
         "operation_cost": "ORG_SEARCH_REQUIRES_CREDIT",
-        "pricing": "READY" if pricing else "MISSING",
+        "pricing": "UNVERIFIED" if pricing else "MISSING",
     }
     db_report: dict | None = None
     if not os.environ.get("KIVOU_DATABASE_URL"):
@@ -232,6 +234,12 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
                 database.check_identity(engine, at=at)
             checks["migration"] = "READY" if migration_ready(engine) else "MISSING_OR_DIVERGED"
             if args.census_id and checks["migration"] == "READY":
+                persisted_partitions = CensusStore(engine).partitions(args.census_id)
+                checks["plan_configuration"] = (
+                    "READY" if {part.partition_id for part in partitions} ==
+                    {part["partition_id"] for part in persisted_partitions}
+                    else "FILTER_SIGNATURE_MISMATCH"
+                )
                 account = _probe_apollo_account(
                     os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY", "")
                 ) if args.probe_apollo_free else None
@@ -250,7 +258,8 @@ def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
             checks["database"] = "UNREACHABLE_OR_UNAUTHORIZED"
             checks["migration"] = "UNVERIFIED"
     if db_report:
-        checks.update(db_report["checks"])
+        checks.update({f"persisted_{key}": value
+                       for key, value in db_report["checks"].items()})
     required = [name for name in (
         "KIVOU_DATABASE_URL", "KIVOU_ACQUISITION_ENVIRONMENT",
         "MILOMAIL_CENSUS_APOLLO_API_KEY", "KIVOU_SUPPRESSION_HMAC_KEY",
@@ -485,7 +494,8 @@ def main(argv: list[str] | None = None) -> int:
                     operations=operations,
                 )
                 runner.run(at=now, phase=args.phase, permit_id=args.permit_id,
-                           configuration_hash=config_hash, database_id=database.database_id)
+                           configuration_hash=config_hash, database_id=database.database_id,
+                           smoke_first_page_only=args.a0)
             result = store.report(args.census_id)
         print(json.dumps(result, default=str, sort_keys=True, ensure_ascii=False))
         return 3 if result.get("status") == "REVIEW_REQUIRED" else 0

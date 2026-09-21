@@ -205,11 +205,14 @@ class CensusRunner:
         )
 
     def run(self, *, at: dt.datetime, phase: str,
-            permit_id: str, configuration_hash: str, database_id: str) -> dict[str, Any]:
+            permit_id: str, configuration_hash: str, database_id: str,
+            smoke_first_page_only: bool = False) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
         self.limits.require_run_authorization()
         if phase not in {"COVERAGE", "ENRICHMENT"}:
             raise ValueError("census phase must be COVERAGE or ENRICHMENT")
+        if smoke_first_page_only and phase != "COVERAGE":
+            raise ValueError("A0 is only available for COVERAGE")
         from signals.acquisition_programs.census_readiness import PermitStore
 
         with self._engine.connect() as connection:
@@ -239,15 +242,19 @@ class CensusRunner:
             if self.store.status(self.census_id)["status"] == "COMPLETE":
                 self.store.purge_contact_cache(self.census_id, at=at)
             return self.store.status(self.census_id)
-        if not self._coverage_contacts():
+        if not self._coverage_contacts(include_people=not smoke_first_page_only):
             return self.store.status(self.census_id)
         for row in self.store.partitions(self.census_id):
             if row["status"] == "COMPLETE" or row["partition_id"] not in self.allowed_partitions:
                 continue
+            if smoke_first_page_only and row["cursor_page"] > 1:
+                continue
             part = CensusPartition.from_row(row)  # type: ignore[arg-type]
             self.current_partition_id = part.partition_id
             page_number = row["cursor_page"]
-            while page_number <= part.max_pages:
+            while page_number <= part.max_pages and (
+                not smoke_first_page_only or page_number == 1
+            ):
                 def search_current_page(
                     profile: CensusPartition = part, page: int = page_number,
                 ) -> SupplierSearchPage:
@@ -269,7 +276,7 @@ class CensusRunner:
                     self.store.record_page(
                         self.census_id, part.partition_id, page, call_id=call_id, at=at
                     )
-                    if not self._coverage_contacts():
+                    if not self._coverage_contacts(include_people=not smoke_first_page_only):
                         return self.store.status(self.census_id)
                 except CensusBudgetExceeded:
                     self.store.pause(self.census_id, part.partition_id, "CENSUS_BUDGET_CAP", at=at)
@@ -292,7 +299,7 @@ class CensusRunner:
                 page_number = latest["cursor_page"]
         return self.store.status(self.census_id)
 
-    def _coverage_contacts(self) -> bool:
+    def _coverage_contacts(self, *, include_people: bool = True) -> bool:
         """Persist public MX evidence and count people without email reveal."""
         for row in self.store.candidates(self.census_id, status="PENDING"):
             candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
@@ -304,6 +311,8 @@ class CensusRunner:
             if self.current_partition_id is None:
                 continue
             self._provider_for_candidate(row, candidate, at=self.observed_at)
+            if not include_people:
+                continue
             profile = build_program_contact_profile(
                 self.config,
                 acquisition_opportunity_id=f"census:{row['candidate_id']}",

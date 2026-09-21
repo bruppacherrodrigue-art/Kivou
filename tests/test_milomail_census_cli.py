@@ -137,6 +137,28 @@ def test_preflight_coverage_phase_rejects_paid_search(tmp_path, monkeypatch, cap
     assert result["instantly_mutation_allowed"] is False
 
 
+def test_a0_cli_is_coverage_only_and_remains_gate_protected(
+    tmp_path, monkeypatch, capsys,
+) -> None:
+    url = f"sqlite+pysqlite:///{tmp_path / 'a0.sqlite'}"
+    engine = create_database_engine(url)
+    migrate_to_latest(engine)
+    authorization = tmp_path / "database-authorization.json"
+    authorization.write_text(DatabaseAuthorization(
+        database_id=database_identity(engine)[0], environment="test",
+        issued_by_reference="synthetic-cli-test",
+        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(days=1),
+    ).model_dump_json())
+    engine.dispose()
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+    assert main(["plan", "--program-config", str(EXAMPLE),
+                 "--database-authorization", str(authorization)]) == 0
+    census_id = json.loads(capsys.readouterr().out)["census_id"]
+    assert main(["run", "--phase", "COVERAGE", "--a0", "--census-id", census_id,
+                 "--program-config", str(EXAMPLE)]) == 1
+    assert capsys.readouterr().err == "status=ERROR code=ValueError\n"
+
+
 def test_public_report_rejects_unattributed_forecast_and_redacts_small_locations(
     tmp_path, monkeypatch, capsys,
 ) -> None:
@@ -163,3 +185,51 @@ def test_public_report_rejects_unattributed_forecast_and_redacts_small_locations
     assert output["by_location"] == {}
     assert output["estimated_professional_addresses"] is None
     assert "candidates" not in output
+
+
+def test_bootstrap_does_not_call_stale_price_verified(tmp_path, monkeypatch, capsys) -> None:
+    from test_milomail_census_readiness import _setup
+
+    engine, _store, _census_id, _auth, pricing = _setup()
+    engine.dispose()
+    stale = pricing.model_copy(update={
+        "verified_at": dt.datetime.now(dt.UTC) - dt.timedelta(days=31),
+    })
+    path = tmp_path / "stale-pricing.json"
+    path.write_text(stale.model_dump_json())
+    monkeypatch.delenv("KIVOU_DATABASE_URL", raising=False)
+    assert main(["bootstrap", "--program-config", str(EXAMPLE),
+                 "--pricing", str(path)]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["checks"]["pricing"] == "UNVERIFIED"
+    assert not report["execution_authorized"]
+
+
+def test_bootstrap_keeps_supplied_program_check_separate_from_persisted_run(
+    tmp_path, monkeypatch, capsys,
+) -> None:
+    url = f"sqlite+pysqlite:///{tmp_path / 'bootstrap.sqlite'}"
+    engine = create_database_engine(url)
+    migrate_to_latest(engine)
+    authorization = tmp_path / "database-authorization.json"
+    authorization.write_text(DatabaseAuthorization(
+        database_id=database_identity(engine)[0], environment="test",
+        issued_by_reference="synthetic-cli-test",
+        expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(days=1),
+    ).model_dump_json())
+    engine.dispose()
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+    assert main(["plan", "--program-config", str(EXAMPLE),
+                 "--database-authorization", str(authorization)]) == 0
+    census_id = json.loads(capsys.readouterr().out)["census_id"]
+    unsafe = json.loads(EXAMPLE.read_text())
+    unsafe["enabled"] = True
+    unsafe_path = tmp_path / "unsafe-program.json"
+    unsafe_path.write_text(json.dumps(unsafe))
+    assert main(["bootstrap", "--program-config", str(unsafe_path),
+                 "--database-authorization", str(authorization),
+                 "--census-id", census_id]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["checks"]["program"] == "PROGRAM_NOT_DISABLED_SHADOW"
+    assert report["checks"]["database"] == "NON_POSTGRESQL_DATABASE"
+    assert report["checks"]["persisted_program"] == "READY"

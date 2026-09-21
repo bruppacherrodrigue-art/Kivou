@@ -468,6 +468,7 @@ def test_purge_removes_completed_organization_payload_but_preserves_receipts() -
     store.complete_call(call["call_id"], page.model_dump(mode="json"), at=NOW)
     store.record_page(run_id, partition["partition_id"], page, call_id=call["call_id"], at=NOW)
     assert store.purge_contact_cache(run_id, at=NOW + dt.timedelta(days=2)) == 1
+    assert store.candidates(run_id)[0]["snapshot"] == {}
     assert store.purge_contact_cache(run_id, at=NOW + dt.timedelta(days=2)) == 0
     report = store.report(run_id)
     assert report["apollo_declared_total_sum"] == 1
@@ -659,14 +660,23 @@ def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> N
         assert request.url.path == "/api/v1/mixed_companies/search"
         seen.append(str(request.url))
         return httpx.Response(200, json={
-            "organizations": [],
+            "organizations": [{
+                "id": "org-shared", "name": "Agence Exemple",
+                "primary_domain": "agence.fr", "website_url": "https://agence.fr",
+                "country": "France", "industry": "Marketing",
+            }],
             "pagination": {"page": 1, "per_page": 25,
-                           "total_entries": 0, "total_pages": 1},
+                           "total_entries": 75, "total_pages": 3},
         })
 
     class NoCalls:
         def __getattr__(self, name):
             raise AssertionError(f"forbidden in A0: {name}")
+
+    class DNS:
+        def mx(self, domain: str, *, timeout: float) -> tuple[str, ...]:
+            assert domain == "agence.fr"
+            return ("smtp.google.com",)
 
     client = httpx.Client(transport=httpx.MockTransport(handle))
     limits = _limits(max_partitions=9, max_pages=9, max_candidates=225,
@@ -676,7 +686,7 @@ def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> N
     runner = CensusRunner(
         engine, census_id=run_id, program_id=program_id, config=config, limits=limits,
         organizations=ApolloOrganizationSearchClient(api_key="synthetic", client=client),
-        companies=NoCalls(), contacts=NoCalls(), mail_provider=NoCalls(),
+        companies=NoCalls(), contacts=NoCalls(), mail_provider=MailProviderDetector(DNS()),
         company_activity=lambda _: ActiveCompanyEvidence(status="UNKNOWN"),
         acquisition=acquisition,
         shadow=MilomailShadowRuntime(
@@ -687,15 +697,21 @@ def test_mocked_a0_visits_nine_partitions_once_without_enrichment_or_send() -> N
         operations=ProgramOperationalContext(),
     )
     runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
-               configuration_hash=digest, database_id=database_id)
+               configuration_hash=digest, database_id=database_id,
+               smoke_first_page_only=True)
     runner.run(at=NOW, phase="COVERAGE", permit_id=permits["COVERAGE"],
-               configuration_hash=digest, database_id=database_id)
+               configuration_hash=digest, database_id=database_id,
+               smoke_first_page_only=True)
     report = store.report(run_id)
     assert len(seen) == 9
-    assert report["partitions_complete"] == 9
+    assert report["partitions_complete"] == 0
+    assert report["partitions_incomplete"] == 9
+    assert report["apollo_declared_total_sum"] == 675
     assert report["apollo_search_calls_completed"] == 9
-    assert report["apollo_declared_total_sum"] == 0
-    assert report["organizations_unique_observed"] == 0
+    assert report["apollo_results_traversed"] == 9
+    assert report["organizations_unique_observed"] == 1
+    assert report["cross_partition_overlaps"] == 8
+    assert report["google_workspace_confirmed"] == 1
     assert report["verified_addresses_unique"] == 0
     assert report["apollo_credits_reserved_upper_bound"] == 9  # simulated paid path
     assert report["cost_chf_actual"] is None

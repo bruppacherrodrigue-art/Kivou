@@ -25,6 +25,7 @@ from signals.persistence.schema import (
     acquisition_census_company_match,
     acquisition_census_identity,
     acquisition_census_occurrence,
+    acquisition_census_official_cache,
     acquisition_census_partition,
     acquisition_census_run,
     acquisition_program,
@@ -1018,6 +1019,14 @@ class CensusStore:
                 )
                 .values(result_snapshot=sa.null())
             )
+            # Candidate columns retain the aggregate funnel. The duplicate
+            # Apollo response subset is unnecessary once replay is forbidden.
+            connection.execute(sa.update(acquisition_census_candidate).where(
+                acquisition_census_candidate.c.census_id == census_id,
+            ).values(snapshot={}))
+            connection.execute(sa.delete(acquisition_census_official_cache).where(
+                acquisition_census_official_cache.c.expires_at <= at,
+            ))
             if run["status"] != "COMPLETE":
                 connection.execute(
                     sa.update(acquisition_census_run)
