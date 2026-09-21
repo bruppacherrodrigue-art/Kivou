@@ -1,5 +1,9 @@
 # Milo Mail A0 : pool Apollo staging prépayé
 
+La poursuite par échantillonnage d'organisations est décrite dans le
+[runbook A1](19-milomail-a1-sample.md). Ce document conserve les commandes
+historiques A0 à la révision `0073`.
+
 Milo Mail est le produit ; Milo est son agent. Kivou seul conserve les données
 Apollo. Ce runbook autorise uniquement la couverture d'organisations. Aucun
 contact, adresse e-mail, enrichissement, export Instantly ou envoi n'est permis.

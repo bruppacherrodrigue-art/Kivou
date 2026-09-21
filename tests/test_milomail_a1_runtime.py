@@ -129,8 +129,10 @@ def test_a1_one_depth_page_then_resume_uses_cache_and_never_contacts(monkeypatch
     assert sample["apollo_declared_total_sum"] == 9 * 750
     assert sample["organizations_observed"] == sample["organizations_unique_observed"] == 1
     assert sample["google_workspace_observed"] == 1
+    weighted_partition = sample["by_partition"][selected["partition_id"]]
+    assert sample["weighted_google_rate"] == weighted_partition["population_weight"]
     assert sample["pages_a1_completed"] == 1
-    assert sample["contacts_verified"] == sample["email_addresses_verified"] == 0
+    assert sample["contacts_found"] == sample["email_addresses_verified"] == 0
     PermitStore(engine).revoke(permit.permit_id)
     with pytest.raises(ValueError):
         runner.run(at=NOW, phase="COVERAGE_A1_SAMPLE", permit_id=permit.permit_id,
