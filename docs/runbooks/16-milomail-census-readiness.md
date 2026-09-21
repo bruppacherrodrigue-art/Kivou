@@ -135,9 +135,12 @@ ambiguë reste en revue : on ne la rejoue ni ne remet son coût à zéro.
 
 ## Préflight, permis et deux phases
 
-Après `plan` sur la base autorisée, inspecter le rapport :
+Après la migration de la base autorisée, préparer les partitions, puis
+inspecter le rapport :
 
 ```bash
+uv run milomail-census plan --program-config <programme-validé.json> \
+  --database-authorization <autorisation-base.json>
 uv run milomail-census preflight --census-id <id> \
   --database-authorization <autorisation-base.json> \
   --pricing <prix-apollo.json> \

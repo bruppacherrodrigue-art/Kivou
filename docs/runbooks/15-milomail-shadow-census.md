@@ -110,7 +110,9 @@ Après un recensement autorisé, le coût réel peut être saisi une seule fois 
 ```bash
 uv run milomail-census reconcile-usage --census-id <id-du-plan> \
   --actual-credits <credits-confirmés> --actual-cost-chf <montant-confirmé> \
-  --usage-evidence-ref <référence-opaque> --acknowledge-exclusive-attribution
+  --usage-evidence-ref <référence-opaque> \
+  --database-authorization <autorisation-base.json> \
+  --acknowledge-exclusive-attribution
 ```
 
 Cette commande s'emploie après un run terminé ou arrêté pour revue, ou pour
@@ -172,7 +174,7 @@ run arrêté ou en revue, lancer avant la fin de la période de rétention :
 
 ```bash
 uv run milomail-census purge-cache --census-id <id-du-plan> \
-  --acknowledge-cache-purge
+  --database-authorization <autorisation-base.json> --acknowledge-cache-purge
 ```
 
 La commande refuse un run incomplet avant son délai de rétention ; après ce

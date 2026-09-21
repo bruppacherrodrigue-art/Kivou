@@ -91,6 +91,7 @@ def _parser() -> _SafeArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_SafeArgumentParser)
     plan = commands.add_parser("plan", help="persist deterministic partitions; no Apollo calls")
     plan.add_argument("--program-config", type=Path, required=True)
+    plan.add_argument("--database-authorization", type=Path, required=True)
     for name in ("run", "resume"):
         command = commands.add_parser(name, help="bounded Apollo preparation in SHADOW")
         command.add_argument("--census-id", required=True)
@@ -128,6 +129,7 @@ def _parser() -> _SafeArgumentParser:
         )
         command.add_argument("--census-id", required=True)
         if name == "purge-cache":
+            command.add_argument("--database-authorization", type=Path, required=True)
             command.add_argument("--acknowledge-cache-purge", action="store_true")
     usage = commands.add_parser(
         "reconcile-usage", help="record externally verified Apollo credits and CHF cost"
@@ -136,6 +138,7 @@ def _parser() -> _SafeArgumentParser:
     usage.add_argument("--actual-credits", type=int, required=True)
     usage.add_argument("--actual-cost-chf", type=Decimal, required=True)
     usage.add_argument("--usage-evidence-ref", required=True)
+    usage.add_argument("--database-authorization", type=Path, required=True)
     usage.add_argument("--acknowledge-exclusive-attribution", action="store_true")
     return parser
 
@@ -195,6 +198,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command != "preflight" and not migration_ready(engine):
             raise ValueError("census database migration is not at the reviewed head")
+        if args.command in {"plan", "purge-cache", "reconcile-usage"}:
+            mutation_database = _read_model(args.database_authorization,
+                                            DatabaseAuthorization)
+            if mutation_database is None:
+                raise ValueError("database authorization is required for census mutations")
+            mutation_database.check(engine, at=now)
         store = CensusStore(engine)
         if args.command == "preflight":
             database = _read_model(args.database_authorization, DatabaseAuthorization)
