@@ -305,7 +305,12 @@ class CensusRunner:
         """Persist public MX evidence and count people without email reveal."""
         for row in self.store.candidates(self.census_id, status="PENDING"):
             candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
-            if candidate.country_code != "FR" or not candidate.primary_domain:
+            # A0 may observe a public MX when Apollo omits country on a
+            # France-filtered page. Keep country UNKNOWN; never search people
+            # or infer SEND from that filter alone.
+            if (not candidate.primary_domain or
+                    (candidate.country_code != "FR" and
+                     (include_people or candidate.country_code is not None))):
                 continue
             self.current_partition_id = self.store.permitted_partition_for_candidate(
                 row["candidate_id"], self.allowed_partitions,
