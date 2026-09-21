@@ -129,6 +129,12 @@ def test_actual_chf_above_reserved_ceiling_requires_review() -> None:
         partition_id=partition["partition_id"], credits=1, candidate_slots=25, at=NOW,
     )
     assert store.status(run_id)["cost_reserved_chf"] == "0.10"
+    with pytest.raises(ValueError, match="terminal"):
+        store.record_actual_usage(
+            run_id, credits=1, cost_chf=Decimal("0.1500"),
+            evidence_ref="synthetic-invoice-005", at=NOW,
+        )
+    store.pause(run_id, None, "USAGE_REVIEW", at=NOW, review=True)
     store.record_actual_usage(
         run_id, credits=1, cost_chf=Decimal("0.1500"),
         evidence_ref="synthetic-invoice-005", at=NOW,

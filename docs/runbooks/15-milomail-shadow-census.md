@@ -113,8 +113,11 @@ uv run milomail-census reconcile-usage --census-id <id-du-plan> \
   --usage-evidence-ref <référence-opaque> --acknowledge-exclusive-attribution
 ```
 
-La référence doit renvoyer à une facture ou à un relevé conservé hors du
-rapport, sans nom, adresse ni secret. L'[API Apollo de consommation](https://docs.apollo.io/reference/view-credit-usage-stats)
+Cette commande s'emploie après un run terminé ou arrêté pour revue, ou pour
+documenter un plan jamais lancé (toute charge inattendue déclenche une revue) ;
+un run actif ou simplement en pause ne peut pas recevoir un reçu final. La référence
+doit renvoyer à une facture ou à un relevé conservé hors du rapport, sans nom,
+adresse ni secret. L'[API Apollo de consommation](https://docs.apollo.io/reference/view-credit-usage-stats)
 donne un total de workspace, pas une ventilation Milo Mail ; elle ne suffit
 donc pas seule à attribuer des crédits au census si d'autres activités Apollo
 sont simultanées. L'opérateur doit vérifier une période exclusive ou une

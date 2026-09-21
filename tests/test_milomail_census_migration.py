@@ -96,6 +96,7 @@ def test_checkpoint_and_domain_dedup_on_both_dialects(engine) -> None:
     assert len(store.candidates(run_id)) == 1
     assert sum(part["duplicate_count"] for part in store.partitions(run_id)) == 1
     assert store.status(run_id)["credits_reserved"] == 2
+    store.pause(run_id, None, "USAGE_REVIEW", at=at, review=True)
     store.record_actual_usage(
         run_id, credits=2, cost_chf=Decimal("0.2000"),
         evidence_ref="synthetic-invoice-004", at=at,

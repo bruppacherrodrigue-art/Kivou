@@ -359,6 +359,8 @@ class CensusStore:
                 .where(acquisition_census_run.c.census_id == census_id)
                 .with_for_update()
             ).mappings().one()
+            if run["status"] not in {"PLANNED", "COMPLETE", "REVIEW_REQUIRED"}:
+                raise ValueError("actual usage requires a terminal or unstarted run")
             previous = run["actual_apollo_credits"]
             if previous is not None:
                 if (previous, Decimal(run["actual_cost_chf"]), run["usage_evidence_ref"]) == (
