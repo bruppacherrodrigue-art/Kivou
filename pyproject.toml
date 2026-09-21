@@ -39,6 +39,9 @@ server = ["uvicorn[standard]>=0.52.4", "playwright>=1.55,<2"]
 # compatibilité PostgreSQL du schéma est vérifiée par compilation du DDL.
 postgres = ["psycopg[binary]>=3.3.4"]
 
+[project.scripts]
+milomail-census = "signals.acquisition_programs.census_cli:main"
+
 [dependency-groups]
 dev = [
     "filelock>=3.16",
