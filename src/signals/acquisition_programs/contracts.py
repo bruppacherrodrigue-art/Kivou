@@ -28,6 +28,11 @@ class AcquisitionProgramConfig(_ClosedModel):
     target_company_size_max: int = Field(ge=1, le=100_000)
     target_roles: tuple[str, ...] = Field(min_length=1, max_length=32)
     target_sectors: tuple[str, ...] = Field(min_length=1, max_length=32)
+    apollo_organization_keywords: tuple[str, ...] = Field(min_length=1, max_length=32)
+    apollo_person_titles: tuple[str, ...] = Field(min_length=1, max_length=32)
+    apollo_person_seniorities: tuple[str, ...] = Field(min_length=1, max_length=16)
+    apollo_max_pages: int = Field(default=1, ge=1, le=5)
+    apollo_per_page: int = Field(default=25, ge=1, le=100)
     allowed_mail_providers: tuple[str, ...] = Field(min_length=1, max_length=8)
     campaign_mode: Literal["SHADOW", "ASSISTED_REVIEW", "AUTONOMOUS_CAPPED", "LIVE"] = "SHADOW"
     enabled: bool = False
@@ -40,9 +45,16 @@ class AcquisitionProgramConfig(_ClosedModel):
     target_cost_chf_per_contact_min: Decimal = Field(default=Decimal("0.10"), ge=0)
     target_cost_chf_per_contact_max: Decimal = Field(default=Decimal("0.20"), ge=0)
     score_weights: dict[str, int]
+    mail_pain_weights: dict[str, int] = Field(default_factory=lambda: {
+        "service_sector": 30,
+        "operational_decision_maker": 25,
+        "public_contact_channels": 20,
+        "recent_public_activity": 25,
+    })
     send_review_threshold: int = Field(default=80, ge=0, le=100)
     hold_threshold: int = Field(default=65, ge=0, le=100)
     mx_cache_ttl_seconds: int = Field(default=86_400, ge=60, le=604_800)
+    professional_evidence_ttl_days: int = Field(default=180, ge=1, le=365)
     dns_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
     dns_attempts: int = Field(default=2, ge=1, le=3)
     sender_configuration_ref: str | None = Field(default=None, max_length=256)
@@ -98,6 +110,13 @@ class AcquisitionProgramConfig(_ClosedModel):
             value < 0 for value in self.score_weights.values()
         ):
             raise ValueError("score weights must define five nonnegative factors totaling 100")
+        if set(self.mail_pain_weights) != {
+            "service_sector", "operational_decision_maker", "public_contact_channels",
+            "recent_public_activity",
+        } or sum(self.mail_pain_weights.values()) != 100 or any(
+            value < 0 for value in self.mail_pain_weights.values()
+        ):
+            raise ValueError("mail pain weights must define four public factors totaling 100")
         if self.target_cost_chf_per_contact_min > self.target_cost_chf_per_contact_max:
             raise ValueError("target cost interval is reversed")
         if self.transactional_domain and any(
@@ -108,6 +127,8 @@ class AcquisitionProgramConfig(_ClosedModel):
             raise ValueError("sender domain overlaps transactional domain")
         if len(set(self.sender_domains)) != len(self.sender_domains):
             raise ValueError("duplicate sender domain")
+        if self.apollo_max_pages * self.apollo_per_page > 500:
+            raise ValueError("Apollo candidate cap exceeded")
         return self
 
 

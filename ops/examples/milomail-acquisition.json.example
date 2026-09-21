@@ -12,6 +12,11 @@
   "target_company_size_max": 10,
   "target_roles": ["founder", "owner", "ceo", "managing_director"],
   "target_sectors": ["digital_or_creative_agency", "consulting", "recruiting_agency"],
+  "apollo_organization_keywords": ["agence digitale", "agence créative", "cabinet de conseil", "cabinet de recrutement"],
+  "apollo_person_titles": ["Founder", "Owner", "CEO", "Managing Director", "Fondateur", "Fondatrice", "Dirigeant", "Dirigeante", "Directeur général", "Directrice générale"],
+  "apollo_person_seniorities": ["owner", "founder", "c_suite", "director"],
+  "apollo_max_pages": 1,
+  "apollo_per_page": 25,
   "allowed_mail_providers": ["GOOGLE_WORKSPACE"],
   "campaign_mode": "SHADOW",
   "enabled": false,
@@ -30,9 +35,16 @@
     "company_size": 15,
     "recent_public_activity": 10
   },
+  "mail_pain_weights": {
+    "service_sector": 30,
+    "operational_decision_maker": 25,
+    "public_contact_channels": 20,
+    "recent_public_activity": 25
+  },
   "send_review_threshold": 80,
   "hold_threshold": 65,
   "mx_cache_ttl_seconds": 86400,
+  "professional_evidence_ttl_days": 180,
   "dns_timeout_seconds": 2.0,
   "dns_attempts": 2,
   "sender_configuration_ref": null,
