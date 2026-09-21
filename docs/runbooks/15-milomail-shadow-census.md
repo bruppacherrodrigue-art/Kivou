@@ -38,6 +38,9 @@ Une identité globale relie les identifiants d'entreprise Apollo, les domaines
 normalisés et les HMAC d'adresses vérifiées, sans adresse en clair dans le
 rapport. Le premier fait conservé est daté ; les faits incertains restent
 `UNKNOWN`/`HOLD`.
+Le fournisseur MX du domaine de l'entreprise et celui de l'adresse du
+destinataire sont conservés séparément : une entreprise Google Workspace peut
+avoir un contact `@gmail.com` qui reste `NO_SEND` dans ce pilote.
 
 Apollo limite [Organization Search à 50 000 fiches affichables par recherche,
 100 par page, 500 pages](https://docs.apollo.io/reference/organization-search).

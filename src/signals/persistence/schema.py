@@ -3513,6 +3513,8 @@ acquisition_census_candidate = sa.Table(
     sa.Column("provider", sa.String(32), nullable=False),
     sa.Column("provider_confidence", sa.String(16), nullable=False),
     sa.Column("provider_evidence", sa.JSON),
+    sa.Column("recipient_provider", sa.String(32)),
+    sa.Column("recipient_provider_confidence", sa.String(16)),
     sa.Column("contact_found", sa.Boolean, nullable=False),
     sa.Column("leader_identified", sa.Boolean, nullable=False),
     sa.Column("email_verified", sa.Boolean, nullable=False),

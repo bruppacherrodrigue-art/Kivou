@@ -323,8 +323,17 @@ def test_apollo_display_limit_is_reported_as_coverage_hole() -> None:
     )
 
 
-@pytest.mark.parametrize("suppressed,expected", [(False, "SEND"), (True, "NO_SEND")])
-def test_mocked_apollo_census_policy_never_mutates_instantly(suppressed, expected) -> None:
+@pytest.mark.parametrize(
+    "suppressed,recipient_email,expected",
+    [
+        (False, "founder@cabinet.fr", "SEND"),
+        (True, "founder@cabinet.fr", "NO_SEND"),
+        (False, "founder@gmail.com", "NO_SEND"),
+    ],
+)
+def test_mocked_apollo_census_policy_never_mutates_instantly(
+    suppressed, recipient_email, expected
+) -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     migrate_to_latest(engine)
     config = ready_config()
@@ -359,7 +368,7 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(suppressed, expecte
         if path == "/api/v1/people/match":
             return httpx.Response(200, json={"person": {
                 "id": "person-1", "organization_id": "org-1", "title": "Founder",
-                "email": "founder@cabinet.fr", "email_status": "verified",
+                "email": recipient_email, "email_status": "verified",
             }})
         raise AssertionError("unexpected Apollo endpoint")
 
@@ -386,7 +395,7 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(suppressed, expecte
         suppression = SuppressionStore(engine, keyring, scope=MILOMAIL_SUPPRESSION_SCOPE)
         with engine.begin() as connection:
             suppression.record_for_email_in_transaction(
-                connection, "founder@cabinet.fr",
+                connection, recipient_email,
                 source=SuppressionSource.UNSUBSCRIBE,
                 reason_code=SuppressionReasonCode.UNSUBSCRIBED,
                 evidence_ref=suppression_evidence_ref("UNSUBSCRIBE", "synthetic-event"),
@@ -438,10 +447,11 @@ def test_mocked_apollo_census_policy_never_mutates_instantly(suppressed, expecte
     assert report["organizations_found"] == report["organizations_unique"] == 1
     assert report["contacts_found"] == report["leaders_identified"] == 1
     assert report["google_workspace_confirmed"] == 1
+    assert report["recipient_gmail_consumer"] == int(recipient_email.endswith("gmail.com"))
     assert report["verified_addresses_unique"] == 1
-    assert report["SEND_theoretical"] == int(not suppressed)
+    assert report["SEND_theoretical"] == int(expected == "SEND")
     assert report["HOLD"] == 0
-    assert report["NO_SEND"] == int(suppressed)
+    assert report["NO_SEND"] == int(expected == "NO_SEND")
     assert report["suppressions"] == int(suppressed)
     assert report["by_company_size"]["5"][expected] == 1
     assert report["apollo_credits_reserved_upper_bound"] == 11

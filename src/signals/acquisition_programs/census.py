@@ -16,12 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine, RowMapping
 
 from signals.acquisition_programs.contracts import AcquisitionProgramConfig
-from signals.acquisition_programs.mail_provider import (
-    MailProvider,
-    MailProviderEvidence,
-    ProviderConfidence,
-    normalize_domain,
-)
+from signals.acquisition_programs.mail_provider import MailProviderEvidence, normalize_domain
 from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_census_call,
@@ -687,6 +682,8 @@ class CensusStore:
                     provider="UNKNOWN",
                     provider_confidence="UNKNOWN",
                     provider_evidence=None,
+                    recipient_provider=None,
+                    recipient_provider_confidence=None,
                     contact_found=False,
                     leader_identified=False,
                     email_verified=False,
@@ -737,7 +734,7 @@ class CensusStore:
             ).mappings().one()
             if row["status"] == "DECIDED":
                 return
-            role = None
+            role = recipient_provider = recipient_confidence = None
             if opportunity_id:
                 research = connection.execute(
                     sa.select(acquisition_census_call.c.result_snapshot).where(
@@ -761,16 +758,8 @@ class CensusStore:
                 ).mappings().one()
                 role = eligibility["professional_evidence"].get("role")
                 stored_provider = eligibility["provider_evidence"]
-                provider = MailProviderEvidence(
-                    domain=stored_provider["domain"],
-                    provider=MailProvider(stored_provider["provider"]),
-                    confidence=ProviderConfidence(stored_provider["confidence"]),
-                    mx_records=tuple(stored_provider["mx_records"]),
-                    source=stored_provider["source"],
-                    observed_at=dt.datetime.fromisoformat(stored_provider["observed_at"]),
-                    expires_at=dt.datetime.fromisoformat(stored_provider["expires_at"]),
-                    detector_version=stored_provider["detector_version"],
-                )
+                recipient_provider = stored_provider["provider"]
+                recipient_confidence = stored_provider["confidence"]
                 identity = eligibility["professional_evidence"].get("recipient_identity_hmac")
                 if identity:
                     prior = connection.execute(
@@ -802,6 +791,8 @@ class CensusStore:
                         "expires_at": provider.expires_at.isoformat(),
                         "detector_version": provider.detector_version,
                     } if provider else None,
+                    recipient_provider=recipient_provider,
+                    recipient_provider_confidence=recipient_confidence,
                     status="DECIDED",
                     decision=decision,
                     reason_codes=list(reasons),
@@ -1029,6 +1020,10 @@ class CensusStore:
             "by_location": breakdown("location"),
             "by_role": breakdown("role"),
             "by_mail_provider": breakdown("provider"),
+            "by_recipient_mail_provider": breakdown("recipient_provider"),
+            "recipient_gmail_consumer": sum(
+                row["recipient_provider"] == "GMAIL_CONSUMER" for row in candidates
+            ),
             "by_reason_code": dict(sorted(reasons.items())),
             "by_partition": {
                 row["partition_id"]: {
