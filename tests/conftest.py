@@ -50,6 +50,7 @@ _FULL_BENCHMARK_SUITES = frozenset(
 # suite unless it deliberately joins this exhaustive CI gate.
 EXHAUSTIVE_MIGRATION_SUITES = frozenset(
     {
+        "test_acceptance_error_cleanup_migration.py",
         "test_accounts_migration_and_ownership.py",
         "test_acquisition_migration.py",
         "test_acquisition_runtime_authorization_migration.py",
