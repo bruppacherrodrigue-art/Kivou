@@ -10,6 +10,7 @@ from sqlalchemy.engine import Engine
 
 from signals.acquisition_programs.census import CensusStore
 from signals.acquisition_programs.census_sampling import wilson_interval
+from signals.acquisition_programs.mail_provider import normalize_domain
 from signals.persistence.schema import (
     acquisition_census_call,
     acquisition_census_company_match,
@@ -30,6 +31,8 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
     partitions = {row["partition_id"]: row for row in store.partitions(census_id)}
     candidates = store.candidates(census_id)
     by_id = {row["provider_organization_id"]: row for row in candidates}
+    by_domain = {normalize_domain(row["primary_domain"]): row for row in candidates
+                 if row["primary_domain"]}
     with engine.connect() as connection:
         selected = connection.execute(sa.select(acquisition_census_sample_page).where(
             acquisition_census_sample_page.c.plan_id == permit_id,
@@ -54,16 +57,21 @@ def sample_report(engine: Engine, census_id: str, permit_id: str) -> dict[str, A
         page_depth["FIRST" if page.page == 1 else "DEEP"] += 1
         for candidate in page.candidates:
             measured = by_id.get(candidate.provider_organization_id)
+            if measured is None and candidate.primary_domain:
+                try:
+                    measured = by_domain.get(normalize_domain(candidate.primary_domain))
+                except ValueError:
+                    measured = None
             if measured is None:
                 continue
             observation = {
-                "id": candidate.provider_organization_id,
+                "id": measured["provider_organization_id"],
                 "google": measured["provider"] == "GOOGLE_WORKSPACE" and
                 measured["provider_confidence"] == "CONFIRMED",
                 "valid": bool(measured["primary_domain"]),
-                "active": legal.get(candidate.provider_organization_id, {}).get(
+                "active": legal.get(measured["provider_organization_id"], {}).get(
                     "legal_status") == "ACTIVE" and legal.get(
-                    candidate.provider_organization_id, {}).get(
+                    measured["provider_organization_id"], {}).get(
                     "match_confidence") == "CONFIRMED_MATCH",
                 "page": page.page,
             }

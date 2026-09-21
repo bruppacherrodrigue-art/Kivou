@@ -13,6 +13,7 @@ from signals.acquisition_programs.census import (
     build_partitions,
 )
 from signals.acquisition_programs.census_sampling import SamplePlanStore
+from signals.acquisition_programs.census_statistics import sample_report
 from signals.acquisition_programs.store import AcquisitionProgramStore
 from signals.persistence.database import migrate_to_latest
 from signals.supplier_discovery.contracts import ApolloOrganizationCandidate, SupplierSearchPage
@@ -97,10 +98,12 @@ def test_nonsequential_pages_checkpoint_and_resume_without_double_charge() -> No
         normalized_name="agence exemple", primary_domain="agence.fr",
         provider_observed_at=NOW, source_fingerprint="a" * 64,
     )
-    for row in selected:
+    for index, row in enumerate(selected):
         page = SupplierSearchPage(
             page=row["page"], per_page=25, total_entries=750, total_pages=30,
-            candidates=(company,), rejections=(),
+            candidates=(company if index == 0 else company.model_copy(update={
+                "provider_organization_id": "same-domain-different-apollo-id",
+            }),), rejections=(),
         )
         result, call_id = store.execute_call(
             census_id, kind="ORG_SEARCH",
@@ -126,6 +129,10 @@ def test_nonsequential_pages_checkpoint_and_resume_without_double_charge() -> No
     assert len(store.candidates(census_id)) == 1
     statuses = SamplePlanStore(engine).details(plan["plan_id"])["pages"]
     assert sum(row["status"] == "COMPLETED" for row in statuses) == 2
+    aggregate = sample_report(engine, census_id, plan["plan_id"])
+    assert aggregate["organizations_observed"] == 2
+    assert aggregate["organizations_unique_observed"] == 1
+    assert aggregate["cross_partition_duplicate_occurrences"] == 1
 
 
 def test_nine_cached_plus_eighty_one_new_pages_stop_before_eighty_second_call() -> None:
