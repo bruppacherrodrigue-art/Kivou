@@ -68,6 +68,7 @@ class AcquisitionProgramStore:
         capacity: CapacityAssessment,
         fit: FitAssessment,
         decision: MilomailPolicyDecision,
+        wedge_key: str | None,
         collection_source_url: str | None,
         collected_at: dt.datetime | None,
     ) -> str:
@@ -88,6 +89,7 @@ class AcquisitionProgramStore:
             "supplier_ref": None,
             "contact_ref": None,
             "mail_provider": provider.provider.value,
+            "wedge_key": wedge_key,
             "provider_confidence": provider.confidence.value,
             "provider_evidence": provider_evidence,
             "recipient_capacity": capacity.capacity.value,

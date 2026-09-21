@@ -36,6 +36,8 @@ def ready_config():
         privacy_url="https://milomail.example/fr/confidentialite",
         opt_out_url="https://milomail.example/fr/desinscription",
         sender_configuration_ref="sender:milomail:test",
+        sender_legal_name="Milo Mail SAS (synthétique)",
+        sender_postal_address="1 rue du Test, 75000 Paris (synthétique)",
         sender_domains=("outbound.milomail.example",),
         instantly_workspace_ref="instantly:milomail:test",
         max_daily_contacts=10,

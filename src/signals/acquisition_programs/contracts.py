@@ -14,6 +14,36 @@ class _ClosedModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
 
+class ProgramMessageConfig(_ClosedModel):
+    locale: Literal["fr-FR"]
+    subject: str = Field(min_length=1, max_length=90)
+    initial_body: str = Field(min_length=1, max_length=1200)
+    follow_up_body: str = Field(min_length=1, max_length=800)
+    cta_text: str = Field(min_length=1, max_length=150)
+    sender_identity: str = Field(min_length=1, max_length=200)
+    source_notice: str = Field(min_length=1, max_length=300)
+    follow_up_delay_days: int = Field(ge=1, le=14)
+    max_steps: Literal[2] = 2
+
+    @model_validator(mode="after")
+    def reviewed_copy(self) -> ProgramMessageConfig:
+        text = f"{self.initial_body} {self.follow_up_body}".casefold()
+        if any(
+            value in text
+            for value in (
+                "nous avons analysé votre boîte",
+                "votre boîte est désorganisée",
+                "milo a analysé votre boîte",
+                "milo pro est disponible",
+                "milo agent est disponible",
+            )
+        ):
+            raise ValueError("message makes an unsupported or unavailable-plan claim")
+        if any(token in text for token in ("{{", "}}", "{%", "%}")):
+            raise ValueError("provider interpolation is forbidden in reviewed copy")
+        return self
+
+
 class AcquisitionProgramConfig(_ClosedModel):
     schema_version: Literal["acquisition-program-v1"] = "acquisition-program-v1"
     program_key: str = Field(pattern=r"^[a-z][a-z0-9_]{1,63}$")
@@ -39,18 +69,21 @@ class AcquisitionProgramConfig(_ClosedModel):
     policy_version: str = Field(min_length=1, max_length=64)
     score_version: str = Field(min_length=1, max_length=64)
     template_version: str = Field(min_length=1, max_length=64)
+    messages: ProgramMessageConfig
     max_daily_contacts: int = Field(default=0, ge=0)
     max_monthly_contacts: int = Field(default=0, ge=0)
     max_cost_chf: Decimal = Field(default=Decimal("0"), ge=0)
     target_cost_chf_per_contact_min: Decimal = Field(default=Decimal("0.10"), ge=0)
     target_cost_chf_per_contact_max: Decimal = Field(default=Decimal("0.20"), ge=0)
     score_weights: dict[str, int]
-    mail_pain_weights: dict[str, int] = Field(default_factory=lambda: {
-        "service_sector": 30,
-        "operational_decision_maker": 25,
-        "public_contact_channels": 20,
-        "recent_public_activity": 25,
-    })
+    mail_pain_weights: dict[str, int] = Field(
+        default_factory=lambda: {
+            "service_sector": 30,
+            "operational_decision_maker": 25,
+            "public_contact_channels": 20,
+            "recent_public_activity": 25,
+        }
+    )
     send_review_threshold: int = Field(default=80, ge=0, le=100)
     hold_threshold: int = Field(default=65, ge=0, le=100)
     mx_cache_ttl_seconds: int = Field(default=86_400, ge=60, le=604_800)
@@ -58,6 +91,8 @@ class AcquisitionProgramConfig(_ClosedModel):
     dns_timeout_seconds: float = Field(default=2.0, gt=0, le=10)
     dns_attempts: int = Field(default=2, ge=1, le=3)
     sender_configuration_ref: str | None = Field(default=None, max_length=256)
+    sender_legal_name: str | None = Field(default=None, max_length=200)
+    sender_postal_address: str | None = Field(default=None, max_length=300)
     sender_domains: tuple[str, ...] = Field(default=(), max_length=16)
     transactional_domain: str | None = Field(default=None, max_length=253)
     instantly_workspace_ref: str | None = Field(default=None, max_length=128)
@@ -77,9 +112,13 @@ class AcquisitionProgramConfig(_ClosedModel):
             or parsed.username is not None
             or parsed.password is not None
             or parsed.fragment
+            or parsed.query
             or parsed.port not in (None, 443)
         ):
             raise ValueError("program URLs require HTTPS without credentials or fragment")
+        from signals.acquisition_programs.mail_provider import normalize_domain
+
+        normalize_domain(parsed.hostname)
         return value
 
     @field_validator("sender_domains", "transactional_domain")
@@ -103,25 +142,35 @@ class AcquisitionProgramConfig(_ClosedModel):
             raise ValueError("company size bounds are reversed")
         if self.hold_threshold >= self.send_review_threshold:
             raise ValueError("score thresholds are reversed")
-        if set(self.score_weights) != {
-            "google_workspace", "email_dependent_sector", "decision_maker",
-            "company_size", "recent_public_activity",
-        } or sum(self.score_weights.values()) != 100 or any(
-            value < 0 for value in self.score_weights.values()
+        if (
+            set(self.score_weights)
+            != {
+                "google_workspace",
+                "email_dependent_sector",
+                "decision_maker",
+                "company_size",
+                "recent_public_activity",
+            }
+            or sum(self.score_weights.values()) != 100
+            or any(value < 0 for value in self.score_weights.values())
         ):
             raise ValueError("score weights must define five nonnegative factors totaling 100")
-        if set(self.mail_pain_weights) != {
-            "service_sector", "operational_decision_maker", "public_contact_channels",
-            "recent_public_activity",
-        } or sum(self.mail_pain_weights.values()) != 100 or any(
-            value < 0 for value in self.mail_pain_weights.values()
+        if (
+            set(self.mail_pain_weights)
+            != {
+                "service_sector",
+                "operational_decision_maker",
+                "public_contact_channels",
+                "recent_public_activity",
+            }
+            or sum(self.mail_pain_weights.values()) != 100
+            or any(value < 0 for value in self.mail_pain_weights.values())
         ):
             raise ValueError("mail pain weights must define four public factors totaling 100")
         if self.target_cost_chf_per_contact_min > self.target_cost_chf_per_contact_max:
             raise ValueError("target cost interval is reversed")
         if self.transactional_domain and any(
-            domain == self.transactional_domain
-            or domain.endswith("." + self.transactional_domain)
+            domain == self.transactional_domain or domain.endswith("." + self.transactional_domain)
             for domain in self.sender_domains
         ):
             raise ValueError("sender domain overlaps transactional domain")
@@ -129,6 +178,8 @@ class AcquisitionProgramConfig(_ClosedModel):
             raise ValueError("duplicate sender domain")
         if self.apollo_max_pages * self.apollo_per_page > 500:
             raise ValueError("Apollo candidate cap exceeded")
+        if self.messages.locale != self.target_locale:
+            raise ValueError("message locale must match target locale")
         return self
 
 
@@ -142,4 +193,4 @@ class ProgramRuntimeFlags(_ClosedModel):
     max_cost_chf: Decimal = Field(default=Decimal("0"), ge=0)
 
 
-__all__ = ["AcquisitionProgramConfig", "ProgramRuntimeFlags"]
+__all__ = ["AcquisitionProgramConfig", "ProgramMessageConfig", "ProgramRuntimeFlags"]

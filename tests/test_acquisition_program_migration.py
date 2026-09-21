@@ -9,7 +9,7 @@ from signals.persistence.schema import METADATA
 
 
 def test_program_migration_upgrade_downgrade() -> None:
-    assert current_migration_head() == "0069_milomail_suppression_scope"
+    assert current_migration_head() == "0070_program_conversion_receipt"
     engine = sa.create_engine("sqlite:///:memory:")
     migrate_to_latest(engine)
     inspector = sa.inspect(engine)
@@ -17,6 +17,7 @@ def test_program_migration_upgrade_downgrade() -> None:
         "acquisition_program",
         "acquisition_program_eligibility",
         "acquisition_program_attribution",
+        "acquisition_program_conversion_receipt",
     }
     assert expected <= set(inspector.get_table_names())
     for name in expected:

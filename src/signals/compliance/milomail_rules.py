@@ -203,7 +203,12 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         hold.append("FIT_BELOW_REVIEW_THRESHOLD")
     if not value.evidence_ids:
         hold.append("EVIDENCE_MISSING")
-    if not value.sender_identity_ready:
+    if not value.sender_identity_ready or not all(
+        (
+            value.program.sender_legal_name,
+            value.program.sender_postal_address,
+        )
+    ):
         hold.append("SENDER_IDENTITY_MISSING")
     if not value.opt_out_ready or not value.program.opt_out_url:
         hold.append("OPT_OUT_MISSING")

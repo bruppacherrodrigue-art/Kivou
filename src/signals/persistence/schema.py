@@ -3364,6 +3364,7 @@ acquisition_program_eligibility = sa.Table(
         sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"),
     ),
     sa.Column("mail_provider", sa.String(32), nullable=False),
+    sa.Column("wedge_key", sa.String(64)),
     sa.Column("provider_confidence", sa.String(16), nullable=False),
     sa.Column("provider_evidence", sa.JSON, nullable=False),
     sa.Column("recipient_capacity", sa.String(32), nullable=False),
@@ -3411,7 +3412,41 @@ acquisition_program_attribution = sa.Table(
     sa.Column("campaign_ref", sa.String(64)),
     sa.Column("opaque_token_hash", sa.String(64), nullable=False, unique=True),
     sa.Column("key_version", sa.String(64), nullable=False),
+    sa.Column("recipient_identity_hmac", sa.String(64), nullable=False),
+    sa.Column("recipient_identity_key_version", sa.String(64), nullable=False),
     sa.Column("issued_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("expires_at > issued_at", name="ck_program_attribution_interval"),
+)
+
+
+# Program conversion receipts are only a global replay index. The facts and
+# reason codes live in the existing append-only acquisition_event stream.
+acquisition_program_conversion_receipt = sa.Table(
+    "acquisition_program_conversion_receipt",
+    METADATA,
+    sa.Column("receipt_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "program_id", sa.String(64),
+        sa.ForeignKey("acquisition_program.program_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "attribution_id", sa.String(64),
+        sa.ForeignKey("acquisition_program_attribution.attribution_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("event_id_hash", sa.String(64), nullable=False),
+    sa.Column("payload_fingerprint", sa.String(64), nullable=False),
+    sa.Column("event_type", sa.String(64), nullable=False),
+    sa.Column(
+        "recorded_event_id", sa.String(64),
+        sa.ForeignKey("acquisition_event.event_id", ondelete="RESTRICT"),
+        nullable=False, unique=True,
+    ),
+    sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint(
+        "program_id", "event_id_hash", name="uq_program_conversion_event_identity"
+    ),
+    sa.Index("ix_program_conversion_attribution", "attribution_id", "received_at"),
 )

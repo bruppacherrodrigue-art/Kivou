@@ -146,6 +146,7 @@ class MilomailShadowRuntime:
                 capacity=assessed.capacity,
                 fit=assessed.fit,
                 decision=decision,
+                wedge_key=assessed.sector,
                 collection_source_url=assessed.collection_source_url,
                 collected_at=assessed.collected_at,
             )
