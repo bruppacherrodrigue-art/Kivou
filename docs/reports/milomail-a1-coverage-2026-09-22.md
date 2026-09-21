@@ -142,11 +142,16 @@ sont trouvés. A1 n'en fournit encore aucune officiellement confirmée ; le
 rapprochement doit être corrigé avant ce tirage.
 
 La [recherche de personnes Apollo](https://docs.apollo.io/reference/people-api-search)
-est documentée à zéro crédit et ne renvoie pas d'adresse. L'[enrichissement
-individuel](https://docs.apollo.io/reference/people-enrichment) coûte jusqu'à
-9 crédits/personne selon les données et options ; pour 200 personnes, le
-**plafond conservateur envisagé** serait 1 800 crédits, à revoir selon le
-plan détecté. B0 nécessitera une clé Milo Mail dédiée, son propre permis,
+est documentée à zéro crédit et ne renvoie pas d'adresse. Si nécessaire
+pour corroborer la localisation et la raison sociale,
+l'[enrichissement d'organisation](https://docs.apollo.io/reference/organization-enrichment)
+coûte un crédit par entreprise, soit au plus 200 crédits pour ce lot.
+L'[enrichissement individuel](https://docs.apollo.io/reference/people-enrichment)
+coûte jusqu'à 9 crédits/personne selon les données et options ; pour 200
+personnes, le **plafond conservateur envisagé** serait 1 800 crédits de
+personne, ou **2 000 crédits au total** avec 200 enrichissements
+d'organisation, à revoir selon le plan détecté. B0 nécessitera une clé Milo
+Mail dédiée, son propre permis,
 un budget séparé, le filtrage des suppressions avant enrichissement et une
 politique de preuve professionnelle. Les rôles admissibles sont fondateur,
 dirigeant, owner ou équivalent ; `@gmail.com` ne vaut pas preuve

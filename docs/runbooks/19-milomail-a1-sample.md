@@ -162,11 +162,16 @@ parmi eux). Un plan prudent choisira au moins 200 entreprises Google Workspace
 avec activité confirmée, stratifiées et dédupliquées, puis ajustera le lot
 pour obtenir au moins 97 dirigeants observables. La
 [recherche de personnes](https://docs.apollo.io/reference/people-api-search)
-est documentée à zéro crédit, sans adresses ; l'[enrichissement de
-personne](https://docs.apollo.io/reference/people-enrichment) peut coûter
+est documentée à zéro crédit, sans adresses. Si le rapprochement officiel
+nécessite l'[enrichissement d'organisation](https://docs.apollo.io/reference/organization-enrichment),
+le plafond documentaire est un crédit par organisation, soit 200 crédits pour
+ce lot. L'[enrichissement de personne](https://docs.apollo.io/reference/people-enrichment)
+peut coûter
 1 à 9 crédits/personne sans cascade. Pour 200 personnes, le pire plafond
-initial documenté serait 1 800 crédits, à revalider avec le plan et les
-options exactes (aucun téléphone, e-mail personnel ou cascade). B0 exige une
+initial documenté serait 1 800 crédits pour les personnes et **2 000 crédits
+au total** si les 200 organisations doivent aussi être enrichies, à revalider
+avec le plan et les options exactes (aucun téléphone, e-mail personnel ou
+cascade). B0 exige une
 clé Milo Mail dédiée, un permis et un budget séparés, le contrôle des rôles
 fondateur/dirigeant/owner, la suppression avant enrichissement, une preuve
 professionnelle et la décision déterministe SEND théorique/HOLD/NO_SEND.
