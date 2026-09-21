@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
@@ -30,6 +30,7 @@ from signals.compliance.suppression import (
 )
 from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
+    acquisition_contact,
     acquisition_program,
     acquisition_program_attribution,
     acquisition_program_conversion_receipt,
@@ -72,10 +73,13 @@ class ProgramAttributionService:
         engine: Engine,
         keyring: ProgramAttributionKeyring,
         suppression_keyring: SuppressionIdentityKeyring,
+        *,
+        clock: Callable[[], dt.datetime] = lambda: dt.datetime.now(dt.UTC),
     ) -> None:
         self._engine = engine
         self._keys = keyring
         self._suppression_keys = suppression_keyring
+        self._clock = clock
         self._suppression = EmailSuppressionChecker(
             suppression_keyring,
             scope=MILOMAIL_SUPPRESSION_SCOPE,
@@ -126,7 +130,10 @@ class ProgramAttributionService:
             "expires_at": expires_at,
         }
         with self._engine.begin() as connection:
-            if self._suppression.is_suppressed(connection, email=recipient_email, at=issued_at):
+            checked_at = max(_utc(issued_at), _utc(self._clock()))
+            if expires_at <= checked_at:
+                raise ValueError("attribution token has expired")
+            if self._suppression.is_suppressed(connection, email=recipient_email, at=checked_at):
                 raise ValueError("suppressed recipient cannot receive attribution")
             program = (
                 connection.execute(
@@ -144,16 +151,47 @@ class ProgramAttributionService:
             ):
                 raise ValueError("Milo Mail attribution program binding mismatch")
             latest = connection.execute(
-                sa.select(acquisition_program_eligibility.c.decision)
+                sa.select(
+                    acquisition_program_eligibility.c.decision,
+                    acquisition_program_eligibility.c.contact_ref,
+                    acquisition_program_eligibility.c.professional_evidence,
+                    acquisition_contact.c.business_email,
+                )
+                .select_from(acquisition_program_eligibility.outerjoin(
+                    acquisition_contact,
+                    acquisition_program_eligibility.c.contact_ref == acquisition_contact.c.contact_ref,
+                ))
                 .where(
                     acquisition_program_eligibility.c.program_id == program_id,
                     acquisition_program_eligibility.c.acquisition_opportunity_id == opportunity_id,
                 )
-                .order_by(acquisition_program_eligibility.c.evaluated_at.desc())
+                .order_by(
+                    acquisition_program_eligibility.c.evaluated_at.desc(),
+                    acquisition_program_eligibility.c.eligibility_id.desc(),
+                )
                 .limit(1)
-            ).scalar_one_or_none()
-            if latest != "SEND":
+            ).mappings().one_or_none()
+            if latest is None or latest["decision"] != "SEND":
                 raise ValueError("attribution requires a theoretical SEND assessment")
+            if not latest["contact_ref"] or not latest["business_email"]:
+                raise ValueError("attribution requires a selected contact")
+            selected_identity = self._suppression_keys.identities_for_email(
+                latest["business_email"], scope=MILOMAIL_SUPPRESSION_SCOPE,
+            )[recipient_version]
+            if not hmac.compare_digest(selected_identity, identities[recipient_version]):
+                raise ValueError("attribution recipient differs from selected contact")
+            assessed_identity = latest["professional_evidence"]
+            assessed_version = assessed_identity.get("recipient_identity_key_version")
+            if (
+                not isinstance(assessed_version, str)
+                or assessed_version not in self._suppression_keys.keys
+                or not isinstance(assessed_identity.get("recipient_identity_hmac"), str)
+                or not hmac.compare_digest(
+                    assessed_identity["recipient_identity_hmac"],
+                    identities[assessed_version],
+                )
+            ):
+                raise ValueError("attribution recipient differs from assessed recipient")
             inserted = insert_if_absent(
                 connection,
                 acquisition_program_attribution,
@@ -367,7 +405,7 @@ class MilomailConversionIngress:
                     "mrr_chf": str(event.mrr_chf) if event.mrr_chf is not None else None,
                 },
                 reason_codes=(event.event_type.value.upper(),),
-                policy_version="milomail-conversion-v1",
+                policy_version=None,
                 occurred_at=event.occurred_at,
             )
             connection.execute(

@@ -66,6 +66,8 @@ class AcquisitionProgramStore:
         opportunity_id: str,
         supplier_ref: str | None,
         contact_ref: str | None,
+        recipient_identity_hmac: str | None,
+        recipient_identity_key_version: str | None,
         provider: MailProviderEvidence,
         capacity: CapacityAssessment,
         fit: FitAssessment,
@@ -101,6 +103,8 @@ class AcquisitionProgramStore:
             "recipient_capacity": capacity.capacity.value,
             "professional_evidence": {
                 **capacity.model_dump(mode="json"),
+                "recipient_identity_hmac": recipient_identity_hmac,
+                "recipient_identity_key_version": recipient_identity_key_version,
                 "collection_source_url": collection_source_url,
                 "collected_at": collected_at.isoformat() if collected_at else None,
                 "company_active_source_url": company_active_source_url,

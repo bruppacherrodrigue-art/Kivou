@@ -186,7 +186,7 @@ class MilomailInstantlyEventSimulation:
                     "recipient_identity_hmac": recipient_identity,
                 },
                 reason_codes=(payload.event_type.value.upper(),),
-                policy_version="milomail-provider-event-v1",
+                policy_version=None,
                 occurred_at=payload.timestamp,
             )
             if appended.replayed:

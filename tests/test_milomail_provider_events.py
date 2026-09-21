@@ -80,6 +80,7 @@ def test_simulated_reply_bounce_and_optout_are_program_scoped_and_idempotent() -
         supplied_secret="synthetic-milomail-secret",
         received_at=NOW,
     )
+    assert acquisition.get_opportunity(opportunity_id).policy_version == "milomail-fr-b2b-v1"
     with engine.connect() as connection:
         rows = connection.execute(sa.select(acquisition_contact_suppression)).mappings().all()
     assert len(rows) == 1

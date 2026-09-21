@@ -41,6 +41,7 @@ class MilomailShadowRuntime:
             suppression_keyring,
             scope=MILOMAIL_SUPPRESSION_SCOPE,
         )
+        self._suppression_keys = suppression_keyring
         self._instantly = ShadowInstantlyProvider(instantly_provider)
 
     def evaluate(
@@ -118,6 +119,14 @@ class MilomailShadowRuntime:
                 }
             )
             decision = evaluate_milomail(assessed)
+            recipient_version = self._suppression_keys.current_key_version if safe else None
+            recipient_identity = (
+                self._suppression_keys.identities_for_email(
+                    email, scope=MILOMAIL_SUPPRESSION_SCOPE,
+                )[recipient_version]
+                if email is not None and recipient_version is not None
+                else None
+            )
             current = self._acquisition.get_opportunity_in_transaction(
                 connection,
                 opportunity_id,
@@ -149,6 +158,8 @@ class MilomailShadowRuntime:
                 opportunity_id=opportunity_id,
                 supplier_ref=current.supplier_ref,
                 contact_ref=current.contact_ref,
+                recipient_identity_hmac=recipient_identity,
+                recipient_identity_key_version=recipient_version,
                 provider=assessed.provider,
                 capacity=assessed.capacity,
                 fit=assessed.fit,

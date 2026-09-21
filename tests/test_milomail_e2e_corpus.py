@@ -6,6 +6,7 @@ import hmac
 import json
 
 import sqlalchemy as sa
+from test_milomail_attribution import synthetic_contact
 from test_milomail_policy import NOW, ready_input
 
 from signals.acquisition.store import AcquisitionStore
@@ -145,10 +146,17 @@ def test_e2e_synthetic_corpus_and_conversion_replay() -> None:
     send_opportunity = None
     for name, email, records, role, country, budget, published, suppressed, expected in scenarios:
         observed = NOW + dt.timedelta(minutes=len(name))
+        supplier_ref, contact_ref = (
+            synthetic_contact(engine, email, name, observed)
+            if name == "fr_workspace"
+            else (None, None)
+        )
         created = acquisition.create_opportunity(
             identity_key=f"acquisition-program:milomail:corpus:{name}",
             signal_ref=f"acquisition-program:milomail:corpus:{name}",
             idempotency_key=f"corpus:{name}",
+            supplier_ref=supplier_ref,
+            contact_ref=contact_ref,
             occurred_at=observed,
         )
         opportunity_id = created.projection.acquisition_opportunity_id
