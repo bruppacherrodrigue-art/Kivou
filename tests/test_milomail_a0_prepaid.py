@@ -14,6 +14,7 @@ from signals.acquisition_programs.census_readiness import (
     ExecutionPermit,
     configuration_hash,
 )
+from signals.acquisition_programs.census_runtime import CensusRunner
 from signals.persistence.schema import acquisition_census_permit
 
 NOW = dt.datetime.now(dt.UTC).replace(microsecond=0)
@@ -116,6 +117,16 @@ def test_a0_nine_call_hard_stop_and_completed_cache() -> None:
     with engine.begin() as connection:
         connection.execute(sa.insert(acquisition_census_permit).values(
             **permit.model_dump(mode="python")))
+    runner = object.__new__(CensusRunner)
+    runner._engine = engine
+    runner.census_id = census_id
+    runner.store = store
+    runner.limits = limits
+    runner._coverage_contacts = lambda *, include_people: False
+    assert runner.run(at=NOW, phase="COVERAGE_A0", permit_id=permit.permit_id,
+                      configuration_hash=permit.configuration_hash,
+                      database_id=database_id,
+                      smoke_first_page_only=True)["status"] == "ACTIVE"
     store.start(census_id, limits, at=NOW, phase="COVERAGE_A0")
     store.bind_permit(permit_id=permit.permit_id, phase="COVERAGE_A0",
                       configuration_hash=permit.configuration_hash,

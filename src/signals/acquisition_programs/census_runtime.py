@@ -220,7 +220,7 @@ class CensusRunner:
         with self._engine.connect() as connection:
             PermitStore.check_call(
                 connection, permit_id=permit_id, census_id=self.census_id, phase=phase,
-                kind="ORG_SEARCH" if phase == "COVERAGE" else "ORG_ENRICH",
+                kind="ORG_SEARCH" if phase in {"COVERAGE", "COVERAGE_A0"} else "ORG_ENRICH",
                 partition_id=None, credits=0, candidate_slots=0,
                 at=dt.datetime.now(dt.UTC), configuration_hash_value=configuration_hash,
                 database_id=database_id, check_capacity=False,
