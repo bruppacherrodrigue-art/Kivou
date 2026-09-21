@@ -1,5 +1,10 @@
 # Milo Mail : préflight d'un recensement Apollo autorisé
 
+Pour la mission distincte à plafond **0 crédit / 0.00 CHF**, utiliser le
+[runbook COVERAGE](17-milomail-zero-cost-coverage.md). La recherche
+d'organisations de ce pipeline coûte actuellement un crédit par page et le
+préflight `--phase COVERAGE` refuse donc A0/A1 à coût nul.
+
 **État de cette PR :** préparation technique seulement. Aucun recensement
 Apollo réel, crédit consommé, e-mail, export Instantly ou déploiement. Milo
 Mail est le produit ; Milo est son agent intégré. Kivou conserve les prospects
@@ -216,7 +221,7 @@ base requise), mettre `MILOMAIL_CENSUS_ENABLED=false`, retirer la clé Apollo
 dédiée et arrêter le processus. Aucune suppression de prospect ou de ligne
 de coût n'est nécessaire. Réconcilier les réservations avec le relevé Apollo
 avant toute nouvelle autorisation ; ne jamais considérer un appel ambigu
-comme gratuit. `purge-cache` nettoie les réponses personnelles selon le
+comme gratuit. `purge-cache` nettoie les réponses Apollo mises en cache selon le
 runbook du census, sans effacer les décisions ni la preuve officielle minimale.
 
 Le nombre de 15 000–50 000 adresses demeure une **hypothèse non mesurée**.
