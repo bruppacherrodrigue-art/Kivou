@@ -20,6 +20,7 @@ RUNBOOKS = (
     "14-milomail-acquisition-shadow.md",
     "15-milomail-shadow-census.md",
     "16-milomail-census-readiness.md",
+    "17-milomail-zero-cost-coverage.md",
 )
 SECRET_ROTATION_RUNBOOK = Path("docs/runbooks/09-staging-secret-rotation.md")
 OPERATIONS_README = Path("ops/README.md")

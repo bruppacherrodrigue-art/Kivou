@@ -141,6 +141,10 @@ une ville concordants restent au maximum `PROBABLE_MATCH` ; un SIREN déjà
 corroboré ou une concordance unique de nom, ville et code postal peut prouver
 l'activité et contribuer à `SEND` théorique.
 
+Le [runbook de phase A bornée](17-milomail-zero-cost-coverage.md)
+documente `bootstrap`, le crédit par page de recherche d'organisations et
+les vérifications requises avant un A0 autorisé.
+
 `plan`, `status`, `report`, `purge-cache` et `reconcile-usage` conservent leurs
 contrats. `run` et `resume` exigent maintenant `--phase COVERAGE` ou
 `--phase ENRICHMENT`, un permis distinct, une autorisation de base et un prix
@@ -167,9 +171,9 @@ Mail. Toute tentative de lancer le census sans les sept plafonds positifs ou
 sans la clé échoue avant le premier appel Apollo. Vérifier les lignes
 `REVIEW_REQUIRED` et la consommation fournisseur avant de redémarrer.
 
-Les réponses People Search et People Enrichment sont mises en cache dans
+Les réponses Apollo de recherche et d'enrichissement sont mises en cache dans
 Kivou pour une reprise sans nouvel enrichissement. Une exécution `COMPLETE`
-efface aussitôt ces copies ; le compteur de contacts reste agrégé. Pour un
+efface aussitôt ces copies ; les compteurs restent agrégés. Pour un
 run arrêté ou en revue, lancer avant la fin de la période de rétention :
 
 ```bash
@@ -178,7 +182,7 @@ uv run milomail-census purge-cache --census-id <id-du-plan> \
 ```
 
 La commande refuse un run incomplet avant son délai de rétention ; après ce
-délai elle efface les copies personnelles et met le run en revue, car un appel
+délai elle efface les copies Apollo et met le run en revue, car un appel
 payant purgé ne peut plus être rejoué. Les fiches de contact Kivou et les
 suppressions restent gouvernées par leurs règles de conservation existantes.
 

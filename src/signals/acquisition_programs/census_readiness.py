@@ -37,6 +37,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0072_milomail_census_readiness"
+APOLLO_ORG_SEARCH_PRICING_URL = "https://docs.apollo.io/reference/organization-search"
 
 
 def database_revisions(engine: Engine) -> tuple[str, ...]:
@@ -353,7 +354,8 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
               code_sha: str | None = None, app_version: str | None = None,
               source_rate_limit_per_minute: int | None = None,
               source_cache_ttl_days: int | None = None,
-              source_config: OfficialSourceConfig | None = None) -> dict:
+              source_config: OfficialSourceConfig | None = None,
+              phase: Literal["COVERAGE", "ENRICHMENT"] | None = None) -> dict:
     """Read-only assessment; no Apollo, official-source or Instantly request."""
     checks: dict[str, str] = {}
     identity, host_hash, name = database_identity(engine)
@@ -423,7 +425,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             )
     checks["limits"] = "READY"
     try:
-        limits.require_run_authorization()
+        limits.require_run_authorization(phase=phase)
     except ValueError:
         checks["limits"] = "ZERO_OR_DISABLED"
     checks["official_source"] = (
@@ -444,6 +446,28 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             suppression_ready = False
     checks["suppression"] = "READY" if suppression_ready else "CREDENTIAL_SCOPE_OR_ACCESS_MISSING"
     checks["pending_calls"] = "CLEAR" if pending_calls == 0 else "REVIEW_REQUIRED"
+    if phase == "COVERAGE":
+        checks["postgresql"] = (
+            "READY" if engine.dialect.name == "postgresql" else "NON_POSTGRESQL_DATABASE"
+        )
+        checks["nine_partitions"] = "READY" if count == 9 else "PARTITION_COUNT_MISMATCH"
+        checks["official_rate"] = (
+            "READY" if source_rate_limit_per_minute is not None and
+            source_rate_limit_per_minute <= 60 else "RATE_CAP_ABOVE_60_OR_UNKNOWN"
+        )
+        checks["no_enrichment"] = (
+            "READY" if limits.max_enrichments == 0 else "ENRICHMENT_CAP_NONZERO"
+        )
+        checks["credit_caps"] = (
+            "READY" if limits.max_apollo_credits > 0 and limits.max_cost_chf > 0
+            else "ZERO_CREDIT_OR_CHF_CAP"
+        )
+        # The current organization-search endpoint charges one credit per page.
+        checks["operation_cost"] = (
+            "READY" if checks["credit_caps"] == "READY" and checks["pricing"] == "READY"
+            else "ORG_SEARCH_REQUIRES_CREDIT" if checks["credit_caps"] != "READY"
+            else "PRICE_OR_CREDIT_CATEGORY_UNVERIFIED"
+        )
     config_digest = configuration_hash(
         census_id=census_id, limits=limits, partitions=partitions, pricing=pricing,
         source_config=source_config,
@@ -510,6 +534,9 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "pricing": "PRICING", "limits": "BUDGET_CONFIGURATION",
         "official_source": "EXTERNAL_SOURCE", "suppression": "SUPPRESSION",
         "pending_calls": "RECONCILIATION", "execution_permit": "EXECUTION_AUTHORIZATION",
+        "postgresql": "DATABASE_AUTHORIZATION", "nine_partitions": "CONFIGURATION",
+        "official_rate": "BUDGET_CONFIGURATION", "no_enrichment": "BUDGET_CONFIGURATION",
+        "credit_caps": "BUDGET_CONFIGURATION", "operation_cost": "OPERATION_COST",
     }
     pool_balances = {
         pool: apollo_account.credit_balances.get(pool)
@@ -528,6 +555,8 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
                      "environment": database.environment if database else None,
                      "revision": revision, "all_revisions": revisions},
         "census_id": census_id, "partitions_planned": count,
+        "phase": phase,
+        "apollo_org_search_pricing_source": APOLLO_ORG_SEARCH_PRICING_URL,
         "run_status": run["status"] if run else None,
         "partitions_complete": sum(row["status"] == "COMPLETE" for row in partitions),
         "partitions_incomplete": sum(row["status"] != "COMPLETE" for row in partitions),
@@ -555,5 +584,8 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "permit_remaining": permit_remaining,
         "official_requests_reserved": run["official_requests_reserved"] if run else 0,
         "enrichment_authorized": bool(permit_ready and permit and permit["phase"] == "ENRICHMENT"),
+        "contact_enrichment_allowed": False if phase == "COVERAGE" else bool(
+            permit_ready and permit and permit["phase"] == "ENRICHMENT"
+        ),
         "instantly_mutation_allowed": False,
     }

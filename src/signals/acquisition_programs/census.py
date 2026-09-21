@@ -9,7 +9,7 @@ import re
 from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
 from typing import Any, TypeVar
 
 import sqlalchemy as sa
@@ -25,6 +25,7 @@ from signals.persistence.schema import (
     acquisition_census_company_match,
     acquisition_census_identity,
     acquisition_census_occurrence,
+    acquisition_census_official_cache,
     acquisition_census_partition,
     acquisition_census_run,
     acquisition_program,
@@ -101,18 +102,19 @@ class CensusLimits(BaseModel):
             authorization_ref=source.get("MILOMAIL_CENSUS_AUTHORIZATION_REF"),
         )
 
-    def require_run_authorization(self) -> None:
-        if not self.enabled or not self.authorization_ref or not all(
-            (
-                self.max_partitions,
-                self.max_pages,
-                self.max_candidates,
-                self.max_enrichments,
-                self.max_apollo_credits,
-                self.max_cost_chf,
-                self.chf_per_credit_ceiling,
-            )
-        ):
+    def require_run_authorization(self, *, phase: str | None = None) -> None:
+        common = all((self.max_partitions, self.max_apollo_credits,
+                      self.max_cost_chf, self.chf_per_credit_ceiling))
+        if phase == "COVERAGE":
+            phase_caps = self.max_pages > 0 and self.max_candidates > 0
+        elif phase == "ENRICHMENT":
+            phase_caps = self.max_enrichments > 0
+        elif phase is None:
+            phase_caps = (self.max_pages > 0 and self.max_candidates > 0 and
+                          self.max_enrichments > 0)
+        else:
+            phase_caps = False
+        if not self.enabled or not self.authorization_ref or not common or not phase_caps:
             raise ValueError("explicit census authorization and nonzero limits are required")
 
 
@@ -300,8 +302,9 @@ class CensusStore:
                         raise ValueError("census partition identity conflict")
         return census_id
 
-    def start(self, census_id: str, limits: CensusLimits, *, at: dt.datetime) -> None:
-        limits.require_run_authorization()
+    def start(self, census_id: str, limits: CensusLimits, *, at: dt.datetime,
+              phase: str | None = None) -> None:
+        limits.require_run_authorization(phase=phase)
         snapshot = limits.model_dump(mode="json")
         with self._engine.begin() as connection:
             row = connection.execute(
@@ -993,7 +996,7 @@ class CensusStore:
             )
 
     def purge_contact_cache(self, census_id: str, *, at: dt.datetime) -> int:
-        """Remove duplicate Apollo person payloads; Kivou contact records remain."""
+        """Remove cached Apollo payloads; keep checkpoints, usage and suppression."""
         with self._engine.begin() as connection:
             run = connection.execute(
                 sa.select(acquisition_census_run)
@@ -1008,17 +1011,24 @@ class CensusStore:
             start = start.replace(tzinfo=start.tzinfo or dt.UTC)
             expired = at >= start + retention
             if run["status"] != "COMPLETE" and not expired:
-                raise ValueError("contact cache retention interval has not elapsed")
+                raise ValueError("Apollo cache retention interval has not elapsed")
             result = connection.execute(
                 sa.update(acquisition_census_call)
                 .where(
                     acquisition_census_call.c.census_id == census_id,
-                    acquisition_census_call.c.kind.in_(("PEOPLE_SEARCH", "PERSON_ENRICH")),
                     acquisition_census_call.c.status == "COMPLETED",
                     acquisition_census_call.c.result_snapshot.is_not(None),
                 )
-                .values(result_snapshot=None)
+                .values(result_snapshot=sa.null())
             )
+            # Candidate columns retain the aggregate funnel. The duplicate
+            # Apollo response subset is unnecessary once replay is forbidden.
+            connection.execute(sa.update(acquisition_census_candidate).where(
+                acquisition_census_candidate.c.census_id == census_id,
+            ).values(snapshot={}))
+            connection.execute(sa.delete(acquisition_census_official_cache).where(
+                acquisition_census_official_cache.c.expires_at <= at,
+            ))
             if run["status"] != "COMPLETE":
                 connection.execute(
                     sa.update(acquisition_census_run)
@@ -1027,8 +1037,21 @@ class CensusStore:
                 )
             return result.rowcount or 0
 
-    def report(self, census_id: str) -> dict[str, Any]:
+    def report(self, census_id: str, *,
+               forecast_rates: tuple[Decimal, Decimal, Decimal] | None = None,
+               forecast_source: str | None = None,
+               public_aggregate: bool = False) -> dict[str, Any]:
         """Read-only, aggregate funnel. No name, email, Apollo key or mailbox data."""
+        if (forecast_rates is None) != (forecast_source is None):
+            raise ValueError("forecast rates require a source and vice versa")
+        if forecast_rates is not None and (
+            len(forecast_rates) != 3 or
+            not all(rate.is_finite() for rate in forecast_rates) or
+            not Decimal(0) <= forecast_rates[0] <= forecast_rates[1] <=
+            forecast_rates[2] <= Decimal(1) or
+            not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9:_-]{5,127}", forecast_source or "")
+        ):
+            raise ValueError("forecast rates or evidence reference are invalid")
         run = self.status(census_id)
         parts = self.partitions(census_id)
         candidates = self.candidates(census_id)
@@ -1047,6 +1070,14 @@ class CensusStore:
             official_matches = connection.execute(sa.select(
                 acquisition_census_company_match.c.match_evidence,
             ).where(acquisition_census_company_match.c.census_id == census_id)).scalars().all()
+            partition_occurrences = connection.execute(sa.select(
+                acquisition_census_occurrence.c.candidate_id,
+                sa.func.count(sa.distinct(acquisition_census_occurrence.c.partition_id)),
+            ).join(acquisition_census_partition,
+                   acquisition_census_partition.c.partition_id ==
+                   acquisition_census_occurrence.c.partition_id).where(
+                       acquisition_census_partition.c.census_id == census_id,
+                   ).group_by(acquisition_census_occurrence.c.candidate_id)).all()
         decision_counts = Counter(
             row["decision"] for row in candidates if row["decision"] is not None
         )
@@ -1077,6 +1108,34 @@ class CensusStore:
 
         reserved = Decimal(run["cost_reserved_chf"])
         send_count = decision_counts["SEND"]
+        measured_partitions = [row for row in parts if row["estimated_result_count"] is not None]
+        if forecast_rates is not None and not measured_partitions:
+            raise ValueError("forecast requires at least one measured Apollo partition")
+        forecast = None
+        if forecast_rates is not None:
+            base = Decimal(len(candidates))
+            forecast = {
+                "low": int((base * forecast_rates[0]).to_integral_value(rounding=ROUND_FLOOR)),
+                "central": int((base * forecast_rates[1]).to_integral_value(
+                    rounding=ROUND_HALF_UP,
+                )),
+                "high": int((base * forecast_rates[2]).to_integral_value(
+                    rounding=ROUND_CEILING,
+                )),
+                "base": "organizations_unique_observed",
+                "source": forecast_source,
+                "status": "SCENARIO_NOT_MEASURED",
+            }
+        locations = breakdown("location")
+        if public_aggregate:
+            small = {key: value for key, value in locations.items()
+                     if key != "UNKNOWN" and value["companies"] < 5}
+            locations = {key: value for key, value in locations.items() if key not in small}
+            if small:
+                locations["SMALL_GROUPS_REDACTED"] = {
+                    field: sum(value[field] for value in small.values())
+                    for field in ("companies", "SEND", "HOLD", "NO_SEND")
+                }
         return {
             "census_id": census_id,
             "program_key": "milomail",
@@ -1087,6 +1146,25 @@ class CensusStore:
                 row["unique_count"] + row["duplicate_count"] for row in parts
             ),
             "organizations_unique": len(candidates),
+            "apollo_declared_total_sum": (
+                sum(row["estimated_result_count"] for row in measured_partitions)
+                if measured_partitions else None
+            ),
+            "apollo_declared_partitions_measured": len(measured_partitions),
+            "apollo_results_traversed": sum(row["processed_count"] for row in parts),
+            "organizations_unique_observed": len(candidates),
+            "cross_partition_overlaps": sum(max(count - 1, 0) for _, count in
+                                            partition_occurrences),
+            "truncated_partitions": sum(row["last_error"] == "APOLLO_COVERAGE_LIMIT"
+                                        for row in parts),
+            # No conversion rate is inferred from company counts.
+            "estimated_professional_addresses": forecast,
+            "estimate_method": (
+                "OBSERVED_UNIQUE_COMPANIES_TIMES_OPERATOR_SCENARIO_RATES"
+                if forecast else "UNAVAILABLE_WITHOUT_ATTRIBUTED_SCENARIO_RATES"
+            ),
+            "apollo_search_calls_completed": sum(row["kind"] == "ORG_SEARCH" and
+                                                 row["status"] == "COMPLETED" for row in calls),
             "contacts_found": contacts_found,
             "leaders_identified": sum(bool(row["leader_identified"]) for row in candidates),
             "valid_domains": sum(bool(row["primary_domain"]) for row in candidates),
@@ -1130,7 +1208,7 @@ class CensusStore:
             "api_calls": dict(sorted(calls_by_kind.items())),
             "by_sector": breakdown("sector"),
             "by_company_size": breakdown("company_size"),
-            "by_location": breakdown("location"),
+            "by_location": locations,
             "by_role": breakdown("role"),
             "by_mail_provider": breakdown("provider"),
             "by_recipient_mail_provider": breakdown("recipient_provider"),

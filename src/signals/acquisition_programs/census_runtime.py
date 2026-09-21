@@ -205,11 +205,14 @@ class CensusRunner:
         )
 
     def run(self, *, at: dt.datetime, phase: str,
-            permit_id: str, configuration_hash: str, database_id: str) -> dict[str, Any]:
+            permit_id: str, configuration_hash: str, database_id: str,
+            smoke_first_page_only: bool = False) -> dict[str, Any]:
         """Resume from persisted cursors; never infer unlimited from missing limits."""
-        self.limits.require_run_authorization()
+        self.limits.require_run_authorization(phase=phase)
         if phase not in {"COVERAGE", "ENRICHMENT"}:
             raise ValueError("census phase must be COVERAGE or ENRICHMENT")
+        if smoke_first_page_only and phase != "COVERAGE":
+            raise ValueError("A0 is only available for COVERAGE")
         from signals.acquisition_programs.census_readiness import PermitStore
 
         with self._engine.connect() as connection:
@@ -231,7 +234,7 @@ class CensusRunner:
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("census time must be timezone-aware")
         self.observed_at = at
-        self.store.start(self.census_id, self.limits, at=at)
+        self.store.start(self.census_id, self.limits, at=at, phase=phase)
         if phase == "ENRICHMENT":
             if not self._process_pending():
                 return self.store.status(self.census_id)
@@ -239,15 +242,19 @@ class CensusRunner:
             if self.store.status(self.census_id)["status"] == "COMPLETE":
                 self.store.purge_contact_cache(self.census_id, at=at)
             return self.store.status(self.census_id)
-        if not self._coverage_contacts():
+        if not self._coverage_contacts(include_people=not smoke_first_page_only):
             return self.store.status(self.census_id)
         for row in self.store.partitions(self.census_id):
             if row["status"] == "COMPLETE" or row["partition_id"] not in self.allowed_partitions:
                 continue
+            if smoke_first_page_only and row["cursor_page"] > 1:
+                continue
             part = CensusPartition.from_row(row)  # type: ignore[arg-type]
             self.current_partition_id = part.partition_id
             page_number = row["cursor_page"]
-            while page_number <= part.max_pages:
+            while page_number <= part.max_pages and (
+                not smoke_first_page_only or page_number == 1
+            ):
                 def search_current_page(
                     profile: CensusPartition = part, page: int = page_number,
                 ) -> SupplierSearchPage:
@@ -269,7 +276,7 @@ class CensusRunner:
                     self.store.record_page(
                         self.census_id, part.partition_id, page, call_id=call_id, at=at
                     )
-                    if not self._coverage_contacts():
+                    if not self._coverage_contacts(include_people=not smoke_first_page_only):
                         return self.store.status(self.census_id)
                 except CensusBudgetExceeded:
                     self.store.pause(self.census_id, part.partition_id, "CENSUS_BUDGET_CAP", at=at)
@@ -292,8 +299,8 @@ class CensusRunner:
                 page_number = latest["cursor_page"]
         return self.store.status(self.census_id)
 
-    def _coverage_contacts(self) -> bool:
-        """Count filtered Apollo people without person enrichment or email reveal."""
+    def _coverage_contacts(self, *, include_people: bool = True) -> bool:
+        """Persist public MX evidence and count people without email reveal."""
         for row in self.store.candidates(self.census_id, status="PENDING"):
             candidate = ApolloOrganizationCandidate.model_validate(row["snapshot"])
             if candidate.country_code != "FR" or not candidate.primary_domain:
@@ -302,6 +309,9 @@ class CensusRunner:
                 row["candidate_id"], self.allowed_partitions,
             )
             if self.current_partition_id is None:
+                continue
+            self._provider_for_candidate(row, candidate, at=self.observed_at)
+            if not include_people:
                 continue
             profile = build_program_contact_profile(
                 self.config,
@@ -362,21 +372,11 @@ class CensusRunner:
                 return False
         return True
 
-    def _assess(self, row: dict[str, Any], candidate: ApolloOrganizationCandidate) -> None:
-        at = self.observed_at
-        candidate_id = row["candidate_id"]
-        if candidate.country_code != "FR":
-            self.store.record_decision(
-                self.census_id, candidate_id, provider=None, decision="NO_SEND",
-                reasons=("COUNTRY_OUT_OF_SCOPE",), at=at,
-            )
-            return
-        if not candidate.primary_domain:
-            self.store.record_decision(
-                self.census_id, candidate_id, provider=None, decision="HOLD",
-                reasons=("DOMAIN_MISSING_OR_INVALID",), at=at,
-            )
-            return
+    def _provider_for_candidate(
+        self, row: dict[str, Any], candidate: ApolloOrganizationCandidate, *, at: dt.datetime,
+    ) -> MailProviderEvidence:
+        if candidate.primary_domain is None:
+            raise ValueError("provider detection requires a validated domain")
         previous = row["provider_evidence"]
         if (
             isinstance(previous, dict)
@@ -395,7 +395,25 @@ class CensusRunner:
             )
         else:
             provider = self.mail_provider.detect_domain(candidate.primary_domain, observed_at=at)
-            self.store.record_provider(self.census_id, candidate_id, provider, at=at)
+            self.store.record_provider(self.census_id, row["candidate_id"], provider, at=at)
+        return provider
+
+    def _assess(self, row: dict[str, Any], candidate: ApolloOrganizationCandidate) -> None:
+        at = self.observed_at
+        candidate_id = row["candidate_id"]
+        if candidate.country_code != "FR":
+            self.store.record_decision(
+                self.census_id, candidate_id, provider=None, decision="NO_SEND",
+                reasons=("COUNTRY_OUT_OF_SCOPE",), at=at,
+            )
+            return
+        if not candidate.primary_domain:
+            self.store.record_decision(
+                self.census_id, candidate_id, provider=None, decision="HOLD",
+                reasons=("DOMAIN_MISSING_OR_INVALID",), at=at,
+            )
+            return
+        provider = self._provider_for_candidate(row, candidate, at=at)
         if provider.provider is not MailProvider.GOOGLE_WORKSPACE:
             minimal = MilomailPolicyInput(
                 acquisition_purpose=MILOMAIL_PURPOSE,

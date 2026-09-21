@@ -117,6 +117,45 @@ def test_preflight_distinguishes_technical_readiness_from_permit() -> None:
     assert report["worst_cost_chf"] == "2.00"
 
 
+def test_coverage_accepts_bounded_credits_with_zero_enrichment() -> None:
+    engine, _store, census_id, auth, pricing = _setup()
+    limits = _limits(max_partitions=9, max_pages=9, max_candidates=225,
+                     max_enrichments=0, max_apollo_credits=9,
+                     max_cost_chf="0.90")
+    limits.require_run_authorization(phase="COVERAGE")
+    with pytest.raises(ValueError, match="explicit census authorization"):
+        limits.require_run_authorization(phase="ENRICHMENT")
+    report = preflight(
+        engine, census_id=census_id, limits=limits, database=auth, pricing=pricing,
+        apollo_key_present=True, source_enabled=True, source_requests=10,
+        source_available=True, suppression_keyring=KEYRING,
+        apollo_account=ApolloAccountState(True, 100, True, True,
+                                         {"lead_credit": 100}), at=NOW,
+        phase="COVERAGE", source_rate_limit_per_minute=60,
+    )
+    assert report["checks"]["limits"] == "READY"
+    assert report["checks"]["no_enrichment"] == "READY"
+    assert report["checks"]["operation_cost"] == "READY"
+    assert report["checks"]["postgresql"] == "NON_POSTGRESQL_DATABASE"
+    assert not report["execution_authorized"]
+
+
+def test_coverage_zero_credit_cap_still_blocks_org_search() -> None:
+    engine, _store, census_id, auth, pricing = _setup()
+    limits = _limits(max_enrichments=0, max_apollo_credits=0,
+                     max_cost_chf="0")
+    report = preflight(
+        engine, census_id=census_id, limits=limits, database=auth, pricing=pricing,
+        apollo_key_present=True, source_enabled=True, source_requests=10,
+        source_available=True, suppression_keyring=KEYRING,
+        apollo_account=ApolloAccountState(True, 100, True, True,
+                                         {"lead_credit": 100}), at=NOW,
+        phase="COVERAGE", source_rate_limit_per_minute=60,
+    )
+    assert report["checks"]["operation_cost"] == "ORG_SEARCH_REQUIRES_CREDIT"
+    assert not report["execution_authorized"]
+
+
 def test_preflight_requires_balance_in_each_attested_credit_pool() -> None:
     engine, _store, census_id, auth, pricing = _setup()
     pools = {**pricing.credit_pools_by_operation, "ORG_SEARCH": "export_credit"}

@@ -20,6 +20,7 @@ from signals.acquisition.store import AcquisitionStore
 from signals.acquisition_programs.apollo_account import ApolloAccountProbe
 from signals.acquisition_programs.census import CensusLimits, CensusStore, build_partitions
 from signals.acquisition_programs.census_readiness import (
+    APOLLO_ORG_SEARCH_PRICING_URL,
     ApolloCreditPricing,
     DatabaseAuthorization,
     ExecutionPermit,
@@ -89,6 +90,13 @@ def _optional_keyring(source: dict[str, str]) -> SuppressionIdentityKeyring | No
 def _parser() -> _SafeArgumentParser:
     parser = _SafeArgumentParser(prog="milomail-census")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_SafeArgumentParser)
+    bootstrap = commands.add_parser("bootstrap", help="read-only zero-cost coverage diagnostic")
+    bootstrap.add_argument("--program-config", type=Path, required=True)
+    bootstrap.add_argument("--census-id")
+    bootstrap.add_argument("--database-authorization", type=Path)
+    bootstrap.add_argument("--pricing", type=Path)
+    bootstrap.add_argument("--probe-official-source", action="store_true")
+    bootstrap.add_argument("--probe-apollo-free", action="store_true")
     plan = commands.add_parser("plan", help="persist deterministic partitions; no Apollo calls")
     plan.add_argument("--program-config", type=Path, required=True)
     plan.add_argument("--database-authorization", type=Path, required=True)
@@ -99,6 +107,8 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--operations", type=Path)
         command.add_argument("--authorize-paid-apollo", action="store_true")
         command.add_argument("--phase", choices=("COVERAGE", "ENRICHMENT"))
+        command.add_argument("--a0", action="store_true",
+                             help="at most the first page of each permitted partition")
         command.add_argument("--permit-id")
         command.add_argument("--database-authorization", type=Path)
         command.add_argument("--pricing", type=Path)
@@ -106,6 +116,7 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--probe-apollo-free", action="store_true")
     pre = commands.add_parser("preflight", help="read-only checks before an authorized run")
     pre.add_argument("--census-id", required=True)
+    pre.add_argument("--phase", choices=("COVERAGE", "ENRICHMENT"))
     pre.add_argument("--database-authorization", type=Path)
     pre.add_argument("--pricing", type=Path)
     pre.add_argument("--permit-id")
@@ -128,6 +139,12 @@ def _parser() -> _SafeArgumentParser:
             else "read persisted census state",
         )
         command.add_argument("--census-id", required=True)
+        if name == "report":
+            command.add_argument("--public-aggregate", action="store_true")
+            command.add_argument("--forecast-low", type=Decimal)
+            command.add_argument("--forecast-central", type=Decimal)
+            command.add_argument("--forecast-high", type=Decimal)
+            command.add_argument("--forecast-source")
         if name == "purge-cache":
             command.add_argument("--database-authorization", type=Path, required=True)
             command.add_argument("--acknowledge-cache-purge", action="store_true")
@@ -180,10 +197,122 @@ def _code_sha() -> str | None:
     return result.stdout.strip() if result.returncode == 0 else None
 
 
+def _bootstrap(args: argparse.Namespace, *, at: dt.datetime) -> dict:
+    """Diagnose bounded COVERAGE even when no database URL is configured."""
+    config = load_program_config(args.program_config)
+    partitions = build_partitions(config)
+    limits = CensusLimits.from_environment(os.environ)
+    source = OfficialSourceConfig.from_environment(os.environ)
+    database = _read_model(args.database_authorization, DatabaseAuthorization)
+    pricing = _read_model(args.pricing, ApolloCreditPricing)
+    key_present = bool(os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY"))
+    pricing_ready = False
+    if pricing:
+        try:
+            pricing.check(limits, at=at)
+            pricing_ready = True
+        except ValueError:
+            pass
+    try:
+        limits.require_run_authorization(phase="COVERAGE")
+        limits_ready = True
+    except ValueError:
+        limits_ready = False
+    credit_caps_ready = limits.max_apollo_credits > 0 and limits.max_cost_chf > 0
+    checks = {
+        "program": "READY" if not config.enabled and config.campaign_mode == "SHADOW" and
+        config.max_daily_contacts == config.max_monthly_contacts == 0 and
+        config.max_cost_chf == 0 else "PROGRAM_NOT_DISABLED_SHADOW",
+        "nine_partitions": "READY" if len(partitions) == 9 else "PARTITION_COUNT_MISMATCH",
+        "apollo_key": "READY" if key_present else "CREDENTIAL_MISSING",
+        "suppression_keys": "READY" if _optional_keyring(dict(os.environ)) else "CREDENTIAL_MISSING",
+        "official_source": "READY" if source.enabled and source.max_requests > 0 and
+        source.rate_limit_per_minute <= 60 else "DISABLED_OR_RATE_ABOVE_60",
+        "limits": "READY" if limits_ready else "ZERO_OR_DISABLED",
+        "no_enrichment": "READY" if limits.max_enrichments == 0 else "ENRICHMENT_CAP_NONZERO",
+        "credit_caps": "READY" if credit_caps_ready else "ZERO_CREDIT_OR_CHF_CAP",
+        "operation_cost": (
+            "READY" if credit_caps_ready and pricing_ready else
+            "ORG_SEARCH_REQUIRES_CREDIT" if not credit_caps_ready else
+            "PRICE_OR_CREDIT_CATEGORY_UNVERIFIED"
+        ),
+        "pricing": "READY" if pricing_ready else "UNVERIFIED" if pricing else "MISSING",
+    }
+    db_report: dict | None = None
+    if not os.environ.get("KIVOU_DATABASE_URL"):
+        checks["database"] = "DATABASE_URL_MISSING"
+        checks["migration"] = "DATABASE_URL_MISSING"
+    else:
+        try:
+            engine = create_database_engine()
+            checks["database"] = "AUTHORIZATION_MISSING" if database is None else "READY"
+            if engine.dialect.name != "postgresql":
+                checks["database"] = "NON_POSTGRESQL_DATABASE"
+            elif database is not None:
+                database.check_identity(engine, at=at)
+            checks["migration"] = "READY" if migration_ready(engine) else "MISSING_OR_DIVERGED"
+            if args.census_id and checks["migration"] == "READY":
+                persisted_partitions = CensusStore(engine).partitions(args.census_id)
+                checks["plan_configuration"] = (
+                    "READY" if {part.partition_id for part in partitions} ==
+                    {part["partition_id"] for part in persisted_partitions}
+                    else "FILTER_SIGNATURE_MISMATCH"
+                )
+                account = _probe_apollo_account(
+                    os.environ.get("MILOMAIL_CENSUS_APOLLO_API_KEY", "")
+                ) if args.probe_apollo_free else None
+                db_report = preflight(
+                    engine, census_id=args.census_id, limits=limits, database=database,
+                    pricing=pricing, apollo_key_present=key_present,
+                    source_enabled=source.enabled, source_requests=source.max_requests,
+                    source_available=args.probe_official_source and _probe_official_source(),
+                    suppression_keyring=_optional_keyring(dict(os.environ)),
+                    apollo_account=account, at=at, phase="COVERAGE",
+                    source_rate_limit_per_minute=source.rate_limit_per_minute,
+                    source_cache_ttl_days=source.cache_ttl_days, source_config=source,
+                    code_sha=_code_sha(), app_version=version("signals"),
+                )
+        except Exception:  # noqa: BLE001 — keep database URLs and passwords out of diagnostics
+            checks["database"] = "UNREACHABLE_OR_UNAUTHORIZED"
+            checks["migration"] = "UNVERIFIED"
+    if db_report:
+        checks.update({f"persisted_{key}": value
+                       for key, value in db_report["checks"].items()})
+    required = [name for name in (
+        "KIVOU_DATABASE_URL", "KIVOU_ACQUISITION_ENVIRONMENT",
+        "MILOMAIL_CENSUS_APOLLO_API_KEY", "KIVOU_SUPPRESSION_HMAC_KEY",
+        "KIVOU_SUPPRESSION_HMAC_KEY_VERSION",
+    ) if not os.environ.get(name)]
+    return {
+        "status": "BLOCKED" if any(value != "READY" for value in checks.values()) else "READY",
+        "phase": "COVERAGE", "checks": checks,
+        "blockers": [name for name, value in checks.items() if value != "READY"],
+        "required_environment_variables": required,
+        "partitions_planned": len(partitions),
+        "caps": {"partitions": limits.max_partitions, "pages": limits.max_pages,
+                 "candidates": limits.max_candidates, "enrichments": limits.max_enrichments,
+                 "credits": limits.max_apollo_credits, "cost_chf": str(limits.max_cost_chf)},
+        "apollo_plan": pricing.plan_name if pricing else None,
+        "apollo_operation_credit_category": "ORG_SEARCH",
+        "apollo_org_search_pricing_source": APOLLO_ORG_SEARCH_PRICING_URL,
+        "pricing_verified_at": pricing.verified_at.isoformat() if pricing else None,
+        "official_rate_limit_per_minute": source.rate_limit_per_minute,
+        "database_preflight": db_report,
+        "execution_authorized": False,
+        "contact_enrichment_allowed": False,
+        "instantly_mutation_allowed": False,
+        "code_sha": _code_sha(), "app_version": version("signals"),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     now = dt.datetime.now(dt.UTC)
     try:
+        if args.command == "bootstrap":
+            print(json.dumps(_bootstrap(args, at=now), default=str,
+                             sort_keys=True, ensure_ascii=False))
+            return 0
         # The CLI never migrates a database, and no default database URL exists.
         engine = create_database_engine()
         if args.command == "migrate-authorized":
@@ -225,13 +354,14 @@ def main(argv: list[str] | None = None) -> int:
                 suppression_keyring=_optional_keyring(dict(os.environ)),
                 at=now, permit_id=args.permit_id, code_sha=_code_sha(),
                 app_version=version("signals"),
+                phase=args.phase,
             )
         elif args.command == "issue-permit":
             database = _read_model(args.database_authorization, DatabaseAuthorization)
             permit = _read_model(args.permit, ExecutionPermit)
             pricing = _read_model(args.pricing, ApolloCreditPricing)
             limits = CensusLimits.from_environment(os.environ)
-            limits.require_run_authorization()
+            limits.require_run_authorization(phase=permit.phase if permit else None)
             if database is None or permit is None or pricing is None:
                 raise ValueError("permit, pricing and database authorization are required")
             pricing.check(limits, at=now)
@@ -247,15 +377,25 @@ def main(argv: list[str] | None = None) -> int:
             PermitStore(engine).revoke(args.permit_id)
             result = {"permit_id": args.permit_id, "status": "REVOKED"}
         elif args.command in {"status", "report"}:
-            result = (
-                store.status(args.census_id)
-                if args.command == "status" else store.report(args.census_id)
-            )
+            if args.command == "status":
+                result = store.status(args.census_id)
+            else:
+                rates = (args.forecast_low, args.forecast_central, args.forecast_high)
+                if any(rate is not None for rate in rates) and not all(
+                    rate is not None for rate in rates
+                ):
+                    raise ValueError("all three forecast rates are required")
+                result = store.report(
+                    args.census_id,
+                    forecast_rates=rates if all(rate is not None for rate in rates) else None,
+                    forecast_source=args.forecast_source,
+                    public_aggregate=args.public_aggregate,
+                )
         elif args.command == "purge-cache":
             if not args.acknowledge_cache_purge:
                 raise ValueError("cache purge requires explicit acknowledgement")
             cleared = store.purge_contact_cache(args.census_id, at=now)
-            result = {"census_id": args.census_id, "contact_cache_rows_cleared": cleared,
+            result = {"census_id": args.census_id, "apollo_cache_rows_cleared": cleared,
                       "status": store.status(args.census_id)["status"]}
         elif args.command == "reconcile-usage":
             if not args.acknowledge_exclusive_attribution:
@@ -288,7 +428,9 @@ def main(argv: list[str] | None = None) -> int:
             if not args.phase or not args.permit_id:
                 raise ValueError("a bounded phase and execution permit are required")
             limits = CensusLimits.from_environment(os.environ)
-            limits.require_run_authorization()
+            limits.require_run_authorization(phase=args.phase)
+            if args.phase == "COVERAGE" and limits.max_enrichments != 0:
+                raise ValueError("coverage cannot authorize contact enrichment")
             database = _read_model(args.database_authorization, DatabaseAuthorization)
             pricing = _read_model(args.pricing, ApolloCreditPricing)
             if database is None or pricing is None:
@@ -308,6 +450,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("Apollo account capacity or rate limits unavailable")
             keys = _keyring(dict(os.environ))
             source = OfficialSourceConfig.from_environment(os.environ)
+            if args.phase == "COVERAGE" and source.rate_limit_per_minute > 60:
+                raise ValueError("coverage official source rate exceeds 60 per minute")
             if not source.enabled or source.max_requests == 0 or not args.probe_official_source or not _probe_official_source():
                 raise ValueError("official company source is not verified and enabled")
             partitions = store.partitions(args.census_id)
@@ -372,7 +516,8 @@ def main(argv: list[str] | None = None) -> int:
                     operations=operations,
                 )
                 runner.run(at=now, phase=args.phase, permit_id=args.permit_id,
-                           configuration_hash=config_hash, database_id=database.database_id)
+                           configuration_hash=config_hash, database_id=database.database_id,
+                           smoke_first_page_only=args.a0)
             result = store.report(args.census_id)
         print(json.dumps(result, default=str, sort_keys=True, ensure_ascii=False))
         return 3 if result.get("status") == "REVIEW_REQUIRED" else 0
