@@ -3,13 +3,14 @@
 import datetime as dt
 import hashlib
 
-import sqlalchemy as sa
 import pytest
+import sqlalchemy as sa
 
 from signals.acquisition_programs.apollo_account import ApolloAccountState
-from signals.acquisition_programs.census import CensusBudgetExceeded
-from signals.acquisition_programs.census_b1_runtime import B1Runner
+from signals.acquisition_programs.census import CensusBudgetExceeded, CensusReviewRequired
 from signals.acquisition_programs.census_b0 import B0Runner
+from signals.acquisition_programs.census_b1 import B1PlanStore
+from signals.acquisition_programs.census_b1_runtime import B1Runner
 from signals.contact_discovery.contracts import ApolloEnrichedPerson
 from signals.persistence.schema import acquisition_census_b1_plan, acquisition_census_call
 
@@ -110,3 +111,34 @@ def test_b1_live_pool_guard_preserves_reserve_and_rejects_topup(
     else:
         with pytest.raises(CensusBudgetExceeded):
             runner._credit_state(credits=credits)
+
+
+def test_shared_pool_reconciliation_is_durable_but_not_exclusive_attribution() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    acquisition_census_b1_plan.create(engine)
+    acquisition_census_call.create(engine)
+    with engine.begin() as connection:
+        connection.execute(sa.insert(acquisition_census_b1_plan).values(
+            plan_id="synthetic-b1-plan", census_id="synthetic-census",
+            plan_hash="b" * 64, seed="synthetic",
+            caps={"min_remaining_pool_balance": 1000}, cumulative_limits={},
+            pool_before=1956, status="ACTIVE", created_at=NOW, updated_at=NOW,
+        ))
+        connection.execute(sa.insert(acquisition_census_call).values(
+            call_id="c" * 64, permit_id="synthetic-b1-plan",
+            census_id="synthetic-census", kind="PERSON_ENRICH",
+            subject_hash="d" * 64, attempt=1, status="COMPLETED",
+            reserved_credits=1, candidate_slots=0,
+            started_at=NOW, completed_at=NOW,
+        ))
+    store = B1PlanStore(engine)
+    report = store.reconcile_usage("synthetic-b1-plan", pool_after=1954, at=NOW)
+    assert report["shared_pool_delta"] == 2
+    assert report["run_credits_reserved_upper_bound"] == 1
+    assert report["shared_pool_attribution"] == "AMBIGUOUS_SHARED_POOL"
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(acquisition_census_b1_plan.c.pool_after)) == 1954
+    assert store.reconcile_usage("synthetic-b1-plan", pool_after=1954, at=NOW) == report
+    for invalid in (999, 1957, 1953):
+        with pytest.raises(CensusReviewRequired):
+            store.reconcile_usage("synthetic-b1-plan", pool_after=invalid, at=NOW)

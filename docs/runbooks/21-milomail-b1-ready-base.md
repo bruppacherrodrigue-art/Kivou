@@ -65,6 +65,8 @@ milomail-b1 status --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
   --database-authorization "$DB_AUTH"
 milomail-b1 report --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
   --database-authorization "$DB_AUTH"
+milomail-b1 reconcile-usage --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
+  --database-authorization "$DB_AUTH" --pricing "$PRICING"
 milomail-b1 revoke --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
   --database-authorization "$DB_AUTH"
 ```
@@ -89,6 +91,10 @@ interrompt le run sans relancer automatiquement l'opération payante. Attendre
 la fin du `Retry-After`, vérifier le checkpoint et le ledger, puis relancer
 `preflight` avant `resume`. `replay-b1` met à jour les décisions et la vue
 privée depuis les seuls checkpoints complets ; il n'appelle pas Apollo.
+`reconcile-usage` consigne le solde global avant/après et la réservation
+maximale du ledger. Le pool étant partagé, sa variation reste attribuée avec
+prudence et le prix comptable d'allocation peut rester inconnu. Exécuter cette
+commande une fois après le dernier appel du permis : le reçu est immuable.
 
 Le journal HTTP distingue robots.txt, page d'accueil, page légale, DNS,
 redirections, cache et API administrative officielle. Chaque tentative

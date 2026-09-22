@@ -184,7 +184,8 @@ def _safe_report(engine: sa.Engine, census_id: str, permit_id: str,
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="milomail-b1")
     parser.add_argument("command", choices=("plan", "replay-b0", "replay-b1", "preflight", "issue-permit",
-                                            "run", "resume", "status", "report", "revoke"))
+                                            "run", "resume", "status", "report",
+                                            "reconcile-usage", "revoke"))
     parser.add_argument("--census-id", required=True)
     parser.add_argument("--permit-id", required=True)
     parser.add_argument("--database-authorization", type=Path, required=True)
@@ -301,7 +302,13 @@ def main(argv: list[str] | None = None) -> int:
                     "email_sending_allowed": False,
                     "max_incremental_charge_chf": "0.00",
                 }
-                if args.command == "preflight":
+                if args.command == "reconcile-usage":
+                    if account.credit_balance is None:
+                        raise ValueError("B1 reconciliation requires the current Apollo balance")
+                    output = store.reconcile_usage(
+                        args.permit_id, pool_after=account.credit_balance, at=now,
+                    )
+                elif args.command == "preflight":
                     output = preflight
                 elif args.command == "issue-permit":
                     if not all(value == "READY" for name, value in checks.items()

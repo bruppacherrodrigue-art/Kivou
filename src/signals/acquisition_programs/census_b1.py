@@ -408,6 +408,36 @@ class B1PlanStore:
         details["new_pages_completed"] = sum(page["status"] == "COMPLETED" for page in pages)
         return details
 
+    def reconcile_usage(self, permit_id: str, *, pool_after: int,
+                        at: dt.datetime) -> dict:
+        """Record the shared-pool endpoint balance without claiming exclusive use."""
+        if pool_after < 0:
+            raise ValueError("Apollo pool balance is invalid")
+        with self.engine.begin() as connection:
+            plan = connection.execute(sa.select(acquisition_census_b1_plan).where(
+                acquisition_census_b1_plan.c.plan_id == permit_id,
+            ).with_for_update()).mappings().one()
+            before = plan["pool_before"]
+            if pool_after > before or pool_after < plan["caps"]["min_remaining_pool_balance"]:
+                raise CensusReviewRequired("B1 shared pool changed outside the permitted range")
+            if plan["pool_after"] is not None and plan["pool_after"] != pool_after:
+                raise CensusReviewRequired("B1 reconciliation receipt is immutable")
+            reserved = connection.scalar(sa.select(sa.func.coalesce(sa.func.sum(
+                acquisition_census_call.c.reserved_credits), 0)).where(
+                acquisition_census_call.c.permit_id == permit_id,
+            )) or 0
+            # A falling shared pool can include other applications. It is never
+            # silently assigned to Milo Mail; the run ledger is an upper bound.
+            connection.execute(sa.update(acquisition_census_b1_plan).where(
+                acquisition_census_b1_plan.c.plan_id == permit_id,
+            ).values(pool_after=pool_after, updated_at=at))
+        return {"pool_before": before, "pool_after": pool_after,
+                "shared_pool_delta": before - pool_after,
+                "run_credits_reserved_upper_bound": reserved,
+                "shared_pool_attribution": "AMBIGUOUS_SHARED_POOL",
+                "incremental_charge_chf": "0.00",
+                "allocation_cost_chf": None}
+
     def record_page(self, census_id: str, permit_id: str, partition_id: str,
                     page: SupplierSearchPage, *, call_id: str, at: dt.datetime) -> None:
         """Checkpoint identities and progress atomically before the next paid page."""
