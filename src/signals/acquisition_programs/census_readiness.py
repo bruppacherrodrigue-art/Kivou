@@ -343,7 +343,7 @@ class PermitStore:
         with self.engine.begin() as connection:
             run = connection.execute(sa.select(acquisition_census_run).where(
                 acquisition_census_run.c.census_id == permit.census_id,
-            )).mappings().one()
+            ).with_for_update()).mappings().one()
             if permit.phase == "CONTACT_YIELD_B0" and (
                 run["credits_reserved"] + permit.max_credits > limits.max_apollo_credits
                 or run["candidate_slots_reserved"] + permit.max_candidates > limits.max_candidates
