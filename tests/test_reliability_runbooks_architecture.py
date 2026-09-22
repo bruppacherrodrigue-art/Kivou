@@ -24,6 +24,7 @@ RUNBOOKS = (
     "18-milomail-a0-prepaid.md",
     "19-milomail-a1-sample.md",
     "20-milomail-b0-contact-yield.md",
+    "21-milomail-b1-ready-base.md",
 )
 SECRET_ROTATION_RUNBOOK = Path("docs/runbooks/09-staging-secret-rotation.md")
 OPERATIONS_README = Path("ops/README.md")

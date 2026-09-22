@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import pytest
+import sqlalchemy as sa
+from test_milomail_a1_plan import NOW, _a0
 
 from signals.acquisition_programs.census_b1 import (
     B1Caps,
+    B1PlanStore,
     PartitionYield,
     allocate_pages,
 )
+from signals.persistence.schema import acquisition_census_b1_page, acquisition_census_run
 
 
 def test_prepaid_b1_budget_has_hard_reserve_and_zero_defaults() -> None:
@@ -57,3 +61,53 @@ def test_b1_page_plan_respects_apollo_display_window() -> None:
     assert len(pages) == 498
     assert max(item.page for item in pages) <= 500
     assert 2 not in {item.page for item in pages}
+
+
+def test_exploratory_pages_run_before_depth_yield_pages() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    acquisition_census_b1_page.create(engine)
+    with engine.begin() as connection:
+        connection.execute(sa.insert(acquisition_census_b1_page), [
+            {"plan_id": "synthetic-b1", "partition_id": "a", "page": 50,
+             "allocation_reason": "OBSERVED_YIELD", "status": "PLANNED"},
+            {"plan_id": "synthetic-b1", "partition_id": "b", "page": 10,
+             "allocation_reason": "EXPLORATION", "status": "PLANNED"},
+            {"plan_id": "synthetic-b1", "partition_id": "c", "page": 20,
+             "allocation_reason": "EXPLORATION", "status": "PLANNED"},
+        ])
+    store = B1PlanStore(engine)
+    assert store.next_planned_page("synthetic-b1")["partition_id"] == "b"
+    with engine.begin() as connection:
+        connection.execute(sa.update(acquisition_census_b1_page).where(
+            acquisition_census_b1_page.c.partition_id == "b",
+        ).values(status="COMPLETED"))
+    assert store.next_planned_page("synthetic-b1")["partition_id"] == "c"
+
+
+def test_continuation_plan_freezes_new_pages_under_original_900_credit_envelope() -> None:
+    engine, census_id = _a0()
+    with engine.begin() as connection:
+        connection.execute(sa.update(acquisition_census_run).where(
+            acquisition_census_run.c.census_id == census_id,
+        ).values(pages_reserved=100, candidate_slots_reserved=2450,
+                 enrichments_reserved=89, credits_reserved=1000,
+                 active_sample_plan_id="synthetic-a1"))
+    caps = B1Caps(enabled=True, max_new_credits=400, max_new_pages=10,
+                  max_companies=184, max_person_searches=184,
+                  max_enrichments=184)
+    plan = B1PlanStore(engine).plan(
+        census_id, permit_id="synthetic-b1-continue", caps=caps,
+        pool_balance=1500, seed="synthetic-public-continuation", at=NOW,
+    )
+    assert len(plan["pages"]) == 10
+    assert plan["cumulative_limits"]["max_apollo_credits"] == 1400
+    assert all(row["page"] > 1 for row in plan["pages"])
+    with engine.begin() as connection:
+        connection.execute(sa.update(acquisition_census_run).where(
+            acquisition_census_run.c.census_id == census_id,
+        ).values(credits_reserved=1400))
+    with pytest.raises(ValueError, match="cumulative 900-credit"):
+        B1PlanStore(engine).plan(
+            census_id, permit_id="synthetic-b1-over-cap", caps=caps,
+            pool_balance=1500, seed="synthetic-public-continuation", at=NOW,
+        )

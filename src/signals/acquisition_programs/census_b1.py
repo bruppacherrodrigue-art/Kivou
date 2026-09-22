@@ -35,6 +35,7 @@ from signals.persistence.schema import (
     acquisition_census_company_match,
     acquisition_census_occurrence,
     acquisition_census_partition,
+    acquisition_census_permit,
     acquisition_census_run,
     acquisition_contact_suppression,
     acquisition_supplier,
@@ -205,8 +206,18 @@ class B1PlanStore:
             run = connection.execute(sa.select(acquisition_census_run).where(
                 acquisition_census_run.c.census_id == census_id,
             ).with_for_update()).mappings().one()
-            if run["pages_reserved"] != 90 or run["active_sample_plan_id"] is None:
+            if run["pages_reserved"] < 90 or run["active_sample_plan_id"] is None:
                 raise ValueError("B1 requires the observed A1 baseline")
+            active_b1 = connection.scalar(sa.select(sa.func.count()).select_from(
+                acquisition_census_permit).where(
+                acquisition_census_permit.c.census_id == census_id,
+                acquisition_census_permit.c.phase == "FRANCE_B1_READY_BASE",
+                acquisition_census_permit.c.status == "ACTIVE",
+            )) or 0
+            if active_b1:
+                raise ValueError("prior B1 permit must be revoked before continuation")
+            if run["credits_reserved"] + caps.max_new_credits > 1791:
+                raise ValueError("B1 cumulative 900-credit authorization would be exceeded")
             limits = CensusLimits(
                 enabled=True, max_partitions=9,
                 max_pages=run["pages_reserved"] + caps.max_new_pages,
@@ -226,13 +237,24 @@ class B1PlanStore:
             ).order_by(acquisition_census_partition.c.partition_id)).mappings().all()
             if len(parts) != 9:
                 raise ValueError("B1 requires exactly nine commercial partitions")
-            completed_b0 = connection.execute(sa.select(acquisition_census_b0_entry).where(
+            known_partition_ids = {part["partition_id"] for part in parts}
+            completed_b0 = connection.execute(sa.select(acquisition_census_b0_entry).join(
+                acquisition_census_candidate,
+                acquisition_census_b0_entry.c.candidate_id ==
+                acquisition_census_candidate.c.candidate_id,
+            ).where(
+                acquisition_census_candidate.c.census_id == census_id,
                 acquisition_census_b0_entry.c.status == "COMPLETE",
             )).mappings().all()
             already = {row["candidate_id"] for row in completed_b0}
             already.update(row[0] for row in connection.execute(sa.select(
                 acquisition_census_b1_entry.c.candidate_id,
-            ).where(acquisition_census_b1_entry.c.status == "COMPLETE")))
+            ).join(acquisition_census_candidate,
+                   acquisition_census_b1_entry.c.candidate_id ==
+                   acquisition_census_candidate.c.candidate_id).where(
+                acquisition_census_candidate.c.census_id == census_id,
+                acquisition_census_b1_entry.c.status == "COMPLETE",
+            )))
             prior_searches = {row[0] for row in connection.execute(sa.select(
                 acquisition_census_call.c.subject_hash,
             ).where(acquisition_census_call.c.census_id == census_id,
@@ -250,6 +272,28 @@ class B1PlanStore:
                     else call.get("reserved", 0)
                     for call in result.get("calls", [])
                 )
+            for row in connection.execute(sa.select(acquisition_census_b1_entry).join(
+                acquisition_census_candidate,
+                acquisition_census_b1_entry.c.candidate_id ==
+                acquisition_census_candidate.c.candidate_id,
+            ).where(
+                acquisition_census_candidate.c.census_id == census_id,
+                acquisition_census_b1_entry.c.status == "COMPLETE",
+            )).mappings():
+                partition_id = row["stratum"].get("partition_id")
+                if partition_id in known_partition_ids:
+                    b0_yield[partition_id][0] += int(bool(
+                        row["result"] and row["result"].get("verified_email")
+                    ))
+            for partition_id, reserved in connection.execute(sa.select(
+                acquisition_census_call.c.partition_id,
+                acquisition_census_call.c.reserved_credits,
+            ).join(acquisition_census_permit,
+                   acquisition_census_call.c.permit_id == acquisition_census_permit.c.permit_id)
+             .where(acquisition_census_permit.c.census_id == census_id,
+                    acquisition_census_permit.c.phase == "FRANCE_B1_READY_BASE")):
+                if partition_id in known_partition_ids:
+                    b0_yield[partition_id][1] += reserved
             cached: dict[str, set[int]] = {part["partition_id"]: {1} for part in parts}
             from signals.persistence.schema import acquisition_census_sample_page
 
@@ -407,6 +451,19 @@ class B1PlanStore:
         details["new_pages_planned"] = len(pages)
         details["new_pages_completed"] = sum(page["status"] == "COMPLETED" for page in pages)
         return details
+
+    def next_planned_page(self, permit_id: str) -> dict | None:
+        """Execute exploratory pages across strata before yield-weighted depth."""
+        with self.engine.connect() as connection:
+            row = connection.execute(sa.select(acquisition_census_b1_page).where(
+                acquisition_census_b1_page.c.plan_id == permit_id,
+                acquisition_census_b1_page.c.status == "PLANNED",
+            ).order_by(sa.case(
+                (acquisition_census_b1_page.c.allocation_reason == "EXPLORATION", 0),
+                else_=1,
+            ), acquisition_census_b1_page.c.partition_id,
+                acquisition_census_b1_page.c.page).limit(1)).mappings().one_or_none()
+        return dict(row) if row is not None else None
 
     def reconcile_usage(self, permit_id: str, *, pool_after: int,
                         at: dt.datetime) -> dict:

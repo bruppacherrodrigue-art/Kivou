@@ -12,7 +12,12 @@ from signals.acquisition_programs.census_b0 import B0Runner
 from signals.acquisition_programs.census_b1 import B1PlanStore
 from signals.acquisition_programs.census_b1_runtime import B1Runner
 from signals.contact_discovery.contracts import ApolloEnrichedPerson
-from signals.persistence.schema import acquisition_census_b1_plan, acquisition_census_call
+from signals.persistence.schema import (
+    acquisition_census_b1_entry,
+    acquisition_census_b1_plan,
+    acquisition_census_call,
+    acquisition_census_candidate,
+)
 
 NOW = dt.datetime(2026, 9, 22, 12, tzinfo=dt.UTC)
 
@@ -142,3 +147,30 @@ def test_shared_pool_reconciliation_is_durable_but_not_exclusive_attribution() -
     for invalid in (999, 1957, 1953):
         with pytest.raises(CensusReviewRequired):
             store.reconcile_usage("synthetic-b1-plan", pool_after=invalid, at=NOW)
+
+
+def test_second_b1_permit_counts_only_unique_verified_contacts_in_same_census() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    acquisition_census_candidate.create(engine)
+    acquisition_census_b1_entry.create(engine)
+    with engine.begin() as connection:
+        for index, census_id in enumerate(("target-census", "other-census"), 1):
+            candidate_id = str(index) * 64
+            connection.execute(sa.insert(acquisition_census_candidate).values(
+                candidate_id=candidate_id, census_id=census_id,
+                provider_organization_id=f"synthetic-{index}",
+                snapshot={}, provider="GOOGLE_WORKSPACE",
+                provider_confidence="CONFIRMED", contact_found=True,
+                leader_identified=True, email_verified=True,
+                status="PENDING", reason_codes=[], created_at=NOW, updated_at=NOW,
+            ))
+            for plan_id in ("synthetic-first", "synthetic-second"):
+                connection.execute(sa.insert(acquisition_census_b1_entry).values(
+                    plan_id=plan_id, candidate_id=candidate_id,
+                    selection_rank=index, stratum={}, status="COMPLETE",
+                    result={"verified_email": True}, completed_at=NOW,
+                ))
+    runner = object.__new__(B1Runner)
+    runner.engine = engine
+    runner.census_id = "target-census"
+    assert runner._new_verified() == 1

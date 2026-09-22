@@ -96,6 +96,17 @@ maximale du ledger. Le pool étant partagé, sa variation reste attribuée avec
 prudence et le prix comptable d'allocation peut rester inconnu. Exécuter cette
 commande une fois après le dernier appel du permis : le reçu est immuable.
 
+Si le premier plan a parcouru toutes ses pages avant d'atteindre 500 adresses,
+rejouer ses décisions, réconcilier le solde, puis révoquer son permis. Un
+**nouvel** identifiant de permis et une **nouvelle** graine publique figent un
+plan de continuation, en excluant toutes les pages et entreprises déjà
+checkpointées. Son plafond de crédits ne peut dépasser le reliquat de
+l'autorisation globale de 900 crédits : le moteur vérifie à la fois le ledger
+cumulatif, le solde courant et la réserve de 1 000. Refaire `plan`, `preflight`
+et `issue-permit` avec les nouveaux plafonds privés avant `resume`. Le compteur
+de 500 inclut les 80 adresses B0 et toutes les adresses B1 uniques des permis
+précédents. Ne jamais modifier un plan déjà permis.
+
 Le journal HTTP distingue robots.txt, page d'accueil, page légale, DNS,
 redirections, cache et API administrative officielle. Chaque tentative
 contient un identifiant de run et d'entreprise, un type, une date et un

@@ -110,8 +110,8 @@ class CensusLimits(BaseModel):
     def require_run_authorization(self, *, phase: str | None = None) -> None:
         if phase == "FRANCE_B1_READY_BASE":
             if not (self.enabled and self.authorization_ref and
-                    self.max_partitions == 9 and 90 <= self.max_pages <= 310 and
-                    2431 <= self.max_candidates <= 9431 and
+                    self.max_partitions == 9 and 90 <= self.max_pages <= 990 and
+                    2431 <= self.max_candidates <= 30000 and
                     89 <= self.max_enrichments <= 989 and
                     891 < self.max_apollo_credits <= 1791 and
                     self.max_cost_chf == self.chf_per_credit_ceiling == 0 and

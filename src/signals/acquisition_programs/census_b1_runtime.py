@@ -34,7 +34,6 @@ from signals.contact_discovery.contracts import ApolloEnrichedPerson, PeopleSear
 from signals.persistence.schema import (
     acquisition_census_b0_entry,
     acquisition_census_b1_entry,
-    acquisition_census_b1_page,
     acquisition_census_b1_plan,
     acquisition_census_call,
     acquisition_census_candidate,
@@ -201,11 +200,17 @@ class B1Runner(B0Runner):
 
     def _new_verified(self) -> int:
         with self.engine.connect() as connection:
-            rows = connection.execute(sa.select(acquisition_census_b1_entry.c.result).where(
-                acquisition_census_b1_entry.c.plan_id == self.permit_id,
+            rows = connection.execute(sa.select(
+                acquisition_census_b1_entry.c.candidate_id,
+                acquisition_census_b1_entry.c.result,
+            ).where(
+                acquisition_census_b1_entry.c.candidate_id.in_(sa.select(
+                    acquisition_census_candidate.c.candidate_id,
+                ).where(acquisition_census_candidate.c.census_id == self.census_id)),
                 acquisition_census_b1_entry.c.status == "COMPLETE",
-            )).scalars().all()
-        return sum(bool(isinstance(row, dict) and row.get("verified_email")) for row in rows)
+            )).all()
+        return sum(bool(isinstance(result, dict) and result.get("verified_email"))
+                   for result in dict(rows).values())
 
     def run(self, *, at: dt.datetime, micro_only: bool = False,
             max_actions: int = 25) -> dict:
@@ -254,12 +259,7 @@ class B1Runner(B0Runner):
             progress = self.b1.summary(self.permit_id)
             if progress["companies_planned"] >= progress["caps"]["max_companies"]:
                 break
-            with self.engine.connect() as connection:
-                next_page = connection.execute(sa.select(acquisition_census_b1_page).where(
-                    acquisition_census_b1_page.c.plan_id == self.permit_id,
-                    acquisition_census_b1_page.c.status == "PLANNED",
-                ).order_by(acquisition_census_b1_page.c.partition_id,
-                           acquisition_census_b1_page.c.page).limit(1)).mappings().one_or_none()
+            next_page = self.b1.next_planned_page(self.permit_id)
             if next_page is None:
                 break
             from signals.persistence.schema import acquisition_census_partition
