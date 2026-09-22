@@ -185,9 +185,10 @@ contrôles de reprise figurent dans le
 
 Avant fusion, #284 a eu sa CI complète verte et une suite backend complète
 locale ; aucun résultat nominatif n'a été commité. Pour #285 : suite Milo
-Mail locale **258 passés, 2 ignorés** sur `/tmp` ; suite backend locale
-**7 455 passés, 74 ignorés, 1 échec attendu**, avec une erreur de registre
-de runbook corrigée avant la CI de code verte. Migrations SQLite ciblées et
+Mail locale **258 passés, 2 ignorés** sur `/tmp` ; première suite backend
+locale **7 455 passés, 74 ignorés, 1 échec attendu, 1 échec** (registre de
+runbook B1 manquant). Ce registre a été corrigé, ses **5 tests ciblés** sont
+passés et la CI backend complète du code a ensuite été verte. Migrations SQLite ciblées et
 PostgreSQL jetable `0075→0076→0075→0076`, Ruff, mypy pertinent,
 compilation, `uv lock --check` et recherche de secrets ont passé. Les tests
 ajoutés au lot couvrent les règles d'activité, le rejeu, les plafonds,
