@@ -24,6 +24,7 @@ from signals.acquisition_programs.official_company import OfficialMatch
 from signals.contact_discovery.contracts import ApolloEnrichedPerson
 from signals.persistence.schema import (
     acquisition_census_b0_entry,
+    acquisition_census_call,
     acquisition_census_candidate,
     acquisition_census_occurrence,
     acquisition_census_partition,
@@ -322,3 +323,17 @@ def test_b0_plan_is_stratified_immutable_and_report_aggregate_only() -> None:
     assert refreshed["official_rechecked"] == 1
     assert refreshed["report"]["legal_identifiers_from_website"] == 1
     assert refreshed["report"]["by_decision"]["HOLD"] == 1
+    with engine.connect() as connection:
+        receipt_count = connection.scalar(sa.select(sa.func.count()).select_from(
+            acquisition_census_call).where(acquisition_census_call.c.census_id == census_id))
+    ledger.purge_contact_cache(census_id, at=NOW + dt.timedelta(days=31))
+    with engine.connect() as connection:
+        private = connection.scalar(sa.select(acquisition_census_b0_entry.c.result).where(
+            acquisition_census_b0_entry.c.plan_id == "synthetic-b0-plan",
+            acquisition_census_b0_entry.c.selection_rank == 1,
+        ))
+        assert connection.scalar(sa.select(sa.func.count()).select_from(
+            acquisition_census_call).where(acquisition_census_call.c.census_id == census_id)) == receipt_count
+    assert "email" not in private and "person" not in private
+    assert "private@example.fr" not in str(private)
+    assert planning.report("synthetic-b0-plan")["google_workspace_emails"] == 1

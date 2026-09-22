@@ -334,8 +334,9 @@ class B0PlanStore:
                 "official_status": {f"{match}:{status}": count
                                     for (match, status), count in sorted(official.items())},
                 "legal_identifiers_from_website": sum(bool(
-                    row["result"] and isinstance(row["result"].get("official"), dict) and
-                    row["result"]["official"].get("legal_page_source_url")) for row in rows),
+                    row["result"] and (row["result"].get("legal_identifier_from_website") or
+                    (isinstance(row["result"].get("official"), dict) and
+                     row["result"]["official"].get("legal_page_source_url")))) for row in rows),
                 "leaders_found": sum(bool(row["result"] and row["result"].get("leader_found")) for row in rows),
                 "professional_emails_found": sum(bool(row["result"] and row["result"].get("professional_email_found")) for row in rows),
                 "verified_emails": sum(bool(row["result"] and row["result"].get("verified_email")) for row in rows),
@@ -439,8 +440,9 @@ class B0PlanStore:
                 "verified_emails": sum(bool(item.get("verified_email")) for item in results),
                 "google_workspace_emails": classification["GOOGLE_WORKSPACE_EMAIL"],
                 "legal_identifiers_from_website": sum(bool(
-                    isinstance(item.get("official"), dict) and
-                    item["official"].get("legal_page_source_url")) for item in results),
+                    item.get("legal_identifier_from_website") or
+                    (isinstance(item.get("official"), dict) and
+                     item["official"].get("legal_page_source_url"))) for item in results),
                 "official_active_confirmed": sum(bool(
                     isinstance(item.get("official"), dict) and
                     item["official"].get("match_confidence") == "CONFIRMED_MATCH" and

@@ -20,10 +20,13 @@ from signals.acquisition_programs.contracts import AcquisitionProgramConfig
 from signals.acquisition_programs.mail_provider import MailProviderEvidence, normalize_domain
 from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
+    acquisition_census_b0_entry,
+    acquisition_census_b0_plan,
     acquisition_census_call,
     acquisition_census_candidate,
     acquisition_census_company_match,
     acquisition_census_identity,
+    acquisition_census_legal_page_cache,
     acquisition_census_occurrence,
     acquisition_census_official_cache,
     acquisition_census_partition,
@@ -1179,8 +1182,41 @@ class CensusStore:
             connection.execute(sa.update(acquisition_census_candidate).where(
                 acquisition_census_candidate.c.census_id == census_id,
             ).values(snapshot={}))
+            private_entries = connection.execute(sa.select(acquisition_census_b0_entry).join(
+                acquisition_census_b0_plan,
+                acquisition_census_b0_entry.c.plan_id == acquisition_census_b0_plan.c.plan_id,
+            ).where(
+                acquisition_census_b0_plan.c.census_id == census_id,
+                acquisition_census_b0_entry.c.result.is_not(None),
+            )).mappings().all()
+            for entry in private_entries:
+                original = entry["result"]
+                if not isinstance(original, dict):
+                    continue
+                redacted = {key: value for key, value in original.items()
+                            if key not in {"email", "person"}}
+                official = redacted.get("official")
+                if isinstance(official, dict):
+                    redacted["legal_identifier_from_website"] = bool(
+                        official.get("legal_page_source_url"))
+                    redacted["official"] = {
+                        "match_confidence": official.get("match_confidence"),
+                        "legal_status": official.get("legal_status"),
+                    }
+                redacted["calls"] = [
+                    {key: value for key, value in receipt.items()
+                     if key != "provider_person_id"}
+                    for receipt in original.get("calls", []) if isinstance(receipt, dict)
+                ]
+                connection.execute(sa.update(acquisition_census_b0_entry).where(
+                    acquisition_census_b0_entry.c.plan_id == entry["plan_id"],
+                    acquisition_census_b0_entry.c.candidate_id == entry["candidate_id"],
+                ).values(result=redacted))
             connection.execute(sa.delete(acquisition_census_official_cache).where(
                 acquisition_census_official_cache.c.expires_at <= at,
+            ))
+            connection.execute(sa.delete(acquisition_census_legal_page_cache).where(
+                acquisition_census_legal_page_cache.c.expires_at <= at,
             ))
             if run["status"] != "COMPLETE":
                 connection.execute(
