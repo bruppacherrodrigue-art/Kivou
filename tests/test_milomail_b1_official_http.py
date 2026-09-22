@@ -38,7 +38,7 @@ def test_official_api_request_and_cache_hit_are_persisted_without_payload() -> N
         calls.append(request.url.path)
         return httpx.Response(200, json={
             "results": [{"siren": "123456789", "nom_raison_sociale": "Agence Exemple",
-                         "etat_administratif": "A", "private_email": "hidden@example.fr",
+                         "etat_administratif": "A", "private_email": "hidden@example.test",
                          "siege": {"libelle_commune": "Paris", "code_postal": "75001"}}],
             "total_results": 1,
         })
@@ -58,4 +58,4 @@ def test_official_api_request_and_cache_hit_are_persisted_without_payload() -> N
         rows = connection.execute(sa.select(acquisition_census_legal_http_attempt)).mappings().all()
     assert {row["candidate_id"] for row in rows} == {"a" * 64}
     assert {row["proof_type"] for row in rows} == {"OFFICIAL_STATUS"}
-    assert "hidden@example.fr" not in repr(rows)
+    assert "hidden@example.test" not in repr(rows)

@@ -42,7 +42,7 @@ def test_http_attempt_lifecycle_and_cache_hit_are_minimal(engine, monkeypatch) -
         if request.url.path == "/":
             return httpx.Response(200, text='<a href="/mentions-legales">Legal</a>',
                                   headers={"content-type": "text/html"})
-        return httpx.Response(200, text="SIREN 552 100 554 secret-person@example.fr",
+        return httpx.Response(200, text="SIREN 552 100 554 secret-person@example.test",
                               headers={"content-type": "text/html"})
 
     resolver = _resolver(engine, monkeypatch, respond, events)
@@ -68,7 +68,7 @@ def test_http_attempt_lifecycle_and_cache_hit_are_minimal(engine, monkeypatch) -
     assert events[-1].request_type == "CACHE"
     assert events[-1].outcome == "CACHE_HIT"
     serialized = repr(events)
-    assert "secret-person@example.fr" not in serialized
+    assert "secret-person@example.test" not in serialized
     assert "SIREN 552" not in serialized
     assert "/mentions-legales" not in serialized
 
@@ -213,7 +213,7 @@ def test_accounting_context_rejects_email_instead_of_opaque_company_id(
     ), events)
     with pytest.raises(ValueError, match="opaque"):
         resolver.resolve("example.fr", at=NOW, run_id="census-123",
-                         company_id="alice@example.fr")
+                         company_id="alice@example.test")
     assert paths == []
     assert events == []
 
