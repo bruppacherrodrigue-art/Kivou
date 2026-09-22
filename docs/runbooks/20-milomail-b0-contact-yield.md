@@ -101,45 +101,51 @@ et couper le wrapper pour un arrêt immédiat. La reprise lit les snapshots déj
 checkpointés ; une réponse facturable ambiguë impose une revue, jamais un
 nouvel appel implicite.
 
-### Reprise après arrêt sur compteur ou limite de taux
+### Arrêt, reprise et lecture après le pilote
+
+Le pilote du 22 septembre a atteint **200 entreprises checkpointées** et ses
+quatre permis exécutés sont révoqués. Ne relancez ni `run` ni `resume` sur eux.
+Le ledger garde cinq réponses Apollo complètes sans checkpoint : trois recherches
+gratuites et deux enrichissements payés. Le planificateur les exclut d'un
+nouveau plan ; il ne rejoue jamais leur appel. Tout nouveau lot exige une
+autorisation, un plan et un permis distincts avec le solde courant et les
+réservations cumulées, sans dépasser le plafond de mission.
 
 Apollo peut remettre le compteur `People Match` à zéro en cours de minute. Une
 réponse d'enrichissement n'est acceptée malgré ce changement que si le nouveau
-compteur vaut exactement 1 et si le pool a baissé d'un crédit. Une recherche de
-personnes gratuite avec réponse complète et solde inchangé peut être checkpointée
-même si son compteur quotidien est en retard. Après la calibration de cinq
-entreprises, cette recherche documentée gratuite ne déclenche plus de sonde de
-solde à chaque page ; le solde est toujours vérifié avant et après chaque
-enrichissement payé, puis en fin de run. Un HTTP 429 sur les endpoints gratuits
-de solde bloque l'émission d'un nouveau permis ; respecter `Retry-After`.
+compteur vaut exactement 1 et si le pool a baissé d'un crédit. Après la
+calibration de cinq entreprises, la recherche de personnes documentée gratuite
+ne déclenche plus de sonde de solde à chaque appel ; le solde reste contrôlé
+avant et après chaque enrichissement payé et en fin de run. Un HTTP 429 sur les
+endpoints gratuits bloque l'émission du permis ; `APOLLO_RATE_LIMIT` et
+`retry_after_seconds` sont renvoyés sans clé ni réponse brute. Les
+[limites Apollo](https://docs.apollo.io/reference/rate-limits) sont établies
+par équipe, pas par clé.
 
-Si une réponse `COMPLETED` n'a pas de checkpoint d'entreprise, révoquer le permis
-et ne pas relancer `resume` sur ce permis. Un nouveau plan doit exclure les
-recherches déjà terminées, conserver les anciennes réservations dans le plafond
-cumulé et n'ajouter que les entreprises nécessaires pour arriver à 200
-checkpoints maximum. Exemple pour le troisième lot, après retour du solde
-Apollo et avec les plafonds recalculés du ledger :
+Pour contrôler le lot achevé, lire les agrégats et réconcilier prudemment le
+pool partagé avec le ledger, utiliser le dernier permis révoqué :
 
 ```bash
-sudo ops/bin/milomail-b0-staging.sh status --census-id "$CENSUS_ID" --permit-id "$OLD_PERMIT_ID" --database-authorization "$AUTH"
-sudo ops/bin/milomail-b0-staging.sh plan --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" --database-authorization "$AUTH" --max-companies 71 --max-credits 996
-sudo ops/bin/milomail-b0-staging.sh issue-permit --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" --database-authorization "$AUTH" --pricing "$PRICING"
-sudo ops/bin/milomail-b0-staging.sh preflight --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" --database-authorization "$AUTH" --pricing "$PRICING"
-sudo ops/bin/milomail-b0-staging.sh run --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" --database-authorization "$AUTH" --pricing "$PRICING" --program-config "$PROGRAM" --authorize-paid-apollo
-sudo ops/bin/milomail-b0-staging.sh resume --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" --database-authorization "$AUTH" --pricing "$PRICING" --program-config "$PROGRAM" --authorize-paid-apollo --all-after-calibration
-sudo ops/bin/milomail-b0-staging.sh revoke --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" --database-authorization "$AUTH"
+sudo ops/bin/milomail-b0-staging.sh status --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" --database-authorization "$AUTH"
+sudo ops/bin/milomail-b0-staging.sh report --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" --database-authorization "$AUTH" --a1-report "$A1_REPORT"
+sudo ops/bin/milomail-b0-staging.sh reconcile-usage --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" --database-authorization "$AUTH"
 ```
 
-Ces chiffres de continuation décrivent le ledger du 22 septembre 2026 : 129
-entreprises checkpointées, 2 recherches gratuites et 1 enrichissement payé
-sans checkpoint, 504 crédits réservés au pire cas dans les deux permis révoqués.
-Le nouveau permis de 996 crédits porte la somme des réservations à 1 500 ; il
-ne doit pas être émis si le solde actualisé ne préserve plus 500 crédits. Les
-trois appels sans checkpoint ne sont jamais rejoués. Pour revoir les preuves
-publiques après révocation, sans Apollo, utiliser :
+`CONSISTENT_SHARED_POOL_NON_EXCLUSIVE` signifie que la variation globale du
+pool égale le nombre d'enrichissements inscrits ; elle ne prouve pas qu'aucun
+autre usage du pool partagé n'a eu lieu. Pour refaire uniquement la recherche
+publique d'activité après révocation, avec le plafond explicite approprié :
 
 ```bash
-sudo ops/bin/milomail-b0-staging.sh refresh-official --census-id "$CENSUS_ID" --permit-id "$OLD_PERMIT_ID" --database-authorization "$AUTH" --max-companies 65 --acknowledge-public-requests
+sudo ops/bin/milomail-b0-staging.sh refresh-official --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" --database-authorization "$AUTH" --max-companies 5 --acknowledge-public-requests
+```
+
+Après l'expiration du délai de conservation et la validation des agrégats,
+la purge sélective du census se lance ainsi ; elle ne supprime ni suppressions,
+ni permis, ni reçus de coûts :
+
+```bash
+sudo ops/bin/milomail-b0-staging.sh purge-cache --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" --database-authorization "$AUTH" --acknowledge-cache-purge
 ```
 
 ## Lecture du rapport et futur Instantly
