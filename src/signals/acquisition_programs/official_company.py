@@ -7,7 +7,8 @@ import hashlib
 import re
 import time
 import unicodedata
-from collections.abc import Mapping
+import uuid
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -16,12 +17,18 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine
 
+from signals.acquisition_programs.http_accounting import (
+    AttemptAccountingError,
+    LegalHttpAttempt,
+    Outcome,
+)
 from signals.acquisition_programs.legal_pages import LegalPageResolver
 from signals.acquisition_programs.pipeline import ActiveCompanyEvidence
 from signals.companies.france import ANNUAIRE_BASE_URL, MAX_RESPONSE_BYTES
 from signals.company_research.contracts import ApolloOrganizationObservation
 from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
+    acquisition_census_candidate,
     acquisition_census_company_match,
     acquisition_census_official_cache,
     acquisition_census_run,
@@ -135,13 +142,40 @@ class OfficialCompanyMatcher:
     """Read-only API origin; only dated, unique and corroborated matches prove activity."""
 
     def __init__(self, engine: Engine, config: OfficialSourceConfig, *,
-                 client: httpx.Client | None = None, census_id: str | None = None) -> None:
+                 client: httpx.Client | None = None, census_id: str | None = None,
+                 attempt_sink: Callable[[LegalHttpAttempt], None] | None = None) -> None:
         self.engine = engine
         self.config = config
         self.client = client
         self.census_id = census_id
+        self.attempt_sink = attempt_sink
         self.requests_made = 0
         self.last_request_at: dt.datetime | None = None
+
+    def _record_official_attempt(self, candidate: ApolloOrganizationCandidate, *,
+                                 attempt_id: str, outcome: Outcome,
+                                 http_status: int | None = None) -> None:
+        if self.attempt_sink is None:
+            return
+        if self.census_id is None:
+            raise AttemptAccountingError("official source accounting needs a census run")
+        with self.engine.connect() as connection:
+            ids = connection.execute(sa.select(acquisition_census_candidate.c.candidate_id).where(
+                acquisition_census_candidate.c.census_id == self.census_id,
+                acquisition_census_candidate.c.provider_organization_id ==
+                candidate.provider_organization_id,
+            ).limit(2)).scalars().all()
+        if len(ids) != 1:
+            raise AttemptAccountingError("official source company identity is ambiguous")
+        try:
+            self.attempt_sink(LegalHttpAttempt(
+                attempt_id=attempt_id, run_id=self.census_id, company_id=ids[0],
+                domain="recherche-entreprises.api.gouv.fr",
+                request_type="OFFICIAL_API", occurred_at=dt.datetime.now(dt.UTC),
+                outcome=outcome, http_status=http_status,
+            ))
+        except Exception:  # noqa: BLE001 — do not expose provider or storage payloads
+            raise AttemptAccountingError("official source accounting unavailable") from None
 
     def _binding(self, provider_id: str, domain: str | None, *, at: dt.datetime) -> str | None:
         with self.engine.connect() as connection:
@@ -262,6 +296,8 @@ class OfficialCompanyMatcher:
         if cached and cached["expires_at"].replace(tzinfo=dt.UTC) > at:
             results = cached["evidence"]
             observed = cached["observed_at"].replace(tzinfo=dt.UTC)
+            self._record_official_attempt(candidate, attempt_id=uuid.uuid4().hex,
+                                          outcome="CACHE_HIT")
         else:
             if (self.requests_made >= self.config.max_requests or
                     self.config.max_requests == 0):
@@ -290,8 +326,13 @@ class OfficialCompanyMatcher:
                         return OfficialMatch(legal_status="UNKNOWN", match_confidence="NO_MATCH",
                                              observed_at=at,
                                              match_reasons=("SOURCE_REQUEST_CAP",))
+            attempt_id = uuid.uuid4().hex
+            self._record_official_attempt(candidate, attempt_id=attempt_id,
+                                          outcome="STARTED")
             self.requests_made += 1
             self.last_request_at = at
+            outcome: Outcome = "NETWORK_ERROR"
+            http_status: int | None = None
             try:
                 if self.client is None:
                     with httpx.Client(base_url=ANNUAIRE_BASE_URL, follow_redirects=False,
@@ -302,6 +343,10 @@ class OfficialCompanyMatcher:
                     response = self.client.get(f"{ANNUAIRE_BASE_URL}/search", params={
                         "q": query, "page": 1, "per_page": 25,
                     }, timeout=self.config.timeout_seconds)
+                http_status = response.status_code
+                outcome = ("REDIRECT_BLOCKED" if 300 <= http_status < 400 else
+                           "SIZE_LIMIT" if len(response.content) > MAX_RESPONSE_BYTES else
+                           "HTTP_OK" if http_status == 200 else "HTTP_STATUS")
                 if response.status_code == 429:
                     return OfficialMatch(legal_status="UNKNOWN", match_confidence="NO_MATCH",
                                          observed_at=at, match_reasons=("SOURCE_RATE_LIMIT",))
@@ -322,11 +367,15 @@ class OfficialCompanyMatcher:
                                   total != len(results)):
                     results.append({"truncated": True})
             except httpx.TimeoutException:
+                outcome = "TIMEOUT"
                 return OfficialMatch(legal_status="UNKNOWN", match_confidence="NO_MATCH",
                                      observed_at=at, match_reasons=("SOURCE_TIMEOUT",))
             except (httpx.HTTPError, TypeError, ValueError):
                 return OfficialMatch(legal_status="UNKNOWN", match_confidence="NO_MATCH",
                                      observed_at=at, match_reasons=("SOURCE_UNAVAILABLE",))
+            finally:
+                self._record_official_attempt(candidate, attempt_id=attempt_id,
+                                              outcome=outcome, http_status=http_status)
             observed = at
             with self.engine.begin() as connection:
                 connection.execute(sa.delete(acquisition_census_official_cache).where(
