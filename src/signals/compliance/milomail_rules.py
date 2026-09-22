@@ -47,6 +47,7 @@ class MilomailPolicyInput(_ClosedModel):
     country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
     sector: str | None = None
     employee_count: int | None = Field(default=None, ge=0)
+    employee_count_range: tuple[int, int] | None = None
     company_active: bool | None = None
     company_active_source_url: str | None = None
     company_active_source_type: str | None = None
@@ -139,6 +140,11 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         excluded.append("COUNTRY_OUT_OF_SCOPE")
     if value.sector is not None and value.sector not in value.program.target_sectors:
         excluded.append("SECTOR_OUT_OF_SCOPE")
+    if value.employee_count_range is not None and not (
+        value.program.target_company_size_min <= value.employee_count_range[0] <=
+        value.employee_count_range[1] <= value.program.target_company_size_max
+    ):
+        excluded.append("COMPANY_SIZE_OUT_OF_SCOPE")
     if value.employee_count is not None and not (
         value.program.target_company_size_min
         <= value.employee_count
@@ -156,7 +162,7 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
     unresolved_score_facts = (
         value.provider.provider is MailProvider.UNKNOWN
         or value.sector is None
-        or value.employee_count is None
+        or (value.employee_count is None and value.employee_count_range is None)
         or value.capacity.capacity
         in {RecipientCapacity.UNKNOWN, RecipientCapacity.LIKELY_PROFESSIONAL}
     )
@@ -168,7 +174,7 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
 
     if value.country is None:
         hold.append("COUNTRY_UNRESOLVED")
-    if value.sector is None or value.employee_count is None:
+    if value.sector is None or (value.employee_count is None and value.employee_count_range is None):
         hold.append("COMPANY_FACTS_INCOMPLETE")
     if value.company_active is None:
         hold.append("COMPANY_ACTIVE_STATUS_UNRESOLVED")
