@@ -50,12 +50,18 @@ def _partitions(engine: sa.Engine, census_id: str) -> tuple[dict, ...]:
         ).where(acquisition_census_partition.c.census_id == census_id)).mappings())
 
 
+class ApolloFreeProbeUnavailable(ValueError):
+    def __init__(self, retry_after_seconds: int | None) -> None:
+        super().__init__("Apollo free account probe unavailable")
+        self.retry_after_seconds = retry_after_seconds
+
+
 def _probe(secret_ref: str) -> tuple[str, ApolloAccountState]:
     key = resolve_apollo_key(dict(os.environ), phase="CONTACT_YIELD_B0", expected_ref=secret_ref)
     with httpx.Client() as client:
         account = ApolloAccountProbe(api_key=key, client=client).inspect_free()
     if not account.credential_valid or account.credit_balance is None:
-        raise ValueError("Apollo free account probe failed")
+        raise ApolloFreeProbeUnavailable(account.retry_after_seconds)
     return key, account
 
 
@@ -88,9 +94,13 @@ def _preflight(engine: sa.Engine, *, census_id: str, permit_id: str,
     ref = (permit_row["apollo_secret_ref"] if permit_row else
            os.environ.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF") or "MILOMAIL_CENSUS_APOLLO_API_KEY")
     account = None
+    retry_after_seconds = None
     try:
         _, account = _probe(ref)
         checks["apollo_key"] = "READY"
+    except ApolloFreeProbeUnavailable as exc:
+        retry_after_seconds = exc.retry_after_seconds
+        checks["apollo_key"] = "RATE_LIMITED" if retry_after_seconds else "MISSING_OR_INVALID"
     except ValueError:
         checks["apollo_key"] = "MISSING_OR_INVALID"
     balance = account.credit_balance if account else None
@@ -115,6 +125,7 @@ def _preflight(engine: sa.Engine, *, census_id: str, permit_id: str,
     return {"phase": "CONTACT_YIELD_B0", "ready": all(value == "READY" for value in checks.values()),
             "checks": checks, "database_id": database_identity(engine)[0],
             "apollo_pool_balance": balance,
+            "apollo_retry_after_seconds": retry_after_seconds,
             "credit_cap": plan["credit_cap"], "minimum_remaining_pool_balance": 500,
             "companies_planned": plan["companies_planned"],
             "instantly_mutation_allowed": False, "email_sending_allowed": False,
@@ -125,7 +136,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="milomail-b0")
     parser.add_argument("command", choices=("plan", "preflight", "issue-permit", "run",
                                             "resume", "status", "report", "revoke",
-                                            "refresh-official"))
+                                            "refresh-official", "reconcile-usage",
+                                            "purge-cache"))
     parser.add_argument("--census-id", required=True)
     parser.add_argument("--permit-id", required=True)
     parser.add_argument("--database-authorization", type=Path, required=True)
@@ -137,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--all-after-calibration", action="store_true")
     parser.add_argument("--authorize-paid-apollo", action="store_true")
     parser.add_argument("--acknowledge-public-requests", action="store_true")
+    parser.add_argument("--acknowledge-cache-purge", action="store_true")
     args = parser.parse_args(argv)
     now = dt.datetime.now(dt.UTC)
     try:
@@ -169,6 +182,26 @@ def main(argv: list[str] | None = None) -> int:
         elif args.command == "revoke":
             PermitStore(engine).revoke(args.permit_id)
             result = {"permit_id": args.permit_id, "status": "REVOKED"}
+        elif args.command == "reconcile-usage":
+            aggregate = store.census_report(args.census_id)
+            paid = aggregate["apollo_calls_by_kind"].get("PERSON_ENRICH", 0)
+            pool_delta = aggregate["pool_delta_ambiguous_shared"]
+            result = {"phase": "CONTACT_YIELD_B0", "pool_before": aggregate["pool_before"],
+                      "pool_after": aggregate["pool_after"], "pool_delta": pool_delta,
+                      "person_enrichment_calls": paid,
+                      "credits_reserved_upper_bound": aggregate["credits_reserved_upper_bound"],
+                      "status": ("CONSISTENT_SHARED_POOL_NON_EXCLUSIVE"
+                                 if pool_delta is not None and pool_delta == paid
+                                 else "AMBIGUOUS_SHARED_POOL"),
+                      "allocation_cost_chf": None, "instantly_mutations": 0,
+                      "emails_sent": 0}
+        elif args.command == "purge-cache":
+            if not args.acknowledge_cache_purge:
+                raise ValueError("cache purge requires explicit acknowledgement")
+            cleared = CensusStore(engine).purge_contact_cache(args.census_id, at=now)
+            result = {"apollo_cache_rows_cleared": cleared,
+                      "private_b0_results_redacted": True,
+                      "suppression_or_permit_rows_deleted": 0}
         elif args.command == "refresh-official":
             source = OfficialSourceConfig.from_environment(os.environ)
             if (not args.acknowledge_public_requests or not source.enabled or
@@ -267,10 +300,13 @@ def main(argv: list[str] | None = None) -> int:
         frames = traceback.extract_tb(exc.__traceback__)
         origin = (f"{Path(frames[-1].filename).name}:{frames[-1].lineno}"
                   if frames and "/signals/" in frames[-1].filename else "REDACTED")
+        code = ("APOLLO_RATE_LIMIT" if isinstance(exc, ApolloFreeProbeUnavailable) and
+                exc.retry_after_seconds else
+                known.get(str(exc), "REDACTED") if isinstance(exc, ValueError) else "REDACTED")
         print(json.dumps({"status": "BLOCKED", "error_type": type(exc).__name__,
-                          "error_origin": origin,
-                          "error_code": known.get(str(exc), "REDACTED") if isinstance(exc, ValueError)
-                          else "REDACTED"}))
+                          "error_origin": origin, "error_code": code,
+                          "retry_after_seconds": exc.retry_after_seconds if isinstance(
+                              exc, ApolloFreeProbeUnavailable) else None}))
         return 2
 
 

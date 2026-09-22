@@ -9,6 +9,8 @@ import sqlalchemy as sa
 from test_milomail_a0_prepaid import _pricing
 from test_milomail_a1_plan import _a0
 
+from signals.acquisition_programs import census_b0_cli
+from signals.acquisition_programs.apollo_account import ApolloAccountProbe
 from signals.acquisition_programs.census import CensusBudgetExceeded, CensusLimits, CensusStore
 from signals.acquisition_programs.census_b0 import (
     B0PlanStore,
@@ -72,6 +74,28 @@ def test_people_match_counter_reset_requires_one_new_call_and_one_pool_credit() 
         with pytest.raises(CensusBudgetExceeded):
             reconcile_counter_window(kind, before, after, delta)
     assert reconcile_counter_window("PEOPLE_SEARCH", 20, 1, 0) is False
+
+
+def test_free_apollo_probe_exposes_only_bounded_retry_after(monkeypatch) -> None:
+    def response(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/auth/health"):
+            return httpx.Response(200, json={"healthy": True, "is_logged_in": True})
+        return httpx.Response(429, headers={"retry-after": "1234"})
+
+    with httpx.Client(transport=httpx.MockTransport(response)) as client:
+        state = ApolloAccountProbe(api_key="synthetic-key", client=client).inspect_free()
+    assert state.credit_balance is None
+    assert state.retry_after_seconds == 1234
+    assert "synthetic-key" not in str(state)
+    monkeypatch.setattr(census_b0_cli, "resolve_apollo_key",
+                        lambda _env, *, phase, expected_ref: "synthetic-key")
+    client_type = httpx.Client
+    monkeypatch.setattr(census_b0_cli.httpx, "Client", lambda: client_type(
+        transport=httpx.MockTransport(response)))
+    with pytest.raises(census_b0_cli.ApolloFreeProbeUnavailable) as caught:
+        census_b0_cli._probe("KIVOU_APOLLO_API_KEY")
+    assert caught.value.retry_after_seconds == 1234
+    assert "synthetic-key" not in str(caught.value)
 
 
 def test_shared_staging_secret_is_b0_only_and_never_reported() -> None:
@@ -254,6 +278,19 @@ def test_b0_plan_is_stratified_immutable_and_report_aggregate_only() -> None:
         encode=lambda value: value, decode=lambda value: value,
     )
     assert cached == {"none": True}
+    completed_search = ledger.reserve_call(
+        census_id, kind="PEOPLE_SEARCH", subject=f"{selected[1]}:people-search",
+        attempt=1, partition_id=ledger.first_partition_for_candidate(selected[1]), credits=0,
+        candidate_slots=1, at=NOW,
+    )
+    ledger.complete_call(completed_search["call_id"], {"candidates": []}, at=NOW)
+    planning.plan(census_id, permit_id="synthetic-b0-replan", pool_balance=509,
+                  max_companies=5, max_credits=9, at=NOW)
+    with engine.connect() as connection:
+        replanned = set(connection.execute(sa.select(
+            acquisition_census_b0_entry.c.candidate_id,
+        ).where(acquisition_census_b0_entry.c.plan_id == "synthetic-b0-replan")).scalars())
+    assert selected[1] not in replanned
     with pytest.raises(CensusBudgetExceeded):
         ledger.reserve_call(census_id, kind="PERSON_ENRICH",
                             subject=f"{selected[1]}:person:other", attempt=1,
@@ -281,6 +318,8 @@ def test_b0_plan_is_stratified_immutable_and_report_aggregate_only() -> None:
     census_summary = planning.census_report(census_id)
     assert census_summary["companies_completed"] == 18
     assert census_summary["google_workspace_emails"] == 1
+    assert census_summary["permits_total"] == 3
+    assert census_summary["completed_calls_without_company_checkpoint"] == 2
     assert "private@example.fr" not in str(census_summary)
     combined = planning.projection("synthetic-b0-plan", a1_report={
         "estimated_accessible_google_workspace_organizations":
@@ -289,6 +328,20 @@ def test_b0_plan_is_stratified_immutable_and_report_aggregate_only() -> None:
             {"low": 400, "central": 500, "high": 600},
     }, all_b0_permits=True)
     assert combined["sample_size"] == 18
+    with engine.begin() as connection:
+        connection.execute(sa.update(acquisition_census_b0_entry).where(
+            acquisition_census_b0_entry.c.plan_id == "synthetic-b0-budget",
+            acquisition_census_b0_entry.c.candidate_id == selected[0],
+        ).values(status="COMPLETE", result={"classification": "NO_CONTACT",
+                                             "decision": "NO_SEND", "calls": []},
+                 completed_at=NOW + dt.timedelta(minutes=1)))
+    assert planning.census_report(census_id)["companies_completed"] == 18
+    assert planning.projection("synthetic-b0-plan", a1_report={
+        "estimated_accessible_google_workspace_organizations":
+            {"low": 100, "central": 200, "high": 300},
+        "estimated_google_workspace_organizations":
+            {"low": 400, "central": 500, "high": 600},
+    }, all_b0_permits=True)["sample_size"] == 18
     revoked = ExecutionPermit(
         permit_id="synthetic-b0-plan", census_id=census_id,
         phase="CONTACT_YIELD_B0", environment="staging",

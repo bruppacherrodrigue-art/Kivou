@@ -163,6 +163,7 @@ def test_micro_pilot_and_resume_use_only_cached_contact_calls() -> None:
     probes_before_continuation = apollo.probes
     final = runner.run(at=NOW, micro_only=False)
     assert final["completed"] == 6
+    assert final["second_candidates_attempted"] == 0
     assert final["free_searches_documented_unprobed"] == 1
     assert apollo.searches == apollo.matches == 6
     assert apollo.probes - probes_before_continuation == 3  # paid match before/after + final

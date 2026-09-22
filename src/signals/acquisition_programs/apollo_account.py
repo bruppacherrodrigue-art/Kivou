@@ -22,6 +22,7 @@ class ApolloAccountState:
     organization_search_day_limit: int | None = None
     people_search_day_consumed: int | None = None
     people_match_minute_consumed: int | None = None
+    retry_after_seconds: int | None = None
 
 
 class ApolloAccountProbe:
@@ -32,6 +33,7 @@ class ApolloAccountProbe:
             raise ValueError("dedicated Apollo key missing")
         self._api_key = api_key
         self._client = client
+        self.retry_after_seconds: int | None = None
 
     def _get_json(self, method: str, path: str) -> dict | None:
         try:
@@ -40,6 +42,10 @@ class ApolloAccountProbe:
                 headers={"x-api-key": self._api_key, "accept": "application/json"},
                 timeout=5.0, follow_redirects=False,
             )
+            if response.status_code == 429:
+                raw = response.headers.get("retry-after", "")
+                if raw.isdecimal() and 0 < int(raw) <= 86_400:
+                    self.retry_after_seconds = max(self.retry_after_seconds or 0, int(raw))
             if response.status_code != 200 or len(response.content) > _MAX_BYTES:
                 return None
             body = response.json()
@@ -51,7 +57,8 @@ class ApolloAccountProbe:
         health = self._get_json("GET", "/api/v1/auth/health")
         if (health is None or health.get("healthy") is not True or
                 health.get("is_logged_in") is not True):
-            return ApolloAccountState(False, None, False, False)
+            return ApolloAccountState(False, None, False, False,
+                                      retry_after_seconds=self.retry_after_seconds)
         credits = self._get_json("POST", "/api/v1/usage_stats/credit_usage_stats")
         rates = self._get_json("POST", "/api/v1/usage_stats/api_usage_stats")
         stats = (credits or {}).get("credit_usage_stats")
@@ -82,4 +89,4 @@ class ApolloAccountProbe:
             match_used = None
         return ApolloAccountState(True, balances.get("lead_credit"), credits is not None,
                                   rates is not None, balances, consumed, limit,
-                                  search_used, match_used)
+                                  search_used, match_used, self.retry_after_seconds)

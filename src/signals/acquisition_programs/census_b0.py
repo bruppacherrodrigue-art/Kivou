@@ -340,6 +340,10 @@ class B0PlanStore:
                 "leaders_found": sum(bool(row["result"] and row["result"].get("leader_found")) for row in rows),
                 "professional_emails_found": sum(bool(row["result"] and row["result"].get("professional_email_found")) for row in rows),
                 "verified_emails": sum(bool(row["result"] and row["result"].get("verified_email")) for row in rows),
+                "second_candidates_attempted": sum(
+                    sum(receipt.get("kind") == "PERSON_ENRICH" for receipt in
+                        row["result"].get("calls", [])) == 2
+                    for row in rows if isinstance(row["result"], dict)),
                 "google_workspace_emails": counts.get("GOOGLE_WORKSPACE_EMAIL", 0),
                 "apollo_calls_by_kind": dict(sorted(Counter(row["kind"] for row in calls).items())),
                 "credits_reserved_upper_bound": sum(row["reserved_credits"] for row in calls),
@@ -417,11 +421,15 @@ class B0PlanStore:
     def census_report(self, census_id: str) -> dict:
         """Aggregate completed B0 permits without emitting contact fields."""
         with self.engine.connect() as connection:
+            plans = connection.execute(sa.select(acquisition_census_b0_plan).where(
+                acquisition_census_b0_plan.c.census_id == census_id,
+            ).order_by(acquisition_census_b0_plan.c.created_at)).mappings().all()
             entries = connection.execute(sa.select(acquisition_census_b0_entry).join(
                 acquisition_census_b0_plan).where(
                 acquisition_census_b0_plan.c.census_id == census_id,
                 acquisition_census_b0_entry.c.status == "COMPLETE",
-            )).mappings().all()
+            ).order_by(acquisition_census_b0_entry.c.completed_at,
+                       acquisition_census_b0_entry.c.plan_id)).mappings().all()
             calls = connection.execute(sa.select(acquisition_census_call).join(
                 acquisition_census_permit,
                 acquisition_census_call.c.permit_id == acquisition_census_permit.c.permit_id,
@@ -429,15 +437,32 @@ class B0PlanStore:
                 acquisition_census_permit.c.census_id == census_id,
                 acquisition_census_permit.c.phase == "CONTACT_YIELD_B0",
             )).mappings().all()
-        by_candidate = {entry["candidate_id"]: entry["result"] for entry in entries}
+        by_candidate: dict[str, Any] = {}
+        for entry in entries:
+            by_candidate.setdefault(entry["candidate_id"], entry["result"])
         results = [item for item in by_candidate.values() if isinstance(item, dict)]
         classification = Counter(item.get("classification") for item in results)
         decision = Counter(item.get("decision") for item in results)
+        reasons = Counter(code for item in results for code in item.get("reason_codes", []))
+        receipt_ids = {receipt["call_id"] for item in results
+                       for receipt in item.get("calls", []) if "call_id" in receipt}
+        observed_costs: dict[str, list[int]] = defaultdict(list)
+        for item in results:
+            for receipt in item.get("calls", []):
+                delta = receipt.get("observed_pool_delta")
+                if type(delta) is int:
+                    observed_costs[receipt["kind"]].append(delta)
+        before = plans[0]["pool_before"] if plans else None
+        after = next((plan["pool_after"] for plan in reversed(plans)
+                      if plan["pool_after"] is not None), None)
         return {"phase": "CONTACT_YIELD_B0", "companies_completed": len(results),
                 "leaders_found": sum(bool(item.get("leader_found")) for item in results),
                 "professional_emails_found": sum(bool(item.get("professional_email_found"))
                                                  for item in results),
                 "verified_emails": sum(bool(item.get("verified_email")) for item in results),
+                "second_candidates_attempted": sum(
+                    sum(receipt.get("kind") == "PERSON_ENRICH" for receipt in
+                        item.get("calls", [])) == 2 for item in results),
                 "google_workspace_emails": classification["GOOGLE_WORKSPACE_EMAIL"],
                 "legal_identifiers_from_website": sum(bool(
                     item.get("legal_identifier_from_website") or
@@ -449,6 +474,7 @@ class B0PlanStore:
                     item["official"].get("legal_status") == "ACTIVE") for item in results),
                 "by_classification": dict(sorted(classification.items())),
                 "by_decision": dict(sorted(decision.items())),
+                "by_reason_code": dict(sorted(reasons.items())),
                 "free_search_counters_unconfirmed": sum(bool(
                     receipt.get("counter_unconfirmed")) for item in results
                     for receipt in item.get("calls", [])),
@@ -456,7 +482,19 @@ class B0PlanStore:
                     receipt.get("documented_zero_credit")) for item in results
                     for receipt in item.get("calls", [])),
                 "apollo_calls_by_kind": dict(sorted(Counter(call["kind"] for call in calls).items())),
+                "completed_calls_without_company_checkpoint": sum(
+                    call["status"] == "COMPLETED" and call["call_id"] not in receipt_ids
+                    for call in calls),
                 "credits_reserved_upper_bound": sum(call["reserved_credits"] for call in calls),
+                "observed_credit_delta_by_operation": {
+                    kind: {"calls": len(values), "sum": sum(values), "max": max(values)}
+                    for kind, values in sorted(observed_costs.items())
+                },
+                "pool_before": before, "pool_after": after,
+                "pool_delta_ambiguous_shared": before - after if before is not None and
+                after is not None else None,
+                "permits_total": len(plans),
+                "incremental_charge_chf": "0.00", "allocation_cost_chf": None,
                 "instantly_mutations": 0, "emails_sent": 0}
 
     def projection(self, permit_id: str, *, a1_report: dict,
@@ -471,7 +509,12 @@ class B0PlanStore:
                     acquisition_census_b0_plan).where(
                     acquisition_census_b0_plan.c.census_id == plan["census_id"],
                     acquisition_census_b0_entry.c.status == "COMPLETE",
-                )).mappings().all()
+                ).order_by(acquisition_census_b0_entry.c.completed_at,
+                           acquisition_census_b0_entry.c.plan_id)).mappings().all()
+                unique_sample: dict[str, Any] = {}
+                for item in sample:
+                    unique_sample.setdefault(item["candidate_id"], item)
+                sample = list(unique_sample.values())
             else:
                 sample = connection.execute(sa.select(acquisition_census_b0_entry).where(
                     acquisition_census_b0_entry.c.plan_id == permit_id,
