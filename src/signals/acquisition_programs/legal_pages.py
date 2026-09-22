@@ -27,7 +27,7 @@ from signals.acquisition_programs.http_accounting import (
 from signals.acquisition_programs.mail_provider import normalize_domain
 from signals.persistence.schema import acquisition_census_legal_page_cache
 
-LEGAL_PAGE_VERSION = "milomail-legal-page-v3"
+LEGAL_PAGE_VERSION = "milomail-legal-page-v4"
 _IDENTIFIER = re.compile(
     r"(?i)\b(?:siren|siret|tva(?:\s+intracommunautaire)?)\s*[:°nº.]*\s*"
     r"(?P<id>(?:FR\s*[0-9]{2}\s*)?[0-9](?:[ .-]?[0-9]){8,13})\b"
@@ -70,6 +70,8 @@ class _Page(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.text: list[str] = []
         self.links: list[str] = []
+        self.title: list[str] = []
+        self._in_title = False
         self._ignored = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -79,14 +81,20 @@ class _Page(HTMLParser):
             href = dict(attrs).get("href")
             if isinstance(href, str) and len(href) <= 512:
                 self.links.append(href)
+        if tag == "title":
+            self._in_title = True
 
     def handle_endtag(self, tag: str) -> None:
         if tag in {"script", "style", "svg"} and self._ignored:
             self._ignored -= 1
+        if tag == "title":
+            self._in_title = False
 
     def handle_data(self, data: str) -> None:
         if not self._ignored:
             self.text.append(data)
+            if self._in_title and sum(map(len, self.title)) < 256:
+                self.title.append(data[:256])
 
 
 class LegalPageResolver:
@@ -147,7 +155,9 @@ class LegalPageResolver:
             return dict(cached["evidence"])
         self._emit(domain=name, run_id=run_id, company_id=company_id,
                    request_type="CACHE", outcome="CACHE_MISS")
-        result: dict = {"siren": None, "source_url": None, "observed_at": at.isoformat(),
+        result: dict = {"siren": None, "source_url": None,
+                        "home_title": None, "home_source_url": None,
+                        "observed_at": at.isoformat(),
                         "version": LEGAL_PAGE_VERSION, "reason": "NO_VALID_LEGAL_IDENTIFIER",
                         "pages_fetched": 0}
         dns_attempt_id = self._emit(domain=name, run_id=run_id, company_id=company_id,
@@ -195,6 +205,9 @@ class LegalPageResolver:
                     if home is not None and home.status_code == 200 and "text/html" in home.headers.get("content-type", ""):
                         page = _Page()
                         page.feed(home.text)
+                        title = " ".join(" ".join(page.title).split())[:256]
+                        if title:
+                            result.update(home_title=title, home_source_url=root + "/")
                         home_identifiers = extract_siren(" ".join(page.text))
                         if len(home_identifiers) == 1:
                             result.update(siren=home_identifiers[0], source_url=root + "/",

@@ -47,6 +47,11 @@ milomail-b1 plan --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
   --seed milomail-france-b1-20260922-public
 milomail-b1 replay-b0 --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
   --database-authorization "$DB_AUTH" --program-config "$PROGRAM_CONFIG"
+milomail-b1 refresh-website --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
+  --database-authorization "$DB_AUTH" --max-actions 200
+# Rejouer les décisions après ce contrôle public sans Apollo.
+milomail-b1 replay-b0 --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
+  --database-authorization "$DB_AUTH" --program-config "$PROGRAM_CONFIG"
 milomail-b1 preflight --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
   --database-authorization "$DB_AUTH" --pricing "$PRICING"
 milomail-b1 issue-permit --census-id "$CENSUS_ID" --permit-id "$PERMIT_ID" \
@@ -119,6 +124,16 @@ Le ruleset `milomail-fr-b2b-v2` distingue `OFFICIAL_ACTIVE`,
 `OPERATIONALLY_ACTIVE`, `ACTIVITY_UNKNOWN` et `OFFICIAL_CEASED`. L'activité
 opérationnelle exige des preuves indépendantes et datées : MX Google Workspace
 actuel, dirigeant vérifié sur le domaine et identité du site corroborée.
+`refresh-website` vérifie uniquement les entreprises ayant déjà une adresse
+professionnelle vérifiée : robots.txt, page d'accueil HTML et au plus deux
+pages légales. Il retient comme preuve indépendante le titre du site lorsque
+le nom complet Apollo y apparaît comme suite de mots et contient un terme
+distinctif ; un titre générique, un nom approximatif ou un autre domaine ne
+suffit pas. La preuve est horodatée, expire après sept jours et est liée au
+domaine. La commande ne modifie ni les réponses brutes Apollo ni les décisions
+historiques ; `replay-b0` et `replay-b1` créent de nouvelles décisions datées.
+Un cache valide empêche de rappeler le site. Cette opération publique ne
+consomme aucun crédit Apollo et ne consulte pas l'API administrative.
 Une preuve manquante ou contradictoire laisse `HOLD` ; une cessation officielle
 donne `NO_SEND`. La politique conserve aussi les exigences de pays France,
 pertinence professionnelle, capacité professionnelle, transparence de la

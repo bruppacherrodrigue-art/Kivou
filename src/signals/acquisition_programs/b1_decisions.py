@@ -29,6 +29,7 @@ from signals.acquisition_programs.qualification import (
     classify_recipient,
     score_fit,
 )
+from signals.acquisition_programs.website_identity import load_website_proofs
 from signals.compliance.milomail_rules import (
     MILOMAIL_PURPOSE,
     POLICY_VERSION_V2,
@@ -74,6 +75,7 @@ class B1DecisionStore:
                 acquisition_census_b0_entry.c.result,
                 acquisition_census_b0_entry.c.stratum,
                 acquisition_census_candidate.c.snapshot,
+                acquisition_census_candidate.c.census_id,
                 acquisition_census_candidate.c.provider_evidence,
                 acquisition_census_candidate.c.primary_domain,
                 acquisition_census_candidate.c.sector,
@@ -102,6 +104,7 @@ class B1DecisionStore:
                 acquisition_census_b1_entry.c.result,
                 acquisition_census_b1_entry.c.stratum,
                 acquisition_census_candidate.c.snapshot,
+                acquisition_census_candidate.c.census_id,
                 acquisition_census_candidate.c.provider_evidence,
                 acquisition_census_candidate.c.primary_domain,
                 acquisition_census_candidate.c.sector,
@@ -120,6 +123,10 @@ class B1DecisionStore:
                      at: dt.datetime, is_suppressed: Callable[[str], bool],
                      website_proofs: dict[str, WebsiteIdentityProof] | None,
                      source: str) -> dict:
+        if website_proofs is None and rows:
+            website_proofs = load_website_proofs(
+                self.engine, rows[0]["census_id"], at=at,
+            )
         counts: Counter[str] = Counter()
         activities: Counter[str] = Counter()
         reasons: Counter[str] = Counter()
@@ -167,7 +174,10 @@ class B1DecisionStore:
                 ), config=config, at=at)
                 sector = row["sector"]
                 size_band = row["stratum"].get("size_band", "1-10")
-                count_range = tuple(int(piece) for piece in size_band.split("-"))
+                size_parts = size_band.split("-")
+                if len(size_parts) != 2:
+                    raise ValueError("B1 replay requires a bounded company size band")
+                count_range = (int(size_parts[0]), int(size_parts[1]))
                 fit = score_fit(FitSignals(
                     provider=provider.provider,
                     provider_confirmed=provider.provider == MailProvider.GOOGLE_WORKSPACE,

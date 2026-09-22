@@ -44,6 +44,7 @@ from signals.acquisition_programs.official_company import (
     OfficialCompanyMatcher,
     OfficialSourceConfig,
 )
+from signals.acquisition_programs.website_identity import refresh_website_identity
 from signals.compliance.milomail_rules import POLICY_VERSION_V2
 from signals.compliance.suppression import MILOMAIL_SUPPRESSION_SCOPE, SuppressionIdentityKeyring
 from signals.contact_discovery.apollo import ApolloContactDiscoveryClient
@@ -183,7 +184,7 @@ def _safe_report(engine: sa.Engine, census_id: str, permit_id: str,
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="milomail-b1")
-    parser.add_argument("command", choices=("plan", "replay-b0", "replay-b1", "preflight", "issue-permit",
+    parser.add_argument("command", choices=("plan", "replay-b0", "replay-b1", "refresh-website", "preflight", "issue-permit",
                                             "run", "resume", "status", "report",
                                             "reconcile-usage", "revoke"))
     parser.add_argument("--census-id", required=True)
@@ -208,6 +209,15 @@ def main(argv: list[str] | None = None) -> int:
             output = (_safe_report(engine, args.census_id, args.permit_id,
                                    keys=status_keys, at=now) if args.command == "report"
                       else store.summary(args.permit_id))
+        elif args.command == "refresh-website":
+            if not 1 <= args.max_actions <= 500:
+                raise ValueError("website refresh requires a bounded company count")
+            output = refresh_website_identity(
+                engine, census_id=args.census_id,
+                resolver=LegalPageResolver(
+                    engine, attempt_sink=LegalHttpAttemptStore(engine).record,
+                ), max_companies=args.max_actions, at=now,
+            )
         elif args.command in {"replay-b0", "replay-b1"}:
             if not args.program_config:
                 raise ValueError("B1 replay requires program configuration")

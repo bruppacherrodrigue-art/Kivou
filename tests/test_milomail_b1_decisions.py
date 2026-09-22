@@ -12,6 +12,7 @@ from signals.persistence.schema import (
     acquisition_census_b1_entry,
     acquisition_census_b1_ready_lead,
     acquisition_census_candidate,
+    acquisition_census_company_match,
 )
 
 NOW = dt.datetime(2026, 9, 22, 11, tzinfo=dt.UTC)
@@ -21,7 +22,8 @@ COMPANY_ID = "a" * 64
 def test_completed_b1_contact_replay_is_versioned_and_idempotent() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     for table in (acquisition_census_candidate, acquisition_census_b1_entry,
-                  acquisition_census_b1_decision, acquisition_census_b1_ready_lead):
+                  acquisition_census_b1_decision, acquisition_census_b1_ready_lead,
+                  acquisition_census_company_match):
         table.create(engine)
     person = {
         "provider_organization_id": "synthetic-org-1",
@@ -87,3 +89,35 @@ def test_completed_b1_contact_replay_is_versioned_and_idempotent() -> None:
         lead = connection.execute(sa.select(acquisition_census_b1_ready_lead)).mappings().one()
     assert lead["decision"] == "HOLD"
     assert lead["ruleset_version"] == POLICY_VERSION_V2
+
+    # The site's own dated identity can corroborate activity when SIRENE has no match.
+    # Raw B1 contact evidence is unchanged; a later replay appends a new decision.
+    without_sirene = {**result, "official": {
+        "match_confidence": "NO_MATCH", "legal_status": "UNKNOWN",
+        "observed_at": NOW.isoformat(),
+    }}
+    with engine.begin() as connection:
+        connection.execute(sa.update(acquisition_census_b1_entry).values(
+            result=without_sirene,
+        ))
+        connection.execute(sa.insert(acquisition_census_company_match).values(
+            census_id="synthetic-census", provider_organization_id="synthetic-org-1",
+            match_evidence={"legal_status": "UNKNOWN", "match_confidence": "NO_MATCH",
+                            "website_identity": {
+                                "source_url": "https://cabinet.example/",
+                                "evidence_id": "website:synthetic-site",
+                                "observed_at": NOW.isoformat(),
+                                "expires_at": (NOW + dt.timedelta(days=7)).isoformat(),
+                                "company_domain": "cabinet.example",
+                                "accessible": True, "identity_matches": True,
+                            }}, observed_at=NOW,
+        ))
+    later = store.replay_b1(
+        plan_id="synthetic-b1-plan", config=config, at=NOW + dt.timedelta(seconds=1),
+        is_suppressed=lambda _email: False,
+    )
+    assert later["activity"] == {"OPERATIONALLY_ACTIVE": 1}
+    assert "RECIPIENT_CAPACITY_UNCONFIRMED" not in later["reason_codes"]
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(
+            acquisition_census_b1_decision)) == 2
