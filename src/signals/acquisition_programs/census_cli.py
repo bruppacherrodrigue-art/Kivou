@@ -22,6 +22,7 @@ from signals.acquisition_programs.apollo_account import ApolloAccountProbe
 from signals.acquisition_programs.census import CensusLimits, CensusStore, build_partitions
 from signals.acquisition_programs.census_readiness import (
     APOLLO_ORG_SEARCH_PRICING_URL,
+    HEAD,
     ApolloCreditPricing,
     DatabaseAuthorization,
     ExecutionPermit,
@@ -51,7 +52,7 @@ from signals.contact_discovery.apollo import ApolloContactDiscoveryClient
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.supplier_discovery.apollo import ApolloOrganizationSearchClient
 
-_HEAD = "0074_milomail_a1_sample_plan"
+_HEAD = HEAD
 
 
 def resolve_apollo_key(source: dict[str, str] | os._Environ[str], *, phase: str,
@@ -59,7 +60,7 @@ def resolve_apollo_key(source: dict[str, str] | os._Environ[str], *, phase: str,
     """Resolve a secret name only; never copy its value to a receipt or diagnostic."""
     ref = source.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF", "")
     if ref:
-        if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE"} or
+        if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0"} or
                 ref != "KIVOU_APOLLO_API_KEY" or
                 expected_ref != ref or
                 source.get("KIVOU_ACQUISITION_ENVIRONMENT", "").upper() != "STAGING"):
@@ -398,8 +399,12 @@ def main(argv: list[str] | None = None) -> int:
                 if (database.environment != "staging" or
                         engine.url.database != "kivou_milomail_census_a0"):
                     raise ValueError("A1 migration requires the isolated A0 staging database")
+            elif revisions == ("0074_milomail_a1_sample_plan",):
+                if (database.environment != "staging" or
+                        engine.url.database != "kivou_milomail_census_a0"):
+                    raise ValueError("B0 migration requires the isolated A0 staging database")
             elif revisions != ("0071_milomail_shadow_census",):
-                raise ValueError("only an exact 0071 or isolated A0 0073 database can be migrated")
+                raise ValueError("only exact 0071 or isolated A0 0073/0074 can be migrated")
             command.upgrade(alembic_config(engine), _HEAD)
             print(json.dumps({"status": "MIGRATED", "revision": current_revision(engine)}))
             return 0

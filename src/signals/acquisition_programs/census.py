@@ -105,6 +105,17 @@ class CensusLimits(BaseModel):
         )
 
     def require_run_authorization(self, *, phase: str | None = None) -> None:
+        if phase == "CONTACT_YIELD_B0":
+            if not (self.enabled and self.authorization_ref and
+                    self.max_partitions == 9 and self.max_pages == 90 and
+                    2255 <= self.max_candidates <= 2452 and
+                    1 <= self.max_enrichments <= 400 and
+                    90 < self.max_apollo_credits <= 1590 and
+                    self.max_cost_chf == self.chf_per_credit_ceiling == 0 and
+                    self.credits_people_search == 0 and
+                    self.credits_person_enrichment_max >= 9):
+                raise ValueError("B0 requires cumulative A1 caps and a bounded prepaid contact budget")
+            return
         if phase == "COVERAGE_A0":
             if not (self.enabled and self.authorization_ref and
                     self.max_partitions == self.max_pages == self.max_apollo_credits == 9 and
@@ -334,7 +345,27 @@ class CensusStore:
                 .where(acquisition_census_run.c.census_id == census_id)
                 .with_for_update()
             ).mappings().one()
-            if phase == "COVERAGE_A1_SAMPLE":
+            if phase == "CONTACT_YIELD_B0":
+                from signals.persistence.schema import acquisition_census_b0_plan
+
+                plan = connection.execute(sa.select(acquisition_census_b0_plan).where(
+                    acquisition_census_b0_plan.c.plan_id == sample_plan_id,
+                    acquisition_census_b0_plan.c.census_id == census_id,
+                )).mappings().one_or_none()
+                if (plan is None or row["status"] not in {"ACTIVE", "PAUSED"} or
+                        row["pages_reserved"] != 90 or row["credits_reserved"] < 90 or
+                        row["credits_reserved"] > limits.max_apollo_credits or
+                        row["active_sample_plan_id"] is None):
+                    raise ValueError("B0 requires completed A1 and a frozen contact plan")
+                if plan["status"] not in {"PLANNED", "ACTIVE", "PAUSED"}:
+                    raise ValueError("B0 plan cannot be restarted")
+                connection.execute(sa.update(acquisition_census_run).where(
+                    acquisition_census_run.c.census_id == census_id,
+                ).values(status="ACTIVE", limits_snapshot=snapshot, updated_at=at))
+                connection.execute(sa.update(acquisition_census_b0_plan).where(
+                    acquisition_census_b0_plan.c.plan_id == sample_plan_id,
+                ).values(status="ACTIVE", updated_at=at))
+            elif phase == "COVERAGE_A1_SAMPLE":
                 plan = connection.execute(sa.select(acquisition_census_sample_plan).where(
                     acquisition_census_sample_plan.c.plan_id == sample_plan_id,
                     acquisition_census_sample_plan.c.census_id == census_id,
