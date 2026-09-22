@@ -29,14 +29,18 @@ from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.database import alembic_config
 from signals.persistence.schema import (
     acquisition_census_call,
+    acquisition_census_candidate,
+    acquisition_census_identity,
     acquisition_census_partition,
     acquisition_census_permit,
     acquisition_census_run,
+    acquisition_census_sample_page,
+    acquisition_census_sample_plan,
     acquisition_contact_suppression,
     acquisition_program,
 )
 
-HEAD = "0073_milomail_a0_prepaid"
+HEAD = "0074_milomail_a1_sample_plan"
 APOLLO_ORG_SEARCH_PRICING_URL = "https://docs.apollo.io/reference/organization-search"
 
 
@@ -143,12 +147,13 @@ class ApolloCreditPricing(BaseModel):
         if self.verified_at > at or at - self.verified_at > dt.timedelta(days=30):
             raise ValueError("Apollo pricing is stale")
         if self.billing_basis == "PREPAID_SHARED_POOL":
-            if (phase != "COVERAGE_A0" or self.price_per_credit is not None or
+            if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE"} or
+                    self.price_per_credit is not None or
                     self.max_incremental_charge_chf != 0 or
                     self.auto_top_up_allowed is not False or
                     self.overage_allowed is not False):
-                raise ValueError("prepaid A0 requires no top-up, overage or incremental charge")
-            limits.require_run_authorization(phase="COVERAGE_A0")
+                raise ValueError("prepaid coverage requires no top-up, overage or charge")
+            limits.require_run_authorization(phase=phase)
         elif self.price_per_credit is None:
             raise ValueError("Apollo unit price is missing")
         else:
@@ -191,7 +196,8 @@ def account_capacity_ready(account: ApolloAccountState | None,
 
 def configuration_hash(*, census_id: str, limits: CensusLimits,
                        partitions: tuple[dict, ...], pricing: ApolloCreditPricing,
-                       source_config: OfficialSourceConfig | None = None) -> str:
+                       source_config: OfficialSourceConfig | None = None,
+                       sample_plan_hash: str | None = None) -> str:
     payload = {
         "census_id": census_id,
         "limits": limits.model_dump(mode="json"),
@@ -201,6 +207,8 @@ def configuration_hash(*, census_id: str, limits: CensusLimits,
         }),
         "official_source": (source_config or OfficialSourceConfig()).model_dump(mode="json"),
     }
+    if sample_plan_hash is not None:
+        payload["sample_plan_hash"] = sample_plan_hash
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
@@ -209,7 +217,7 @@ class ExecutionPermit(BaseModel):
     permit_id: str = Field(min_length=8, max_length=64)
     census_id: str = Field(min_length=8, max_length=64)
     program_key: Literal["milomail"] = "milomail"
-    phase: Literal["COVERAGE", "COVERAGE_A0", "ENRICHMENT"]
+    phase: Literal["COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE", "ENRICHMENT"]
     environment: Literal["test", "staging", "authorized-census"]
     database_id: str = Field(min_length=8, max_length=128)
     country: Literal["FR"] = "FR"
@@ -224,6 +232,7 @@ class ExecutionPermit(BaseModel):
     apollo_secret_ref: str | None = Field(default=None, max_length=80)
     pricing_reference: str = Field(min_length=3, max_length=256)
     configuration_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sample_plan_hash: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     issued_by_reference: str = Field(min_length=3, max_length=128)
     issued_at: dt.datetime
     valid_from: dt.datetime
@@ -250,8 +259,22 @@ class ExecutionPermit(BaseModel):
                     self.max_cost_chf != 0 or self.price_chf_per_credit is not None or
                     self.billing_basis != "PREPAID_SHARED_POOL" or
                     self.apollo_secret_ref != "KIVOU_APOLLO_API_KEY" or
+                    self.sample_plan_hash is not None or
                     self.expires_at - self.issued_at > dt.timedelta(hours=4)):
                 raise ValueError("A0 permit must be isolated, short-lived and capped")
+        elif self.phase == "COVERAGE_A1_SAMPLE":
+            if (self.environment != "staging" or
+                    not self.database_id.endswith(":kivou_milomail_census_a0") or
+                    not 1 <= self.max_pages <= 81 or
+                    self.max_credits != self.max_pages or
+                    self.max_candidates != self.max_pages * 25 or
+                    self.max_enrichments != 0 or len(self.allowed_partitions) != 9 or
+                    self.max_cost_chf != 0 or self.price_chf_per_credit is not None or
+                    self.billing_basis != "PREPAID_SHARED_POOL" or
+                    self.apollo_secret_ref != "KIVOU_APOLLO_API_KEY" or
+                    self.sample_plan_hash is None or
+                    self.expires_at - self.issued_at > dt.timedelta(hours=4)):
+                raise ValueError("A1 permit must be isolated, short-lived and capped")
         elif (self.billing_basis != "PRICED" or self.price_chf_per_credit is None or
               self.max_credits * self.price_chf_per_credit > self.max_cost_chf or
               self.apollo_secret_ref not in (None, "MILOMAIL_CENSUS_APOLLO_API_KEY")):
@@ -275,6 +298,16 @@ class PermitStore:
             raise ValueError("permit cannot outlive database authorization")
         if permit.issued_at > at or permit.expires_at <= at:
             raise ValueError("permit not currently valid")
+        if permit.phase == "COVERAGE_A1_SAMPLE":
+            from signals.acquisition_programs.census_sampling import SamplePlanStore
+
+            planning = SamplePlanStore(self.engine)
+            plan = planning.details(permit.permit_id)
+            if (plan["census_id"] != permit.census_id or
+                    plan["plan_hash"] != permit.sample_plan_hash or
+                    plan["new_pages_planned"] != permit.max_pages or
+                    not planning.verify_baseline(permit.permit_id)):
+                raise ValueError("A1 permit differs from immutable sample plan or A0 cache")
         with self.engine.begin() as connection:
             run = connection.execute(sa.select(acquisition_census_run).where(
                 acquisition_census_run.c.census_id == permit.census_id,
@@ -289,6 +322,16 @@ class PermitStore:
             ).where(acquisition_census_partition.c.census_id == permit.census_id))}
             if not set(permit.allowed_partitions) <= known:
                 raise ValueError("permit contains unknown partition")
+            if permit.phase == "COVERAGE_A1_SAMPLE" and (
+                len(known) != 9 or set(permit.allowed_partitions) != known or
+                connection.scalar(sa.select(sa.func.count()).select_from(
+                    acquisition_census_permit).where(
+                    acquisition_census_permit.c.census_id == permit.census_id,
+                    acquisition_census_permit.c.phase == "COVERAGE_A0",
+                    acquisition_census_permit.c.status == "ACTIVE",
+                ))
+            ):
+                raise ValueError("A1 requires nine partitions and revoked A0 permit")
             partitions = tuple(dict(row) for row in connection.execute(sa.select(
                 acquisition_census_partition.c.partition_id,
                 acquisition_census_partition.c.filter_signature,
@@ -296,6 +339,7 @@ class PermitStore:
             if permit.configuration_hash != configuration_hash(
                 census_id=permit.census_id, limits=limits, partitions=partitions,
                 pricing=pricing, source_config=source_config,
+                sample_plan_hash=permit.sample_plan_hash,
             ):
                 raise ValueError("permit configuration hash does not match current plan")
             if not insert_if_absent(connection, acquisition_census_permit,
@@ -331,6 +375,13 @@ class PermitStore:
             if (permit.allowed_partitions is None or len(permit.allowed_partitions) != 9 or
                     permit.apollo_secret_ref != "KIVOU_APOLLO_API_KEY"):
                 raise ValueError("shared pool is only allowed for exact A0")
+        if permit.phase == "COVERAGE_A1_SAMPLE":
+            limits.require_run_authorization(phase="COVERAGE_A1_SAMPLE")
+            if (permit.max_pages != limits.max_pages - 9 or
+                    permit.max_credits != limits.max_apollo_credits - 9 or
+                    permit.max_candidates != limits.max_candidates - 225 or
+                    len(permit.allowed_partitions) != 9):
+                raise ValueError("A1 permit must cover only new pages after A0")
 
     def revoke(self, permit_id: str) -> None:
         with self.engine.begin() as connection:
@@ -343,7 +394,7 @@ class PermitStore:
                    phase: str, kind: str, partition_id: str | None,
                    credits: int, candidate_slots: int, at: dt.datetime,
                    configuration_hash_value: str, database_id: str,
-                   check_capacity: bool = True) -> None:
+                   check_capacity: bool = True, subject: str | None = None) -> None:
         if not permit_id:
             raise ValueError("execution permit is mandatory before Apollo calls")
         permit = connection.execute(sa.select(acquisition_census_permit).where(
@@ -359,13 +410,32 @@ class PermitStore:
             raise ValueError("execution permit invalid for this call")
         pages = 1 if kind == "ORG_SEARCH" else 0
         enrichments = 1 if kind in {"ORG_ENRICH", "PERSON_ENRICH"} else 0
-        if (phase == "COVERAGE_A0" and kind != "ORG_SEARCH") or (
+        if (phase in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE"} and kind != "ORG_SEARCH") or (
             phase == "COVERAGE" and kind not in {"ORG_SEARCH", "PEOPLE_SEARCH"}) or (
             phase == "ENRICHMENT" and kind == "ORG_SEARCH"
         ):
             raise ValueError("Apollo operation is outside permit phase")
         if not check_capacity:
             return
+        if phase == "COVERAGE_A1_SAMPLE":
+            prefix = f"{partition_id}:" if partition_id else ""
+            if not prefix or not subject or not subject.startswith(prefix):
+                raise ValueError("A1 call must name a selected organization page")
+            raw_page = subject[len(prefix):]
+            if not raw_page.isascii() or not raw_page.isdecimal():
+                raise ValueError("A1 page number is invalid")
+            selected = connection.execute(sa.select(
+                acquisition_census_sample_page.c.status,
+            ).join(acquisition_census_sample_plan).where(
+                acquisition_census_sample_page.c.plan_id == permit_id,
+                acquisition_census_sample_page.c.partition_id == partition_id,
+                acquisition_census_sample_page.c.page == int(raw_page),
+                acquisition_census_sample_page.c.status == "PLANNED",
+                acquisition_census_sample_plan.c.plan_hash == permit["sample_plan_hash"],
+                acquisition_census_sample_plan.c.census_id == census_id,
+            )).scalar_one_or_none()
+            if selected is None:
+                raise ValueError("A1 organization page is outside immutable sample plan")
         usage = connection.execute(sa.select(
             sa.func.coalesce(sa.func.sum(acquisition_census_call.c.reserved_credits), 0),
             sa.func.coalesce(sa.func.sum(acquisition_census_call.c.candidate_slots), 0),
@@ -395,7 +465,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
               source_rate_limit_per_minute: int | None = None,
               source_cache_ttl_days: int | None = None,
               source_config: OfficialSourceConfig | None = None,
-              phase: Literal["COVERAGE", "COVERAGE_A0", "ENRICHMENT"] | None = None) -> dict:
+              phase: Literal["COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE", "ENRICHMENT"] | None = None) -> dict:
     """Read-only assessment; no Apollo, official-source or Instantly request."""
     checks: dict[str, str] = {}
     identity, host_hash, name = database_identity(engine)
@@ -406,11 +476,11 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             checks["database"] = "READY"
         except ValueError:
             checks["database"] = "UNAUTHORIZED_EXPIRED_OR_DIVERGED"
-    if phase == "COVERAGE_A0" and (
+    if phase in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE"} and (
         database is None or database.environment != "staging" or
         engine.url.database != "kivou_milomail_census_a0"
     ):
-        checks["database"] = "A0_REQUIRES_ISOLATED_STAGING_DATABASE"
+        checks["database"] = "SAMPLE_REQUIRES_ISOLATED_STAGING_DATABASE"
     revisions = database_revisions(engine)
     revision = revisions[0] if len(revisions) == 1 else None
     checks["migration"] = "READY" if migration_ready(engine) else "MISSING_OR_DIVERGED"
@@ -432,6 +502,20 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
                 acquisition_census_call,
             ).where(acquisition_census_call.c.census_id == census_id,
                     acquisition_census_call.c.status != "COMPLETED")) or 0
+            forbidden_contact_calls = connection.scalar(sa.select(sa.func.count()).select_from(
+                acquisition_census_call,
+            ).where(acquisition_census_call.c.census_id == census_id,
+                    acquisition_census_call.c.kind.in_(("PEOPLE_SEARCH", "PERSON_ENRICH",
+                                                       "ORG_ENRICH")))) or 0
+            email_identities = connection.scalar(sa.select(sa.func.count()).select_from(
+                acquisition_census_identity,
+            ).where(acquisition_census_identity.c.census_id == census_id,
+                    acquisition_census_identity.c.identity_kind == "EMAIL")) or 0
+            candidate_contacts = connection.scalar(sa.select(sa.func.count()).select_from(
+                acquisition_census_candidate,
+            ).where(acquisition_census_candidate.c.census_id == census_id,
+                    sa.or_(acquisition_census_candidate.c.contact_found.is_(True),
+                           acquisition_census_candidate.c.email_verified.is_(True)))) or 0
             reserved = run["credits_reserved"] if run else 0
             try:
                 retained_versions = tuple(connection.execute(sa.select(
@@ -444,7 +528,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
                 retained_versions = ()
         else:
             run = program = None
-            pending_calls = reserved = 0
+            pending_calls = reserved = forbidden_contact_calls = email_identities = candidate_contacts = 0
             suppression_accessible = False
             retained_versions = ()
     count = len(partitions)
@@ -456,6 +540,13 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "READY" if account_capacity_ready(apollo_account, pricing, limits)
         else "NOT_PROBED_OR_CAPACITY_UNKNOWN"
     )
+    if phase == "COVERAGE_A1_SAMPLE":
+        checks["organization_search_counter"] = (
+            "READY" if apollo_account and
+            apollo_account.organization_search_day_consumed is not None and
+            apollo_account.organization_search_day_limit is not None
+            else "NOT_PROBED_OR_UNKNOWN"
+        )
     checks["pricing"] = "MISSING"
     if pricing:
         try:
@@ -491,14 +582,21 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             suppression_ready = False
     checks["suppression"] = "READY" if suppression_ready else "CREDENTIAL_SCOPE_OR_ACCESS_MISSING"
     checks["pending_calls"] = "CLEAR" if pending_calls == 0 else "REVIEW_REQUIRED"
-    if phase in {"COVERAGE", "COVERAGE_A0"}:
+    if phase == "COVERAGE_A1_SAMPLE":
+        checks["organizations_only"] = (
+            "READY" if forbidden_contact_calls == email_identities == candidate_contacts == 0
+            else "CONTACT_OR_ENRICHMENT_ACTIVITY_PRESENT"
+        )
+    if phase in {"COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE"}:
         checks["postgresql"] = (
             "READY" if engine.dialect.name == "postgresql" else "NON_POSTGRESQL_DATABASE"
         )
         checks["nine_partitions"] = "READY" if count == 9 else "PARTITION_COUNT_MISMATCH"
         checks["official_rate"] = (
             "READY" if source_rate_limit_per_minute is not None and
-            source_rate_limit_per_minute <= 60 else "RATE_CAP_ABOVE_60_OR_UNKNOWN"
+            source_rate_limit_per_minute <= 60 and
+            (phase != "COVERAGE_A1_SAMPLE" or source_requests <= 600)
+            else "RATE_OR_REQUEST_CAP_ABOVE_A1_LIMIT"
         )
         checks["no_enrichment"] = (
             "READY" if limits.max_enrichments == 0 else "ENRICHMENT_CAP_NONZERO"
@@ -506,7 +604,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         checks["credit_caps"] = (
             "READY" if limits.max_apollo_credits > 0 and (
                 limits.max_cost_chf > 0 or
-                (phase == "COVERAGE_A0" and pricing is not None and
+                (phase in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE"} and pricing is not None and
                  pricing.billing_basis == "PREPAID_SHARED_POOL"))
             else "ZERO_CREDIT_OR_CHF_CAP"
         )
@@ -516,9 +614,30 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             else "ORG_SEARCH_REQUIRES_CREDIT" if checks["credit_caps"] != "READY"
             else "PRICE_OR_CREDIT_CATEGORY_UNVERIFIED"
         )
+    sample_plan = None
+    if phase == "COVERAGE_A1_SAMPLE" and permit_id and checks["migration"] == "READY":
+        from signals.acquisition_programs.census_sampling import SamplePlanStore
+
+        try:
+            planning = SamplePlanStore(engine)
+            sample_plan = planning.details(permit_id)
+            if (sample_plan["census_id"] != census_id or
+                    not planning.verify_baseline(permit_id) or
+                    sample_plan["new_pages_planned"] > 81 or
+                    len({(item["partition_id"], item["page"])
+                         for item in sample_plan["pages"]}) !=
+                    sample_plan["new_pages_planned"]):
+                sample_plan = None
+        except (ValueError, sa.exc.SQLAlchemyError):
+            sample_plan = None
+        checks["sample_plan"] = "READY" if sample_plan else "MISSING_CHANGED_OR_DUPLICATE"
+        checks["a0_cache"] = "READY" if sample_plan else "MISSING_OR_CHANGED"
+    elif phase == "COVERAGE_A1_SAMPLE":
+        checks["sample_plan"] = checks["a0_cache"] = "MISSING"
     config_digest = configuration_hash(
         census_id=census_id, limits=limits, partitions=partitions, pricing=pricing,
         source_config=source_config,
+        sample_plan_hash=sample_plan["plan_hash"] if sample_plan else None,
     ) if pricing and partitions else None
     permit = None
     if permit_id and checks["migration"] == "READY" and config_digest and database:
@@ -569,7 +688,7 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             }
             if (remaining_credits <= 0 or
                     (pricing.price_per_credit is not None and remaining_cost <= 0) or
-                    (permit["phase"] in {"COVERAGE", "COVERAGE_A0"} and
+                    (permit["phase"] in {"COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE"} and
                      (remaining_pages <= 0 or remaining_candidates <= 0)) or
                     (permit["phase"] == "ENRICHMENT" and
                      remaining_enrichments <= 0)):
@@ -589,6 +708,9 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
         "postgresql": "DATABASE_AUTHORIZATION", "nine_partitions": "CONFIGURATION",
         "official_rate": "BUDGET_CONFIGURATION", "no_enrichment": "BUDGET_CONFIGURATION",
         "credit_caps": "BUDGET_CONFIGURATION", "operation_cost": "OPERATION_COST",
+        "sample_plan": "CONFIGURATION", "a0_cache": "CONFIGURATION",
+        "organizations_only": "POLICY",
+        "organization_search_counter": "EXTERNAL_ACCOUNT",
     }
     pool_balances = {
         pool: apollo_account.credit_balances.get(pool)
@@ -629,6 +751,12 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
             known_balances
         ) == len(pool_balances) else None,
         "credit_balances_by_pool": pool_balances,
+        "organization_search_day_consumed": (
+            apollo_account.organization_search_day_consumed if apollo_account else None
+        ),
+        "organization_search_day_limit": (
+            apollo_account.organization_search_day_limit if apollo_account else None
+        ),
         "worst_cost_chf": str(Decimal(limits.max_apollo_credits) * pricing.price_per_credit)
         if pricing and pricing.price_per_credit is not None else None,
         "max_incremental_charge_chf": str(pricing.max_incremental_charge_chf)
@@ -638,6 +766,8 @@ def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,
          if pricing and pricing.price_per_credit is not None else None),
         "credits_reserved": reserved, "incomplete_calls": pending_calls,
         "configuration_hash": config_digest,
+        "sample_plan_hash": sample_plan["plan_hash"] if sample_plan else None,
+        "sample_pages_planned": sample_plan["new_pages_planned"] if sample_plan else None,
         "permit_remaining": permit_remaining,
         "official_requests_reserved": run["official_requests_reserved"] if run else 0,
         "enrichment_authorized": bool(permit_ready and permit and permit["phase"] == "ENRICHMENT"),

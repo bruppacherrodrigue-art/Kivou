@@ -12,7 +12,7 @@ import sys
 from decimal import Decimal
 from importlib.metadata import version
 from pathlib import Path
-from typing import Literal, NoReturn
+from typing import Literal, NoReturn, cast
 
 import httpx
 from alembic import command
@@ -33,6 +33,9 @@ from signals.acquisition_programs.census_readiness import (
     preflight,
 )
 from signals.acquisition_programs.census_runtime import CensusRunner
+from signals.acquisition_programs.census_sampling import SamplePlanStore
+from signals.acquisition_programs.census_statistics import sample_report
+from signals.acquisition_programs.census_usage_guard import A1UsageGuard
 from signals.acquisition_programs.config import load_program_config
 from signals.acquisition_programs.mail_provider import DnsMXResolver, MailProviderDetector
 from signals.acquisition_programs.official_company import (
@@ -48,7 +51,7 @@ from signals.contact_discovery.apollo import ApolloContactDiscoveryClient
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 from signals.supplier_discovery.apollo import ApolloOrganizationSearchClient
 
-_HEAD = "0073_milomail_a0_prepaid"
+_HEAD = "0074_milomail_a1_sample_plan"
 
 
 def resolve_apollo_key(source: dict[str, str] | os._Environ[str], *, phase: str,
@@ -56,10 +59,11 @@ def resolve_apollo_key(source: dict[str, str] | os._Environ[str], *, phase: str,
     """Resolve a secret name only; never copy its value to a receipt or diagnostic."""
     ref = source.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF", "")
     if ref:
-        if (phase != "COVERAGE_A0" or ref != "KIVOU_APOLLO_API_KEY" or
+        if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE"} or
+                ref != "KIVOU_APOLLO_API_KEY" or
                 expected_ref != ref or
                 source.get("KIVOU_ACQUISITION_ENVIRONMENT", "").upper() != "STAGING"):
-            raise ValueError("shared Apollo secret is restricted to staging A0")
+            raise ValueError("shared Apollo secret is restricted to staging coverage")
     else:
         ref = "MILOMAIL_CENSUS_APOLLO_API_KEY"
         if expected_ref not in (None, ref):
@@ -87,6 +91,11 @@ class _SafeArgumentParser(argparse.ArgumentParser):
 class _ForbiddenInstantly:
     def __getattr__(self, _name: str) -> None:
         raise RuntimeError("Instantly is unavailable to the census")
+
+
+class _ForbiddenApolloOperation:
+    def __getattr__(self, _name: str) -> None:
+        raise RuntimeError("contact and enrichment Apollo operations are forbidden in A1")
 
 
 def _keyring(source: dict[str, str]) -> SuppressionIdentityKeyring:
@@ -129,13 +138,19 @@ def _parser() -> _SafeArgumentParser:
     plan = commands.add_parser("plan", help="persist deterministic partitions; no Apollo calls")
     plan.add_argument("--program-config", type=Path, required=True)
     plan.add_argument("--database-authorization", type=Path, required=True)
+    sample = commands.add_parser("plan-sample", help="freeze A1 pages before a paid call")
+    sample.add_argument("--census-id", required=True)
+    sample.add_argument("--permit-id", required=True)
+    sample.add_argument("--max-new-pages", type=int, default=81)
+    sample.add_argument("--database-authorization", type=Path, required=True)
     for name in ("run", "resume"):
         command = commands.add_parser(name, help="bounded Apollo preparation in SHADOW")
         command.add_argument("--census-id", required=True)
         command.add_argument("--program-config", type=Path, required=True)
         command.add_argument("--operations", type=Path)
         command.add_argument("--authorize-paid-apollo", action="store_true")
-        command.add_argument("--phase", choices=("COVERAGE", "COVERAGE_A0", "ENRICHMENT"))
+        command.add_argument("--phase", choices=("COVERAGE", "COVERAGE_A0",
+                                               "COVERAGE_A1_SAMPLE", "ENRICHMENT"))
         command.add_argument("--a0", action="store_true",
                              help="at most the first page of each permitted partition")
         command.add_argument("--permit-id")
@@ -145,7 +160,8 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--probe-apollo-free", action="store_true")
     pre = commands.add_parser("preflight", help="read-only checks before an authorized run")
     pre.add_argument("--census-id", required=True)
-    pre.add_argument("--phase", choices=("COVERAGE", "COVERAGE_A0", "ENRICHMENT"))
+    pre.add_argument("--phase", choices=("COVERAGE", "COVERAGE_A0",
+                                           "COVERAGE_A1_SAMPLE", "ENRICHMENT"))
     pre.add_argument("--database-authorization", type=Path)
     pre.add_argument("--pricing", type=Path)
     pre.add_argument("--permit-id")
@@ -170,6 +186,7 @@ def _parser() -> _SafeArgumentParser:
         command.add_argument("--census-id", required=True)
         if name == "report":
             command.add_argument("--public-aggregate", action="store_true")
+            command.add_argument("--sample-permit-id")
             command.add_argument("--forecast-low", type=Decimal)
             command.add_argument("--forecast-central", type=Decimal)
             command.add_argument("--forecast-high", type=Decimal)
@@ -185,6 +202,7 @@ def _parser() -> _SafeArgumentParser:
     usage.add_argument("--actual-cost-chf", type=Decimal)
     usage.add_argument("--usage-evidence-ref")
     usage.add_argument("--shared-pool", action="store_true")
+    usage.add_argument("--permit-id")
     usage.add_argument("--pool-before", type=int)
     usage.add_argument("--pool-after", type=int)
     usage.add_argument("--database-authorization", type=Path, required=True)
@@ -375,14 +393,19 @@ def main(argv: list[str] | None = None) -> int:
             if not args.acknowledge_migration or database is None:
                 raise ValueError("reviewed non-production migration requires acknowledgement")
             database.check_identity(engine, at=now)
-            if database_revisions(engine) != ("0071_milomail_shadow_census",):
-                raise ValueError("only an exact 0071 census database can be migrated")
+            revisions = database_revisions(engine)
+            if revisions == ("0073_milomail_a0_prepaid",):
+                if (database.environment != "staging" or
+                        engine.url.database != "kivou_milomail_census_a0"):
+                    raise ValueError("A1 migration requires the isolated A0 staging database")
+            elif revisions != ("0071_milomail_shadow_census",):
+                raise ValueError("only an exact 0071 or isolated A0 0073 database can be migrated")
             command.upgrade(alembic_config(engine), _HEAD)
             print(json.dumps({"status": "MIGRATED", "revision": current_revision(engine)}))
             return 0
         if args.command != "preflight" and not migration_ready(engine):
             raise ValueError("census database migration is not at the reviewed head")
-        if args.command in {"plan", "purge-cache", "reconcile-usage"}:
+        if args.command in {"plan", "plan-sample", "purge-cache", "reconcile-usage"}:
             mutation_database = _read_model(args.database_authorization,
                                             DatabaseAuthorization)
             if mutation_database is None:
@@ -435,17 +458,22 @@ def main(argv: list[str] | None = None) -> int:
             if args.command == "status":
                 result = store.status(args.census_id)
             else:
-                rates = (args.forecast_low, args.forecast_central, args.forecast_high)
-                if any(rate is not None for rate in rates) and not all(
-                    rate is not None for rate in rates
-                ):
-                    raise ValueError("all three forecast rates are required")
-                result = store.report(
-                    args.census_id,
-                    forecast_rates=rates if all(rate is not None for rate in rates) else None,
-                    forecast_source=args.forecast_source,
-                    public_aggregate=args.public_aggregate,
-                )
+                if args.sample_permit_id:
+                    if not args.public_aggregate:
+                        raise ValueError("A1 report requires public aggregate mode")
+                    result = sample_report(engine, args.census_id, args.sample_permit_id)
+                else:
+                    rates = (args.forecast_low, args.forecast_central, args.forecast_high)
+                    if any(rate is not None for rate in rates) and not all(
+                        rate is not None for rate in rates
+                    ):
+                        raise ValueError("all three forecast rates are required")
+                    result = store.report(
+                        args.census_id,
+                        forecast_rates=rates if all(rate is not None for rate in rates) else None,
+                        forecast_source=args.forecast_source,
+                        public_aggregate=args.public_aggregate,
+                    )
         elif args.command == "purge-cache":
             if not args.acknowledge_cache_purge:
                 raise ValueError("cache purge requires explicit acknowledgement")
@@ -460,9 +488,24 @@ def main(argv: list[str] | None = None) -> int:
                     raise ValueError("shared-pool balances are required without exclusive attribution")
                 ledger = store.report(args.census_id)
                 if ledger["billing_basis"] != "PREPAID_SHARED_POOL":
-                    raise ValueError("shared-pool reconciliation requires a prepaid A0 permit")
-                attempted = sum(value for key, value in ledger["api_calls"].items()
-                                if key.startswith("ORG_SEARCH:"))
+                    raise ValueError("shared-pool reconciliation requires a prepaid permit")
+                if args.permit_id:
+                    from signals.persistence.schema import acquisition_census_call
+
+                    with engine.connect() as connection:
+                        import sqlalchemy as sa
+
+                        attempted = connection.scalar(sa.select(sa.func.count()).select_from(
+                            acquisition_census_call,
+                        ).where(acquisition_census_call.c.permit_id == args.permit_id,
+                                acquisition_census_call.c.kind == "ORG_SEARCH")) or 0
+                        reserved = connection.scalar(sa.select(sa.func.coalesce(
+                            sa.func.sum(acquisition_census_call.c.reserved_credits), 0,
+                        )).where(acquisition_census_call.c.permit_id == args.permit_id)) or 0
+                else:
+                    attempted = sum(value for key, value in ledger["api_calls"].items()
+                                    if key.startswith("ORG_SEARCH:"))
+                    reserved = ledger["apollo_credits_reserved_upper_bound"]
                 delta = args.pool_before - args.pool_after
                 if delta < 0:
                     raise ValueError("shared Apollo pool increased; top-up or concurrent change requires review")
@@ -470,9 +513,9 @@ def main(argv: list[str] | None = None) -> int:
                     "census_id": args.census_id, "attribution": "SHARED_POOL_AMBIGUOUS",
                     "pool_before": args.pool_before, "pool_after": args.pool_after,
                     "pool_delta": delta, "billable_attempts_reserved": attempted,
-                    "credits_reserved_upper_bound": ledger["apollo_credits_reserved_upper_bound"],
+                    "credits_reserved_upper_bound": reserved,
                     "delta_equals_reserved_upper_bound":
-                    delta == ledger["apollo_credits_reserved_upper_bound"],
+                    delta == reserved,
                     "incremental_charge_chf": "0.00", "allocation_cost_chf": None,
                     "receipt_recorded_as_exclusive": False,
                 }
@@ -503,6 +546,11 @@ def main(argv: list[str] | None = None) -> int:
                 "apollo_calls": 0,
                 "credits_spent": 0,
             }
+        elif args.command == "plan-sample":
+            result = SamplePlanStore(engine).plan(
+                args.census_id, permit_id=args.permit_id,
+                max_new_pages=args.max_new_pages, at=now,
+            )
         else:
             if not args.authorize_paid_apollo:
                 raise ValueError("paid Apollo use needs an explicit command flag")
@@ -510,7 +558,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("a bounded phase and execution permit are required")
             limits = CensusLimits.from_environment(os.environ)
             limits.require_run_authorization(phase=args.phase)
-            if args.phase in {"COVERAGE", "COVERAGE_A0"} and limits.max_enrichments != 0:
+            if args.phase in {"COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE"} and limits.max_enrichments != 0:
                 raise ValueError("coverage cannot authorize contact enrichment")
             database = _read_model(args.database_authorization, DatabaseAuthorization)
             pricing = _read_model(args.pricing, ApolloCreditPricing)
@@ -529,14 +577,22 @@ def main(argv: list[str] | None = None) -> int:
                 raise ValueError("free Apollo account verification is required")
             keys = _keyring(dict(os.environ))
             source = OfficialSourceConfig.from_environment(os.environ)
-            if args.phase in {"COVERAGE", "COVERAGE_A0"} and source.rate_limit_per_minute > 60:
+            if args.phase in {"COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE"} and source.rate_limit_per_minute > 60:
                 raise ValueError("coverage official source rate exceeds 60 per minute")
+            if args.phase == "COVERAGE_A1_SAMPLE" and source.max_requests > 600:
+                raise ValueError("A1 official source cap exceeds 600 requests")
             if not source.enabled or source.max_requests == 0 or not args.probe_official_source or not _probe_official_source():
                 raise ValueError("official company source is not verified and enabled")
             partitions = store.partitions(args.census_id)
+            sample_plan = (SamplePlanStore(engine).details(args.permit_id)
+                           if args.phase == "COVERAGE_A1_SAMPLE" else None)
+            if sample_plan and (sample_plan["census_id"] != args.census_id or
+                                not SamplePlanStore(engine).verify_baseline(args.permit_id)):
+                raise ValueError("A1 sample plan or cached A0 baseline changed")
             config_hash = configuration_hash(
                 census_id=args.census_id, limits=limits, partitions=partitions,
                 pricing=pricing, source_config=source,
+                sample_plan_hash=sample_plan["plan_hash"] if sample_plan else None,
             )
             with engine.connect() as connection:
                 import sqlalchemy as sa
@@ -552,6 +608,10 @@ def main(argv: list[str] | None = None) -> int:
             account = _probe_apollo_account(api_key)
             if not account_capacity_ready(account, pricing, limits):
                 raise ValueError("Apollo account capacity or rate limits unavailable")
+            if args.phase == "COVERAGE_A1_SAMPLE" and (
+                account is None or account.organization_search_day_consumed is None
+            ):
+                raise ValueError("A1 requires the free Apollo Organization Search counter")
             PermitStore.validate_terms(
                 ExecutionPermit.model_validate({
                     **dict(permit_row),
@@ -577,6 +637,13 @@ def main(argv: list[str] | None = None) -> int:
                 official_matcher = OfficialCompanyMatcher(
                     engine, source, client=official_client, census_id=args.census_id,
                 )
+                usage_guard = None
+                if args.phase == "COVERAGE_A1_SAMPLE":
+                    usage_guard = A1UsageGuard(
+                        engine, permit_id=args.permit_id,
+                        probe=lambda: _probe_apollo_account(api_key),
+                    )
+                    usage_guard.begin(at=now)
                 runner = CensusRunner(
                     engine,
                     census_id=args.census_id,
@@ -584,8 +651,14 @@ def main(argv: list[str] | None = None) -> int:
                     config=config,
                     limits=limits,
                     organizations=ApolloOrganizationSearchClient(api_key=api_key, client=client),
-                    companies=ApolloCompanyResearchClient(api_key=api_key, client=client),
-                    contacts=ApolloContactDiscoveryClient(api_key=api_key, client=client),
+                    companies=cast(ApolloCompanyResearchClient, (
+                        _ForbiddenApolloOperation() if args.phase == "COVERAGE_A1_SAMPLE"
+                        else ApolloCompanyResearchClient(api_key=api_key, client=client)
+                    )),
+                    contacts=cast(ApolloContactDiscoveryClient, (
+                        _ForbiddenApolloOperation() if args.phase == "COVERAGE_A1_SAMPLE"
+                        else ApolloContactDiscoveryClient(api_key=api_key, client=client)
+                    )),
                     mail_provider=MailProviderDetector(
                         DnsMXResolver(), ttl_seconds=config.mx_cache_ttl_seconds,
                         timeout_seconds=config.dns_timeout_seconds,
@@ -598,11 +671,16 @@ def main(argv: list[str] | None = None) -> int:
                     acquisition=acquisition,
                     shadow=shadow,
                     operations=operations,
+                    official_matcher=official_matcher if args.phase == "COVERAGE_A1_SAMPLE" else None,
+                    usage_after_checkpoint=(usage_guard.after_checkpoint
+                                            if usage_guard is not None else None),
                 )
                 runner.run(at=now, phase=args.phase, permit_id=args.permit_id,
                            configuration_hash=config_hash, database_id=database.database_id,
                            smoke_first_page_only=args.a0)
             result = store.report(args.census_id)
+            if usage_guard is not None:
+                result["a1_usage"] = usage_guard.status()
         print(json.dumps(result, default=str, sort_keys=True, ensure_ascii=False))
         return 3 if result.get("status") == "REVIEW_REQUIRED" else 0
     except Exception as error:  # noqa: BLE001 — process boundary must redact all failures

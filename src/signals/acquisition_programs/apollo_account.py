@@ -18,6 +18,8 @@ class ApolloAccountState:
     usage_stats_available: bool
     rate_stats_available: bool
     credit_balances: dict[str, int] = field(default_factory=dict)
+    organization_search_day_consumed: int | None = None
+    organization_search_day_limit: int | None = None
 
 
 class ApolloAccountProbe:
@@ -58,5 +60,13 @@ class ApolloAccountProbe:
                 if (isinstance(name, str) and isinstance(value, int) and
                         not isinstance(value, bool) and value >= 0):
                     balances[name] = value
+        org = (rates or {}).get('["api/v1/mixed_companies", "search"]')
+        day = org.get("day") if isinstance(org, dict) else None
+        consumed = day.get("consumed") if isinstance(day, dict) else None
+        limit = day.get("limit") if isinstance(day, dict) else None
+        if not isinstance(consumed, int) or isinstance(consumed, bool) or consumed < 0:
+            consumed = None
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+            limit = None
         return ApolloAccountState(True, balances.get("lead_credit"), credits is not None,
-                                  rates is not None, balances)
+                                  rates is not None, balances, consumed, limit)

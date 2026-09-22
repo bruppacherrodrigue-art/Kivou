@@ -28,6 +28,8 @@ from signals.persistence.schema import (
     acquisition_census_official_cache,
     acquisition_census_partition,
     acquisition_census_run,
+    acquisition_census_sample_page,
+    acquisition_census_sample_plan,
     acquisition_program,
     acquisition_program_eligibility,
 )
@@ -110,6 +112,18 @@ class CensusLimits(BaseModel):
                     self.max_cost_chf == self.chf_per_credit_ceiling == 0 and
                     self.credits_org_search_page == 1):
                 raise ValueError("A0 requires exactly nine prepaid pages and zero incremental cost")
+            return
+        if phase == "COVERAGE_A1_SAMPLE":
+            new_pages = self.max_pages - 9
+            if not (self.enabled and self.authorization_ref and self.max_partitions == 9
+                    and 1 <= new_pages <= 81 and
+                    self.max_apollo_credits == self.max_pages and
+                    self.max_candidates == self.max_pages * 25 and
+                    self.max_enrichments == 0 and
+                    self.max_cost_chf == self.chf_per_credit_ceiling == 0 and
+                    self.credits_org_search_page == 1 and
+                    self.credits_people_search == 0):
+                raise ValueError("A1 requires at most 81 new prepaid organization pages")
             return
         common = all((self.max_partitions, self.max_apollo_credits,
                       self.max_cost_chf, self.chf_per_credit_ceiling))
@@ -311,7 +325,7 @@ class CensusStore:
         return census_id
 
     def start(self, census_id: str, limits: CensusLimits, *, at: dt.datetime,
-              phase: str | None = None) -> None:
+              phase: str | None = None, sample_plan_id: str | None = None) -> None:
         limits.require_run_authorization(phase=phase)
         snapshot = limits.model_dump(mode="json")
         with self._engine.begin() as connection:
@@ -320,7 +334,40 @@ class CensusStore:
                 .where(acquisition_census_run.c.census_id == census_id)
                 .with_for_update()
             ).mappings().one()
-            if row["status"] == "PLANNED":
+            if phase == "COVERAGE_A1_SAMPLE":
+                plan = connection.execute(sa.select(acquisition_census_sample_plan).where(
+                    acquisition_census_sample_plan.c.plan_id == sample_plan_id,
+                    acquisition_census_sample_plan.c.census_id == census_id,
+                )).mappings().one_or_none()
+                if plan is None or row["status"] not in {"ACTIVE", "PAUSED"}:
+                    raise ValueError("A1 requires the existing active A0 census and frozen plan")
+                planned = connection.scalar(sa.select(sa.func.count()).select_from(
+                    acquisition_census_sample_page).where(
+                    acquisition_census_sample_page.c.plan_id == sample_plan_id,
+                ))
+                if planned != limits.max_pages - 9 or (
+                    row["active_sample_plan_id"] not in (None, sample_plan_id)
+                ):
+                    raise ValueError("A1 limits or immutable sample plan differ")
+                if row["active_sample_plan_id"] is None:
+                    prior = CensusLimits.model_validate(row["limits_snapshot"])
+                    prior.require_run_authorization(phase="COVERAGE_A0")
+                    if (row["pages_reserved"] != 9 or row["credits_reserved"] != 9 or
+                        connection.scalar(sa.select(sa.func.count()).select_from(
+                            acquisition_census_candidate).where(
+                            acquisition_census_candidate.c.census_id == census_id,
+                            sa.or_(acquisition_census_candidate.c.contact_found,
+                                   acquisition_census_candidate.c.email_verified,
+                                   acquisition_census_candidate.c.decision.is_not(None)),
+                        ))):
+                        raise ValueError("A1 cannot extend a modified or contact-bearing A0 run")
+                elif row["limits_snapshot"] != snapshot:
+                    raise ValueError("A1 limits changed after sample activation")
+                connection.execute(sa.update(acquisition_census_run).where(
+                    acquisition_census_run.c.census_id == census_id,
+                ).values(status="ACTIVE", active_sample_plan_id=sample_plan_id,
+                         limits_snapshot=snapshot, updated_at=at))
+            elif row["status"] == "PLANNED":
                 connection.execute(
                     sa.update(acquisition_census_run)
                     .where(acquisition_census_run.c.census_id == census_id)
@@ -499,6 +546,7 @@ class CensusStore:
                     kind=kind, partition_id=partition_id, credits=credits,
                     candidate_slots=candidate_slots, at=dt.datetime.now(dt.UTC),
                     configuration_hash_value=config_hash, database_id=database_id,
+                    subject=subject,
                 )
                 if phase == "COVERAGE_A0" and attempt > 1 and kind != "ORG_SEARCH":
                     raise ValueError("A0 retries are organization-search only")
@@ -748,6 +796,70 @@ class CensusStore:
                     last_error="APOLLO_COVERAGE_LIMIT" if coverage_gap else None,
                 )
             )
+
+    def record_sample_page(
+        self, census_id: str, plan_id: str, partition_id: str, page: SupplierSearchPage,
+        *, call_id: str, at: dt.datetime,
+    ) -> None:
+        """Checkpoint an A1 depth page without advancing A0's sequential cursor."""
+        with self._engine.begin() as connection:
+            run = connection.execute(sa.select(acquisition_census_run).where(
+                acquisition_census_run.c.census_id == census_id,
+            ).with_for_update()).mappings().one()
+            sample = connection.execute(sa.select(acquisition_census_sample_page).where(
+                acquisition_census_sample_page.c.plan_id == plan_id,
+                acquisition_census_sample_page.c.partition_id == partition_id,
+                acquisition_census_sample_page.c.page == page.page,
+            ).with_for_update()).mappings().one_or_none()
+            part = connection.execute(sa.select(acquisition_census_partition).where(
+                acquisition_census_partition.c.partition_id == partition_id,
+            ).with_for_update()).mappings().one()
+            call = connection.execute(sa.select(acquisition_census_call).where(
+                acquisition_census_call.c.call_id == call_id,
+            )).mappings().one()
+            if (sample is None or run["active_sample_plan_id"] != plan_id or
+                    part["census_id"] != census_id or call["census_id"] != census_id or
+                    call["partition_id"] != partition_id or call["kind"] != "ORG_SEARCH" or
+                    call["status"] != "COMPLETED" or
+                    (self._require_permit and call["permit_id"] != plan_id) or
+                    page.per_page != part["filters"]["per_page"] or
+                    call["result_snapshot"] != page.model_dump(mode="json")):
+                raise CensusReviewRequired("A1 page does not match completed call and plan")
+            if sample["status"] == "COMPLETED":
+                if sample["call_id"] != call_id:
+                    raise CensusReviewRequired("A1 checkpoint identity conflict")
+                return
+            if sample["status"] != "PLANNED":
+                raise CensusReviewRequired("A1 page is under manual review")
+            unique = duplicates = 0
+            for candidate in page.candidates:
+                if not isinstance(candidate, ApolloOrganizationCandidate):
+                    raise TypeError("A1 census received a non-Apollo organization")
+                created = self._record_candidate_in_transaction(
+                    connection, census_id, partition_id, page.page,
+                    candidate, part["sector"], at,
+                )
+                unique += int(created)
+                duplicates += int(not created)
+            seen = len(page.candidates) + len(page.rejections)
+            if seen > call["candidate_slots"]:
+                raise ValueError("A1 page exceeds reserved candidate slots")
+            if call["candidate_slots"] > seen:
+                connection.execute(sa.update(acquisition_census_run).where(
+                    acquisition_census_run.c.census_id == census_id,
+                ).values(candidate_slots_reserved=
+                         acquisition_census_run.c.candidate_slots_reserved -
+                         (call["candidate_slots"] - seen)))
+            connection.execute(sa.update(acquisition_census_partition).where(
+                acquisition_census_partition.c.partition_id == partition_id,
+            ).values(processed_count=part["processed_count"] + seen,
+                     unique_count=part["unique_count"] + unique,
+                     duplicate_count=part["duplicate_count"] + duplicates))
+            connection.execute(sa.update(acquisition_census_sample_page).where(
+                acquisition_census_sample_page.c.plan_id == plan_id,
+                acquisition_census_sample_page.c.partition_id == partition_id,
+                acquisition_census_sample_page.c.page == page.page,
+            ).values(status="COMPLETED", call_id=call_id, observed_at=at))
 
     def _record_candidate_in_transaction(
         self, connection: sa.Connection, census_id: str, partition_id: str,

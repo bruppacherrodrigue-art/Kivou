@@ -180,6 +180,21 @@ class OfficialCompanyMatcher:
             raise OfficialSourceRetryLater("official source is temporarily unavailable")
         return matched
 
+    def assess_search_candidate(self, candidate: ApolloOrganizationCandidate, *,
+                                at: dt.datetime) -> OfficialMatch:
+        """Match only fields returned by organization search; no Apollo enrichment."""
+        observation = ApolloOrganizationObservation(
+            provider_organization_id=candidate.provider_organization_id,
+            provider_company_name=candidate.display_name,
+            provider_primary_domain=candidate.primary_domain,
+            provider_website_url=candidate.website_url,
+            provider_country=candidate.country_code,
+            provider_industry=candidate.industry,
+            provider_observed_at=candidate.provider_observed_at,
+            provider_source_fingerprint=candidate.source_fingerprint,
+        )
+        return self.assess(observation, candidate, at=at)
+
     def _assess(self, company: ApolloOrganizationObservation,
                 candidate: ApolloOrganizationCandidate, *, at: dt.datetime) -> OfficialMatch:
         siren = self._binding(company.provider_organization_id, candidate.primary_domain, at=at)
