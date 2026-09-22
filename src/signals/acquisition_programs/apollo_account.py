@@ -20,6 +20,9 @@ class ApolloAccountState:
     credit_balances: dict[str, int] = field(default_factory=dict)
     organization_search_day_consumed: int | None = None
     organization_search_day_limit: int | None = None
+    people_search_day_consumed: int | None = None
+    people_match_minute_consumed: int | None = None
+    retry_after_seconds: int | None = None
 
 
 class ApolloAccountProbe:
@@ -30,6 +33,7 @@ class ApolloAccountProbe:
             raise ValueError("dedicated Apollo key missing")
         self._api_key = api_key
         self._client = client
+        self.retry_after_seconds: int | None = None
 
     def _get_json(self, method: str, path: str) -> dict | None:
         try:
@@ -38,6 +42,10 @@ class ApolloAccountProbe:
                 headers={"x-api-key": self._api_key, "accept": "application/json"},
                 timeout=5.0, follow_redirects=False,
             )
+            if response.status_code == 429:
+                raw = response.headers.get("retry-after", "")
+                if raw.isdecimal() and 0 < int(raw) <= 86_400:
+                    self.retry_after_seconds = max(self.retry_after_seconds or 0, int(raw))
             if response.status_code != 200 or len(response.content) > _MAX_BYTES:
                 return None
             body = response.json()
@@ -49,7 +57,8 @@ class ApolloAccountProbe:
         health = self._get_json("GET", "/api/v1/auth/health")
         if (health is None or health.get("healthy") is not True or
                 health.get("is_logged_in") is not True):
-            return ApolloAccountState(False, None, False, False)
+            return ApolloAccountState(False, None, False, False,
+                                      retry_after_seconds=self.retry_after_seconds)
         credits = self._get_json("POST", "/api/v1/usage_stats/credit_usage_stats")
         rates = self._get_json("POST", "/api/v1/usage_stats/api_usage_stats")
         stats = (credits or {}).get("credit_usage_stats")
@@ -68,5 +77,16 @@ class ApolloAccountProbe:
             consumed = None
         if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
             limit = None
+        people_search = (rates or {}).get('["api/v1/mixed_people", "api_search"]')
+        people_match = (rates or {}).get('["api/v1/people", "match"]')
+        search_day = people_search.get("day") if isinstance(people_search, dict) else None
+        match_minute = people_match.get("minute") if isinstance(people_match, dict) else None
+        search_used = search_day.get("consumed") if isinstance(search_day, dict) else None
+        match_used = match_minute.get("consumed") if isinstance(match_minute, dict) else None
+        if not isinstance(search_used, int) or isinstance(search_used, bool) or search_used < 0:
+            search_used = None
+        if not isinstance(match_used, int) or isinstance(match_used, bool) or match_used < 0:
+            match_used = None
         return ApolloAccountState(True, balances.get("lead_credit"), credits is not None,
-                                  rates is not None, balances, consumed, limit)
+                                  rates is not None, balances, consumed, limit,
+                                  search_used, match_used, self.retry_after_seconds)

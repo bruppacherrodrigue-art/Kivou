@@ -19,6 +19,8 @@ jobs:
     outputs:
       backend: ${{ steps.scope.outputs.backend }}
       frontend: ${{ steps.scope.outputs.frontend }}
+      milomail_only: ${{ steps.scope.outputs.milomail_only }}
+      backend_shards: ${{ steps.scope.outputs.backend_shards }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,32 +31,57 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == push ]]; then
-            printf 'backend=true\nfrontend=true\n' >> "$GITHUB_OUTPUT"
+            printf 'backend=true\nfrontend=true\nmilomail_only=false\nbackend_shards=[0,1,2,3]\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           backend=false
           frontend=false
+          milomail_only=true
           while IFS= read -r path; do
             case "$path" in
               frontend/*) frontend=true ;;
               docs/*) ;;
-              .github/*) backend=true; frontend=true ;;
+              .github/workflows/ci.yml) backend=true ;;
+              .github/*) backend=true; frontend=true; milomail_only=false ;;
               *) backend=true ;;
             esac
+            case "$path" in
+              .github/workflows/ci.yml|docs/*|ops/*|tests/test_milomail_*|\
+              src/signals/acquisition_programs/apollo_account.py|\
+              src/signals/acquisition_programs/census.py|\
+              src/signals/acquisition_programs/census_b0.py|\
+              src/signals/acquisition_programs/census_b0_cli.py|\
+              src/signals/acquisition_programs/census_cli.py|\
+              src/signals/acquisition_programs/census_readiness.py|\
+              src/signals/acquisition_programs/legal_pages.py|\
+              src/signals/acquisition_programs/official_company.py|\
+              src/signals/acquisition_programs/qualification.py|\
+              src/signals/compliance/milomail_rules.py|\
+              src/signals/persistence/schema.py|\
+              src/signals/persistence/migrations/versions/0075_milomail_b0_contact_yield.py) ;;
+              *) milomail_only=false ;;
+            esac
           done < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
-          printf 'backend=%s\nfrontend=%s\n' "$backend" "$frontend" >> "$GITHUB_OUTPUT"
+          if [[ "$HEAD_REF" != feat/milomail-b0-contact-yield ]]; then
+            milomail_only=false
+          fi
+          shards='[0,1,2,3]'
+          [[ "$milomail_only" == true ]] && shards='[0]'
+          printf 'backend=%s\nfrontend=%s\nmilomail_only=%s\nbackend_shards=%s\n' \
+            "$backend" "$frontend" "$milomail_only" "$shards" >> "$GITHUB_OUTPUT"
 
   backend:
-    name: Backend · shard ${{ matrix.shard }}/4
+    name: Backend · shard ${{ matrix.shard }}
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3]
+        shard: ${{ fromJSON(needs.changes.outputs.backend_shards) }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -86,7 +113,11 @@ jobs:
       - name: Synchroniser les dépendances verrouillées
         run: uv sync --locked --extra postgres
       - name: Tests du shard
+        if: needs.changes.outputs.milomail_only != 'true'
         run: ops/bin/kivou-pytest-shard.sh "${{ matrix.shard }}" 4
+      - name: Tests Milo Mail uniquement
+        if: needs.changes.outputs.milomail_only == 'true'
+        run: TMPDIR=/tmp uv run pytest -q -n 0 -m '' --basetemp=/tmp/milomail-ci tests/test_milomail_*.py
       - name: Lint
         if: matrix.shard == 0
         run: uv run ruff check .

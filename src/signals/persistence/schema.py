@@ -3612,9 +3612,9 @@ acquisition_census_permit = sa.Table(
     sa.Column("valid_from", sa.DateTime(timezone=True), nullable=False),
     sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("status", sa.String(16), nullable=False),
-    sa.CheckConstraint("phase IN ('COVERAGE','COVERAGE_A0','COVERAGE_A1_SAMPLE','ENRICHMENT')", name="ck_census_permit_phase"),
+    sa.CheckConstraint("phase IN ('COVERAGE','COVERAGE_A0','COVERAGE_A1_SAMPLE','CONTACT_YIELD_B0','ENRICHMENT')", name="ck_census_permit_phase"),
     sa.CheckConstraint("status IN ('ACTIVE','REVOKED')", name="ck_census_permit_status"),
-    sa.CheckConstraint("max_pages >= 0 AND max_candidates >= 0 AND max_enrichments >= 0 AND max_credits > 0 AND ((billing_basis = 'PRICED' AND max_cost_chf > 0 AND price_chf_per_credit > 0) OR (billing_basis = 'PREPAID_SHARED_POOL' AND max_cost_chf = 0 AND price_chf_per_credit IS NULL AND max_enrichments = 0 AND ((phase = 'COVERAGE_A0' AND max_pages = 9 AND max_credits = 9 AND sample_plan_hash IS NULL) OR (phase = 'COVERAGE_A1_SAMPLE' AND max_pages BETWEEN 1 AND 81 AND max_credits BETWEEN 1 AND 81 AND sample_plan_hash IS NOT NULL))))", name="ck_census_permit_caps"),
+    sa.CheckConstraint("max_pages >= 0 AND max_candidates >= 0 AND max_enrichments >= 0 AND max_credits > 0 AND ((billing_basis = 'PRICED' AND max_cost_chf > 0 AND price_chf_per_credit > 0) OR (billing_basis = 'PREPAID_SHARED_POOL' AND max_cost_chf = 0 AND price_chf_per_credit IS NULL AND ((max_enrichments = 0 AND ((phase = 'COVERAGE_A0' AND max_pages = 9 AND max_credits = 9 AND sample_plan_hash IS NULL) OR (phase = 'COVERAGE_A1_SAMPLE' AND max_pages BETWEEN 1 AND 81 AND max_credits BETWEEN 1 AND 81 AND sample_plan_hash IS NOT NULL))) OR (phase = 'CONTACT_YIELD_B0' AND max_pages = 0 AND max_candidates BETWEEN 5 AND 200 AND max_enrichments BETWEEN 1 AND 400 AND max_credits BETWEEN 1 AND 1500 AND sample_plan_hash IS NOT NULL))))", name="ck_census_permit_caps"),
     sa.Index("ix_census_permit_run_phase", "census_id", "phase"),
 )
 
@@ -3647,6 +3647,51 @@ acquisition_census_sample_page = sa.Table(
     sa.CheckConstraint("page BETWEEN 2 AND 500 AND block_start >= 2 AND block_start <= page AND page <= block_end AND block_end <= 500", name="ck_census_sample_page_bounds"),
     sa.CheckConstraint("status IN ('PLANNED','COMPLETED','REVIEW_REQUIRED')", name="ck_census_sample_page_status"),
     sa.Index("ix_census_sample_page_progress", "plan_id", "status", "partition_id"),
+)
+
+
+# B0 plan and contact evidence remain in the isolated, authorized census database.
+# No names, addresses, Apollo identifiers or response bodies enter Git reports.
+acquisition_census_b0_plan = sa.Table(
+    "acquisition_census_b0_plan", METADATA,
+    sa.Column("plan_id", sa.String(64), primary_key=True),
+    sa.Column("census_id", sa.String(64), sa.ForeignKey("acquisition_census_run.census_id", ondelete="RESTRICT"), nullable=False),
+    sa.Column("plan_hash", sa.String(64), nullable=False),
+    sa.Column("baseline_hash", sa.String(64), nullable=False),
+    sa.Column("seed", sa.String(64), nullable=False),
+    sa.Column("pool_before", sa.Integer),
+    sa.Column("pool_after", sa.Integer),
+    sa.Column("credit_cap", sa.Integer, nullable=False),
+    sa.Column("minimum_pool_balance", sa.Integer, nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("credit_cap BETWEEN 1 AND 1500 AND minimum_pool_balance >= 500", name="ck_census_b0_budget"),
+    sa.CheckConstraint("status IN ('PLANNED','ACTIVE','PAUSED','COMPLETE','REVIEW_REQUIRED')", name="ck_census_b0_status"),
+    sa.Index("ix_census_b0_plan_run", "census_id"),
+)
+
+acquisition_census_b0_entry = sa.Table(
+    "acquisition_census_b0_entry", METADATA,
+    sa.Column("plan_id", sa.String(64), sa.ForeignKey("acquisition_census_b0_plan.plan_id", ondelete="RESTRICT"), primary_key=True),
+    sa.Column("candidate_id", sa.String(64), sa.ForeignKey("acquisition_census_candidate.candidate_id", ondelete="RESTRICT"), primary_key=True),
+    sa.Column("selection_rank", sa.Integer, nullable=False),
+    sa.Column("stratum", sa.JSON, nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("result", sa.JSON),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("selection_rank BETWEEN 1 AND 200", name="ck_census_b0_rank"),
+    sa.CheckConstraint("status IN ('PLANNED','COMPLETE','REVIEW_REQUIRED')", name="ck_census_b0_entry_status"),
+    sa.UniqueConstraint("plan_id", "selection_rank", name="uq_census_b0_rank"),
+    sa.Index("ix_census_b0_entry_progress", "plan_id", "status", "selection_rank"),
+)
+
+acquisition_census_legal_page_cache = sa.Table(
+    "acquisition_census_legal_page_cache", METADATA,
+    sa.Column("domain_hash", sa.String(64), primary_key=True),
+    sa.Column("evidence", sa.JSON, nullable=False),
+    sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
 )
 
 acquisition_census_official_cache = sa.Table(

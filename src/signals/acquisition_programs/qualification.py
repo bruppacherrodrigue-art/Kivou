@@ -161,6 +161,7 @@ class FitSignals(_ClosedModel):
     sector: str | None = None
     role: str | None = None
     employee_count: int | None = Field(default=None, ge=0)
+    employee_count_range: tuple[int, int] | None = None
     recent_public_activity_source: str | None = None
     public_contact_channel_sources: tuple[str, ...] = Field(default=(), max_length=16)
     operational_decision_maker: bool = False
@@ -181,9 +182,13 @@ def score_fit(value: FitSignals, *, config: AcquisitionProgramConfig) -> FitAsse
         and value.provider_confirmed,
         "email_dependent_sector": value.sector in config.target_sectors,
         "decision_maker": value.role in config.target_roles,
-        "company_size": value.employee_count is not None
-        and (
+        "company_size": (
+            value.employee_count is not None and
             config.target_company_size_min <= value.employee_count <= config.target_company_size_max
+        ) or (
+            value.employee_count_range is not None and
+            config.target_company_size_min <= value.employee_count_range[0] <=
+            value.employee_count_range[1] <= config.target_company_size_max
         ),
         "recent_public_activity": bool(value.recent_public_activity_source),
     }

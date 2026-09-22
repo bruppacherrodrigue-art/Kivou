@@ -16,6 +16,7 @@ import sqlalchemy as sa
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine
 
+from signals.acquisition_programs.legal_pages import LegalPageResolver
 from signals.acquisition_programs.pipeline import ActiveCompanyEvidence
 from signals.companies.france import ANNUAIRE_BASE_URL, MAX_RESPONSE_BYTES
 from signals.company_research.contracts import ApolloOrganizationObservation
@@ -29,7 +30,7 @@ from signals.persistence.schema import (
 from signals.supplier_discovery.contracts import ApolloOrganizationCandidate
 
 SOURCE = "ANNUAIRE_ENTREPRISES_SIRENE"
-MATCHER_VERSION = "milomail-fr-company-v1"
+MATCHER_VERSION = "milomail-fr-company-v2"
 _SIREN = re.compile(r"^[0-9]{9}$")
 _RETRY_REASONS = frozenset({
     "SOURCE_TIMEOUT", "SOURCE_UNAVAILABLE", "SOURCE_RATE_LIMIT", "SOURCE_REQUEST_CAP",
@@ -108,6 +109,8 @@ class OfficialMatch(BaseModel):
     observed_at: dt.datetime
     match_reasons: tuple[str, ...]
     matcher_version: str = MATCHER_VERSION
+    legal_page_source_url: str | None = None
+    legal_page_observed_at: dt.datetime | None = None
 
     def activity(self) -> ActiveCompanyEvidence:
         if self.match_confidence != "CONFIRMED_MATCH":
@@ -195,9 +198,58 @@ class OfficialCompanyMatcher:
         )
         return self.assess(observation, candidate, at=at)
 
+    def assess_with_legal_page(self, candidate: ApolloOrganizationCandidate, *,
+                               resolver: LegalPageResolver, at: dt.datetime) -> OfficialMatch:
+        """A website identifier is corroborated against exact SIRENE and Apollo identity."""
+        if not isinstance(resolver, LegalPageResolver) or not candidate.primary_domain:
+            return self.assess_search_candidate(candidate, at=at)
+        legal = resolver.resolve(candidate.primary_domain, at=at)
+        siren = legal.get("siren")
+        if not isinstance(siren, str) or not _SIREN.fullmatch(siren):
+            return self.assess_search_candidate(candidate, at=at)
+        observation = ApolloOrganizationObservation(
+            provider_organization_id=candidate.provider_organization_id,
+            provider_company_name=candidate.display_name,
+            provider_primary_domain=candidate.primary_domain,
+            provider_website_url=candidate.website_url,
+            provider_country=candidate.country_code,
+            provider_industry=candidate.industry,
+            provider_observed_at=candidate.provider_observed_at,
+            provider_source_fingerprint=candidate.source_fingerprint,
+        )
+        matched = self._assess(observation, candidate, at=at, trusted_siren=siren)
+        # The site's legal owner may be a web agency or parent company. Require
+        # its official legal/trade identity to corroborate Apollo's company name.
+        names = {_norm(matched.legal_name), _norm(matched.trade_name)} - {""}
+        if matched.match_confidence == "CONFIRMED_MATCH" and _norm(candidate.display_name) not in names:
+            matched = matched.model_copy(update={
+                "match_confidence": "PROBABLE_MATCH",
+                "match_reasons": (*matched.match_reasons, "APOLLO_NAME_NOT_CORROBORATED"),
+            })
+        matched = matched.model_copy(update={
+            "legal_page_source_url": legal.get("source_url"),
+            "legal_page_observed_at": at,
+            "match_reasons": (*matched.match_reasons, "WEBSITE_LEGAL_IDENTIFIER"),
+        })
+        if self.census_id:
+            with self.engine.begin() as connection:
+                connection.execute(sa.delete(acquisition_census_company_match).where(
+                    acquisition_census_company_match.c.census_id == self.census_id,
+                    acquisition_census_company_match.c.provider_organization_id ==
+                    candidate.provider_organization_id,
+                ))
+                connection.execute(sa.insert(acquisition_census_company_match).values(
+                    census_id=self.census_id,
+                    provider_organization_id=candidate.provider_organization_id,
+                    match_evidence=matched.model_dump(mode="json"), observed_at=at,
+                ))
+        return matched
+
     def _assess(self, company: ApolloOrganizationObservation,
-                candidate: ApolloOrganizationCandidate, *, at: dt.datetime) -> OfficialMatch:
-        siren = self._binding(company.provider_organization_id, candidate.primary_domain, at=at)
+                candidate: ApolloOrganizationCandidate, *, at: dt.datetime,
+                trusted_siren: str | None = None) -> OfficialMatch:
+        siren = trusted_siren or self._binding(company.provider_organization_id,
+                                                candidate.primary_domain, at=at)
         query = siren or company.provider_company_name
         if not query or not self.config.enabled:
             return OfficialMatch(legal_status="UNKNOWN", match_confidence="NO_MATCH",
