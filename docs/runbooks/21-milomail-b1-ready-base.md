@@ -112,6 +112,47 @@ et `issue-permit` avec les nouveaux plafonds privés avant `resume`. Le compteur
 de 500 inclut les 80 adresses B0 et toutes les adresses B1 uniques des permis
 précédents. Ne jamais modifier un plan déjà permis.
 
+Si Apollo limite `credit_usage_stats`, révoquer le permis après avoir vérifié
+que tous les appels facturables du ledger ont une réponse `COMPLETED` ; conserver
+les pages et entreprises non terminées. Ne pas remplacer la lecture du solde
+par une estimation locale. Attendre le `Retry-After`, mesurer le solde, puis
+réconcilier le permis révoqué. Un nouveau permis et une nouvelle autorisation
+de base datée sont nécessaires si l'ancien permis expire avant la reprise.
+Pour le point de contrôle du 22 septembre 2026, le ledger B1 cumulait 664
+crédits sur 900, soit **236 crédits au plus** pour un futur permis ; le plafond
+effectif sera `min(236, solde mesuré - 1 000)`. Le solde après le second permis
+n'était pas lisible lors de l'arrêt : ne pas déduire sa valeur de la seule
+réservation du ledger. Les 33 pages terminées par ce permis et les 220 pages
+du premier permis restent en cache ; une recherche de personne terminée pour
+une entreprise encore planifiée ne doit pas être rappelée. Les 47 pages
+restantes du plan révoqué ne valent pas autorisation : générer un nouveau plan
+figé qui exclut les pages déjà terminées et vérifier son diff avant tout appel.
+
+Exemple de reprise après retour du solde gratuit, avec les chemins privés et
+le nouvel identifiant de permis fournis par l'opérateur staging ; `CAP` doit
+être calculé depuis le **solde réellement lu** et ne peut dépasser 236 :
+
+```bash
+# Dans l'environnement privé staging, sans valeur de secret dans cette commande.
+milomail-b1 plan --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" \
+  --database-authorization "$NEW_DB_AUTH" --pricing "$PRICING" \
+  --seed milomail-france-b1-resume-20260922-public
+milomail-b1 preflight --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" \
+  --database-authorization "$NEW_DB_AUTH" --pricing "$PRICING"
+milomail-b1 issue-permit --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" \
+  --database-authorization "$NEW_DB_AUTH" --pricing "$PRICING"
+milomail-b1 resume --census-id "$CENSUS_ID" --permit-id "$NEW_PERMIT_ID" \
+  --database-authorization "$NEW_DB_AUTH" --pricing "$PRICING" \
+  --program-config "$PROGRAM_CONFIG" --authorize-paid-apollo --max-actions 25
+```
+
+Configurer avant `plan` les plafonds `MILOMAIL_B1_MAX_NEW_CREDITS=$CAP`,
+`MILOMAIL_B1_MIN_POOL_BALANCE=1000`, les pages, entreprises, recherches et
+enrichissements bornés ; vérifier que leurs valeurs et l'empreinte restent
+identiques jusqu'à `resume`. Répéter le préflight après `issue-permit`, puis
+`status`, `report`, `reconcile-usage` et `revoke` à l'arrêt. Aucun de ces
+paramètres ne réactive Instantly ou l'envoi.
+
 Le journal HTTP distingue robots.txt, page d'accueil, page légale, DNS,
 redirections, cache et API administrative officielle. Chaque tentative
 contient un identifiant de run et d'entreprise, un type, une date et un
