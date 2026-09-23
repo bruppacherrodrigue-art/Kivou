@@ -200,3 +200,21 @@ Apollo selon le runbook census ; les suppressions, permis, reçus d'usage et
 décisions auditables ne sont pas supprimés. L'arrêt d'urgence consiste à
 révoquer le permis, désactiver `MILOMAIL_B1_ENABLED` et vérifier `status` puis
 `reconcile-usage`. Aucun endpoint Instantly n'est appelé par B1.
+
+## Point de contrôle du 23 septembre 2026 : objectif atteint
+
+La limitation de l'endpoint de solde a expiré. Le second permis a été
+réconcilié : 85 crédits dans son ledger, baisse de 185 crédits du pool partagé
+(100 non attribuables à ce run). Un permis de reprise distinct et expirant a
+ensuite utilisé 68 crédits, avec solde mesuré de 1 192 à 1 124. Les 32
+adresses professionnelles vérifiées supplémentaires portent le total distinct
+à 500. Le runner s'est arrêté sur cet objectif, les trois permis B1 sont
+révoqués et aucune reprise payante n'est requise. Les 500 adresses restent en
+HOLD ; le dry-run d'export a effectué zéro appel fournisseur. Le rapport
+agrégé est dans
+[Milo Mail France B1](../reports/milomail-b1-ready-base-2026-09-22.md).
+
+Les instructions de reprise ci-dessus décrivent l'interruption historique.
+Ne pas les exécuter pour prolonger ce B1 sans nouveau périmètre et nouveau
+permis. Les checkpoints, reçus d'usage et suppressions restent conservés dans
+la base isolée ; aucune commande de purge n'a été lancée.
