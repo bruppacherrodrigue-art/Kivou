@@ -41,6 +41,7 @@ postgres = ["psycopg[binary]>=3.3.4"]
 
 [project.scripts]
 milomail-census = "signals.acquisition_programs.census_cli:main"
+milomail-b1 = "signals.acquisition_programs.census_b1_cli:main"
 
 [dependency-groups]
 dev = [

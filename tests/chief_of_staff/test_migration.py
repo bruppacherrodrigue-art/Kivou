@@ -16,6 +16,9 @@ from signals.persistence.database import alembic_config, create_database_engine
 def test_chief_of_staff_migration_is_the_single_head(migrated_sqlite_engine) -> None:
     scripts = ScriptDirectory.from_config(alembic_config(migrated_sqlite_engine))
     assert scripts.get_heads() == [scripts.get_current_head()]
+    assert scripts.get_revision("0076_milomail_b1_ready_base").down_revision == (
+        "0075_milomail_b0_contact_yield"
+    )
     assert scripts.get_revision("0075_milomail_b0_contact_yield").down_revision == (
         "0074_milomail_a1_sample_plan"
     )

@@ -30,6 +30,9 @@ from signals.persistence.database import alembic_config
 from signals.persistence.schema import (
     acquisition_census_b0_entry,
     acquisition_census_b0_plan,
+    acquisition_census_b1_entry,
+    acquisition_census_b1_page,
+    acquisition_census_b1_plan,
     acquisition_census_call,
     acquisition_census_candidate,
     acquisition_census_identity,
@@ -42,7 +45,7 @@ from signals.persistence.schema import (
     acquisition_program,
 )
 
-HEAD = "0075_milomail_b0_contact_yield"
+HEAD = "0076_milomail_b1_ready_base"
 APOLLO_ORG_SEARCH_PRICING_URL = "https://docs.apollo.io/reference/organization-search"
 
 
@@ -149,7 +152,8 @@ class ApolloCreditPricing(BaseModel):
         if self.verified_at > at or at - self.verified_at > dt.timedelta(days=30):
             raise ValueError("Apollo pricing is stale")
         if self.billing_basis == "PREPAID_SHARED_POOL":
-            if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0"} or
+            if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0",
+                              "FRANCE_B1_READY_BASE"} or
                     self.price_per_credit is not None or
                     self.max_incremental_charge_chf != 0 or
                     self.auto_top_up_allowed is not False or
@@ -173,9 +177,11 @@ class ApolloCreditPricing(BaseModel):
         if at - self.credit_balance_observed_at > dt.timedelta(days=1):
             raise ValueError("Apollo credit balance is stale")
         required_balance = (limits.max_apollo_credits - 90 + 500
-                            if phase == "CONTACT_YIELD_B0" else limits.max_apollo_credits)
+                            if phase == "CONTACT_YIELD_B0" else
+                            1000 if phase == "FRANCE_B1_READY_BASE" else
+                            limits.max_apollo_credits)
         if self.credit_balance < required_balance:
-            raise ValueError("B0 cannot preserve 500 prepaid Apollo credits")
+            raise ValueError("Apollo prepaid reserve cannot be preserved")
         required = {"ORG_SEARCH", "ORG_ENRICH", "PEOPLE_SEARCH", "PERSON_ENRICH"}
         if (not required <= set(self.rate_limits_per_minute) or
                 any(self.rate_limits_per_minute[key] <= 0 for key in required) or
@@ -221,7 +227,7 @@ class ExecutionPermit(BaseModel):
     permit_id: str = Field(min_length=8, max_length=64)
     census_id: str = Field(min_length=8, max_length=64)
     program_key: Literal["milomail"] = "milomail"
-    phase: Literal["COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0", "ENRICHMENT"]
+    phase: Literal["COVERAGE", "COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0", "FRANCE_B1_READY_BASE", "ENRICHMENT"]
     environment: Literal["test", "staging", "authorized-census"]
     database_id: str = Field(min_length=8, max_length=128)
     country: Literal["FR"] = "FR"
@@ -292,6 +298,20 @@ class ExecutionPermit(BaseModel):
                     } or self.sample_plan_hash is None or
                     self.expires_at - self.issued_at > dt.timedelta(hours=4)):
                 raise ValueError("B0 permit must be isolated, short-lived and capped")
+        elif self.phase == "FRANCE_B1_READY_BASE":
+            if (self.environment != "staging" or
+                    not self.database_id.endswith(":kivou_milomail_census_a0") or
+                    not 0 <= self.max_pages <= 220 or
+                    not 184 <= self.max_candidates <= 7000 or
+                    not 1 <= self.max_enrichments <= 900 or
+                    not 1 <= self.max_credits <= 900 or
+                    self.max_cost_chf != 0 or self.price_chf_per_credit is not None or
+                    self.billing_basis != "PREPAID_SHARED_POOL" or
+                    self.apollo_secret_ref not in {
+                        "MILOMAIL_CENSUS_APOLLO_API_KEY", "KIVOU_APOLLO_API_KEY"
+                    } or self.sample_plan_hash is None or
+                    self.expires_at - self.issued_at > dt.timedelta(hours=4)):
+                raise ValueError("B1 permit must be isolated, short-lived and capped")
         elif (self.billing_basis != "PRICED" or self.price_chf_per_credit is None or
               self.max_credits * self.price_chf_per_credit > self.max_cost_chf or
               self.apollo_secret_ref not in (None, "MILOMAIL_CENSUS_APOLLO_API_KEY")):
@@ -340,20 +360,39 @@ class PermitStore:
                     count != permit.max_candidates or plan["pool_before"] is None or
                     plan["pool_before"] - permit.max_credits < 500):
                 raise ValueError("B0 permit differs from frozen plan or Apollo reserve")
+        if permit.phase == "FRANCE_B1_READY_BASE":
+            with self.engine.connect() as connection:
+                plan = connection.execute(sa.select(acquisition_census_b1_plan).where(
+                    acquisition_census_b1_plan.c.plan_id == permit.permit_id,
+                )).mappings().one_or_none()
+                page_count = connection.scalar(sa.select(sa.func.count()).select_from(
+                    acquisition_census_b1_page).where(
+                    acquisition_census_b1_page.c.plan_id == permit.permit_id,
+                ))
+            if (plan is None or plan["census_id"] != permit.census_id or
+                    plan["plan_hash"] != permit.sample_plan_hash or
+                    page_count != permit.max_pages or
+                    permit.max_credits != plan["caps"]["max_new_credits"] or
+                    permit.max_enrichments != plan["caps"]["max_enrichments"] or
+                    permit.max_candidates != (plan["caps"]["max_new_pages"] * 25 +
+                                              plan["caps"]["max_person_searches"]) or
+                    limits.model_dump(mode="json") != plan["cumulative_limits"] or
+                    plan["pool_before"] - permit.max_credits < 1000):
+                raise ValueError("B1 permit differs from frozen plan or 1000-credit reserve")
         with self.engine.begin() as connection:
             run = connection.execute(sa.select(acquisition_census_run).where(
                 acquisition_census_run.c.census_id == permit.census_id,
             ).with_for_update()).mappings().one()
-            if permit.phase == "CONTACT_YIELD_B0" and (
+            if permit.phase in {"CONTACT_YIELD_B0", "FRANCE_B1_READY_BASE"} and (
                 run["credits_reserved"] + permit.max_credits > limits.max_apollo_credits
                 or run["candidate_slots_reserved"] + permit.max_candidates > limits.max_candidates
                 or run["enrichments_reserved"] + permit.max_enrichments > limits.max_enrichments
             ):
-                raise ValueError("B0 permits exceed cumulative census reservations")
-            if permit.phase == "CONTACT_YIELD_B0" and connection.scalar(sa.select(
+                raise ValueError("contact permit exceeds cumulative census reservations")
+            if permit.phase in {"CONTACT_YIELD_B0", "FRANCE_B1_READY_BASE"} and connection.scalar(sa.select(
                 sa.func.count()).select_from(acquisition_census_permit).where(
                 acquisition_census_permit.c.census_id == permit.census_id,
-                acquisition_census_permit.c.phase == "CONTACT_YIELD_B0",
+                acquisition_census_permit.c.phase == permit.phase,
                 acquisition_census_permit.c.status == "ACTIVE",
                 acquisition_census_permit.c.permit_id != permit.permit_id,
             )):
@@ -368,7 +407,7 @@ class PermitStore:
             ).where(acquisition_census_partition.c.census_id == permit.census_id))}
             if not set(permit.allowed_partitions) <= known:
                 raise ValueError("permit contains unknown partition")
-            if permit.phase in {"COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0"} and (
+            if permit.phase in {"COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0", "FRANCE_B1_READY_BASE"} and (
                 len(known) != 9 or set(permit.allowed_partitions) != known or
                 connection.scalar(sa.select(sa.func.count()).select_from(
                     acquisition_census_permit).where(
@@ -434,6 +473,11 @@ class PermitStore:
                     permit.max_enrichments > limits.max_enrichments or
                     permit.max_candidates > 200 or permit.max_pages != 0):
                 raise ValueError("B0 permit must cover only incremental contact work")
+        if permit.phase == "FRANCE_B1_READY_BASE":
+            limits.require_run_authorization(phase="FRANCE_B1_READY_BASE")
+            if (permit.max_credits > 900 or permit.max_enrichments > 900 or
+                    permit.max_pages > 220 or permit.max_candidates > 7000):
+                raise ValueError("B1 permit exceeds explicit authorization")
 
     def revoke(self, permit_id: str) -> None:
         with self.engine.begin() as connection:
@@ -466,6 +510,9 @@ class PermitStore:
             phase == "COVERAGE" and kind not in {"ORG_SEARCH", "PEOPLE_SEARCH"}) or (
             phase == "ENRICHMENT" and kind == "ORG_SEARCH") or (
             phase == "CONTACT_YIELD_B0" and kind not in {"PEOPLE_SEARCH", "PERSON_ENRICH"}
+        ) or (
+            phase == "FRANCE_B1_READY_BASE" and
+            kind not in {"ORG_SEARCH", "PEOPLE_SEARCH", "PERSON_ENRICH"}
         ):
             raise ValueError("Apollo operation is outside permit phase")
         if not check_capacity:
@@ -500,6 +547,27 @@ class PermitStore:
             ))
             if selected is None:
                 raise ValueError("B0 contact is outside frozen plan")
+        if phase == "FRANCE_B1_READY_BASE":
+            if kind == "ORG_SEARCH":
+                prefix = f"{partition_id}:" if partition_id else ""
+                raw_page = subject[len(prefix):] if subject and subject.startswith(prefix) else ""
+                if not prefix or not raw_page.isascii() or not raw_page.isdecimal():
+                    raise ValueError("B1 page identity is invalid")
+                selected = connection.scalar(sa.select(acquisition_census_b1_page.c.status).where(
+                    acquisition_census_b1_page.c.plan_id == permit_id,
+                    acquisition_census_b1_page.c.partition_id == partition_id,
+                    acquisition_census_b1_page.c.page == int(raw_page),
+                    acquisition_census_b1_page.c.status == "PLANNED",
+                ))
+            else:
+                candidate_id = subject.split(":", 1)[0] if subject else ""
+                selected = connection.scalar(sa.select(acquisition_census_b1_entry.c.status).where(
+                    acquisition_census_b1_entry.c.plan_id == permit_id,
+                    acquisition_census_b1_entry.c.candidate_id == candidate_id,
+                    acquisition_census_b1_entry.c.status == "PLANNED",
+                ))
+            if selected is None:
+                raise ValueError("B1 Apollo call is outside frozen selection")
         usage = connection.execute(sa.select(
             sa.func.coalesce(sa.func.sum(acquisition_census_call.c.reserved_credits), 0),
             sa.func.coalesce(sa.func.sum(acquisition_census_call.c.candidate_slots), 0),
@@ -524,6 +592,14 @@ class PermitStore:
                 from signals.acquisition_programs.census import CensusBudgetExceeded
 
                 raise CensusBudgetExceeded("Apollo prepaid pool reserve would be breached")
+        if phase == "FRANCE_B1_READY_BASE":
+            pool_before = connection.scalar(sa.select(acquisition_census_b1_plan.c.pool_before).where(
+                acquisition_census_b1_plan.c.plan_id == permit_id,
+            ))
+            if pool_before is None or pool_before - usage[0] - credits < 1000:
+                from signals.acquisition_programs.census import CensusBudgetExceeded
+
+                raise CensusBudgetExceeded("B1 Apollo prepaid reserve would be breached")
 
 
 def preflight(engine: Engine, *, census_id: str, limits: CensusLimits,

@@ -7,6 +7,8 @@ import hashlib
 import ipaddress
 import re
 import socket
+import ssl
+import uuid
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
@@ -15,15 +17,23 @@ import httpx
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
+from signals.acquisition_programs.http_accounting import (
+    AttemptAccountingError,
+    LegalHttpAttempt,
+    LegalHttpAttemptSink,
+    Outcome,
+    RequestType,
+)
 from signals.acquisition_programs.mail_provider import normalize_domain
 from signals.persistence.schema import acquisition_census_legal_page_cache
 
-LEGAL_PAGE_VERSION = "milomail-legal-page-v3"
+LEGAL_PAGE_VERSION = "milomail-legal-page-v4"
 _IDENTIFIER = re.compile(
     r"(?i)\b(?:siren|siret|tva(?:\s+intracommunautaire)?)\s*[:°nº.]*\s*"
     r"(?P<id>(?:FR\s*[0-9]{2}\s*)?[0-9](?:[ .-]?[0-9]){8,13})\b"
 )
 _LEGAL_PATH = re.compile(r"(?i)(mentions[-_ ]?legales|legal[-_ ]?notice|/legal/?|imprint)")
+_OPAQUE_CONTEXT = re.compile(r"[A-Za-z0-9:._-]{1,128}\Z")
 _MAX_BYTES = 262_144
 
 
@@ -60,6 +70,8 @@ class _Page(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.text: list[str] = []
         self.links: list[str] = []
+        self.title: list[str] = []
+        self._in_title = False
         self._ignored = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -69,21 +81,28 @@ class _Page(HTMLParser):
             href = dict(attrs).get("href")
             if isinstance(href, str) and len(href) <= 512:
                 self.links.append(href)
+        if tag == "title":
+            self._in_title = True
 
     def handle_endtag(self, tag: str) -> None:
         if tag in {"script", "style", "svg"} and self._ignored:
             self._ignored -= 1
+        if tag == "title":
+            self._in_title = False
 
     def handle_data(self, data: str) -> None:
         if not self._ignored:
             self.text.append(data)
+            if self._in_title and sum(map(len, self.title)) < 256:
+                self.title.append(data[:256])
 
 
 class LegalPageResolver:
     """Fetch robots, home and at most two internal legal pages; cache evidence only."""
 
     def __init__(self, engine: Engine, *, client: httpx.Client | None = None,
-                 timeout: float = 5.0, cache_ttl_days: int = 7) -> None:
+                 timeout: float = 5.0, cache_ttl_days: int = 7,
+                 attempt_sink: LegalHttpAttemptSink | None = None) -> None:
         if not 0 < timeout <= 10 or not 1 <= cache_ttl_days <= 30:
             raise ValueError("legal-page bounds are invalid")
         self.engine = engine
@@ -91,6 +110,24 @@ class LegalPageResolver:
         self.timeout = timeout
         self.ttl = dt.timedelta(days=cache_ttl_days)
         self.requests_made = 0
+        self.attempt_sink = attempt_sink
+
+    def _emit(self, *, domain: str, run_id: str | None, company_id: str | None,
+              request_type: RequestType, outcome: Outcome,
+              attempt_id: str | None = None, http_status: int | None = None) -> str:
+        identifier = attempt_id or uuid.uuid4().hex
+        if self.attempt_sink is not None:
+            try:
+                self.attempt_sink(LegalHttpAttempt(
+                    attempt_id=identifier, run_id=run_id, company_id=company_id,
+                    domain=domain, request_type=request_type,
+                    occurred_at=dt.datetime.now(dt.UTC), outcome=outcome,
+                    http_status=http_status,
+                ))
+            except Exception:  # noqa: BLE001 — arbitrary adapter failure must fail closed
+                # Never include sink error text: it may contain a DB URL or payload.
+                raise AttemptAccountingError("legal-page accounting unavailable") from None
+        return identifier
 
     @staticmethod
     def _public(domain: str) -> bool:
@@ -98,10 +135,14 @@ class LegalPageResolver:
             addresses = socket.getaddrinfo(domain, 443, type=socket.SOCK_STREAM)
             return bool(addresses) and all(ipaddress.ip_address(item[4][0]).is_global
                                            for item in addresses)
-        except (OSError, ValueError):
+        except ValueError:
             return False
 
-    def resolve(self, domain: str, *, at: dt.datetime) -> dict:
+    def resolve(self, domain: str, *, at: dt.datetime,
+                run_id: str | None = None, company_id: str | None = None) -> dict:
+        if any(value is not None and not _OPAQUE_CONTEXT.fullmatch(value)
+               for value in (run_id, company_id)):
+            raise ValueError("legal-page accounting requires opaque run and company identifiers")
         name = normalize_domain(domain)
         key = hashlib.sha256(f"{LEGAL_PAGE_VERSION}\0{name}".encode()).hexdigest()
         with self.engine.connect() as connection:
@@ -109,17 +150,35 @@ class LegalPageResolver:
                 acquisition_census_legal_page_cache.c.domain_hash == key,
             )).mappings().one_or_none()
         if cached and cached["expires_at"].replace(tzinfo=dt.UTC) > at:
+            self._emit(domain=name, run_id=run_id, company_id=company_id,
+                       request_type="CACHE", outcome="CACHE_HIT")
             return dict(cached["evidence"])
-        result: dict = {"siren": None, "source_url": None, "observed_at": at.isoformat(),
+        self._emit(domain=name, run_id=run_id, company_id=company_id,
+                   request_type="CACHE", outcome="CACHE_MISS")
+        result: dict = {"siren": None, "source_url": None,
+                        "home_title": None, "home_source_url": None,
+                        "observed_at": at.isoformat(),
                         "version": LEGAL_PAGE_VERSION, "reason": "NO_VALID_LEGAL_IDENTIFIER",
                         "pages_fetched": 0}
-        if not self._public(name):
+        dns_attempt_id = self._emit(domain=name, run_id=run_id, company_id=company_id,
+                                    request_type="DNS", outcome="STARTED")
+        try:
+            publicly_resolvable = self._public(name)
+            dns_outcome: Outcome = "DNS_PUBLIC" if publicly_resolvable else "DNS_REJECTED"
+        except OSError:
+            publicly_resolvable = False
+            dns_outcome = "DNS_ERROR"
+        self._emit(domain=name, run_id=run_id, company_id=company_id,
+                   request_type="DNS", outcome=dns_outcome,
+                   attempt_id=dns_attempt_id)
+        if not publicly_resolvable:
             result["reason"] = "DOMAIN_NOT_PUBLICLY_RESOLVABLE"
         else:
             root = f"https://{name}"
             robot = RobotFileParser()
             try:
-                response = self._get(root + "/robots.txt")
+                response = self._get(root + "/robots.txt", domain=name, run_id=run_id,
+                                     company_id=company_id, request_type="ROBOTS")
                 result["pages_fetched"] += 1
                 if response is None:
                     result["reason"] = "ROBOTS_UNREACHABLE"
@@ -132,12 +191,23 @@ class LegalPageResolver:
                     permitted = lambda url: robot.can_fetch("Kivou-MiloMail-Census", url)
                 else:
                     result["reason"] = "ROBOTS_UNREACHABLE_OR_RESTRICTED"
-                if response is not None and response.status_code in {200, 404, 410} and permitted(root + "/"):
-                    home = self._get(root + "/")
+                robots_ready = response is not None and response.status_code in {200, 404, 410}
+                home_allowed = robots_ready and permitted(root + "/")
+                self._emit(domain=name, run_id=run_id, company_id=company_id,
+                           request_type="ROBOTS_POLICY", outcome=(
+                               "ROBOTS_ALLOWED" if home_allowed else
+                               "ROBOTS_BLOCKED" if robots_ready else "ROBOTS_UNAVAILABLE"
+                           ))
+                if home_allowed:
+                    home = self._get(root + "/", domain=name, run_id=run_id,
+                                     company_id=company_id, request_type="HOMEPAGE")
                     result["pages_fetched"] += 1
                     if home is not None and home.status_code == 200 and "text/html" in home.headers.get("content-type", ""):
                         page = _Page()
                         page.feed(home.text)
+                        title = " ".join(" ".join(page.title).split())[:256]
+                        if title:
+                            result.update(home_title=title, home_source_url=root + "/")
                         home_identifiers = extract_siren(" ".join(page.text))
                         if len(home_identifiers) == 1:
                             result.update(siren=home_identifiers[0], source_url=root + "/",
@@ -154,12 +224,17 @@ class LegalPageResolver:
                             parsed = urlsplit(url)
                             if (url in seen or parsed.scheme != "https" or
                                     parsed.hostname != name or parsed.port not in (None, 443) or
-                                    not _LEGAL_PATH.search(parsed.path) or not permitted(url)):
+                                    not _LEGAL_PATH.search(parsed.path)):
+                                continue
+                            if not permitted(url):
+                                self._emit(domain=name, run_id=run_id, company_id=company_id,
+                                           request_type="ROBOTS_POLICY", outcome="ROBOTS_BLOCKED")
                                 continue
                             seen.add(url)
                             if result["pages_fetched"] >= 4:
                                 break
-                            legal = self._get(url)
+                            legal = self._get(url, domain=name, run_id=run_id,
+                                              company_id=company_id, request_type="LEGAL_PAGE")
                             result["pages_fetched"] += 1
                             if legal is None or legal.status_code != 200 or "text/html" not in legal.headers.get("content-type", ""):
                                 continue
@@ -187,16 +262,54 @@ class LegalPageResolver:
             }, index_elements=["domain_hash"])
         return result
 
-    def _get(self, url: str) -> httpx.Response | None:
+    def _get(self, url: str, *, domain: str, run_id: str | None,
+             company_id: str | None, request_type: RequestType) -> httpx.Response | None:
+        attempt_id = self._emit(domain=domain, run_id=run_id, company_id=company_id,
+                                request_type=request_type, outcome="STARTED")
         self.requests_made += 1
-        with self.client.stream("GET", url, headers={"User-Agent": "Kivou-MiloMail-Census/1.0",
-                                                    "Accept": "text/html,text/plain"},
-                                timeout=self.timeout, follow_redirects=False) as response:
-            if response.status_code != 200:
-                return httpx.Response(response.status_code, headers=response.headers)
-            data = bytearray()
-            for chunk in response.iter_bytes():
-                if len(data) + len(chunk) > _MAX_BYTES:
-                    return None
-                data.extend(chunk)
-            return httpx.Response(200, headers=response.headers, content=bytes(data))
+        status: int | None = None
+        headers: dict[str, str] = {}
+        body: bytes | None = None
+        try:
+            with self.client.stream("GET", url, headers={
+                "User-Agent": "Kivou-MiloMail-Census/1.0",
+                "Accept": "text/html,text/plain",
+            }, timeout=self.timeout, follow_redirects=False) as response:
+                status = response.status_code
+                headers = dict(response.headers)
+                if status != 200:
+                    outcome: Outcome = "REDIRECT_BLOCKED" if 300 <= status < 400 else "HTTP_STATUS"
+                elif request_type in {"HOMEPAGE", "LEGAL_PAGE"} and "text/html" not in (
+                    response.headers.get("content-type", "").casefold()
+                ):
+                    outcome = "CONTENT_TYPE_REJECTED"
+                else:
+                    data: bytearray | None = bytearray()
+                    outcome = "HTTP_OK"
+                    for chunk in response.iter_bytes():
+                        assert data is not None
+                        if len(data) + len(chunk) > _MAX_BYTES:
+                            outcome = "SIZE_LIMIT"
+                            data = None
+                            break
+                        data.extend(chunk)
+                    if data is not None:
+                        body = bytes(data)
+        except httpx.TimeoutException:
+            outcome = "TIMEOUT"
+        except ssl.SSLError:
+            outcome = "TLS_ERROR"
+        except httpx.ConnectError as error:
+            cause = error.__cause__
+            while cause is not None and not isinstance(cause, ssl.SSLError):
+                cause = cause.__cause__
+            outcome = "TLS_ERROR" if cause is not None else "CONNECT_ERROR"
+        except httpx.HTTPError:
+            outcome = "NETWORK_ERROR"
+        self._emit(domain=domain, run_id=run_id, company_id=company_id,
+                   request_type=request_type, attempt_id=attempt_id, outcome=outcome,
+                   http_status=status)
+        if outcome in {"TIMEOUT", "TLS_ERROR", "CONNECT_ERROR", "NETWORK_ERROR", "SIZE_LIMIT"}:
+            return None
+        assert status is not None
+        return httpx.Response(status, headers=headers, content=body or b"")

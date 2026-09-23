@@ -90,3 +90,23 @@ class ApolloAccountProbe:
         return ApolloAccountState(True, balances.get("lead_credit"), credits is not None,
                                   rates is not None, balances, consumed, limit,
                                   search_used, match_used, self.retry_after_seconds)
+
+    def inspect_credits_free(self) -> ApolloAccountState:
+        """Read only the documented credit ledger during a bounded paid run.
+
+        Full health/rate probes belong to preflight. Repeating all three free
+        endpoints around every paid operation can itself exhaust Apollo's rate
+        limit and leave an already completed call awaiting reconciliation.
+        """
+        credits = self._get_json("POST", "/api/v1/usage_stats/credit_usage_stats")
+        stats = (credits or {}).get("credit_usage_stats")
+        balances: dict[str, int] = {}
+        if isinstance(stats, dict):
+            for name, item in stats.items():
+                value = item.get("left_over") if isinstance(item, dict) else None
+                if (isinstance(name, str) and isinstance(value, int) and
+                        not isinstance(value, bool) and value >= 0):
+                    balances[name] = value
+        balance = balances.get("lead_credit")
+        return ApolloAccountState(balance is not None, balance, credits is not None,
+                                  False, balances, retry_after_seconds=self.retry_after_seconds)

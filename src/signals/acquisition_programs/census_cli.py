@@ -60,7 +60,8 @@ def resolve_apollo_key(source: dict[str, str] | os._Environ[str], *, phase: str,
     """Resolve a secret name only; never copy its value to a receipt or diagnostic."""
     ref = source.get("MILOMAIL_CENSUS_APOLLO_SECRET_REF", "")
     if ref:
-        if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0"} or
+        if (phase not in {"COVERAGE_A0", "COVERAGE_A1_SAMPLE", "CONTACT_YIELD_B0",
+                          "FRANCE_B1_READY_BASE"} or
                 ref != "KIVOU_APOLLO_API_KEY" or
                 expected_ref != ref or
                 source.get("KIVOU_ACQUISITION_ENVIRONMENT", "").upper() != "STAGING"):

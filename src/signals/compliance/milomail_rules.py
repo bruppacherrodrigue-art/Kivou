@@ -8,12 +8,20 @@ and the program's SHADOW export guard.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Final, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from signals.acquisition_programs.activity_evidence import (
+    ActivityAssessment,
+    ActivityEvidenceInput,
+    WebsiteIdentityProof,
+    activity_input_from_b0,
+    evaluate_activity_evidence,
+)
 from signals.acquisition_programs.contracts import AcquisitionProgramConfig
 from signals.acquisition_programs.mail_provider import (
     MailProvider,
@@ -25,11 +33,14 @@ from signals.acquisition_programs.mail_provider import (
 from signals.acquisition_programs.qualification import (
     CapacityAssessment,
     FitAssessment,
+    ProfessionalEvidenceInput,
     RecipientCapacity,
+    classify_recipient,
 )
 
 MILOMAIL_PURPOSE: Final = "MILOMAIL_GMAIL_AUDIT_B2B"
 POLICY_VERSION: Final = "milomail-fr-b2b-v1"
+POLICY_VERSION_V2: Final = "milomail-fr-b2b-v2"
 LEGAL_SOURCES = (
     "https://www.cnil.fr/fr/communication-electronique-quelles-regles",
     "https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042155961/",
@@ -53,6 +64,7 @@ class MilomailPolicyInput(_ClosedModel):
     company_active_source_type: str | None = None
     company_active_observed_at: dt.datetime | None = None
     company_active_evidence_id: str | None = None
+    activity_evidence: ActivityEvidenceInput | None = None
     business_relevance_confirmed: bool = False
     provider: MailProviderEvidence
     capacity: CapacityAssessment
@@ -108,7 +120,9 @@ class MilomailPolicyInput(_ClosedModel):
 
     @model_validator(mode="after")
     def bound_versions(self) -> MilomailPolicyInput:
-        if self.program.program_key != "milomail" or self.program.policy_version != POLICY_VERSION:
+        if self.program.program_key != "milomail" or self.program.policy_version not in {
+            POLICY_VERSION, POLICY_VERSION_V2
+        }:
             raise ValueError("Milo Mail policy and program version mismatch")
         if self.fit.score_version != self.program.score_version:
             raise ValueError("Milo Mail score version mismatch")
@@ -119,7 +133,7 @@ class MilomailPolicyDecision(_ClosedModel):
     decision: Literal["SEND", "HOLD", "NO_SEND"]
     reason_codes: tuple[str, ...] = Field(min_length=1, max_length=32)
     policy_country: Literal["FR"] = "FR"
-    policy_version: Literal["milomail-fr-b2b-v1"] = POLICY_VERSION
+    policy_version: Literal["milomail-fr-b2b-v1", "milomail-fr-b2b-v2"] = POLICY_VERSION
     score_version: str
     evidence_ids: tuple[str, ...]
     decided_at: dt.datetime
@@ -129,6 +143,23 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
     """Separate exclusions from remediable gaps; never infer permission from Apollo."""
     excluded: list[str] = []
     hold: list[str] = []
+    activity_result = None
+    if value.program.policy_version == POLICY_VERSION_V2:
+        if value.activity_evidence is None:
+            hold.append("ACTIVITY_EVIDENCE_MISSING")
+        else:
+            activity_result = evaluate_activity_evidence(
+                value.activity_evidence,
+                provider=value.provider,
+                allowed_roles=value.program.target_roles,
+                at=value.assessed_at,
+            )
+            if activity_result.status == "OFFICIAL_CEASED":
+                excluded.append("OFFICIAL_CEASED")
+            elif activity_result.status == "UNKNOWN":
+                hold.extend(activity_result.reason_codes)
+            if not set(activity_result.evidence_ids).issubset(value.evidence_ids):
+                hold.append("ACTIVITY_EVIDENCE_NOT_RECORDED")
 
     if value.is_minor or value.is_private_individual:
         excluded.append("PERSONAL_OR_MINOR")
@@ -151,7 +182,7 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         <= value.program.target_company_size_max
     ):
         excluded.append("COMPANY_SIZE_OUT_OF_SCOPE")
-    if value.company_active is False:
+    if value.program.policy_version == POLICY_VERSION and value.company_active is False:
         excluded.append("COMPANY_INACTIVE")
     if value.provider.provider in {
         MailProvider.MICROSOFT_365,
@@ -176,9 +207,9 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
         hold.append("COUNTRY_UNRESOLVED")
     if value.sector is None or (value.employee_count is None and value.employee_count_range is None):
         hold.append("COMPANY_FACTS_INCOMPLETE")
-    if value.company_active is None:
+    if value.program.policy_version == POLICY_VERSION and value.company_active is None:
         hold.append("COMPANY_ACTIVE_STATUS_UNRESOLVED")
-    if value.company_active is True and (
+    if value.program.policy_version == POLICY_VERSION and value.company_active is True and (
         not all(
             (
                 value.company_active_source_url,
@@ -291,21 +322,93 @@ def evaluate_milomail(value: MilomailPolicyInput) -> MilomailPolicyDecision:
     elif hold:
         decision, reasons = "HOLD", tuple(dict.fromkeys(hold))
     else:
-        decision, reasons = "SEND", ("FR_B2B_GMAIL_AUDIT_ELIGIBLE",)
+        decision, reasons = "SEND", (
+            "FR_B2B_GMAIL_AUDIT_ELIGIBLE",
+            *((activity_result.reason_codes) if activity_result is not None else ()),
+        )
     return MilomailPolicyDecision(
         decision=decision,
         reason_codes=reasons,
         score_version=value.fit.score_version,
         evidence_ids=value.evidence_ids,
+        policy_version=value.program.policy_version,
         decided_at=value.assessed_at,
     )
+
+
+class B0ActivityReplay(_ClosedModel):
+    activity: ActivityAssessment
+    policy: MilomailPolicyDecision
+
+
+def evaluate_b0_activity_replay(
+    b0_result: Mapping[str, object],
+    candidate_snapshot: Mapping[str, object],
+    *,
+    policy_input: MilomailPolicyInput,
+    website_proof: WebsiteIdentityProof | None = None,
+) -> B0ActivityReplay:
+    """Replay persisted B0 evidence through policy v2 with no provider calls."""
+    if policy_input.program.policy_version != POLICY_VERSION_V2:
+        raise ValueError("B0 activity replay requires Milo Mail policy v2")
+    activity_input = activity_input_from_b0(
+        b0_result,
+        candidate_snapshot,
+        role=policy_input.capacity.role,
+        website_proof=website_proof,
+    )
+    activity = evaluate_activity_evidence(
+        activity_input,
+        provider=policy_input.provider,
+        allowed_roles=policy_input.program.target_roles,
+        at=policy_input.assessed_at,
+    )
+    evidence_ids = tuple(dict.fromkeys((*policy_input.evidence_ids, *activity.evidence_ids)))
+    capacity = policy_input.capacity
+    leader = activity_input.leader
+    candidate = candidate_snapshot.get("snapshot", candidate_snapshot)
+    if (
+        activity.status in {"OFFICIAL_ACTIVE", "OPERATIONALLY_ACTIVE"}
+        and leader is not None
+        and capacity.capacity in {RecipientCapacity.UNKNOWN, RecipientCapacity.LIKELY_PROFESSIONAL}
+        and isinstance(candidate, Mapping)
+        and isinstance(candidate.get("provider_organization_id"), str)
+        and isinstance(b0_result.get("email"), str)
+    ):
+        capacity = classify_recipient(
+            ProfessionalEvidenceInput(
+                email=b0_result["email"],
+                company_domain=activity_input.company_domain,
+                company_id=candidate["provider_organization_id"],
+                company_active=True,
+                role=leader.role,
+                email_verified=leader.email_verified,
+                professional_source_url="https://api.apollo.io/api/v1/people/match",
+                professional_source_type=leader.source_type,
+                professional_evidence_observed_at=leader.observed_at,
+                is_minor=policy_input.is_minor,
+                is_private_individual=policy_input.is_private_individual,
+            ),
+            config=policy_input.program,
+            at=policy_input.assessed_at,
+        )
+    decision = evaluate_milomail(policy_input.model_copy(update={
+        "activity_evidence": activity_input,
+        "evidence_ids": evidence_ids,
+        "capacity": capacity,
+        "suppressed": policy_input.suppressed or b0_result.get("classification") == "SUPPRESSED",
+    }))
+    return B0ActivityReplay(activity=activity, policy=decision)
 
 
 __all__ = [
     "LEGAL_SOURCES",
     "MILOMAIL_PURPOSE",
     "POLICY_VERSION",
+    "POLICY_VERSION_V2",
+    "B0ActivityReplay",
     "MilomailPolicyDecision",
     "MilomailPolicyInput",
+    "evaluate_b0_activity_replay",
     "evaluate_milomail",
 ]
