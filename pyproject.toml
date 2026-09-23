@@ -19,7 +19,7 @@ dependencies = [
     # Persistance SaaS — SQLAlchemy est utilisé en mode CORE uniquement (tables
     # et requêtes), jamais en ORM : le modèle canonique reste souverain.
     "sqlalchemy>=2.0",
-    "alembic>=1.13",
+    "alembic>=1.19.2",
     # Application HTTP — pydantic v2 natif, donc la même technologie que le
     # modèle canonique. Le client de test passe par httpx, déjà présent.
     "fastapi>=0.115",
