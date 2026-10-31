@@ -45,7 +45,7 @@ milomail-b1 = "signals.acquisition_programs.census_b1_cli:main"
 
 [dependency-groups]
 dev = [
-    "filelock>=3.16",
+    "filelock>=4.2.1",
     "pytest>=8",
     "pytest-xdist>=3.8",
     "ruff>=0.16.5",
